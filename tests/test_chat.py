@@ -88,6 +88,7 @@ async def test_turn_is_persisted_and_history_is_server_owned(
     assert detail["interrupted"] is False
     assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
     assert [p["type"] for p in detail["messages"][1]["parts"]] == ["reasoning", "text"]
+    assert detail["messages"][1]["metadata"]["thinking_seconds"] >= 0
     assert detail["messages"][1]["parts"][1]["text"] == "answer 1"
 
     # The client resends its whole transcript; the server keeps its own history and appends only the newest message.
@@ -129,7 +130,8 @@ async def test_stop_persists_partial_turn_as_interrupted(client: httpx.AsyncClie
     assert "abort" in kinds(chunks)
     assert "finish" not in kinds(chunks)
     metadata = [c for c in chunks if c["type"] == "message-metadata"]
-    assert metadata and metadata[-1]["messageMetadata"] == {"interrupted": True}
+    assert metadata and metadata[-1]["messageMetadata"]["interrupted"] is True
+    assert isinstance(metadata[-1]["messageMetadata"]["thinking_seconds"], float)
 
     detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
     assert detail["interrupted"] is True

@@ -5,6 +5,7 @@ See docs/adr/0001-pydantic-ai-with-vercel-adapter.md.
 
 import asyncio
 import json
+import time
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
 
@@ -54,11 +55,12 @@ def _title_from(messages: Sequence[ModelMessage]) -> str | None:
 
 
 def _persist_turn(
-    request: Request, conversation_id: str, new_messages: list[ModelMessage], slot: str, interrupted: bool
+    request: Request, conversation_id: str, new_messages: list[ModelMessage], slot: str, metadata: dict[str, object]
 ) -> None:
+    interrupted = bool(metadata.get("interrupted"))
     ui_messages = VercelAIAdapter.dump_messages(new_messages, sdk_version=SDK_VERSION)
-    if interrupted and ui_messages and ui_messages[-1].role == "assistant":
-        ui_messages[-1].metadata = {**(ui_messages[-1].metadata or {}), "interrupted": True}
+    if ui_messages and ui_messages[-1].role == "assistant":
+        ui_messages[-1].metadata = {**(ui_messages[-1].metadata or {}), **metadata}
     with request.app.state.session_factory() as session:
         conversation = session.get(Conversation, conversation_id)
         if conversation is None:
@@ -104,17 +106,30 @@ async def chat(request: Request, conversation_id: str) -> Response:
 
     turn = RunningTurn()
     running[conversation_id] = turn
+    # Stored on the assistant UI message and echoed to the client at the end of the turn.
+    metadata: dict[str, object] = {}
+    thinking_started: float | None = None
 
     # The adapter feeds the client's message in through message_history, so new_messages() would
     # miss it. Everything after the server-side history is this turn.
-    async def on_complete(result: AgentRunResult) -> None:
-        _persist_turn(request, conversation_id, result.all_messages()[len(history) :], slot, interrupted=False)
+    async def on_complete(result: AgentRunResult) -> AsyncIterator[BaseChunk]:
+        _persist_turn(request, conversation_id, result.all_messages()[len(history) :], slot, metadata)
+        yield MessageMetadataChunk(message_metadata=metadata)
 
     async def on_cancel(cancelled: RunCancelled) -> AsyncIterator[BaseChunk]:
-        _persist_turn(request, conversation_id, cancelled.all_messages()[len(history) :], slot, interrupted=True)
-        yield MessageMetadataChunk(message_metadata={"interrupted": True})
+        metadata["interrupted"] = True
+        close_thinking()
+        _persist_turn(request, conversation_id, cancelled.all_messages()[len(history) :], slot, metadata)
+        yield MessageMetadataChunk(message_metadata=metadata)
+
+    def close_thinking() -> None:
+        nonlocal thinking_started
+        if thinking_started is not None:
+            metadata["thinking_seconds"] = round(time.monotonic() - thinking_started, 1)
+            thinking_started = None
 
     async def stream() -> AsyncIterator[BaseChunk]:
+        nonlocal thinking_started
         try:
             async for chunk in adapter.run_stream(
                 message_history=history,
@@ -123,6 +138,11 @@ async def chat(request: Request, conversation_id: str) -> Response:
                 on_complete=on_complete,
                 on_cancel=on_cancel,
             ):
+                # Reasoning duration is measured here because no model reports it.
+                if chunk.type == "reasoning-start" and thinking_started is None:
+                    thinking_started = time.monotonic()
+                elif chunk.type == "reasoning-end":
+                    close_thinking()
                 yield chunk
         finally:
             running.pop(conversation_id, None)
