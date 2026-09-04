@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { MessageSquareIcon, PlusIcon } from 'lucide-react'
+import { MessageSquareIcon, PlusIcon, UploadIcon } from 'lucide-react'
 
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
@@ -33,13 +33,21 @@ export function AppSidebar() {
         </Link>
       </div>
 
-      <div className="px-3 pb-2">
+      <div className="space-y-1 px-3 pb-2">
         <Button asChild className="w-full justify-start gap-2" variant="outline">
           <Link to="/">
             <PlusIcon className="size-4" />
             New chat
           </Link>
         </Button>
+        <Link
+          activeProps={{ className: 'bg-sidebar-accent font-medium' }}
+          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
+          to="/import"
+        >
+          <UploadIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          Import
+        </Link>
       </div>
 
       <nav aria-label="Conversations" className="flex-1 overflow-y-auto px-3 py-2">

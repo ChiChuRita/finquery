@@ -11,6 +11,7 @@ dependencies = [
     "pydantic-ai-slim[openrouter,ui]>=2.39.0",
     "pydantic-settings>=2.15.0",
     "python-dotenv>=1.2.3",
+    "python-multipart>=0.0.32",
     "sqlalchemy>=2.0.52",
     "uvicorn[standard]>=0.52.4",
 ]
@@ -28,7 +29,9 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "fpdf2>=2.8.8",
     "httpx>=0.28.1",
+    "pillow>=12.3.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
 ]

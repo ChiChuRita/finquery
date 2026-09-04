@@ -4,17 +4,48 @@
 
 **Blocked by:** 01 Walking skeleton
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Schema: accounts, transactions (with fingerprint, enrichment fields, source, optional parent for splits), categories and subcategories, category rules, imports; every table profile-scoped; split children must sum to the parent and a query view excludes split parents
-- [ ] Default taxonomy seeded on profile creation
-- [ ] Synthetic dataset generator producing one canonical year with salary, rent, groceries at several chains, transport, subscriptions, PayPal to friends, Amazon, plus the PDF and bill images; committed output in fixtures
-- [ ] CSV reader handles German decimal commas, DD.MM.YYYY, separate debit and credit columns, semicolon separators and encodings; presets for the six named banks
-- [ ] Mapping proposal by the fast slot through a forced single tool, shown in the Import page preview and editable before commit
-- [ ] Import record stores mapping, counts and file name; the Import page lists past imports
-- [ ] HTTP-seam tests: preset import of the synthetic CSV, model-proposed mapping with a scripted model, rejection of a malformed file
-- [ ] Browser verification of the full Import page flow
+- [x] Schema: accounts, transactions (with fingerprint, enrichment fields, source, optional parent for splits), categories and subcategories, category rules, imports; every table profile-scoped; split children must sum to the parent and a query view excludes split parents
+- [x] Default taxonomy seeded on profile creation
+- [x] Synthetic dataset generator producing one canonical year with salary, rent, groceries at several chains, transport, subscriptions, PayPal to friends, Amazon, plus the PDF and bill images; committed output in fixtures
+- [x] CSV reader handles German decimal commas, DD.MM.YYYY, separate debit and credit columns, semicolon separators and encodings; presets for the six named banks
+- [x] Mapping proposal by the fast slot through a forced single tool, shown in the Import page preview and editable before commit
+- [x] Import record stores mapping, counts and file name; the Import page lists past imports
+- [x] HTTP-seam tests: preset import of the synthetic CSV, model-proposed mapping with a scripted model, rejection of a malformed file
+- [x] Browser verification of the full Import page flow
 
 ## Comments
 
 Real data (2026-09-04): the user added their own Trade Republic export under `fixtures/private/` (gitignored, never shipped, never sent to OpenRouter): the full CSV export (1520 rows, 2024-06 to 2026-09, header `datetime,date,account_type,category,type,...,amount,...,description,counterparty_name,counterparty_iban,payment_reference,mcc_code`) and the 102-page German statement PDF. Both are sliced into shorter frames in `fixtures/private/frames/`: one CSV per quarter, two overlapping CSVs (2025-01 to 04 and 2025-03 to 06) for duplicate testing, and seven PDF frames of a few months each, every PDF frame starting with the account overview page. The Trade Republic CSV preset and the Trade Republic PDF layout must be developed against these files, only on the local provider or with the scripted model. The synthetic dataset stays the shipped fixture.
+
+Done 2026-09-04. Structure for the next tickets:
+
+- Schema in `db.py`: Account, Category, Subcategory, CategoryRule, Import, Transaction, all
+  profile-scoped. Money is `amount_cents` (integer). Queries read the view
+  `transaction_view` (`db.QUERY_VIEW`), which joins account, category and subcategory names in
+  and excludes split parents. The split sum rule is a session `after_flush` listener raising
+  `SplitSumError`, so every writer gets it for free. See ADR 0005.
+- `taxonomy.py`: 16 default categories with subcategories, seeded by `db.create_profile`
+  (ticket 02 reuses it). `Unknown` ships without subcategories; no category means Needs review.
+- `ingest/`: `csv_reader.py` (sniffing, `Mapping`, the six presets, German number and date
+  parsing, debit and credit columns), `mapping_agent.py` (fast slot, forced single tool
+  `propose_mapping`), `commit.py` (`commit_rows`, fingerprint duplicate skip, import record).
+  Ticket 08 calls `commit_rows` from the chat tool; ticket 11 adds PDF and image readers with
+  the same commit.
+- Endpoints: `POST /api/imports/preview` (multipart file, optional `mapping` and
+  `account_name`), `POST /api/imports`, `GET /api/imports`, `GET /api/transactions`
+  (limit/offset over the view, extended by ticket 04), `GET /api/accounts`,
+  `GET /api/categories`. The preview holds no server state: the browser re-posts the file with
+  the mapping it wants, which is also how an edited mapping is previewed.
+- Duplicates: a row whose fingerprint already exists in the profile is counted and skipped, one
+  incoming row per existing booking. Ticket 10 replaces the skip with a question per candidate.
+- Fixtures: `fixtures/synthetic/` (433 bookings of 2025, `sparkasse-2025.csv`,
+  `unknown-bank-2025.csv` with renamed headers and Soll/Haben, `sparkasse-kontoauszug-2025.pdf`
+  with a reconciling running balance, four bill images whose line items sum to a booking in the
+  CSV), generated by `scripts/generate_synthetic.py`.
+- Tests: 15 total (`tests/test_import.py`, `tests/test_data_model.py`, plus ticket 01's).
+  `conftest.py` gained `app`, `session_factory` and `profile_id` fixtures and a `<slot>_call`
+  script for sub-agents that run to completion. The Trade Republic test skips when
+  `fixtures/private/` is absent.
+- Screenshots of the verification: /tmp/finquery-03/.

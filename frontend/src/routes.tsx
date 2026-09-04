@@ -6,6 +6,7 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { ChatView } from '@/components/chat-view'
 import { Composer } from '@/components/composer'
 import { EmptyState } from '@/components/empty-state'
+import { ImportPage } from '@/components/import-page'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { conversationQuery, conversationsQuery, createConversation, type ModelSlot } from '@/lib/api'
 import { stashPendingPrompt } from '@/lib/pending'
@@ -85,7 +86,11 @@ const conversationRoute = createRoute({
   component: ConversationPage,
 })
 
-export const router = createRouter({ routeTree: rootRoute.addChildren([indexRoute, conversationRoute]) })
+const importRoute = createRoute({ getParentRoute: () => rootRoute, path: '/import', component: ImportPage })
+
+export const router = createRouter({
+  routeTree: rootRoute.addChildren([indexRoute, conversationRoute, importRoute]),
+})
 
 declare module '@tanstack/react-router' {
   interface Register {

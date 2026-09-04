@@ -40,6 +40,14 @@ Filiale 1234 becomes Edeka, supermarket). Avoid: normalization, cleaning.
 **Import**: a record of one ingestion: file name, kind, mapping used, row counts, duplicates
 found, reconciliation result. Avoid: upload, sync.
 
+**Column mapping**: which column of an uploaded CSV is the date, the amount (or the debit and
+credit pair), the description and the counterparty, plus its date format and decimal separator.
+Always shown to the user before a commit. Not to be confused with a Category rule, which the
+glossary keeps clear of the word mapping. Avoid: schema, layout.
+
+**Preset**: a column mapping recognized from the header of a known bank (Sparkasse, DKB, ING,
+N26, comdirect, Trade Republic). A preset never calls a model. Avoid: template, profile.
+
 **Changeset**: an agent-proposed bulk mutation with an exact preview of affected rows, inert
 until applied through the UI. Applying is deterministic code. Avoid: patch, batch edit,
 proposal.

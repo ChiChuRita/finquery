@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from finquery.api import chat, conversations
+from finquery.api import chat, conversations, imports, taxonomy, transactions
 from finquery.db import ensure_default_profile, make_session_factory
 from finquery.providers import MODEL_SLOTS, ModelResolver, build_resolver
 from finquery.settings import Settings
@@ -36,6 +36,9 @@ def create_app(settings: Settings, *, resolve_model: ModelResolver | None = None
 
     app.include_router(conversations.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")
+    app.include_router(imports.router, prefix="/api")
+    app.include_router(transactions.router, prefix="/api")
+    app.include_router(taxonomy.router, prefix="/api")
 
     if serve_frontend and FRONTEND_DIST.is_dir():
         app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
