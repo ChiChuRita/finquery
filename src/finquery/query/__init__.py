@@ -8,7 +8,7 @@ wrapper around it, and ticket 06's chart sub-agent reuses the same call for its 
 
 from finquery.query.guard import MAX_ROWS, Rows, SqlFailed, SqlRejected, execute_read_only, validate_sql
 from finquery.query.runner import NO_DATA, QueryOutcome, run_query
-from finquery.query.subagent import QueryContext, load_query_context, query_prompt, write_sql
+from finquery.query.subagent import QueryContext, load_query_context, profile_facts, query_prompt, write_sql
 
 __all__ = [
     "MAX_ROWS",
@@ -20,6 +20,7 @@ __all__ = [
     "SqlRejected",
     "execute_read_only",
     "load_query_context",
+    "profile_facts",
     "query_prompt",
     "run_query",
     "validate_sql",

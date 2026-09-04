@@ -57,6 +57,9 @@ Rules:
 - Spending is negative. For a spending question filter `amount_cents < 0` and report a positive
   figure with `ROUND(-SUM(amount), 2)`. Income is `amount_cents > 0`.
 - Give every selected column a snake_case alias: total_eur, month, merchant, bookings.
+- An alias must never reuse a column name of the view. `CASE ... END AS category` looks right and
+  is a trap: a later `GROUP BY category` binds to the view's own column, not to your expression,
+  and the result silently collapses. Call a computed group `topic` or `group_name` instead.
 - A month is `strftime('%Y-%m', booked_on)`. A period is `booked_on BETWEEN '2025-04-01' AND
   '2025-04-30'`. There is no date type, so never call date functions on anything else.
 - Match merchants case-insensitively, `counterparty` first and `description` second:
