@@ -12,6 +12,7 @@ import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-e
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Suggestion } from '@/components/ai-elements/suggestion'
 import { ChangesetCard } from '@/components/changeset-card'
+import { ChartToolStep } from '@/components/chart-tool'
 import { Composer } from '@/components/composer'
 import { ContextBadge } from '@/components/context-badge'
 import { EmptyState } from '@/components/empty-state'
@@ -228,10 +229,15 @@ function thinkingMessage(isStreaming: boolean, duration?: number) {
 
 type MessagePart = ChatMessage['parts'][number]
 
-/** One turn can think several times in a row (a tool call ends a model response). One panel. */
+/** One turn can think several times in a row (a tool call ends a model response). One panel.
+ *
+ * `step-start` parts sit between the steps of a turn and render nothing, so they are dropped
+ * first: otherwise a sub-agent's narration and the thinking that follows it would show as two
+ * panels for one pause.
+ */
 function foldReasoning(parts: MessagePart[]): MessagePart[] {
   const folded: MessagePart[] = []
-  for (const part of parts) {
+  for (const part of parts.filter((candidate) => candidate.type !== 'step-start')) {
     const previous = folded.at(-1)
     if (part.type === 'reasoning' && previous?.type === 'reasoning') {
       folded[folded.length - 1] = { ...previous, state: part.state, text: `${previous.text}\n\n${part.text}` }
@@ -305,6 +311,9 @@ function TranscriptMessage({
           }
           if (part.type === 'tool-propose_changeset' || part.type === 'tool-apply_simple_edit') {
             return <ChangesetCard key={`${message.id}-${index}`} part={part} />
+          }
+          if (part.type === 'tool-chart') {
+            return <ChartToolStep key={`${message.id}-${index}`} part={part} />
           }
           if (part.type === 'text') {
             return message.role === 'user' ? (

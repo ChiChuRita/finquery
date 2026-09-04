@@ -9,6 +9,7 @@ import logging
 import time
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
@@ -19,8 +20,20 @@ from pydantic_ai.exceptions import RunCancelled
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, ModelResponse, ToolReturnPart
 from pydantic_ai.tools import DeferredToolResults
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
-from pydantic_ai.ui.vercel_ai.request_types import DataUIPart, ToolOutputAvailablePart, UIMessage
-from pydantic_ai.ui.vercel_ai.response_types import BaseChunk, DataChunk, MessageMetadataChunk
+from pydantic_ai.ui.vercel_ai.request_types import (
+    DataUIPart,
+    ReasoningUIPart,
+    ToolOutputAvailablePart,
+    UIMessage,
+)
+from pydantic_ai.ui.vercel_ai.response_types import (
+    BaseChunk,
+    DataChunk,
+    MessageMetadataChunk,
+    ReasoningDeltaChunk,
+    ReasoningEndChunk,
+    ReasoningStartChunk,
+)
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.agent import ChatDeps, chat_agent
@@ -51,6 +64,8 @@ CONTEXT_PART = "data-context"
 memories it carried and how many turns the rolling summary stands in for."""
 POST_TURN_TIMEOUT = 30
 """Seconds the follow-up and distillation steps together may take after an answer."""
+# The reasoning part id the narration of a tool's sub-agents streams under.
+NARRATION_ID = "narration"
 
 
 @dataclass
@@ -95,6 +110,60 @@ class History:
         if last is None:
             return {}
         return {call.tool_call_id: call.tool_name for call in last.tool_calls if call.tool_call_id not in answered}
+
+
+@dataclass
+class Narration:
+    """What a tool says while it works, on its way into the thinking panel.
+
+    A tool calls `say` (through `ChatDeps.narrate`) whenever a sub-agent decides something worth
+    watching: the chart plan, the rows it got, each repair round. The lines of one tool call
+    become one reasoning part, so the transcript shows one panel per call, and the blocks are
+    kept with the tool they belong to so a reload can put them back in the same places.
+    """
+
+    queue: "asyncio.Queue[tuple[str, Any]]"
+    blocks: list[tuple[int, list[str]]] = field(default_factory=list)
+    """Per block: how many tool calls the turn had announced when it opened, and its lines."""
+    tools: int = 0
+    """Tool calls announced so far, counted by the stream loop."""
+    open_id: str | None = None
+
+    def say(self, text: str) -> None:
+        line = " ".join(text.split())
+        if not line:
+            return
+        if self.open_id is None:
+            self.open_id = f"{NARRATION_ID}-{len(self.blocks)}"
+            self.blocks.append((self.tools, [line]))
+            self.queue.put_nowait(("note", ReasoningStartChunk(id=self.open_id)))
+            self.queue.put_nowait(("note", ReasoningDeltaChunk(id=self.open_id, delta=line)))
+        else:
+            self.blocks[-1][1].append(line)
+            self.queue.put_nowait(("note", ReasoningDeltaChunk(id=self.open_id, delta=f"\n{line}")))
+
+    def close(self) -> BaseChunk | None:
+        """End the open block. The next chunk the model produces closes it."""
+        if self.open_id is None:
+            return None
+        chunk = ReasoningEndChunk(id=self.open_id)
+        self.open_id = None
+        return chunk
+
+    def texts(self) -> list[tuple[int, str]]:
+        """Each block as the tool call it followed and its text."""
+        return [(tools, "\n".join(lines)) for tools, lines in self.blocks]
+
+
+async def _pump(source: AsyncIterator[BaseChunk], queue: "asyncio.Queue[tuple[str, Any]]") -> None:
+    """Move the agent's chunks into the shared queue, so narration can slip in between them."""
+    try:
+        async for chunk in source:
+            await queue.put(("source", chunk))
+    except Exception as exc:  # noqa: BLE001 - re-raised on the consumer side, in order
+        await queue.put(("error", exc))
+    else:
+        await queue.put(("end", None))
 
 
 def _load_history(conversation: Conversation) -> History:
@@ -218,6 +287,20 @@ def _renderable(messages: list[ModelMessage]) -> list[ModelMessage]:
     ]
 
 
+def _insert_narration(parts: list[Any], narration: list[tuple[int, str]]) -> None:
+    """Put each tool's narration back where the live stream showed it: after that tool's step.
+
+    The narration is not part of the model's messages, so the dump cannot carry it. Live, a block
+    arrives while its tool is running, which is after the tool part and before whatever the model
+    thought or said next. Blocks are inserted from the back so the earlier positions still hold.
+    """
+    tool_parts = [index for index, part in enumerate(parts) if part.type.startswith("tool-")]
+    for tools, text in reversed(narration):
+        # `tools` counts the calls announced when the block opened, so the last of them owns it.
+        after = tool_parts[tools - 1] + 1 if 0 < tools <= len(tool_parts) else len(parts)
+        parts.insert(after, ReasoningUIPart(text=text, state="done"))
+
+
 def persist_turn(
     session_factory: sessionmaker[Session],
     conversation_id: str,
@@ -227,6 +310,7 @@ def persist_turn(
     metadata: dict[str, object] | None = None,
     data_parts: Sequence[DataUIPart] = (),
     replaces: str | None = None,
+    narration: Sequence[tuple[int, str]] = (),
 ) -> None:
     """Store one turn as both message families: what the model sees and what the UI renders.
 
@@ -250,6 +334,8 @@ def persist_turn(
     )
     if ui_messages and ui_messages[-1].role == "assistant":
         ui_messages[-1].metadata = {**(ui_messages[-1].metadata or {}), **metadata}
+        if narration:
+            _insert_narration(ui_messages[-1].parts, narration)
         ui_messages[-1].parts.extend(data_parts)
     with session_factory() as session:
         conversation = session.get(Conversation, conversation_id)
@@ -352,12 +438,22 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # The server owns the history: only the newest client message is appended to it.
     adapter.run_input.messages = [] if answers else adapter.run_input.messages[-1:]
 
+    # Narration is pushed into the same queue the agent's chunks travel through, so a
+    # sub-agent's line reaches the client while the tool is still running.
+    queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
+    narration = Narration(queue=queue)
+    if answers:
+        # The pending half of the turn already has tool steps; new narration follows them.
+        narration.tools = sum(
+            len(m.tool_calls) for m in stored.turns[-1].messages if isinstance(m, ModelResponse)
+        )
     deps = ChatDeps(
         session_factory=state.session_factory,
         profile_id=profile_id,
         conversation_id=conversation_id,
         resolve_model=state.resolve_model,
         subagent_settings=state.subagent_settings,
+        narrate=narration.say,
     )
 
     # The one place memory enters the prompt: the block is handed to the assembly, which joins
@@ -426,6 +522,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
             metadata=metadata,
             data_parts=data_parts,
             replaces=replaces,
+            narration=narration.texts(),
         )
 
     def _context_stats(produced: Sequence[ModelMessage]) -> dict[str, object]:
@@ -488,26 +585,44 @@ async def chat(request: Request, conversation_id: str) -> Response:
 
     async def stream() -> AsyncIterator[BaseChunk]:
         nonlocal thinking_started
+        source = adapter.run_stream(
+            message_history=history,
+            # The summary and the memories ride in as one system-level note after the
+            # agent's own system prompt.
+            instructions=prompt.instructions,
+            deferred_tool_results=results,
+            model=model,
+            deps=deps,
+            cancellation_token=turn.token,
+            on_complete=on_complete,
+            on_cancel=on_cancel,
+        )
+        pump = asyncio.create_task(_pump(source, queue))
         try:
-            async for chunk in adapter.run_stream(
-                message_history=history,
-                # The summary and the memories ride in as one system-level note after the
-                # agent's own system prompt.
-                instructions=prompt.instructions,
-                deferred_tool_results=results,
-                model=model,
-                deps=deps,
-                cancellation_token=turn.token,
-                on_complete=on_complete,
-                on_cancel=on_cancel,
-            ):
-                # Reasoning duration is measured here because no model reports it.
-                if chunk.type == "reasoning-start" and thinking_started is None:
+            while True:
+                kind, item = await queue.get()
+                if kind == "note":
+                    yield item
+                    continue
+                # Anything the model produces closes the narration block before it.
+                if (end := narration.close()) is not None:
+                    yield end
+                if kind == "end":
+                    return
+                if kind == "error":
+                    raise item
+                # Reasoning duration is measured here because no model reports it. Narration is
+                # not the model thinking, so it never enters the measurement.
+                if item.type == "reasoning-start" and thinking_started is None:
                     thinking_started = time.monotonic()
-                elif chunk.type == "reasoning-end":
+                elif item.type == "reasoning-end":
                     close_thinking()
-                yield chunk
+                elif item.type == "tool-input-available":
+                    # Which tool step a narration block belongs to, for the reload.
+                    narration.tools += 1
+                yield item
         finally:
+            pump.cancel()
             running.pop(conversation_id, None)
             turn.finished.set()
 

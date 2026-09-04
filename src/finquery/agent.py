@@ -1,9 +1,9 @@
 """The chat agent: its system prompt, the deps one turn hands it, and its tools.
 
 The model is chosen per run from the conversation's slot. Tools get what they need from
-`ChatDeps`, so the agent itself holds no application state. `query`, `remember`, `set_rule`,
-`review_batch`, `propose_changeset` and `apply_simple_edit` are the tools; later tickets add
-chart and import_file the same way, and each one that needs a model resolves its own slot
+`ChatDeps`, so the agent itself holds no application state. `query`, `chart`, `remember`,
+`set_rule`, `review_batch`, `propose_changeset` and `apply_simple_edit` are the tools; a later
+ticket adds import_file the same way, and each one that needs a model resolves its own slot
 through the deps.
 
 `propose_changeset` and `apply_simple_edit` are the writing tools. Neither one decides anything
@@ -17,7 +17,8 @@ Selected memories and the rolling summary arrive as run instructions assembled b
 `finquery.context.assemble`, not from here.
 """
 
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
@@ -32,6 +33,7 @@ from finquery.categorize import set_rule as store_category_rule
 from finquery.categorize import split_choice
 from finquery.changesets import ChangesetError, ChangesetIntent, propose, to_out
 from finquery.changesets import apply as apply_changeset
+from finquery.chart import run_chart
 from finquery.db import SplitSumError
 from finquery.edits import TransactionEditError
 from finquery.memory import MemoryKind, add_memory
@@ -61,6 +63,21 @@ How to use `query`:
 - If it returns no rows, say the data holds no answer for that question.
 - Never write SQL yourself and never show SQL in your answer: the transcript already shows the
   statement that ran.
+
+When to use `chart`:
+- Call it whenever the user asks for a chart, a graph or a visualization, and whenever the
+  answer is a figure over time (a month series, a trend, a running total) or a comparison across
+  several categories, merchants or accounts. A single figure needs no chart.
+- Write the request the same way as for `query`: standalone, with the period and the topic. The
+  chart sub-agent picks the shape, runs its own query and draws it. Name a shape only if the user
+  did.
+- One chart per answer. Do not call `chart` and `query` for the same figures: the chart's rows
+  come from an executed query, so you may quote them.
+- The chart is already on screen when the tool returns. Say in one or two sentences what it
+  shows, quoting at most the two figures that matter. Never describe the code, the columns or
+  the shape, and never write chart code yourself.
+- If the result carries an `error`, say in one line that the chart could not be drawn and answer
+  in words instead.
 
 Changing the data. You never write to a booking on a hunch: first call `query` for the rows,
 asking for their `id` alongside the columns you need ("the id, date, description and amount of
@@ -107,8 +124,8 @@ Categories and rules:
 After a tool returns, always write the answer as text. Never finish a turn with your thinking
 alone, and never mention the internal feedback you may receive between steps.
 
-Keep answers short and use markdown (lists, tables, code blocks) when it helps readability.
-Name the period and the figure in the first sentence.
+Keep answers short and use markdown (lists, tables) when it helps readability. Name the period
+and the figure in the first sentence.
 """
 
 
@@ -118,7 +135,9 @@ class ChatDeps:
 
     Nothing is implicitly profile scoped: a tool touches exactly what is on here.
     `subagent_settings` is what every sub-agent a tool starts runs with (reasoning off on
-    OpenRouter), so a tool never has to know provider specifics.
+    OpenRouter), so a tool never has to know provider specifics. `narrate` is where a tool says
+    what it is doing while it works: the chat endpoint turns each line into reasoning text, so a
+    sub-agent's plan and its repairs show up in the thinking panel.
     """
 
     session_factory: sessionmaker[Session]
@@ -126,6 +145,7 @@ class ChatDeps:
     conversation_id: str
     resolve_model: ModelResolver
     subagent_settings: ModelSettings
+    narrate: Callable[[str], None] = field(default=lambda _text: None)
 
 
 # `ask_user` has no function here: it is a deferred tool, so a run that calls it ends with the
@@ -147,7 +167,7 @@ def data_brief(ctx: RunContext[ChatDeps]) -> str:
         context = load_query_context(session, ctx.deps.profile_id)
     if context.transaction_count == 0:
         return (
-            "This profile has no transactions yet. Do not call `query` and do not state any number: "
+            "This profile has no transactions yet. Do not call `query` or `chart`, and do not state any number: "
             "tell the user the profile is empty and that a bank statement can be imported on the "
             "Import page."
         )
@@ -347,3 +367,28 @@ async def review_batch(ctx: RunContext[ChatDeps], limit: int = QUESTIONS_PER_CAR
         "pending_merchants": pending,
         "questions": [question.payload() for question in questions],
     }
+
+
+@chat_agent.tool
+async def chart(ctx: RunContext[ChatDeps], request: str, hints: str | None = None) -> dict[str, Any]:
+    """Draw one chart of the user's transactions and show it in the answer.
+
+    The chart sub-agent plans the shape, gets its rows through the same query path as `query`,
+    writes the chart and checks it before it is shown. The chart is already visible to the user
+    when this returns, so do not describe it in detail.
+
+    Args:
+        request: What to chart, in plain words and standing on its own: the period, the topic
+            and what to compare, plus the shape if the user named one. German or English.
+        hints: Optional extra instruction, for instance which categories to include.
+    """
+    outcome = await run_chart(
+        resolve_model=ctx.deps.resolve_model,
+        model_settings=ctx.deps.subagent_settings,
+        session_factory=ctx.deps.session_factory,
+        profile_id=ctx.deps.profile_id,
+        request=request,
+        hints=hints,
+        narrate=ctx.deps.narrate,
+    )
+    return outcome.payload()

@@ -51,6 +51,19 @@ def create_app(
 
     app = FastAPI(title="FinQuery", lifespan=lifespan)
 
+    @app.middleware("http")
+    async def allow_sandboxed_assets(request, call_next):  # type: ignore[no-untyped-def]
+        """Let the chart runtime frame load its bundle.
+
+        Charts render inside `sandbox="allow-scripts"`, so that document has an opaque origin
+        and its `crossorigin` module script becomes a CORS request. The built assets are public
+        static files with no credentials, so the header costs nothing.
+        """
+        response = await call_next(request)
+        if request.url.path.startswith("/assets/"):
+            response.headers["access-control-allow-origin"] = "*"
+        return response
+
     @app.get("/api/health")
     async def health() -> dict[str, object]:
         return {"provider": settings.provider, "slots": list(MODEL_SLOTS)}

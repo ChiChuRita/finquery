@@ -1,0 +1,711 @@
+"""The in-process self-check: run the generated chart code before the browser ever sees it.
+
+The code the chart sub-agent writes is a JavaScript function body over an allowlisted set of
+globals (see `docs/chart-runtime.md`). Here it is compiled and run inside QuickJS against stub
+globals that record what was asked for instead of drawing anything, and the recording is judged
+against the house rules. Every finding is written for the model to read and fix, so the same
+strings are the repair instructions.
+
+The stub is the only place that knows the shape of a TanStack Charts definition. It deliberately
+does not render: a browser renders, this checks intent.
+"""
+
+import asyncio
+import json
+import re
+from dataclasses import dataclass
+from typing import Any
+
+import quickjs
+
+from finquery.chart.shapes import FAMILY_MARKS, MAX_SLICES, SHAPES, Shape
+
+# The globals the code may use. The browser runtime (frontend/src/chart-runtime/globals.ts)
+# provides the same names for real. Each side pairs its own names with its own values, so only
+# the membership of the two lists has to match, and a name missing on either side fails loudly:
+# in the check as a ReferenceError finding, in the browser as an error on the card.
+GLOBAL_NAMES = (
+    "defineChart",
+    "lineY",
+    "areaY",
+    "barY",
+    "barX",
+    "link",
+    "rect",
+    "text",
+    "stack",
+    "group",
+    "polar",
+    "pie",
+    "radialArc",
+    "sankeyDiagram",
+    "scaleLinear",
+    "scaleBand",
+    "scalePoint",
+    "scaleOrdinal",
+    "colorLegend",
+    "tooltip",
+    "palette",
+    "eur",
+    "eurShort",
+    "monthShort",
+)
+
+# Anything that could reach outside the sandbox or hang the check. The browser runtime is
+# sandboxed as well, so this is about giving the model a readable rule rather than about safety.
+FORBIDDEN = (
+    "import",
+    "require",
+    "fetch",
+    "window",
+    "document",
+    "globalThis",
+    "process",
+    "eval",
+    "XMLHttpRequest",
+    "localStorage",
+    "setTimeout",
+    "setInterval",
+)
+
+# Several object literals with a figure among them, in one array: rows typed into the code. A
+# single object with a number in it is configuration (a gradient stop, a tooltip item), not data.
+INLINE_DATA = re.compile(r"\[\s*\{[^\[\]]*?:\s*-?\d[^\[\]]*?\}\s*,\s*\{", re.DOTALL)
+
+# The two findings that are only about polish. A chart with a legend nobody needs still answers
+# the question, so after the last repair round it is shown with a note instead of thrown away.
+LEGEND_MISSING = (
+    "More than one series needs a legend: `color: { legend: colorLegend({ placement: 'bottom' }) }`."
+)
+LEGEND_EXTRA = "One series needs no legend. Drop the `color.legend` option."
+COSMETIC = frozenset({LEGEND_MISSING, LEGEND_EXTRA})
+
+CHECK_SECONDS = 2.0
+MEMORY_LIMIT = 64 * 1024 * 1024
+SAMPLE_ROWS = 3
+
+_STUB = """
+var __finquery = {};
+
+__finquery.run = function (source, rowsJson) {
+  var rows = JSON.parse(rowsJson);
+  var report = {
+    error: null,
+    defines: 0,
+    returned: false,
+    dataRead: false,
+    marks: [],
+    spec: null,
+    polar: null
+  };
+
+  var CHANNELS = ['x', 'x1', 'x2', 'y', 'y1', 'y2', 'z', 'color', 'key', 'text', 'value',
+    'angle', 'radius', 'radius1', 'radius2', 'source', 'target', 'nodeKey', 'linkKey',
+    'orderBy', 'r'];
+
+  function arrayOf(value) {
+    if (Array.isArray(value)) return value.slice();
+    return [];
+  }
+
+  function keysOf(list) {
+    var keys = [];
+    for (var i = 0; i < list.length; i++) {
+      var row = list[i];
+      if (!row || typeof row !== 'object') continue;
+      var own = Object.keys(row);
+      for (var j = 0; j < own.length; j++) {
+        if (keys.indexOf(own[j]) === -1) keys.push(own[j]);
+      }
+    }
+    return keys;
+  }
+
+  function counts(list, column) {
+    var filled = 0;
+    var numeric = 0;
+    for (var i = 0; i < list.length; i++) {
+      var row = list[i];
+      if (!row || typeof row !== 'object') continue;
+      var value = row[column];
+      if (value === null || value === undefined || value === '') continue;
+      filled += 1;
+      if (typeof value === 'number' && isFinite(value)) numeric += 1;
+    }
+    return { filled: filled, numeric: numeric };
+  }
+
+  function filledKeys(list, keys) {
+    var filled = [];
+    for (var i = 0; i < keys.length; i++) {
+      if (counts(list, keys[i]).filled > 0) filled.push(keys[i]);
+    }
+    return filled;
+  }
+
+  function describeChannels(options, list) {
+    var described = {};
+    if (!options) return described;
+    for (var i = 0; i < CHANNELS.length; i++) {
+      var name = CHANNELS[i];
+      if (!(name in options)) continue;
+      var value = options[name];
+      if (typeof value === 'string') {
+        var seen = counts(list, value);
+        described[name] = { type: 'string', value: value, filled: seen.filled, numeric: seen.numeric };
+      } else {
+        described[name] = { type: typeof value };
+      }
+    }
+    return described;
+  }
+
+  // The series of a mark: the distinct values of its `z` or `color` channel, which may be a
+  // column name or an accessor, so the accessor is called the way the real mark would call it.
+  function seriesOf(list, channel) {
+    if (!channel) return [];
+    var seen = [];
+    for (var i = 0; i < list.length; i++) {
+      var row = list[i];
+      if (!row || typeof row !== 'object') continue;
+      var value;
+      if (typeof channel === 'function') {
+        try {
+          value = channel(row);
+        } catch (error) {
+          return [];
+        }
+      } else {
+        value = row[channel];
+      }
+      if (value === null || value === undefined) continue;
+      if (seen.indexOf(String(value)) === -1) seen.push(String(value));
+    }
+    return seen;
+  }
+
+  function pick(options, names) {
+    var picked = {};
+    for (var i = 0; i < names.length; i++) {
+      if (options && names[i] in options) picked[names[i]] = options[names[i]];
+    }
+    return picked;
+  }
+
+  function record(kind, source, options) {
+    var list = arrayOf(source);
+    var group = null;
+    if (options && options.z !== undefined) group = options.z;
+    else if (options && options.color !== undefined) group = options.color;
+    var keys = keysOf(list);
+    report.marks.push({
+      kind: kind,
+      rows: list.length,
+      keys: keys,
+      filled: filledKeys(list, keys),
+      channels: describeChannels(options, list),
+      layout: options && options.layout ? options.layout.__layout : null,
+      innerRadius: !!(options && options.innerRadius !== undefined),
+      series: seriesOf(list, group)
+    });
+    return { __mark: kind };
+  }
+
+  function scaleStub(kind) {
+    var stub = { __scale: kind };
+    var methods = ['domain', 'range', 'padding', 'paddingInner', 'paddingOuter', 'align',
+      'round', 'rangeRound', 'clamp', 'nice', 'unknown', 'copy'];
+    for (var i = 0; i < methods.length; i++) {
+      stub[methods[i]] = function () { return stub; };
+    }
+    return stub;
+  }
+
+  function describeScale(entry) {
+    if (entry === null || entry === undefined) return null;
+    var kind = null;
+    var scale = entry.scale;
+    if (typeof scale === 'function') {
+      try {
+        var made = scale();
+        kind = made && made.__scale ? made.__scale : null;
+      } catch (error) {
+        kind = null;
+      }
+    } else if (scale && scale.__scale) {
+      kind = scale.__scale;
+    }
+    var axis = entry.axis;
+    var format = false;
+    if (axis && axis !== true && axis.ticks && typeof axis.ticks.format === 'function') format = true;
+    return {
+      hasScale: scale !== undefined && scale !== null,
+      scale: kind,
+      grid: entry.grid === true,
+      axis: axis !== false,
+      tickFormat: format
+    };
+  }
+
+  var globals = {};
+
+  globals.defineChart = function (spec, options) {
+    report.defines += 1;
+    var merged = {};
+    var base = spec && spec.__definition ? spec.__spec : spec;
+    if (base && typeof base === 'object') {
+      var keys = Object.keys(base);
+      for (var i = 0; i < keys.length; i++) merged[keys[i]] = base[keys[i]];
+    }
+    if (options && typeof options === 'object') {
+      var extra = Object.keys(options);
+      for (var j = 0; j < extra.length; j++) merged[extra[j]] = options[extra[j]];
+    }
+    return { __definition: true, __spec: merged };
+  };
+
+  globals.lineY = function (source, options) { return record('lineY', source, options); };
+  globals.areaY = function (source, options) { return record('areaY', source, options); };
+  globals.barY = function (source, options) { return record('barY', source, options); };
+  globals.barX = function (source, options) { return record('barX', source, options); };
+  globals.link = function (source, options) { return record('link', source, options); };
+  globals.rect = function (source, options) { return record('rect', source, options); };
+  globals.text = function (source, options) { return record('text', source, options); };
+  globals.radialArc = function (source, options) { return record('radialArc', source, options); };
+
+  globals.stack = function (options) { return { __layout: 'stack', options: options || {} }; };
+  globals.group = function (options) { return { __layout: 'group', options: options || {} }; };
+
+  globals.polar = function (options) {
+    if (!options || !Array.isArray(options.marks) || options.marks.length === 0) {
+      throw new Error('polar needs a marks array');
+    }
+    report.polar = {
+      scaleKeys: options.scales ? Object.keys(options.scales) : [],
+      marks: options.marks.length
+    };
+    return { __mark: 'polar' };
+  };
+
+  globals.pie = function (source, options) {
+    var list = arrayOf(source);
+    if (!options || options.value === undefined) throw new Error('pie needs a value channel');
+    var read = function (row) {
+      return typeof options.value === 'function' ? options.value(row) : row[options.value];
+    };
+    var total = 0;
+    for (var i = 0; i < list.length; i++) {
+      var value = read(list[i]);
+      if (typeof value !== 'number' || !isFinite(value)) {
+        throw new Error('pie needs a finite number in "' + options.value + '", got ' +
+          JSON.stringify(value));
+      }
+      if (value < 0) throw new Error('pie cannot allocate the negative value ' + value);
+      total += value;
+    }
+    var slices = [];
+    var used = 0;
+    for (var j = 0; j < list.length; j++) {
+      var row = list[j];
+      var slice = {};
+      var keys = Object.keys(row);
+      for (var k = 0; k < keys.length; k++) slice[keys[k]] = row[keys[k]];
+      var share = total > 0 ? read(row) / total : 0;
+      slice.value = read(row);
+      slice.index = j;
+      slice.fraction = share;
+      slice.startAngle = used;
+      slice.endAngle = used + share * 6.283185307179586;
+      slice.angle = (slice.startAngle + slice.endAngle) / 2;
+      slice.padAngle = 0;
+      slice.source = row;
+      slice.sourceIndexes = [j];
+      used = slice.endAngle;
+      slices.push(slice);
+    }
+    return slices;
+  };
+
+  globals.sankeyDiagram = function (options) {
+    if (!options) throw new Error('sankeyDiagram needs options');
+    var nodeRows = arrayOf(options.nodes);
+    var linkRows = arrayOf(options.links);
+    if (nodeRows.length === 0) throw new Error('sankeyDiagram got no nodes');
+    if (linkRows.length === 0) throw new Error('sankeyDiagram got no links');
+    var read = function (row, accessor) {
+      return typeof accessor === 'function' ? accessor(row) : row[accessor];
+    };
+    var keys = [];
+    for (var i = 0; i < nodeRows.length; i++) {
+      var key = read(nodeRows[i], options.nodeKey);
+      if (key === undefined || key === null || key === '') {
+        throw new Error('a node row has no nodeKey value');
+      }
+      if (keys.indexOf(String(key)) !== -1) {
+        throw new Error('the node "' + key + '" appears twice; node keys must be unique');
+      }
+      keys.push(String(key));
+    }
+    var nodes = [];
+    for (var n = 0; n < nodeRows.length; n++) {
+      nodes.push({
+        kind: 'node', key: keys[n], index: n, depth: 0, height: 0, layer: 0, value: 1,
+        x0: 0, x1: 14, y0: n * 24, y1: n * 24 + 20, x: 7, y: n * 24 + 10,
+        data: nodeRows[n], source: nodeRows[n], sourceIndexes: [n],
+        incomingLinks: [], outgoingLinks: []
+      });
+    }
+    var links = [];
+    for (var l = 0; l < linkRows.length; l++) {
+      var row = linkRows[l];
+      var from = read(row, options.source);
+      var to = read(row, options.target);
+      if (keys.indexOf(String(from)) === -1) {
+        throw new Error('a link starts at the unknown node "' + from +
+          '"; the nodes array must hold every source and target');
+      }
+      if (keys.indexOf(String(to)) === -1) {
+        throw new Error('a link ends at the unknown node "' + to +
+          '"; the nodes array must hold every source and target');
+      }
+      var value = read(row, options.value);
+      if (typeof value !== 'number' || !isFinite(value)) {
+        throw new Error('the link value must be a finite number, got ' + JSON.stringify(value));
+      }
+      if (value < 0) throw new Error('a link value must not be negative, got ' + value);
+      links.push({
+        kind: 'link', key: l, data: row, source: row, sourceRows: [row], sourceIndexes: [l],
+        sourceKey: String(from), targetKey: String(to),
+        sourceNode: nodes[keys.indexOf(String(from))],
+        targetNode: nodes[keys.indexOf(String(to))],
+        value: value, width: 6, x1: 14, y1: 20, x2: 200, y2: 60
+      });
+    }
+    record('sankeyDiagram', linkRows, pick(options, ['source', 'target', 'value', 'linkKey']));
+    record('sankey_nodes', nodeRows, pick(options, ['nodeKey']));
+    if (typeof options.marks !== 'function') {
+      throw new Error('sankeyDiagram needs a marks function returning the child marks');
+    }
+    var children = options.marks({
+      id: 'sankey',
+      chart: { x: 0, y: 0, width: 640, height: 280 },
+      nodes: nodes,
+      links: links
+    });
+    if (!Array.isArray(children) || children.length === 0) {
+      throw new Error('the sankey marks function must return at least one mark');
+    }
+    return { __mark: 'sankeyDiagram' };
+  };
+
+  globals.scaleLinear = function () { return scaleStub('linear'); };
+  globals.scaleBand = function () { return scaleStub('band'); };
+  globals.scalePoint = function () { return scaleStub('point'); };
+  globals.scaleOrdinal = function () { return scaleStub('ordinal'); };
+  globals.colorLegend = function (options) { return { __legend: true, options: options || {} }; };
+  globals.tooltip = { __tooltip: true };
+  globals.palette = ['#0f766e', '#4f46e5', '#b45309', '#7c3aed', '#be123c', '#0369a1'];
+  globals.eur = function (value) { return String(value) + ' EUR'; };
+  globals.eurShort = function (value) { return String(value) + ' EUR'; };
+  globals.monthShort = function (value) { return String(value).slice(0, 3); };
+
+  var names = [__GLOBAL_NAMES__];
+  var values = [];
+  for (var g = 0; g < names.length; g++) values.push(globals[names[g]]);
+
+  var view = new Proxy(rows, {
+    get: function (target, property) {
+      report.dataRead = true;
+      return target[property];
+    }
+  });
+
+  var made;
+  try {
+    made = Function.apply(null, ['data'].concat(names).concat([source]));
+  } catch (error) {
+    report.error = 'The code does not compile: ' + error.name + ': ' + error.message;
+    return JSON.stringify(report);
+  }
+
+  var returned;
+  try {
+    returned = made.apply(null, [view].concat(values));
+  } catch (error) {
+    report.error = 'The code threw ' + error.name + ': ' + error.message;
+    return JSON.stringify(report);
+  }
+
+  report.returned = !!(returned && returned.__definition === true);
+  if (report.returned) {
+    var spec = returned.__spec || {};
+    var scales = spec.scales;
+    report.spec = {
+      keys: Object.keys(spec),
+      hasScales: !!scales,
+      xPresent: !!scales && 'x' in scales,
+      yPresent: !!scales && 'y' in scales,
+      x: scales ? describeScale(scales.x) : null,
+      y: scales ? describeScale(scales.y) : null,
+      tooltip: !!spec.tooltip,
+      legend: !!(spec.color && spec.color.legend),
+      guides: spec.guides === undefined ? null : spec.guides,
+      markCount: Array.isArray(spec.marks) ? spec.marks.length : 0
+    };
+  }
+  return JSON.stringify(report);
+};
+"""
+
+
+def _stub_source() -> str:
+    return _STUB.replace("__GLOBAL_NAMES__", ", ".join(f"'{name}'" for name in GLOBAL_NAMES))
+
+
+@dataclass(frozen=True)
+class CheckResult:
+    """What the self-check found. No findings means the chart may be shown."""
+
+    findings: tuple[str, ...] = ()
+
+    @property
+    def ok(self) -> bool:
+        return not self.findings
+
+    @property
+    def fatal(self) -> bool:
+        """True when a finding is about more than polish, so the chart must not be shown."""
+        return bool(set(self.findings) - COSMETIC)
+
+    def instructions(self) -> str:
+        return "\n".join(f"- {finding}" for finding in self.findings)
+
+
+def _static_findings(code: str) -> list[str]:
+    findings: list[str] = []
+    if not code.strip():
+        findings.append("The code is empty. Write the function body.")
+        return findings
+    for token in FORBIDDEN:
+        if re.search(rf"\b{re.escape(token)}\b", code):
+            findings.append(
+                f"`{token}` may not be used. The code runs in a sandbox with only the listed "
+                f"globals, no imports and no browser APIs."
+            )
+    if INLINE_DATA.search(code):
+        findings.append(
+            "The numbers are typed into the code. Every value must be read from `data` through "
+            "a channel such as `y: 'total_eur'`; never write an array of rows yourself."
+        )
+    return findings
+
+
+def _looks_like_a_month(rows: list[dict[str, Any]], column: str) -> bool:
+    values = [row.get(column) for row in rows if row.get(column) is not None]
+    return bool(values) and all(re.fullmatch(r"\d{4}-\d{2}", str(value)) for value in values)
+
+
+def _run_in_quickjs(code: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    context = quickjs.Context()
+    context.set_memory_limit(MEMORY_LIMIT)
+    context.set_time_limit(CHECK_SECONDS)
+    context.eval(_stub_source())
+    report = context.eval(f"__finquery.run({json.dumps(code)}, {json.dumps(json.dumps(rows))})")
+    parsed = json.loads(str(report))
+    assert isinstance(parsed, dict)
+    return parsed
+
+
+# The channel that carries euros, per mark. It has to hold finite numbers or nothing is drawn.
+VALUE_CHANNEL = {
+    "lineY": "y",
+    "areaY": "y",
+    "barY": "y",
+    "barX": "x",
+    "sankeyDiagram": "value",
+}
+
+
+def _mark_findings(report: dict[str, Any]) -> list[str]:
+    findings: list[str] = []
+    for mark in report["marks"]:
+        kind = mark["kind"]
+        keys = mark["keys"]
+        if mark["rows"] == 0:
+            findings.append(
+                f"`{kind}` was given an empty array, so it would draw nothing. Pass the rows it "
+                f"should draw."
+            )
+            continue
+        for channel, described in mark["channels"].items():
+            if described["type"] != "string":
+                continue
+            column = described["value"]
+            if column not in keys:
+                findings.append(
+                    f'`{kind}` reads the column "{column}" in its `{channel}` channel, which does '
+                    f"not exist. The columns are: {', '.join(keys)}."
+                )
+            elif described["filled"] == 0:
+                usable = ", ".join(mark["filled"]) or "none of them"
+                findings.append(
+                    f'`{kind}` reads the column "{column}" in its `{channel}` channel, but that '
+                    f"column is empty in every row, so nothing would be drawn. The columns that "
+                    f"carry values: {usable}."
+                )
+            elif channel == VALUE_CHANNEL.get(kind) and described["numeric"] == 0:
+                findings.append(
+                    f'`{kind}` reads the column "{column}" as its figure, but that column holds '
+                    f"no numbers. The euro column is the one with numbers in it."
+                )
+    return findings
+
+
+def _series_count(report: dict[str, Any]) -> int:
+    """How many colours the chart actually asks for, over every mark."""
+    return max((len(mark["series"]) for mark in report["marks"]), default=0)
+
+
+def _shape_findings(report: dict[str, Any], shape: Shape) -> list[str]:
+    rule = SHAPES[shape]
+    kinds = {mark["kind"] for mark in report["marks"]}
+    findings: list[str] = []
+    for required in rule.required:
+        if required not in kinds:
+            findings.append(f"The plan asks for {shape}, so `{required}` has to be the mark.")
+    for family in FAMILY_MARKS:
+        if family in kinds and family not in rule.required and family not in rule.also_allowed:
+            findings.append(f"`{family}` does not belong in a {shape} chart. Remove that mark.")
+    if shape == "doughnut":
+        arcs = [mark for mark in report["marks"] if mark["kind"] == "radialArc"]
+        for arc in arcs:
+            if arc["rows"] > MAX_SLICES:
+                findings.append(
+                    f"A doughnut shows at most {MAX_SLICES} slices and this one has "
+                    f"{arc['rows']}. Keep the largest {MAX_SLICES - 1} and add the rest as "
+                    f'"Other", or pick the bar shape instead.'
+                )
+            if not arc["innerRadius"]:
+                findings.append("A doughnut needs `innerRadius` on `radialArc`, or it is a pie.")
+        if report["polar"] is None:
+            findings.append("`radialArc` only works inside `polar({ ... })`.")
+        elif sorted(report["polar"]["scaleKeys"]) != ["angle", "radius"]:
+            findings.append(
+                "`polar` needs both `scales.angle` and `scales.radius`; use `null` for each "
+                "when the arcs carry their own geometry."
+            )
+    if rule.series and _series_count(report) < 2:
+        findings.append(
+            f"A {shape} chart needs one colour per series: add `z` and `color` pointing at the "
+            f"category column."
+        )
+    layouts = {mark["layout"] for mark in report["marks"] if mark["kind"] in rule.required}
+    if rule.grouped and "group" not in layouts:
+        findings.append("Grouped bars need `layout: group()`, otherwise they stack.")
+    if shape == "bar_stacked" and "group" in layouts:
+        findings.append("Stacked bars must not use `layout: group()`.")
+    return findings
+
+
+def _house_findings(report: dict[str, Any], shape: Shape, rows: list[dict[str, Any]]) -> list[str]:
+    rule = SHAPES[shape]
+    spec = report["spec"]
+    findings: list[str] = []
+    owned = [key for key in ("height", "width", "title") if key in spec["keys"]]
+    if owned:
+        findings.append(
+            f"The card owns the size and the caption, so drop {', '.join(owned)} from the "
+            f"definition."
+        )
+    if not spec["tooltip"]:
+        findings.append("Every chart carries `tooltip: { use: tooltip, format: ... }`.")
+    if not spec["hasScales"] or not spec["xPresent"] or not spec["yPresent"]:
+        findings.append(
+            "`scales` must always declare both `x` and `y`; use `null` for an axis the shape "
+            "does not use."
+        )
+        return findings
+
+    if rule.value_axis is not None:
+        value = spec[rule.value_axis]
+        if value is None or not value["hasScale"]:
+            findings.append(f"`scales.{rule.value_axis}` needs the euro scale (`scaleLinear`).")
+        else:
+            if value["scale"] != "linear":
+                findings.append(f"`scales.{rule.value_axis}` must use `scaleLinear` for euros.")
+            if not value["grid"]:
+                findings.append(f"Set `grid: true` on `scales.{rule.value_axis}`, the euro axis.")
+            if not value["tickFormat"]:
+                findings.append(
+                    f"The euro axis needs `axis: {{ ticks: {{ format: eurShort }} }}` on "
+                    f"`scales.{rule.value_axis}`."
+                )
+    if rule.category_axis is not None:
+        category = spec[rule.category_axis]
+        if category is None or not category["hasScale"]:
+            findings.append(
+                f"`scales.{rule.category_axis}` needs the category scale (`scaleBand` for bars, "
+                f"`scalePoint` for lines and areas)."
+            )
+        else:
+            if category["grid"]:
+                findings.append(
+                    f"Only the euro axis carries a grid. Remove `grid` from "
+                    f"`scales.{rule.category_axis}`."
+                )
+            columns = [
+                mark["channels"][rule.category_axis]["value"]
+                for mark in report["marks"]
+                if mark["channels"].get(rule.category_axis, {}).get("type") == "string"
+            ]
+            months = any(_looks_like_a_month(rows, column) for column in columns)
+            if months and not category["tickFormat"]:
+                findings.append(
+                    f"The months read as 2025-01, so `scales.{rule.category_axis}` needs "
+                    f"`axis: {{ ticks: {{ format: monthShort }} }}`."
+                )
+    # A sankey names its nodes with text marks, so it carries no colour series and no legend.
+    if shape != "sankey":
+        series = _series_count(report)
+        if series > 1 and not spec["legend"]:
+            findings.append(LEGEND_MISSING)
+        # When the shape itself is asking for series, that finding is the actionable one.
+        if series < 2 and spec["legend"] and not rule.series:
+            findings.append(LEGEND_EXTRA)
+    return findings
+
+
+def judge(report: dict[str, Any], shape: Shape, rows: list[dict[str, Any]]) -> list[str]:
+    """Turn one recording into findings. Pure, so the rules are testable without QuickJS."""
+    if report["error"]:
+        return [report["error"]]
+    findings: list[str] = []
+    if report["defines"] != 1:
+        findings.append(
+            f"Call `defineChart` exactly once and return what it gives you; it was called "
+            f"{report['defines']} times."
+        )
+    if not report["returned"]:
+        findings.append("The function body must `return defineChart({ ... })`.")
+    if not report["dataRead"]:
+        findings.append("The code never reads `data`. Every value comes from those rows.")
+    if findings:
+        return findings
+    findings.extend(_mark_findings(report))
+    findings.extend(_shape_findings(report, shape))
+    findings.extend(_house_findings(report, shape, rows))
+    return findings
+
+
+async def check_chart_code(code: str, rows: list[dict[str, Any]], shape: Shape) -> CheckResult:
+    """Compile, run and judge one chart definition. Never raises: a crash is a finding."""
+    static = _static_findings(code)
+    if static:
+        return CheckResult(tuple(static))
+    try:
+        report = await asyncio.to_thread(_run_in_quickjs, code, rows)
+    except quickjs.JSException as exc:
+        return CheckResult((f"The code could not be checked: {exc}",))
+    except Exception as exc:  # noqa: BLE001 - a broken check is a finding, never a failed turn
+        return CheckResult((f"The code could not be checked: {exc}",))
+    return CheckResult(tuple(judge(report, shape, rows)))

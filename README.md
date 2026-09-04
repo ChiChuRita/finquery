@@ -101,6 +101,11 @@ Then ask in the chat. The query sub-agent writes the SQL on the fast slot, a gua
 single read-only SELECT over your own transactions, and the tool step in the transcript shows the
 statement and the rows behind every number.
 
+Ask for a chart and the chart sub-agent plans it, gets its rows the same way, writes a TanStack
+Charts definition in plain JavaScript and checks it in-process before it is drawn in a sandboxed
+frame. The plan and any repairs show up in the thinking panel; the card carries the SQL and the
+rows behind the drawing. The contract is `docs/chart-runtime.md`.
+
 `fixtures/synthetic/` holds the shipped demo dataset, one canonical year of a German household
 as a Sparkasse CSV, a renamed-header CSV, a text PDF statement and four bill images. Regenerate
 it with `uv run python scripts/generate_synthetic.py`.
@@ -110,6 +115,8 @@ it with `uv run python scripts/generate_synthetic.py`.
 - `src/finquery/`: `main.py` (CLI), `app.py` (factory), `settings.py`, `providers.py` (slots),
   `db.py` (SQLAlchemy models and the query view), `taxonomy.py` (default categories),
   `agent.py` (chat agent and its tools), `query/` (query sub-agent, SQL guard, execution),
+  `chart/` (chart sub-agent, shapes, QuickJS self-check),
+  `changesets.py` and `edits.py` (proposed changes and the rules about what may be written),
   `categorize/` (rules, merchant dictionary, categorizer sub-agent, review queue),
   `ask_user.py` (the Question card tool), `followups.py` (post-turn suggestions),
   `memory.py` (durable facts: the `remember` tool, the distillation pass, prompt selection),
@@ -117,10 +124,12 @@ it with `uv run python scripts/generate_synthetic.py`.
   `ingest/` (CSV reader, presets, mapping sub-agent, commit),
   `api/` (REST and chat endpoints),
   `local/` (the local provider: catalog, downloads, runtime, model, Gemma wire format, check)
-- `frontend/`: Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router and Query
+- `frontend/`: Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router, Query and
+  Charts. `src/chart-runtime/` is a second page: the sandboxed frame charts render in
 - `tests/`: HTTP-seam tests
 - `fixtures/synthetic/`: shipped demo dataset. `scripts/`: its generator, and
   `measure_categorization.py`, which imports a CSV into a running app and prints what each
   categorization stage placed
-- `CONTEXT.md`: domain glossary. `docs/adr/`: architecture decisions
+- `CONTEXT.md`: domain glossary. `docs/adr/`: architecture decisions.
+  `docs/chart-runtime.md`: the contract generated chart code is written against
 - `.scratch/finquery/`: spec and tickets

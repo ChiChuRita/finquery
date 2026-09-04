@@ -124,6 +124,27 @@ export interface ReviewBatchOutput {
   questions: ReviewQuestion[]
 }
 
+// The `chart` tool: the plan, the executed SQL and its rows, and the checked chart code.
+export interface ChartToolInput {
+  request: string
+  hints?: string | null
+}
+
+export interface ChartToolOutput {
+  request: string
+  title: string
+  shape: string
+  plan: string
+  sql: string | null
+  row_count: number
+  columns: string[]
+  rows: Record<string, QueryValue>[]
+  code: string | null
+  notes: string[]
+  summary: string
+  error: string | null
+}
+
 // The changeset tools: `propose_changeset` hands back an inert proposal the user applies or
 // discards, `apply_simple_edit` hands back a change that already happened, with an undo token.
 export interface ChangesetToolInput {
@@ -136,6 +157,7 @@ export type ChangesetToolOutput = Changeset & { undo_token?: string }
 /** The tools the agent may call. The keys become `tool-*` part types. */
 export type ChatTools = {
   query: { input: QueryToolInput; output: QueryToolOutput }
+  chart: { input: ChartToolInput; output: ChartToolOutput }
   ask_user: { input: AskUserInput; output: AskUserOutput }
   set_rule: { input: SetRuleInput; output: SetRuleOutput }
   review_batch: { input: { limit?: number }; output: ReviewBatchOutput }
@@ -151,6 +173,7 @@ export type ChangesetToolPart = ToolUIPart<{
   propose_changeset: ChatTools['propose_changeset']
   apply_simple_edit: ChatTools['apply_simple_edit']
 }>
+export type ChartToolPart = ToolUIPart<{ chart: ChatTools['chart'] }>
 
 export type ChatMessage = UIMessage<ChatMetadata, ChatDataParts, ChatTools>
 
