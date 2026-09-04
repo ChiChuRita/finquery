@@ -14,6 +14,8 @@ export interface ChatMetadata {
   interrupted?: boolean
   thinking_seconds?: number
   model_slot?: ModelSlot
+  /** The stored turn this message is, which is what a rating names (ticket 15). */
+  turn_id?: string
 }
 
 /** What the context badge shows, emitted once per turn and stored on its assistant message. */
@@ -194,12 +196,54 @@ export interface Conversation {
 
 export interface ConversationDetail extends Conversation {
   messages: ChatMessage[]
+  /** The thumbs and picks already given in this chat, so a reload shows them again. */
+  ratings: TurnRating[]
   interrupted: boolean
   /** The rolling summary of the turns before the divider, editable in the transcript. */
   summary: string | null
   summarized_turns: number
   /** How many of `messages` the summary replaces, which is where the divider goes. */
   summarized_messages: number
+}
+
+// Preference records: what a thumb, a chart pick or an answer A/B left behind.
+
+export type PreferenceKind = 'answer' | 'chart'
+export type PreferenceRating = 'up' | 'down' | 'pick'
+
+export interface TurnRating {
+  turn_id: string
+  /** The tool call id of the chart it is about, or null for the answer of the turn. */
+  target: string | null
+  kind: PreferenceKind
+  rating: PreferenceRating
+}
+
+export interface PreferenceRecord extends TurnRating {
+  id: string
+  profile_id: string
+  conversation_id: string | null
+  prompt: string
+  /** True when both sides are stored, which is what a DPO export can use. */
+  paired: boolean
+  model_slot: ModelSlot
+  created_at: string
+}
+
+/** The half of a pair that was never a turn: a second answer, or a regenerated chart. */
+export interface PairCandidate {
+  text?: string
+  tools?: unknown[]
+  code?: string | null
+  shape?: string
+  title?: string
+}
+
+export interface AlternativeAnswer {
+  text: string
+  tools: unknown[]
+  model_slot: ModelSlot
+  temperature: number
 }
 
 // The API refuses a write with a readable `detail`; FastAPI's own body validation answers with
@@ -715,3 +759,47 @@ const changesetAction = (action: string) => (profileId: string, id: string) =>
 export const applyChangeset = changesetAction('apply')
 export const discardChangeset = changesetAction('discard')
 export const undoChangeset = changesetAction('undo')
+
+// Preferences: rating, the two reruns behind a pair, the pick and the export.
+
+export const preferencesQuery = (profileId: string | undefined) =>
+  queryOptions({
+    queryKey: ['preferences', { profileId }],
+    queryFn: () => request<PreferenceRecord[]>(`/api/preferences?profile_id=${profileId}`),
+    enabled: profileId !== undefined,
+  })
+
+/** A plain link, so the browser saves the JSONL as a file instead of the app buffering it. */
+export const preferencesExportUrl = (profileId: string) => `/api/preferences/export?profile_id=${profileId}`
+
+export const ratePreference = (
+  profileId: string,
+  body: { turn_id: string; target?: string | null; rating: 'up' | 'down' },
+) =>
+  request<PreferenceRecord>('/api/preferences/rating', {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId, ...body }),
+  })
+
+export const storePreferencePair = (
+  profileId: string,
+  body: { turn_id: string; target?: string | null; picked: 'original' | 'candidate'; candidate: PairCandidate },
+) =>
+  request<PreferenceRecord>('/api/preferences/pair', {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId, ...body }),
+  })
+
+/** Draw the same chart request a second time. No chat turn, so the transcript does not grow. */
+export const chartAlternative = (profileId: string, turn_id: string, tool_call_id: string) =>
+  request<ChartToolOutput>('/api/preferences/chart-alternative', {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId, turn_id, tool_call_id }),
+  })
+
+/** Answer the same message a second time, hotter, with only the read-only query tool. */
+export const answerAlternative = (profileId: string, turn_id: string) =>
+  request<AlternativeAnswer>('/api/preferences/answer-alternative', {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId, turn_id }),
+  })

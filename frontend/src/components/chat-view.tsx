@@ -2,7 +2,7 @@ import { useChat } from '@ai-sdk/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from 'ai'
-import { BrainIcon, CircleStopIcon, SparklesIcon, ZapIcon } from 'lucide-react'
+import { BrainIcon, CircleStopIcon, GitCompareIcon, SparklesIcon, ZapIcon } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { StickToBottomContext } from 'use-stick-to-bottom'
 
@@ -16,10 +16,12 @@ import { ChartToolStep } from '@/components/chart-tool'
 import { Composer } from '@/components/composer'
 import { ContextBadge } from '@/components/context-badge'
 import { EmptyState } from '@/components/empty-state'
+import { AnswerCompare, FeedbackError, Thumbs, useAnswerFeedback } from '@/components/feedback'
 import { QueryToolStep } from '@/components/query-tool'
 import { QuestionCard } from '@/components/question-card'
 import { ReviewToolStep, RuleToolStep } from '@/components/rule-tool'
 import { SummaryDivider } from '@/components/summary-divider'
+import { Button } from '@/components/ui/button'
 import {
   chatUrl,
   conversationQuery,
@@ -32,11 +34,29 @@ import {
   type ContextStats,
   type ConversationDetail,
   type ModelSlot,
+  type PreferenceRating,
 } from '@/lib/api'
 import { takePendingPrompt } from '@/lib/pending'
 import { readScrollTop, useWorkspace, writeScrollTop } from '@/lib/workspace'
 
 const SLOT_ICONS: Record<ModelSlot, typeof ZapIcon> = { fast: ZapIcon, quality: SparklesIcon }
+
+/** Tools whose turn cannot be answered a second time: they wrote, or they asked a human.
+ *
+ * The server refuses the rerun for exactly these, and the UI does not offer it either, so a
+ * changeset is never proposed twice and a Question card never parks a second run.
+ */
+const WRITING_PARTS = new Set([
+  'tool-propose_changeset',
+  'tool-apply_simple_edit',
+  'tool-set_rule',
+  'tool-ask_user',
+])
+
+/** Every rating this chat collected, keyed by the turn and the chart inside it. */
+function ratingsByTarget(conversation: ConversationDetail): Map<string, PreferenceRating> {
+  return new Map(conversation.ratings.map((rating) => [`${rating.turn_id}:${rating.target ?? ''}`, rating.rating]))
+}
 
 export function ChatView({ conversation }: { conversation: ConversationDetail }) {
   const queryClient = useQueryClient()
@@ -91,6 +111,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
   }
 
   const streaming = status === 'streaming' || status === 'submitted'
+  const ratings = useMemo(() => ratingsByTarget(conversation), [conversation])
   const lastMessage = messages.at(-1)
   const context = latestContext(messages)
   // The turns before this index are the ones the rolling summary stands in for.
@@ -126,6 +147,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
                   message={message}
                   onAnswer={(toolCallId, output) => void addToolOutput({ tool: 'ask_user', toolCallId, output })}
                   onPickFollowup={(text) => void sendMessage({ text })}
+                  ratings={ratings}
                   slot={slot}
                   streaming={streaming}
                 />
@@ -253,6 +275,7 @@ function TranscriptMessage({
   isLast,
   streaming,
   slot,
+  ratings,
   onPickFollowup,
   onAnswer,
 }: {
@@ -260,11 +283,22 @@ function TranscriptMessage({
   isLast: boolean
   streaming: boolean
   slot: ModelSlot
+  ratings: Map<string, PreferenceRating>
   onPickFollowup: (text: string) => void
   onAnswer: (toolCallId: string, output: AskUserOutput) => void
 }) {
   const interrupted = message.metadata?.interrupted === true
   const live = isLast && streaming
+  // The turn behind this message, which is what a rating names. It arrives with the metadata at
+  // the end of the stream, so the thumbs appear when the answer is stored and not before.
+  const turnId = message.metadata?.turn_id
+  const feedback = useAnswerFeedback(turnId, ratings.get(`${turnId}:`))
+  // A turn that wrote something is not rerun: the A/B is not offered for it.
+  const rerunnable = !message.parts.some((part) => WRITING_PARTS.has(part.type))
+  const answerText = message.parts
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n\n')
   // How many durable facts of the profile this turn was given (memory page: /memory).
   const memoriesUsed = message.parts.flatMap((p) => (p.type === 'data-context' ? [p.data.memories] : []))[0] ?? 0
   // The turn's own slot, or the conversation's while the turn is still streaming and has no metadata.
@@ -313,7 +347,14 @@ function TranscriptMessage({
             return <ChangesetCard key={`${message.id}-${index}`} part={part} />
           }
           if (part.type === 'tool-chart') {
-            return <ChartToolStep key={`${message.id}-${index}`} part={part} />
+            return (
+              <ChartToolStep
+                key={`${message.id}-${index}`}
+                part={part}
+                rating={ratings.get(`${turnId}:${part.toolCallId}`)}
+                turnId={turnId}
+              />
+            )
           }
           if (part.type === 'text') {
             return message.role === 'user' ? (
@@ -352,7 +393,40 @@ function TranscriptMessage({
               Stopped
             </span>
           )}
+          <span className="ml-auto flex items-center gap-1">
+            <FeedbackError message={feedback.problem} />
+            {feedback.rating === 'pick' && !feedback.second && <span>Pair collected</span>}
+            {feedback.rating === 'down' && rerunnable && !feedback.second && (
+              <Button
+                className="h-6 gap-1.5 px-2 text-muted-foreground text-xs"
+                disabled={feedback.asking || !feedback.ready}
+                onClick={() => void feedback.compare()}
+                size="sm"
+                variant="ghost"
+              >
+                <GitCompareIcon className="size-3" />
+                {feedback.asking ? 'Answering again...' : 'Compare a second answer'}
+              </Button>
+            )}
+            <Thumbs
+              busy={feedback.busy}
+              disabled={!feedback.ready}
+              onRate={(next) => void feedback.rate(next)}
+              rating={feedback.rating}
+              subject="response"
+            />
+          </span>
         </MessageToolbar>
+      )}
+
+      {feedback.second && (
+        <AnswerCompare
+          busy={feedback.busy}
+          onPick={(which) => void feedback.pick(which)}
+          original={answerText}
+          picked={feedback.picked}
+          second={feedback.second}
+        />
       )}
 
       {followups.length > 0 && (

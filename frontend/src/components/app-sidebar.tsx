@@ -8,6 +8,7 @@ import {
   PlusIcon,
   SettingsIcon,
   TableIcon,
+  ThumbsUpIcon,
   Trash2Icon,
   UploadIcon,
 } from 'lucide-react'
@@ -107,6 +108,14 @@ export function AppSidebar() {
         >
           <BrainIcon className="size-3.5 shrink-0 text-muted-foreground" />
           Memory
+        </Link>
+        <Link
+          activeProps={{ className: 'bg-sidebar-accent font-medium' }}
+          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
+          to="/feedback"
+        >
+          <ThumbsUpIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          Feedback
         </Link>
       </div>
 

@@ -1,13 +1,14 @@
-import { ChartColumnIcon, ChevronDownIcon, ThumbsDownIcon, ThumbsUpIcon } from 'lucide-react'
+import { ChartColumnIcon, ChevronDownIcon, RefreshCwIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { Shimmer } from '@/components/ai-elements/shimmer'
+import { FeedbackError, PairGrid, PairSide, Thumbs, useFeedback } from '@/components/feedback'
 import { ErrorSection, RowsTable, Section, SqlSection, rowLabel } from '@/components/query-result'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { ChartToolOutput, ChartToolPart } from '@/lib/api'
+import { chartAlternative, type ChartToolOutput, type ChartToolPart, type PreferenceRating } from '@/lib/api'
+import { useWorkspace } from '@/lib/workspace'
 import {
   CARD_SOURCE,
   CHART_HEIGHT,
@@ -111,27 +112,8 @@ function ChartFrame({ title, code, rows }: { title: string; code: string; rows: 
   )
 }
 
-/** Thumbs live here from ticket 15 on; the space is reserved so the card does not move later. */
-function RatingPlaceholder() {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="flex items-center gap-0.5">
-          <Button className="text-muted-foreground" disabled size="icon-xs" variant="ghost">
-            <ThumbsUpIcon />
-          </Button>
-          <Button className="text-muted-foreground" disabled size="icon-xs" variant="ghost">
-            <ThumbsDownIcon />
-          </Button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>Was this chart useful? Rating arrives with the feedback page.</TooltipContent>
-    </Tooltip>
-  )
-}
-
 /** The audit trail under every chart: what was asked, what ran and the rows it drew. */
-function Footer({ output }: { output: ChartToolOutput }) {
+function Footer({ output, actions }: { output: ChartToolOutput; actions: ReactNode }) {
   const [open, setOpen] = useState(false)
   return (
     <Collapsible onOpenChange={setOpen} open={open}>
@@ -142,7 +124,7 @@ function Footer({ output }: { output: ChartToolOutput }) {
             {output.sql ? `SQL and ${rowLabel(output.row_count)}` : 'Details'}
           </Button>
         </CollapsibleTrigger>
-        <RatingPlaceholder />
+        {actions}
       </div>
       <CollapsibleContent className="space-y-4 border-t px-4 pt-3 pb-4">
         <Section label="Request">
@@ -191,8 +173,151 @@ function Header({ title, shape }: { title: string; shape?: string }) {
   )
 }
 
+/** A drawn chart, its rating, and the second chart a Regenerate produced.
+ *
+ * The pair lives in the card, not in the transcript: the regenerate is no chat turn, so the
+ * second chart is here until the user picks one or leaves the page. What the pick leaves behind
+ * is the preference record, and after a reload the card shows the chart the turn stored with a
+ * line saying a pair was collected.
+ */
+function ChartResult({
+  output,
+  toolCallId,
+  turnId,
+  rating,
+}: {
+  output: ChartToolOutput
+  toolCallId: string
+  turnId?: string
+  rating?: PreferenceRating
+}) {
+  const { profile } = useWorkspace()
+  const feedback = useFeedback(turnId, toolCallId, rating)
+  const [second, setSecond] = useState<ChartToolOutput>()
+  const [drawing, setDrawing] = useState(false)
+  const [problem, setProblem] = useState<string>()
+  const [again, setAgain] = useState(false)
+  const [picked, setPicked] = useState<'original' | 'candidate'>()
+
+  const title = output.title || output.request
+  // The definition to draw, or null when this chart failed and the card shows the reason.
+  const code = output.error ? null : output.code
+
+  const regenerate = async () => {
+    if (!profile || !turnId || drawing) return
+    setDrawing(true)
+    setProblem(undefined)
+    setAgain(false)
+    try {
+      const alternative = await chartAlternative(profile.id, turnId, toolCallId)
+      if (alternative.error || !alternative.code) {
+        setProblem(alternative.error ?? 'The second chart could not be drawn.')
+        return
+      }
+      // The sub-agent can write exactly the same definition again. There is nothing to pick
+      // between two identical charts, and such a pair would teach a training run nothing.
+      if (alternative.code === code) {
+        setAgain(true)
+        return
+      }
+      setSecond(alternative)
+      setPicked(undefined)
+    } catch (cause) {
+      setProblem(cause instanceof Error ? cause.message : 'The second chart could not be drawn.')
+    } finally {
+      setDrawing(false)
+    }
+  }
+
+  const pick = async (which: 'original' | 'candidate') => {
+    if (!second?.code) return
+    await feedback.pick(which, { code: second.code, shape: second.shape, title: second.title })
+    setPicked(which)
+  }
+
+  return (
+    <Card>
+      <Header shape={output.shape} title={title} />
+      {code && second?.code ? (
+        <div className="px-3 pb-3">
+          <PairGrid>
+            <PairSide
+              disabled={feedback.busy}
+              label="The first chart"
+              note={SHAPE_LABELS[output.shape] ?? output.shape}
+              onPick={() => void pick('original')}
+              picked={picked === 'original'}
+            >
+              <ChartFrame code={code} rows={output.rows} title={title} />
+            </PairSide>
+            <PairSide
+              disabled={feedback.busy}
+              label="Drawn again"
+              note={SHAPE_LABELS[second.shape] ?? second.shape}
+              onPick={() => void pick('candidate')}
+              picked={picked === 'candidate'}
+            >
+              <ChartFrame code={second.code} rows={second.rows} title={second.title || title} />
+            </PairSide>
+          </PairGrid>
+          <p className="pt-2 text-muted-foreground text-xs">
+            {picked
+              ? 'Stored as a preference pair. Both charts drew the rows of the same query.'
+              : 'Both charts drew the rows of the same query. Pick the better one.'}
+          </p>
+        </div>
+      ) : code ? (
+        <ChartFrame code={code} rows={output.rows} title={title} />
+      ) : (
+        <div className="px-4 pb-2">
+          <ErrorSection message={output.error ?? 'The chart could not be drawn.'} />
+        </div>
+      )}
+      <Footer
+        actions={
+          <span className="flex items-center gap-1">
+            <FeedbackError message={feedback.error ?? problem} />
+            {again && <span className="text-muted-foreground text-xs">Same chart again</span>}
+            {feedback.rating === 'pick' && !second && (
+              <span className="text-muted-foreground text-xs">Pair collected</span>
+            )}
+            {code && (
+              <Button
+                className="gap-1.5 text-muted-foreground"
+                disabled={!feedback.ready || drawing || Boolean(second)}
+                onClick={() => void regenerate()}
+                size="sm"
+                variant="ghost"
+              >
+                <RefreshCwIcon className={drawing ? 'animate-spin' : undefined} />
+                {drawing ? 'Drawing...' : 'Regenerate'}
+              </Button>
+            )}
+            <Thumbs
+              busy={feedback.busy}
+              disabled={!feedback.ready}
+              onRate={(next) => void feedback.rate(next)}
+              rating={feedback.rating}
+              subject="chart"
+            />
+          </span>
+        }
+        output={output}
+      />
+    </Card>
+  )
+}
+
 /** One chart in the transcript: the title, the chart itself, and the query behind it on demand. */
-export function ChartToolStep({ part }: { part: ChartToolPart }) {
+export function ChartToolStep({
+  part,
+  turnId,
+  rating,
+}: {
+  part: ChartToolPart
+  turnId?: string
+  rating?: PreferenceRating
+}) {
   if (part.state === 'output-error') {
     return (
       <Card>
@@ -213,19 +338,7 @@ export function ChartToolStep({ part }: { part: ChartToolPart }) {
       </Card>
     )
   }
-
-  const output = part.output
   return (
-    <Card>
-      <Header shape={output.shape} title={output.title || output.request} />
-      {output.code && !output.error ? (
-        <ChartFrame code={output.code} rows={output.rows} title={output.title || output.request} />
-      ) : (
-        <div className="px-4 pb-2">
-          <ErrorSection message={output.error ?? 'The chart could not be drawn.'} />
-        </div>
-      )}
-      <Footer output={output} />
-    </Card>
+    <ChartResult output={part.output} rating={rating} toolCallId={part.toolCallId} turnId={turnId} />
   )
 }

@@ -8,7 +8,17 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from finquery.api import changesets, chat, conversations, imports, memories, profiles, taxonomy, transactions
+from finquery.api import (
+    changesets,
+    chat,
+    conversations,
+    imports,
+    memories,
+    preferences,
+    profiles,
+    taxonomy,
+    transactions,
+)
 from finquery.api import models as models_api
 from finquery.changesets import ChangesetError, ChangesetStale
 from finquery.context import context_budget
@@ -91,6 +101,7 @@ def create_app(
     app.include_router(transactions.router, prefix="/api")
     app.include_router(taxonomy.router, prefix="/api")
     app.include_router(changesets.router, prefix="/api")
+    app.include_router(preferences.router, prefix="/api")
     app.include_router(models_api.router, prefix="/api")
 
     if serve_frontend and FRONTEND_DIST.is_dir():

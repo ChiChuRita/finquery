@@ -58,8 +58,10 @@ newer changeset for the same rows arrived. An applied changeset that was undone 
 `discarded` with its applied time still on it. Avoid: pending, cancelled, expired.
 
 **Preference record**: a prompt, a chosen output, a rejected output, the kind (answer or
-chart), the SQL and chart code involved, and the rating. Training data for the adapters.
-Avoid: feedback, rating (the rating is one field of the record).
+chart), the SQL and chart code involved, and the rating (`up`, `down` or `pick`). A thumb fills
+one side (up the chosen, down the rejected), a pick fills both, which is what a DPO export
+reads. One record per rated thing, so a second click replaces it. Training data for the
+adapters. Avoid: feedback, rating (the rating is one field of the record).
 
 **Merchant token**: the scrubbed merchant string that is the only thing allowed to leave the
 machine for a web lookup. Never amounts, dates, IBANs, card numbers or personal names. Avoid:
