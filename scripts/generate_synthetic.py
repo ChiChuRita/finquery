@@ -22,7 +22,7 @@ import csv
 import io
 import random
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from fpdf import FPDF
@@ -382,6 +382,8 @@ class Statement(FPDF):
 
 def write_statement_pdf(bookings: list[Booking], path: Path) -> None:
     pdf = Statement(orientation="P", unit="mm", format="A4")
+    # Fixed so re-running the generator does not rewrite the committed file.
+    pdf.set_creation_date(datetime(YEAR, 12, 31, 12, 0, tzinfo=UTC))
     pdf.set_auto_page_break(auto=True, margin=16)
     pdf.set_margins(10, 10, 10)
     pdf.add_page()
