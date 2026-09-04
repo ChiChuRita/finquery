@@ -242,3 +242,9 @@ through llama-cpp-python, where the two fine-tuned adapters slot in later.
 - Laptop load: at most two implementation or verification agents run real models at once while the provider is local. On OpenRouter this limit does not apply.
 - The old repository is archived at ~/Dev/finquery-old.tar.gz and on the branch archive/old-main. It is reference material only, never a source of truth.
 - Vocabulary to carry into CONTEXT.md: Profile, Account, Transaction, Split, Category, Subcategory, Needs review, Unknown, Category rule, Enrichment, Memory, Conversation, Rolling summary, Import, Changeset, Preference record, Merchant token, Outbound log, Model slot (fast, quality), Provider, Sub-agent, Adapter.
+
+## Amendments
+
+- 2026-09-05: The Import page is an overview only. It lists past imports (file, kind, account, when, rows read, imported, duplicates found and undecided, reconciliation, needs review) with a Delete action and a "Continue in chat" link for anything undecided. It has no drop zone, no mapping preview and no review table. Every import happens in the chat composer (attachments, pasted text), and every decision (mapping confirmation, duplicates, extraction review, Needs review questions) happens in chat through Question cards. User stories 24 and 25 are read accordingly; story 57's "from a bill photo on the Transactions page" is dropped, bill photos go through chat too.
+- 2026-09-04: The quality slot is Qwen3.5 9B instead of Gemma 4 12B (ticket 23). OpenRouter runs the same model as the local path for it.
+
