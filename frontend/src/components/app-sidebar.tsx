@@ -29,6 +29,18 @@ import { conversationsQuery, deleteConversation, patchConversation, type Convers
 import { cn } from '@/lib/utils'
 import { forgetConversation, useWorkspace } from '@/lib/workspace'
 
+/** Every row of the sidebar shares this inset, so the icons form one column under the New chat
+ *  button's plus (which sits at the Button's px-2.5 behind a 1px border). */
+const ROW = 'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors hover:bg-sidebar-accent focus-ring'
+const ROW_ICON = 'size-4 shrink-0 text-muted-foreground'
+
+const PAGES = [
+  { to: '/transactions', label: 'Transactions', icon: TableIcon },
+  { to: '/import', label: 'Imports', icon: UploadIcon, title: 'What every file you dropped into a chat brought in' },
+  { to: '/memory', label: 'Memory', icon: BrainIcon },
+  { to: '/feedback', label: 'Feedback', icon: ThumbsUpIcon },
+] as const
+
 export function Brand({ className }: { className?: string }) {
   return (
     <div className={cn('flex items-center gap-2.5', className)}>
@@ -73,57 +85,30 @@ export function AppSidebar() {
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
       <div className="flex h-14 items-center px-4">
-        <Link to="/">
+        <Link className="rounded-lg focus-ring" to="/">
           <Brand />
         </Link>
       </div>
 
-      <div className="space-y-1 px-3 pb-2">
-        <Button asChild className="w-full justify-start gap-2" variant="outline">
+      <div className="flex flex-col gap-1 px-3 pb-2">
+        <Button asChild className="w-full justify-start" variant="outline">
           <Link to="/">
-            <PlusIcon className="size-4" />
+            <PlusIcon data-icon="inline-start" />
             New chat
           </Link>
         </Button>
-        <Link
-          activeProps={{ className: 'bg-sidebar-accent font-medium' }}
-          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
-          to="/transactions"
-        >
-          <TableIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          Transactions
-        </Link>
-        <Link
-          activeProps={{ className: 'bg-sidebar-accent font-medium' }}
-          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
-          title="What every file you dropped into a chat brought in"
-          to="/import"
-        >
-          <UploadIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          Imports
-        </Link>
-        <Link
-          activeProps={{ className: 'bg-sidebar-accent font-medium' }}
-          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
-          to="/memory"
-        >
-          <BrainIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          Memory
-        </Link>
-        <Link
-          activeProps={{ className: 'bg-sidebar-accent font-medium' }}
-          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
-          to="/feedback"
-        >
-          <ThumbsUpIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          Feedback
-        </Link>
+        {PAGES.map(({ to, label, icon: Icon, ...rest }) => (
+          <Link activeProps={{ className: 'bg-sidebar-accent font-medium' }} className={ROW} key={to} to={to} {...rest}>
+            <Icon className={ROW_ICON} />
+            {label}
+          </Link>
+        ))}
       </div>
 
       <nav aria-label="Conversations" className="flex-1 overflow-y-auto px-3 py-2">
         {conversations.length > 0 ? (
           <>
-            <p className="px-2 pb-2 font-medium text-[11px] text-muted-foreground uppercase tracking-wider">Recent</p>
+            <p className="px-2.5 pb-2 font-medium text-2xs text-muted-foreground uppercase tracking-wider">Recent</p>
             <ul className="flex flex-col gap-0.5">
               {conversations.map((conversation) => (
                 <li key={conversation.id}>
@@ -148,14 +133,14 @@ export function AppSidebar() {
                     >
                       <Link
                         className={cn(
-                          'min-w-0 flex-1 flex items-center gap-2 py-1.5 pl-2 text-sm',
+                          'flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pl-2.5 text-sm focus-ring',
                           params.conversationId === conversation.id && 'font-medium',
                         )}
                         params={{ conversationId: conversation.id }}
                         title={conversation.title}
                         to="/c/$conversationId"
                       >
-                        <MessageSquareIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                        <MessageSquareIcon className={ROW_ICON} />
                         <span className="truncate">{conversation.title}</span>
                       </Link>
                       <DropdownMenu>
@@ -166,16 +151,16 @@ export function AppSidebar() {
                             size="icon-xs"
                             variant="ghost"
                           >
-                            <MoreHorizontalIcon className="size-4" />
+                            <MoreHorizontalIcon />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-40">
                           <DropdownMenuItem onSelect={() => setRenaming(conversation.id)}>
-                            <PencilIcon className="size-4" />
+                            <PencilIcon />
                             Rename
                           </DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => setDeleting(conversation)} variant="destructive">
-                            <Trash2Icon className="size-4" />
+                            <Trash2Icon />
                             Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -187,14 +172,14 @@ export function AppSidebar() {
             </ul>
           </>
         ) : (
-          <p className="px-2 py-6 text-center text-muted-foreground text-xs">Your conversations will appear here.</p>
+          <p className="px-2.5 py-6 text-center text-muted-foreground text-xs">Your conversations will appear here.</p>
         )}
       </nav>
 
       <div className="border-t p-2">
-        <Button asChild className="w-full justify-start gap-2 text-muted-foreground" size="sm" variant="ghost">
+        <Button asChild className="w-full justify-start text-muted-foreground" size="sm" variant="ghost">
           <Link activeProps={{ className: 'bg-sidebar-accent text-foreground' }} to="/settings">
-            <SettingsIcon className="size-3.5" />
+            <SettingsIcon data-icon="inline-start" />
             Settings
           </Link>
         </Button>

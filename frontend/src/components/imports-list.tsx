@@ -6,6 +6,7 @@ import { useState, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/components/dialogs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
 import {
   conversationsQuery,
@@ -95,7 +96,7 @@ function ImportCard({
             undecided > 0 ? (
               // Undecided candidates are the one number nobody should walk past: those bookings
               // are neither in the data nor thrown away until the user says.
-              <span className="text-amber-600 dark:text-amber-500">{undecided} undecided</span>
+              <span className="text-warning">{undecided} undecided</span>
             ) : record.duplicate_count > 0 ? (
               <span className="text-muted-foreground">
                 {record.duplicates_kept} kept, {record.duplicates_removed} removed
@@ -155,7 +156,7 @@ export function ImportsList() {
   const busy = goOn.isPending || remove.isPending
 
   return (
-    <section className="space-y-3">
+    <section className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
         <h2 className="font-heading font-semibold text-sm">Past imports</h2>
         <span className="flex items-center gap-2 text-muted-foreground text-xs">
@@ -171,22 +172,26 @@ export function ImportsList() {
       )}
 
       {!imports || imports.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-10 text-center">
-          <FileSpreadsheetIcon aria-hidden="true" className="size-5 text-muted-foreground" />
-          <div className="space-y-1">
-            <p className="font-medium text-sm">Nothing imported yet</p>
-            <p className="mx-auto max-w-md text-balance text-muted-foreground text-xs">
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <FileSpreadsheetIcon aria-hidden="true" />
+            </EmptyMedia>
+            <EmptyTitle>Nothing imported yet</EmptyTitle>
+            <EmptyDescription>
               Drop a CSV export, a statement PDF or a bill photo into the chat. The assistant reads it, asks
               about anything it is unsure of and imports it, and every import shows up here.
-            </p>
-          </div>
-          <Button onClick={() => void navigate({ to: '/' })} size="sm" variant="outline">
-            <PlusIcon data-icon="inline-start" />
-            New chat
-          </Button>
-        </div>
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button onClick={() => void navigate({ to: '/' })} size="sm" variant="outline">
+              <PlusIcon data-icon="inline-start" />
+              New chat
+            </Button>
+          </EmptyContent>
+        </Empty>
       ) : (
-        <ul className="space-y-2">
+        <ul className="flex flex-col gap-2">
           {imports.map((record) => (
             <ImportCard
               busy={busy}

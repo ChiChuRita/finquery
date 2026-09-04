@@ -20,14 +20,14 @@ function LogRow({ entry }: { entry: OutboundEntry }) {
       <span className="min-w-0 truncate font-mono text-xs" title={entry.target}>
         {entry.target}
       </span>
-      <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+      <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">
         {formatDateTime(entry.created_at)}
       </span>
-      <span className="col-start-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+      <span className="col-start-2 flex flex-wrap items-center gap-2 text-2xs text-muted-foreground">
         <span>
           merchant token <span className="font-mono">{entry.merchant_token}</span>
         </span>
-        <span className={ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}>
+        <span className={ok ? 'text-primary' : 'text-warning'}>
           {ok ? <CheckIcon aria-hidden="true" className="mr-0.5 inline size-3" /> : null}
           {entry.status}
         </span>
@@ -60,7 +60,7 @@ export function WebLookupCard() {
   const entries = log.data ?? []
 
   return (
-    <section aria-labelledby="web-lookup-heading" className="rounded-xl border bg-card p-4 shadow-sm">
+    <section aria-labelledby="web-lookup-heading" className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-heading font-semibold text-base" id="web-lookup-heading">
@@ -94,7 +94,7 @@ export function WebLookupCard() {
 
       <div className="mt-4">
         <p className="flex items-center gap-1.5 font-medium text-xs">
-          {entries.length === 0 ? <ShieldCheckIcon className="size-3.5 text-emerald-600" /> : <GlobeIcon className="size-3.5" />}
+          {entries.length === 0 ? <ShieldCheckIcon className="size-3.5 text-primary" /> : <GlobeIcon className="size-3.5" />}
           Outbound log
           <span className="font-normal text-muted-foreground">
             {entries.length === 0

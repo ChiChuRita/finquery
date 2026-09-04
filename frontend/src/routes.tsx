@@ -13,6 +13,7 @@ import { FeedbackPage } from '@/components/feedback-page'
 import { ImportPage } from '@/components/import-page'
 import { MemoryPage } from '@/components/memory-page'
 import { ModelsCard } from '@/components/models-card'
+import { DocumentPage } from '@/components/page'
 import { TaxonomyCard } from '@/components/taxonomy-card'
 import { TransactionsPage } from '@/components/transactions-page'
 import { WebLookupCard } from '@/components/web-lookup-card'
@@ -62,7 +63,7 @@ function NewChatPage() {
           <Composer autoFocus onSlotChange={setSlot} onSubmit={start} slot={slot} status={creating ? 'submitted' : 'ready'} />
         </div>
       </div>
-      <p className="pb-5 text-center text-[11px] text-muted-foreground">
+      <p className="pb-5 text-center text-2xs text-muted-foreground">
         Numbers come from executed queries, never from the model.
       </p>
     </div>
@@ -121,17 +122,11 @@ const transactionsRoute = createRoute({
 
 function SettingsPage() {
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto w-full max-w-3xl px-6 py-10">
-        <h1 className="font-heading font-semibold text-2xl tracking-tight">Settings</h1>
-        <p className="mt-1 text-muted-foreground text-sm">How FinQuery runs on this machine.</p>
-        <div className="mt-6 space-y-6">
-          <TaxonomyCard />
-          <ModelsCard />
-          <WebLookupCard />
-        </div>
-      </div>
-    </div>
+    <DocumentPage description="How FinQuery runs on this machine." title="Settings">
+      <TaxonomyCard />
+      <ModelsCard />
+      <WebLookupCard />
+    </DocumentPage>
   )
 }
 

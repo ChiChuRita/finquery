@@ -59,7 +59,7 @@ function Reconciled({ read }: { read: StatementRead }) {
     <p
       className={cn(
         'flex items-start gap-1.5 text-xs',
-        read.reconciled === 'ok' ? 'text-muted-foreground' : 'text-amber-600 dark:text-amber-500',
+        read.reconciled === 'ok' ? 'text-muted-foreground' : 'text-warning',
       )}
     >
       <ScaleIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
@@ -86,7 +86,7 @@ function Bill({ bill }: { bill: ExtractedBill }) {
           ))}
         </ul>
       )}
-      <p className={cn('text-xs', bill.verified ? 'text-muted-foreground' : 'text-amber-600 dark:text-amber-500')}>
+      <p className={cn('text-xs', bill.verified ? 'text-muted-foreground' : 'text-warning')}>
         {bill.check}
       </p>
     </div>
@@ -96,7 +96,7 @@ function Bill({ bill }: { bill: ExtractedBill }) {
 function Counts({ label, value, tone }: { label: string; value: number; tone?: 'review' | undefined }) {
   return (
     <div className="rounded-md border bg-muted/20 px-3 py-2">
-      <p className={tone === 'review' && value > 0 ? 'font-medium text-amber-600 tabular-nums dark:text-amber-500' : 'font-medium tabular-nums'}>
+      <p className={cn('font-medium tabular-nums', tone === 'review' && value > 0 && 'text-warning')}>
         {value}
       </p>
       <p className="text-muted-foreground text-xs">{label}</p>
@@ -267,7 +267,7 @@ export function PreviewToolStep({ part }: { part: ExtractTransactionPart }) {
       </span>
       {part.output.problems.length > 0 && (
         <Badge className="ml-auto" variant="secondary">
-          {part.output.problems.length} line(s) skipped
+          {part.output.problems.length === 1 ? '1 line skipped' : `${part.output.problems.length} lines skipped`}
         </Badge>
       )}
     </Step>

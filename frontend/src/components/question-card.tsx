@@ -82,7 +82,9 @@ function RowHeader({ row }: { row: AskRow }) {
     <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
       <div className="min-w-0">
         <p className="truncate font-medium text-sm">{row.label}</p>
-        {row.description && <p className="truncate text-muted-foreground text-xs">{row.description}</p>}
+        {/* A merchant row carries the raw statement text, a duplicates row a sentence. Neither is
+            worth losing to an ellipsis, so it wraps. */}
+        {row.description && <p className="text-muted-foreground text-xs">{row.description}</p>}
       </div>
       <div className="flex shrink-0 items-center gap-2 text-xs">
         {row.bookings ? (
@@ -143,7 +145,7 @@ export function QuestionCard({
   const type = (ref: string, text: string) => setChoices((previous) => ({ ...previous, [ref]: { text } }))
 
   return (
-    <div className="not-prose mb-0 w-full rounded-xl border border-primary/30 bg-primary/[0.03] p-4">
+    <div className="not-prose mb-0 w-full rounded-lg border border-primary/30 bg-primary/[0.03] p-4">
       <div className="flex items-start gap-2">
         <HelpCircleIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
         <div className="min-w-0">
@@ -154,7 +156,7 @@ export function QuestionCard({
       </div>
 
       {rows.length > 0 && (
-        <ul className="mt-3 space-y-3">
+        <ul className="mt-3 flex flex-col gap-3">
           {rows.map((row) => {
             const chosen = chosenLabel(row, answered ?? [], fallback)
             const choice = choices[row.ref]
@@ -173,7 +175,7 @@ export function QuestionCard({
                     )}
                   </p>
                 ) : (
-                  <div className="mt-2 space-y-2">
+                  <div className="mt-2 flex flex-col gap-2">
                     <div className="flex flex-wrap gap-1.5">
                       {optionsFor(row, fallback).map((option) => (
                         <Button

@@ -20,7 +20,7 @@ export function ContextBadge({ stats }: { stats: ContextStats }) {
           {stats.summarized_turns > 0 ? (
             <Row label="Turns summarized" value={stats.summarized_turns} />
           ) : (
-            <p className="pt-1 text-[11px] text-muted-foreground">
+            <p className="pt-1 text-2xs text-muted-foreground">
               Past 60 percent, turns older than the last six are summarized.
             </p>
           )}

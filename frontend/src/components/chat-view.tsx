@@ -28,10 +28,12 @@ import { AnswerCompare, FeedbackError, Thumbs, useAnswerFeedback } from '@/compo
 import { AddedToolStep, DuplicatesToolStep, ImportToolStep, PreviewToolStep } from '@/components/import-tool'
 import { LookupToolStep } from '@/components/lookup-tool'
 import { MemoryToolStep } from '@/components/memory-tool'
+import { PageBar } from '@/components/page'
 import { QueryToolStep } from '@/components/query-tool'
 import { QuestionCard } from '@/components/question-card'
 import { ReviewToolStep, RuleToolStep } from '@/components/rule-tool'
 import { SummaryDivider } from '@/components/summary-divider'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   chatUrl,
@@ -151,18 +153,17 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
   // past the viewport and the tabs and this header scroll out of view.
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="flex h-11 shrink-0 items-center gap-3 border-b px-6">
-        <p className="min-w-0 flex-1 truncate font-medium text-sm" title={conversation.title}>
-          {conversation.title}
-        </p>
-        {context ? (
-          <ContextBadge stats={context} />
-        ) : (
-          <span className="text-muted-foreground text-xs" title="No context reading for this conversation yet">
-            &ndash;
-          </span>
-        )}
-      </div>
+      <PageBar title={conversation.title}>
+        <span className="ml-auto">
+          {context ? (
+            <ContextBadge stats={context} />
+          ) : (
+            <span className="text-muted-foreground text-xs" title="No context reading for this conversation yet">
+              &ndash;
+            </span>
+          )}
+        </span>
+      </PageBar>
 
       <Conversation className="flex-1" contextRef={scrollContext} initial={false}>
         <ConversationContent className="mx-auto w-full max-w-3xl gap-6 px-6 py-8">
@@ -217,7 +218,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
             slot={slot}
             status={status}
           />
-          <p className="pt-2 text-center text-[11px] text-muted-foreground">
+          <p className="pt-2 text-center text-2xs text-muted-foreground">
             Numbers come from executed queries, never from the model.
           </p>
         </div>
@@ -512,38 +513,36 @@ function TranscriptMessage({
 
       {message.role === 'assistant' && !live && (
         <MessageToolbar className="mt-1 justify-start gap-2 text-muted-foreground text-xs">
-          <span className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-0.5">
-            <TurnIcon className="size-3" />
+          <Badge className="font-normal text-muted-foreground" variant="outline">
+            <TurnIcon />
             {slotLabel(turnSlot)} model
-          </span>
+          </Badge>
           {memoriesUsed > 0 && (
-            <Link
-              className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-0.5 transition-colors hover:text-foreground"
-              title="What the assistant remembers about you"
-              to="/memory"
-            >
-              <BrainIcon className="size-3" />
-              {memoriesUsed === 1 ? '1 memory' : `${memoriesUsed} memories`} used
-            </Link>
+            <Badge asChild className="font-normal text-muted-foreground" variant="outline">
+              <Link title="What the assistant remembers about you" to="/memory">
+                <BrainIcon />
+                {memoriesUsed === 1 ? '1 memory' : `${memoriesUsed} memories`} used
+              </Link>
+            </Badge>
           )}
           {interrupted && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-2.5 py-0.5">
-              <CircleStopIcon className="size-3" />
+            <Badge className="border-dashed font-normal text-muted-foreground" variant="outline">
+              <CircleStopIcon />
               Stopped
-            </span>
+            </Badge>
           )}
           <span className="ml-auto flex items-center gap-1">
             <FeedbackError message={feedback.problem} />
             {feedback.rating === 'pick' && !feedback.second && <span>Pair collected</span>}
             {feedback.rating === 'down' && rerunnable && !feedback.second && (
               <Button
-                className="h-6 gap-1.5 px-2 text-muted-foreground text-xs"
+                className="text-muted-foreground"
                 disabled={feedback.asking || !feedback.ready}
                 onClick={() => void feedback.compare()}
-                size="sm"
+                size="xs"
                 variant="ghost"
               >
-                <GitCompareIcon className="size-3" />
+                <GitCompareIcon data-icon="inline-start" />
                 {feedback.asking ? 'Answering again...' : 'Compare a second answer'}
               </Button>
             )}
