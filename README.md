@@ -84,6 +84,21 @@ One suite is opt-in because it does load the real local models:
 FINQUERY_PROVIDER=local FINQUERY_SMOKE=1 uv run pytest tests/test_local_smoke.py -s
 ```
 
+## Onboarding
+
+A new profile opens onboarding at `/onboarding` instead of an empty chat: which of the seeded
+categories it uses (each one a toggle that really removes the category, plus adding and renaming
+inline), how the assistant should answer (the answer language, the model new chats start on, and
+the web lookup switch with its privacy note), and its first data. It is skippable on every step,
+resumable (the step is in the URL), and reopenable from Settings; a profile sees it once.
+
+Step three is the chat's own import path, not a second one: a file dropped there opens a new
+conversation with that file as the first message, so the mapping confirmation, the duplicates and
+the Needs review questions all happen on Question cards in the chat. "Load the sample year" posts
+`fixtures/synthetic/sparkasse-2025.csv` through the same function the `import_file` tool calls and
+seeds the turn it would have produced. Finish opens a chat with a welcome turn the server wrote
+from what the profile holds, with three suggested questions under it. No model runs for either.
+
 ## Data
 
 Import a bank CSV export by dropping it on the chat composer and sending it: the assistant runs
@@ -183,6 +198,7 @@ merchant token leaves at most once per profile: the result is cached. Search nee
   lookup loop, the outbound log and the lookup cache),
   `ask_user.py` (the Question card tool) and `answers.py` (what its answers do, in code),
   `followups.py` (post-turn suggestions),
+  `onboarding.py` (the state a profile is in, the welcome turn's copy and the language rule),
   `memory.py` (durable facts: the `remember` tool, the distillation pass, prompt selection),
   `preferences.py` (ratings and picks as training data),
   `nullish.py` (the one place that knows what a model writes when it means nothing),

@@ -9,6 +9,16 @@ tempting, it is listed as avoided so the vocabulary stays stable.
 conversation and preference record belongs to exactly one profile. A default profile is created
 at startup. Avoid: user, workspace, account (an account is a bank account, see below).
 
+**Onboarding**: the three steps and the finish a profile opens with the first time: which
+categories it uses, how the assistant should answer, and its first file. Its state is on the
+profile, `not_started`, `done` or `skipped`. A profile that has not started it opens onboarding
+instead of an empty chat, once, and Settings reopens it. Avoid: wizard, tour, setup flow.
+
+**Answer language**: the language the assistant writes its answers in, one per profile: follow
+(the language of each message, the default), German or English. A fixed choice overrides the
+follow-the-message rule in the prompt. Avoid: locale, UI language (the interface is English
+either way).
+
 **Account**: a bank account or card, derived from imports or created manually. Avoid: profile,
 wallet.
 
@@ -151,7 +161,8 @@ whose findings are the repair instructions the sub-agent gets back. Avoid: valid
 **Model slot**: one of two logical positions, **fast** and **quality**. The chat agent uses the
 slot chosen in the conversation, sub-agents always use fast. Fast is Gemma 4 E4B and quality is
 Qwen3.5 9B, on either provider, and the selector labels them with those names; what a
-conversation stores and every module passes around is still the slot. Avoid: model name, tier,
+conversation stores and every module passes around is still the slot. A profile has a default
+slot, chosen in onboarding, that a new conversation of it starts on. Avoid: model name, tier,
 engine.
 
 **Provider**: the setting (FINQUERY_PROVIDER) that resolves each slot to a concrete model:
