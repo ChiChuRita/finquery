@@ -20,8 +20,10 @@ import quickjs
 
 from finquery.chart.shapes import FAMILY_MARKS, MAX_SLICES, SHAPES, Shape
 
-# The globals the code may use, in the order the runtime and the stub pass them. The browser
-# runtime (frontend/src/chart-runtime/globals.ts) provides the same names for real.
+# The globals the code may use. The browser runtime (frontend/src/chart-runtime/globals.ts)
+# provides the same names for real. Each side pairs its own names with its own values, so only
+# the membership of the two lists has to match, and a name missing on either side fails loudly:
+# in the check as a ReferenceError finding, in the browser as an error on the card.
 GLOBAL_NAMES = (
     "defineChart",
     "lineY",
@@ -66,8 +68,9 @@ FORBIDDEN = (
     "setInterval",
 )
 
-# An array of object literals with a number in it is data typed into the code.
-INLINE_DATA = re.compile(r"\[\s*\{[^\[\]]*?:\s*-?\d", re.DOTALL)
+# Several object literals with a figure among them, in one array: rows typed into the code. A
+# single object with a number in it is configuration (a gradient stop, a tooltip item), not data.
+INLINE_DATA = re.compile(r"\[\s*\{[^\[\]]*?:\s*-?\d[^\[\]]*?\}\s*,\s*\{", re.DOTALL)
 
 # The two findings that are only about polish. A chart with a legend nobody needs still answers
 # the question, so after the last repair round it is shown with a note instead of thrown away.
@@ -558,6 +561,11 @@ def _mark_findings(report: dict[str, Any]) -> list[str]:
     return findings
 
 
+def _series_count(report: dict[str, Any]) -> int:
+    """How many colours the chart actually asks for, over every mark."""
+    return max((len(mark["series"]) for mark in report["marks"]), default=0)
+
+
 def _shape_findings(report: dict[str, Any], shape: Shape) -> list[str]:
     rule = SHAPES[shape]
     kinds = {mark["kind"] for mark in report["marks"]}
@@ -586,21 +594,16 @@ def _shape_findings(report: dict[str, Any], shape: Shape) -> list[str]:
                 "`polar` needs both `scales.angle` and `scales.radius`; use `null` for each "
                 "when the arcs carry their own geometry."
             )
-    if rule.series:
-        series = max((len(mark["series"]) for mark in report["marks"]), default=0)
-        if series < 2:
-            findings.append(
-                f"A {shape} chart needs one colour per series: add `z` and `color` pointing at "
-                f"the category column."
-            )
-    if rule.grouped:
-        layouts = {mark["layout"] for mark in report["marks"] if mark["kind"] in rule.required}
-        if "group" not in layouts:
-            findings.append("Grouped bars need `layout: group()`, otherwise they stack.")
-    if shape == "bar_stacked":
-        layouts = {mark["layout"] for mark in report["marks"] if mark["kind"] in rule.required}
-        if "group" in layouts:
-            findings.append("Stacked bars must not use `layout: group()`.")
+    if rule.series and _series_count(report) < 2:
+        findings.append(
+            f"A {shape} chart needs one colour per series: add `z` and `color` pointing at the "
+            f"category column."
+        )
+    layouts = {mark["layout"] for mark in report["marks"] if mark["kind"] in rule.required}
+    if rule.grouped and "group" not in layouts:
+        findings.append("Grouped bars need `layout: group()`, otherwise they stack.")
+    if shape == "bar_stacked" and "group" in layouts:
+        findings.append("Stacked bars must not use `layout: group()`.")
     return findings
 
 
@@ -661,8 +664,9 @@ def _house_findings(report: dict[str, Any], shape: Shape, rows: list[dict[str, A
                     f"The months read as 2025-01, so `scales.{rule.category_axis}` needs "
                     f"`axis: {{ ticks: {{ format: monthShort }} }}`."
                 )
+    # A sankey names its nodes with text marks, so it carries no colour series and no legend.
     if shape != "sankey":
-        series = max((len(mark["series"]) for mark in report["marks"]), default=0)
+        series = _series_count(report)
         if series > 1 and not spec["legend"]:
             findings.append(LEGEND_MISSING)
         # When the shape itself is asking for series, that finding is the actionable one.

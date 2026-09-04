@@ -12,6 +12,8 @@ import httpx
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall
 
+from finquery.chart.subagent import EXAMPLES
+
 from .conftest import Chat, Scripts, is_followup_request, new_conversation
 from .test_query import import_synthetic
 
@@ -254,7 +256,7 @@ async def test_a_chart_that_names_an_unknown_column_is_repaired(
     # The repair round is visible in the thinking panel.
     told = narration(chunks)
     assert 'reads the column "spent"' in told
-    assert "Self-check passed after 1 repairs." in told
+    assert "Self-check passed after one repair." in told
 
 
 async def test_a_chart_over_an_empty_column_is_repaired(
@@ -366,6 +368,72 @@ async def test_a_stacked_chart_becomes_plain_bars_when_the_rows_carry_one_series
     assert "shape bar," in respond.prompts["code"][0]  # type: ignore[attr-defined]
     # The query was told not to select a column that is NULL everywhere.
     assert "GROUP BY month, category" in respond.prompts["sql"][0]  # type: ignore[attr-defined]
+
+
+# One statement per shape, over the shipped dataset, returning the columns that shape's worked
+# example reads. `GROUP BY 1, 2` and not the aliases, because an alias that reuses a view column
+# name (`category`) would bind to the view's own column.
+SHAPE_SQL = {
+    "line": MONTHLY_SQL,
+    "area": (
+        "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS cumulative_eur "
+        "FROM transaction_view WHERE amount_cents < 0 GROUP BY 1 ORDER BY 1"
+    ),
+    "bar": (
+        "SELECT CASE WHEN amount_cents < -20000 THEN 'Gross' ELSE 'Klein' END AS category, "
+        "ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 "
+        "GROUP BY 1 ORDER BY 2 DESC"
+    ),
+    "bar_horizontal": MERCHANTS_SQL,
+    "bar_grouped": (
+        "SELECT strftime('%Y-%m', booked_on) AS month, "
+        "CASE WHEN amount_cents < -20000 THEN 'Gross' ELSE 'Klein' END AS category, "
+        "ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 "
+        "GROUP BY 1, 2 ORDER BY 1"
+    ),
+    "doughnut": MERCHANTS_SQL.replace("LIMIT 7", "LIMIT 6"),
+    "sankey": (
+        "SELECT 'Einkommen' AS source, "
+        "CASE WHEN amount_cents < -20000 THEN 'Wohnen' ELSE 'Alltag' END AS target, "
+        "ROUND(-SUM(amount), 2) AS amount_eur FROM transaction_view WHERE amount_cents < 0 "
+        "GROUP BY 1, 2"
+    ),
+}
+SHAPE_SQL["bar_stacked"] = SHAPE_SQL["bar_grouped"]
+
+
+async def test_every_worked_example_in_the_prompt_passes_the_check(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The few-shot examples are the contract: what the prompt teaches has to pass the rules.
+
+    Each example is written for the columns named in its first line, so the scripted statement
+    returns those columns from the shipped dataset and the code is the example itself. The
+    examples are read from the prompt rather than copied here, because a copy could pass while
+    the prompt taught something the check refuses.
+    """
+    await import_synthetic(client, profile_id)
+    for shape, example in EXAMPLES.items():
+        columns, code = example.split("\n", 1)
+        plan = {
+            "shape": shape,
+            "title": f"Beispiel {shape}",
+            "question": f"the {shape} example",
+            "columns": [name.strip() for name in columns.removeprefix("Columns:").split(",")],
+            "reason": "The worked example.",
+        }
+        respond = scripted_chart(plan=plan, sql=SHAPE_SQL[shape], codes=[code])
+        scripts.fast = ask_chart_then_report(f"the {shape} example")
+        scripts.fast_call = respond  # type: ignore[assignment]
+        conversation_id = await new_conversation(client, profile_id)
+
+        _, chunks = await chat(conversation_id, f"Zeig das Beispiel {shape}.")
+
+        output = chart_output(chunks)
+        assert output["error"] is None, f"{shape}: {output['error']}"
+        assert output["notes"] == [], f"{shape} needed a repair: {output['notes']}"
+        assert output["shape"] == shape, f"{shape} was not drawn as planned"
+        assert output["code"] == code
 
 
 async def test_an_empty_profile_gets_no_chart_and_calls_no_sub_agent(

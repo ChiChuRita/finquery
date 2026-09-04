@@ -79,6 +79,24 @@ sixty percent of the slot's context. Stored on the conversation with a summary-t
 shown as a divider in the transcript, editable. Avoid: compaction, compression (those are the
 process, the summary is the artifact).
 
+## Charts
+
+**Chart**: one drawing inside an answer, made of a shape, a title, the executed SQL, its rows
+and the JavaScript the chart sub-agent wrote against the chart runtime. Avoid: graph, plot,
+visualization, figure.
+
+**Shape**: which chart a request wants, one of line, area, bar, bar horizontal, bar grouped, bar
+stacked, doughnut and sankey. The shape is chosen in the plan pass and is what the self-check
+holds the code to. Avoid: chart type, kind.
+
+**Chart runtime**: the sandboxed page that hosts React and TanStack Charts, receives rows, code
+and theme colours by postMessage and draws one chart. Its contract (the allowlisted globals, the
+shapes, the house rules) is `docs/chart-runtime.md`. Avoid: renderer, iframe (the iframe is how
+the card embeds it, not what it is).
+
+**Self-check**: the in-process run of generated chart code in QuickJS against recording stubs,
+whose findings are the repair instructions the sub-agent gets back. Avoid: validation, linting.
+
 ## Models
 
 **Model slot**: one of two logical positions, **fast** and **quality**. The chat agent uses the

@@ -12,7 +12,7 @@ const integers = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 })
 export const rowLabel = (count: number) => (count === 1 ? '1 row' : `${count} rows`)
 
 function value(cell: QueryValue, fractional: boolean) {
-  if (cell === null) return '—'
+  if (cell === null) return '–'
   if (typeof cell === 'number') return fractional ? decimals.format(cell) : integers.format(cell)
   if (typeof cell === 'boolean') return String(cell)
   return cell

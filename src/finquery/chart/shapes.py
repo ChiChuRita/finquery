@@ -1,8 +1,10 @@
 """The chart shapes and what each one has to look like.
 
 One table, read by three callers: the plan prompt (which shapes exist), the code prompt (which
-example and which rules a shape gets) and the self-check (what to verify). Adding a shape is a
-row here plus an example in `subagent.EXAMPLES`.
+example and which rules a shape gets) and the self-check (what to verify). A new shape needs a
+row here, an example in `subagent.EXAMPLES`, a label in `frontend/src/components/chart-tool.tsx`
+and, when its geometry has rules of its own the way the doughnut and the sankey do, a branch in
+`selfcheck._shape_findings`.
 """
 
 from dataclasses import dataclass

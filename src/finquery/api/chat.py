@@ -54,25 +54,29 @@ class Narration:
     """What a tool says while it works, on its way into the thinking panel.
 
     A tool calls `say` (through `ChatDeps.narrate`) whenever a sub-agent decides something worth
-    watching: the chart plan, the rows it got, each repair round. Every line becomes reasoning
-    text on the same part, so the transcript shows one panel per tool call, and the collected
-    text is stored on the turn so a reload shows it again.
+    watching: the chart plan, the rows it got, each repair round. The lines of one tool call
+    become one reasoning part, so the transcript shows one panel per call, and the blocks are
+    kept with the tool they belong to so a reload can put them back in the same places.
     """
 
     queue: "asyncio.Queue[tuple[str, Any]]"
-    lines: list[str] = field(default_factory=list)
+    blocks: list[tuple[int, list[str]]] = field(default_factory=list)
+    """Per block: how many tool calls the turn had announced when it opened, and its lines."""
+    tools: int = 0
+    """Tool calls announced so far, counted by the stream loop."""
     open_id: str | None = None
 
     def say(self, text: str) -> None:
         line = " ".join(text.split())
         if not line:
             return
-        self.lines.append(line)
         if self.open_id is None:
-            self.open_id = f"{NARRATION_ID}-{len(self.lines)}"
+            self.open_id = f"{NARRATION_ID}-{len(self.blocks)}"
+            self.blocks.append((self.tools, [line]))
             self.queue.put_nowait(("note", ReasoningStartChunk(id=self.open_id)))
             self.queue.put_nowait(("note", ReasoningDeltaChunk(id=self.open_id, delta=line)))
         else:
+            self.blocks[-1][1].append(line)
             self.queue.put_nowait(("note", ReasoningDeltaChunk(id=self.open_id, delta=f"\n{line}")))
 
     def close(self) -> BaseChunk | None:
@@ -83,8 +87,9 @@ class Narration:
         self.open_id = None
         return chunk
 
-    def text(self) -> str:
-        return "\n".join(self.lines)
+    def texts(self) -> list[tuple[int, str]]:
+        """Each block as the tool call it followed and its text."""
+        return [(tools, "\n".join(lines)) for tools, lines in self.blocks]
 
 
 async def _pump(source: AsyncIterator[BaseChunk], queue: "asyncio.Queue[tuple[str, Any]]") -> None:
@@ -165,16 +170,18 @@ def _one_assistant_message(ui_messages: list[UIMessage]) -> list[UIMessage]:
     return folded
 
 
-def _insert_narration(parts: list[Any], narration: str) -> None:
-    """Put a tool's narration back where the live stream showed it: right after the tool step.
+def _insert_narration(parts: list[Any], narration: list[tuple[int, str]]) -> None:
+    """Put each tool's narration back where the live stream showed it: after that tool's step.
 
-    The narration is not part of the model's messages, so the dump cannot carry it. Live it
-    arrives while a tool is running, so the reload puts it after the last tool part and before
-    whatever the model thought or said next.
+    The narration is not part of the model's messages, so the dump cannot carry it. Live, a block
+    arrives while its tool is running, which is after the tool part and before whatever the model
+    thought or said next. Blocks are inserted from the back so the earlier positions still hold.
     """
-    part = ReasoningUIPart(text=narration, state="done")
-    after = [index for index, existing in enumerate(parts) if existing.type.startswith("tool-")]
-    parts.insert(after[-1] + 1 if after else len(parts), part)
+    tool_parts = [index for index, part in enumerate(parts) if part.type.startswith("tool-")]
+    for tools, text in reversed(narration):
+        # `tools` counts the calls announced when the block opened, so the last of them owns it.
+        after = tool_parts[tools - 1] + 1 if 0 < tools <= len(tool_parts) else len(parts)
+        parts.insert(after, ReasoningUIPart(text=text, state="done"))
 
 
 def _persist_turn(
@@ -184,7 +191,7 @@ def _persist_turn(
     slot: str,
     metadata: dict[str, object],
     followups: list[str],
-    narration: str = "",
+    narration: list[tuple[int, str]] | None = None,
 ) -> None:
     if notes := _audit_notes(new_messages):
         metadata["audit_notes"] = notes
@@ -264,7 +271,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
         turn_messages = result.all_messages()[len(history) :]
         followups = await _followups(turn_messages)
         _persist_turn(
-            request, conversation_id, turn_messages, slot, metadata, followups, narration.text()
+            request, conversation_id, turn_messages, slot, metadata, followups, narration.texts()
         )
         if followups:
             yield DataChunk(type=FOLLOWUPS_PART, data={"suggestions": followups})
@@ -281,7 +288,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
             slot,
             metadata,
             [],
-            narration.text(),
+            narration.texts(),
         )
         yield MessageMetadataChunk(message_metadata=metadata)
 
@@ -330,6 +337,9 @@ async def chat(request: Request, conversation_id: str) -> Response:
                     thinking_started = time.monotonic()
                 elif item.type == "reasoning-end":
                     close_thinking()
+                elif item.type == "tool-input-available":
+                    # Which tool step a narration block belongs to, for the reload.
+                    narration.tools += 1
                 yield item
         finally:
             pump.cancel()

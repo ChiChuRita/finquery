@@ -68,11 +68,13 @@ def _failed(request: str, reason: str, **rest: Any) -> ChartOutcome:
 
 
 def _grouping_columns(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
-    """The columns that could carry a category: no NULL, more than one value, euros excluded."""
+    """The columns that could carry a category: no NULL, more than one value, no figures."""
     grouping: list[str] = []
-    for column in columns[:-1]:
+    for column in columns:
         values = [row.get(column) for row in rows]
         if any(value is None for value in values):
+            continue
+        if any(isinstance(value, (int, float)) and not isinstance(value, bool) for value in values):
             continue
         if len({str(value) for value in values}) > 1:
             grouping.append(column)
@@ -122,11 +124,12 @@ async def run_chart(
         return _failed(request, f"The chart sub-agent did not return a plan: {exc}")
     say(plan.as_text())
 
-    hints = f"Return exactly these columns, in this order: {', '.join(plan.columns)}."
+    # What the query needs to know on top of whatever the assistant said.
+    shaped = f"Return exactly these columns, in this order: {', '.join(plan.columns)}."
     if plan.shape == "sankey":
         # A flow layout rejects a negative or missing value, and signs must not be mixed:
         # spending and income both travel as positive amounts along the flow.
-        hints += (
+        shaped += (
             f" Every row is one flow: a source name, a target name and a positive euro amount. "
             f"Report spending as `ROUND(-SUM(amount), 2)`, never mix a negative and a positive "
             f"figure in {plan.columns[-1]}, and leave no row without a source or a target."
@@ -135,7 +138,7 @@ async def run_chart(
         # A grouped chart needs a real second dimension, so the statement has to group by both
         # columns. Selecting a column that is NULL for every booking (`category` before anything
         # is categorized) or grouping by only one of them silently produces a single series.
-        hints += (
+        shaped += (
             f" `GROUP BY {plan.columns[0]}, {plan.columns[1]}`, so there is one row per "
             f"combination and no row where {plan.columns[1]} is NULL. When the taxonomy is not "
             f"filled, build {plan.columns[1]} as a CASE expression over the merchants, repeat it "
@@ -147,7 +150,7 @@ async def run_chart(
         session_factory=session_factory,
         profile_id=profile_id,
         request=plan.question,
-        hints=hints,
+        hints=f"{hints.strip()} {shaped}" if hints else shaped,
     )
     if outcome.error is not None:
         say(f"No chart: {outcome.error}")
@@ -201,7 +204,8 @@ async def run_chart(
         last = attempt == ATTEMPTS - 1
         if result.ok or (last and not result.fatal):
             if result.ok:
-                passed = "Self-check passed." if attempt == 0 else f"Self-check passed after {attempt} repairs."
+                rounds = "one repair" if attempt == 1 else f"{attempt} repairs"
+                passed = "Self-check passed." if attempt == 0 else f"Self-check passed after {rounds}."
             else:
                 # Only polish is left after the last round. A chart with a legend nobody needs
                 # still answers the question, and no chart at all does not.

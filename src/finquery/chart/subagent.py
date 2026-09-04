@@ -67,7 +67,7 @@ no JSX, no `await` and no browser APIs. These globals are all that exist:
   colorLegend(options)           the legend
   tooltip                        the tooltip extension
   palette                        the theme colours, palette[0] first
-  eur(value)                     "1.234,56 EUR", for tooltips
+  eur(value)                     "1.234,56 €", for tooltips
   eurShort(value)                a short euro label, for axis ticks
   monthShort('2025-01')          "Jan 25", for month axes
 
