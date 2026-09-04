@@ -1,8 +1,16 @@
-"""Import endpoints: preview a CSV upload, commit it, categorize it, hand it to a chat.
+"""Import endpoints: preview a CSV upload, extract a PDF or photo, commit, categorize, hand
+the leftovers to a chat.
 
 The preview holds no server-side state. The browser keeps the dropped file and posts it again
 with the mapping it wants, so editing the mapping is just another preview call and a commit
 never depends on an earlier upload still being around.
+
+A PDF or a photo works the same way with one difference: reading it costs a model call per
+page, so it is not read twice. `POST /imports/extract` returns the rows with the verdict of
+both guards on each of them, the page reviews what was flagged, and `POST /imports/extracted`
+commits the rows it sends back. That endpoint recomputes the reconciliation itself from those
+rows, so the line on the Import record is always what the server worked out and never what a
+client claimed.
 
 After a commit the page calls `categorize`, and if merchants are left over `review-conversation`,
 which seeds a conversation whose first turn summarizes the import and asks the first Question
@@ -26,8 +34,12 @@ from sqlalchemy.orm import Session
 from finquery.api.chat import persist_turn
 from finquery.api.profiles import get_profile_or_404
 from finquery.ask_user import ASK_USER
+from finquery.attachments import kind_of
 from finquery.categorize import categorize_import, pending_questions, review_card
 from finquery.db import Account, Conversation, Import
+from finquery.extract.guards import ExtractedRow, Reconciliation, reconcile
+from finquery.extract.pdf import PdfUnreadable
+from finquery.extract.statement import Extraction, commit_extraction, extract_statement
 from finquery.ingest import duplicates
 from finquery.ingest.commit import commit_rows, import_summary
 from finquery.ingest.csv_reader import (
@@ -243,6 +255,137 @@ def _out(record: Import, account_name: str) -> ImportOut:
     )
 
 
+# Statement PDFs and photos. Two calls, because the extraction is the expensive half.
+
+
+class ProfileBody(BaseModel):
+    """Writes carry the profile in the body; nothing is implicitly profile scoped."""
+
+    profile_id: str
+
+
+
+class ExtractionOut(BaseModel):
+    """What the extraction sub-agent and the guards made of one file. Nothing is written yet."""
+
+    file_name: str
+    kind: str
+    layout: str
+    layout_label: str
+    account_name: str
+    pages: int
+    scanned_pages: list[int]
+    rows: list[ExtractedRow]
+    reconciliation: Reconciliation
+    flagged: int
+    note: str | None
+    errors: list[str]
+
+
+class ExtractedRowIn(BaseModel):
+    """One row the page sends back to be committed, as it stood after the review."""
+
+    booked_on: date
+    amount_cents: int
+    description: str
+    counterparty: str | None = None
+    balance_cents: int | None = None
+    page: int = 1
+    line: int | None = None
+
+
+class ExtractedImportIn(ProfileBody):
+    file_name: str
+    kind: Literal["pdf", "image"]
+    layout: str = "unknown"
+    account_name: str
+    rows: list[ExtractedRowIn]
+    dropped: int = 0
+    """Rows the user dropped in the review, counted into the record's skipped rows."""
+
+
+@router.post("/imports/extract", response_model=ExtractionOut)
+async def extract_upload(request: Request, file: UploadFile = File(...)) -> ExtractionOut:
+    """Read a statement PDF or a photo into rows the page can review. Writes nothing."""
+    data = await _read(file)
+    file_name = file.filename or "upload.pdf"
+    kind = kind_of(file_name, file.content_type or "")
+    if kind not in ("pdf", "image"):
+        raise HTTPException(status_code=422, detail="This endpoint reads PDFs and images. A CSV goes to /imports/preview.")
+    state = request.app.state
+    try:
+        state.resolve_model("fast")
+    except ProviderNotAvailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    try:
+        extraction = await extract_statement(
+            data,
+            file_name=file_name,
+            kind=kind,
+            resolve_model=state.resolve_model,
+            model_settings=state.subagent_settings,
+        )
+    except PdfUnreadable as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if not extraction.rows:
+        # A page that failed says why (a local run out of context, a transport error): that is a
+        # different problem from a file that is not a statement, and the user has to be told which.
+        raise HTTPException(
+            status_code=422,
+            detail=extraction.note
+            or (extraction.errors[0] if extraction.errors else None)
+            or "No booking could be read out of this file. It may not be a bank statement.",
+        )
+    return _extraction_out(extraction)
+
+
+def _extraction_out(extraction: Extraction) -> ExtractionOut:
+    return ExtractionOut(
+        file_name=extraction.file_name,
+        kind=extraction.kind,
+        layout=extraction.layout,
+        layout_label=extraction.layout_label,
+        account_name=extraction.account_name,
+        pages=extraction.pages,
+        scanned_pages=extraction.scanned_pages,
+        rows=extraction.rows,
+        reconciliation=extraction.reconciliation,
+        flagged=len(extraction.flagged),
+        note=extraction.note,
+        errors=extraction.errors,
+    )
+
+
+@router.post("/imports/extracted", response_model=ImportOut, status_code=201)
+async def create_extracted_import(request: Request, body: ExtractedImportIn) -> ImportOut:
+    """Commit the rows the user accepted in the review of an extraction.
+
+    The reconciliation is worked out here, over exactly these rows: a row the user dropped
+    leaves a hole in the running balance, and the record says so rather than claiming the
+    import added up.
+    """
+    if not body.rows:
+        raise HTTPException(status_code=422, detail="No row was accepted, so there is nothing to import.")
+    rows = [ExtractedRow(**row.model_dump()) for row in body.rows]
+    # On a copy, so the verdict cannot change an amount the user has already seen and accepted.
+    verdict = reconcile([row.model_copy() for row in rows])
+    account = body.account_name.strip() or "Imported account"
+    with request.app.state.session_factory() as session:
+        get_profile_or_404(session, body.profile_id)
+        record = commit_extraction(
+            session,
+            body.profile_id,
+            rows=rows,
+            file_name=body.file_name,
+            kind=body.kind,
+            layout=body.layout,
+            account_name=account,
+            reconciliation=verdict,
+            dropped=body.dropped,
+        )
+        return _out(record, account)
+
+
 @router.get("/imports", response_model=list[ImportOut])
 async def list_imports(request: Request, profile_id: str) -> list[ImportOut]:
     with request.app.state.session_factory() as session:
@@ -257,12 +400,6 @@ async def list_imports(request: Request, profile_id: str) -> list[ImportOut]:
 
 
 # Categorization of an import, and the conversation that asks about what is left.
-
-
-class ProfileBody(BaseModel):
-    """Writes carry the profile in the body; nothing is implicitly profile scoped."""
-
-    profile_id: str
 
 
 class ReviewBody(ProfileBody):

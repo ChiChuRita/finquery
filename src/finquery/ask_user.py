@@ -8,8 +8,8 @@ the answer comes back as the tool's output on the next request, where it resumes
 The shape is deliberately generic: a title, an optional note, the rows being asked about with
 their own buttons, question-level buttons for a single choice, and a free text field. Ticket 07
 uses it for categorization, ticket 08 for the CSV mapping confirmation and the preview of a
-typed booking, ticket 10 for duplicate decisions, and ticket 11 will reuse it for the
-extraction review.
+typed booking, ticket 10 for duplicate decisions, and ticket 11 for the review of a flagged
+extraction.
 
 Wire contract:
 
@@ -75,14 +75,17 @@ class AskRow(BaseModel):
     )
 
 
-ApplyKind = Literal["category_rule", "duplicate_decision", "mapping_confirmation", "transaction_draft"]
+ApplyKind = Literal[
+    "category_rule", "duplicate_decision", "mapping_confirmation", "transaction_draft", "extraction_review"
+]
 """What kind of decision a card collects.
 
-Two of them the server applies itself (`finquery.answers.APPLIERS`): `category_rule` turns
-every answer into a category rule, and `duplicate_decision` inserts the bookings the user kept
-and discards the ones they removed. The other two name a card whose answers the model acts on
-with a tool of its own (`import_file(confirmed=true)`, `add_transaction(ref)`), so they exist
-to say "not categorization": without them a card that declares nothing would be read as a
+Three of them the server applies itself (`finquery.answers.APPLIERS`): `category_rule` turns
+every answer into a category rule, `duplicate_decision` inserts the bookings the user kept and
+discards the ones they removed, and `extraction_review` commits the rows of a statement
+extraction the user accepted. The other two name a card whose answers the model acts on with a
+tool of its own (`import_file(confirmed=true)`, `add_transaction(ref)`), so they exist to say
+"not categorization": without them a card that declares nothing would be read as a
 categorization card and its Confirm answers would be offered to `set_rule` as category names.
 """
 
@@ -90,6 +93,7 @@ CATEGORY_RULE: ApplyKind = "category_rule"
 DUPLICATE_DECISION: ApplyKind = "duplicate_decision"
 MAPPING_CONFIRMATION: ApplyKind = "mapping_confirmation"
 TRANSACTION_DRAFT: ApplyKind = "transaction_draft"
+EXTRACTION_REVIEW: ApplyKind = "extraction_review"
 
 
 class AskApply(BaseModel):
@@ -99,9 +103,10 @@ class AskApply(BaseModel):
         default=CATEGORY_RULE,
         description=(
             "`category_rule` means every answer becomes a category rule for that merchant, "
-            "`duplicate_decision` that a kept booking is inserted and a removed one is not. "
-            "The other kinds are handled by a tool you call yourself, so copy whichever one the "
-            "tool that gave you the rows returned."
+            "`duplicate_decision` that a kept booking is inserted and a removed one is not, and "
+            "`extraction_review` that the accepted bookings are imported. The other kinds are "
+            "handled by a tool you call yourself, so copy whichever one the tool that gave you "
+            "the rows returned."
         ),
     )
 

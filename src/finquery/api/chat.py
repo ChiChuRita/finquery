@@ -489,10 +489,12 @@ async def chat(request: Request, conversation_id: str) -> Response:
     if answers:
         # What the answers mean happens here, in code, before the model is asked to continue:
         # the rules of a Question card are stored, a kept duplicate is inserted and
-        # categorized, and the result says what was applied.
+        # categorized, the rows of a reviewed extraction are committed, and the result says
+        # what was applied.
         answers = await resolve_answers(
             state.session_factory,
             profile_id,
+            conversation_id,
             open_calls,
             answers,
             resolve_model=state.resolve_model,

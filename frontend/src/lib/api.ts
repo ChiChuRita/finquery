@@ -32,7 +32,15 @@ export interface ContextStats {
 
 /** One line of progress from a running tool, streamed transient and never stored. */
 export interface ImportProgress {
-  stage: 'read' | 'mapping' | 'imported' | 'duplicates' | 'categorizing' | 'categorized'
+  stage:
+    | 'read'
+    | 'mapping'
+    | 'extracting'
+    | 'checking'
+    | 'imported'
+    | 'duplicates'
+    | 'categorizing'
+    | 'categorized'
   message: string
   counts: Record<string, number>
   /** The tool call this line belongs to, so it renders inside that step. */
@@ -241,27 +249,31 @@ export interface ImportCounts {
   error: string | null
 }
 
+/** What a committed import came to, whichever reader produced the rows.
+ *  A statement PDF carries the `StatementRead` fields on top of these; a CSV does not. */
+export interface ImportedFile {
+  status: 'imported'
+  file: string
+  account: string
+  rows_read: number
+  imported: number
+  /** Bookings held aside as possible duplicates, none of them inserted or dropped. */
+  duplicates: number
+  exact_duplicates: number
+  near_duplicates: number
+  /** The first card to ask about them, when there are any. The merchants wait for it. */
+  duplicate_card: AskUserInput | null
+  unreadable_rows: number
+  /** The one sentence about this import, counted on the server. */
+  summary: string
+  categorized: ImportCounts
+  pending_merchants: number
+  questions: ReviewQuestion[]
+  instruction?: string
+}
+
 export type ImportFileOutput =
-  | {
-      status: 'imported'
-      file: string
-      account: string
-      rows_read: number
-      imported: number
-      /** Bookings held aside as possible duplicates, none of them inserted or dropped. */
-      duplicates: number
-      exact_duplicates: number
-      near_duplicates: number
-      /** The first card to ask about them, when there are any. The merchants wait for it. */
-      duplicate_card: AskUserInput | null
-      unreadable_rows: number
-      /** The one sentence about this import, counted on the server. */
-      summary: string
-      categorized: ImportCounts
-      pending_merchants: number
-      questions: ReviewQuestion[]
-      instruction?: string
-    }
+  | ImportedFile
   | {
       status: 'confirm_mapping'
       file: string
@@ -270,9 +282,59 @@ export type ImportFileOutput =
       card: AskUserInput
       instruction: string
     }
-  | { status: 'extraction_not_ready' | 'already_imported'; file: string; message: string }
+  | { status: 'bill_matched' | 'already_imported'; file: string; message: string; bill?: ExtractedBill }
   | { status: 'no_such_file'; error: string; attached_files: string[] }
-  | { status: 'unreadable' | 'mapping_failed'; file?: string; error: string }
+  | { status: 'unreadable' | 'mapping_failed' | 'extraction_failed'; file?: string; error: string }
+  | { status: 'nothing_found'; file?: string; error: string; problems?: string[]; bill?: ExtractedBill }
+  | (StatementRead & {
+      status: 'extraction_review'
+      /** The flagged rows to decide about. Nothing is imported until it is answered. */
+      card: AskUserInput
+      instruction: string
+    })
+  | (StatementRead & ImportedFile)
+  | {
+      status: 'bill_split'
+      file: string
+      bill: ExtractedBill
+      matched: { transaction_id: string; booked_on: string; amount_cents: number; description: string }
+      /** Proposed, never applied: the card in the transcript is what applies it. */
+      changeset: Changeset
+      instruction: string
+    }
+  | {
+      status: 'bill_draft'
+      file: string
+      bill: ExtractedBill
+      drafts: TransactionDraft[]
+      card: AskUserInput
+      instruction: string
+    }
+
+/** What one statement file came to, on every status the extraction can end in. */
+export interface StatementRead {
+  file: string
+  layout: string
+  pages: number
+  scanned_pages: number
+  rows_read: number
+  flagged: number
+  /** The one sentence the reconciliation guard produced. */
+  reconciliation: string
+  reconciled: 'ok' | 'failed' | 'not_checkable'
+  account: string
+}
+
+/** What the vision path read off a receipt, with the verdict of the total guard. */
+export interface ExtractedBill {
+  merchant: string
+  booked_on: string
+  total_cents: number
+  total_printed: boolean
+  items: { description: string; amount_cents: number }[]
+  verified: boolean
+  check: string
+}
 
 // `extract_transaction`: what the user typed or pasted, as drafts to confirm.
 export interface TransactionDraft {
@@ -710,6 +772,81 @@ export const decideDuplicates = (
     method: 'POST',
     body: JSON.stringify({ profile_id: profileId, decisions, remove_all_exact: removeAllExact }),
   })
+
+// PDFs and photos: read once, reviewed in the page, then committed. Reading costs a model
+// call per page, so unlike a CSV preview the file is not posted a second time.
+
+export type ExtractionFlag = 'unreadable' | 'verbatim' | 'reconciliation' | 'unverified'
+
+export interface ExtractedRow {
+  booked_on: string | null
+  amount_cents: number | null
+  description: string
+  counterparty: string | null
+  balance_cents: number | null
+  page: number
+  line: number | null
+  /** The printed line this row was read from, verbatim. */
+  source: string
+  date_text: string
+  amount_text: string
+  /** Empty means both guards passed and the row needs no decision. */
+  flags: ExtractionFlag[]
+  reason: string | null
+}
+
+export interface Reconciliation {
+  status: 'ok' | 'failed' | 'not_checkable'
+  line: string
+  opening_cents: number | null
+  closing_cents: number | null
+  booked_cents: number
+  pages_failed: number[]
+  rows_flagged: number
+  directions_fixed: number
+}
+
+export interface Extraction {
+  file_name: string
+  kind: 'pdf' | 'image'
+  layout: string
+  layout_label: string
+  account_name: string
+  pages: number
+  scanned_pages: number[]
+  rows: ExtractedRow[]
+  reconciliation: Reconciliation
+  flagged: number
+  note: string | null
+  errors: string[]
+}
+
+export function extractUpload(file: File) {
+  const form = new FormData()
+  form.set('file', file)
+  return postForm<Extraction>('/api/imports/extract', form)
+}
+
+export interface ExtractedCommit {
+  profile_id: string
+  file_name: string
+  kind: 'pdf' | 'image'
+  layout: string
+  account_name: string
+  dropped: number
+  rows: {
+    booked_on: string
+    amount_cents: number
+    description: string
+    counterparty: string | null
+    balance_cents: number | null
+    page: number
+    line: number | null
+  }[]
+}
+
+export const commitExtracted = (body: ExtractedCommit) =>
+  request<ImportRecord>('/api/imports/extracted', { method: 'POST', body: JSON.stringify(body) })
 
 // Categorization of a finished import, and the conversation that asks about what is left.
 

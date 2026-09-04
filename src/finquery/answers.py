@@ -6,9 +6,11 @@ does what the answers mean, deterministically, and writes one line about it into
 result. The model's job on the second half is to say what happened and ask the next question,
 never to work out the change itself.
 
-Two kinds are applied here. `category_rule`: every answer becomes a category rule for that
+Three kinds are applied here. `category_rule`: every answer becomes a category rule for that
 merchant. `duplicate_decision`: the bookings the user kept are inserted from the columns the
-card showed and categorized, the ones they removed never existed. A card says which kind it is
+card showed and categorized, the ones they removed never existed. `extraction_review`: the rows
+of a statement extraction the user accepted are committed through the same commit a CSV import
+uses, so they meet the duplicate step too, and are categorized. A card says which kind it is
 through `AskUser.apply`, so a new kind is an entry in `APPLIERS` and touches nothing on the
 model path. A card that declares nothing is a categorization card, which is what the seeded
 review conversation and every `review_batch` card are.
@@ -18,6 +20,10 @@ The two kinds ticket 08 brings, `mapping_confirmation` and `transaction_draft`, 
 (`import_file(confirmed=true)`, `add_transaction(ref)`), so they are passed through untouched.
 They have to declare a kind all the same, or the fallback above would offer their Confirm and
 Discard answers to `set_rule` as category names.
+
+Every applier is async, because keeping a duplicate or committing an extraction inserts
+bookings and a booking is categorized, which asks the fast slot. `resolve_answers` is therefore
+awaited from the chat endpoint, before the resumed half of the run starts.
 """
 
 import logging
@@ -31,6 +37,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.ask_user import ASK_USER, ApplyKind, AskAnswer, AskAnswers, AskRow, AskUser, unwrap_card
 from finquery.categorize import apply_answers as apply_category_rules
+from finquery.extract.review import apply_review
 from finquery.ingest.duplicates import apply_answers as apply_duplicate_decisions
 from finquery.providers import ModelResolver
 
@@ -41,12 +48,15 @@ logger = logging.getLogger(__name__)
 class ApplyContext:
     """What an applier gets: the card, the answers, and the fast slot if it needs one.
 
-    `resolve_model` is here because keeping a duplicate candidate inserts a booking, and a new
-    booking is categorized: that is the one applier which runs a sub-agent.
+    An applier gets the whole context rather than positional arguments, because the kinds need
+    different parts of it: category rules need only the session and the profile, while committing
+    an extraction needs the conversation the file was attached to, and both it and a kept
+    duplicate need the fast slot for the categorization that follows.
     """
 
     session: Session
     profile_id: str
+    conversation_id: str
     rows: Sequence[AskRow]
     answers: Sequence[AskAnswer]
     resolve_model: ModelResolver
@@ -72,15 +82,29 @@ async def _duplicate_decisions(ctx: ApplyContext) -> str | None:
     )
 
 
+async def _extraction_review(ctx: ApplyContext) -> str | None:
+    return await apply_review(
+        ctx.session,
+        ctx.profile_id,
+        ctx.conversation_id,
+        ctx.rows,
+        ctx.answers,
+        resolve_model=ctx.resolve_model,
+        model_settings=ctx.model_settings,
+    )
+
+
 APPLIERS: dict[ApplyKind, Applier] = {
     "category_rule": _category_rules,
     "duplicate_decision": _duplicate_decisions,
+    "extraction_review": _extraction_review,
 }
 
 
 async def resolve_answers(
     session_factory: sessionmaker[Session],
     profile_id: str,
+    conversation_id: str,
     calls: Mapping[str, ToolCallPart],
     outputs: Mapping[str, object],
     *,
@@ -101,6 +125,7 @@ async def resolve_answers(
             line = await _apply(
                 session_factory,
                 profile_id,
+                conversation_id,
                 call.args_as_dict(),
                 output,
                 resolve_model=resolve_model,
@@ -113,6 +138,7 @@ async def resolve_answers(
 async def _apply(
     session_factory: sessionmaker[Session],
     profile_id: str,
+    conversation_id: str,
     card_input: dict[str, object],
     output: dict[str, object],
     *,
@@ -138,6 +164,7 @@ async def _apply(
             ApplyContext(
                 session=session,
                 profile_id=profile_id,
+                conversation_id=conversation_id,
                 rows=card.rows,
                 answers=answers.answers,
                 resolve_model=resolve_model,
