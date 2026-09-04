@@ -23,7 +23,7 @@ def main() -> None:
     if args.dev:
         uvicorn.run("finquery.main:dev_app", factory=True, host=settings.host, port=settings.port, reload=True)
     else:
-        print(f"FinQuery on http://{settings.host}:{settings.port} (provider: {settings.provider})")
+        print(f"FinQuery on http://{settings.host}:{settings.port} (provider: {settings.provider})", flush=True)
         uvicorn.run(create_app(settings), host=settings.host, port=settings.port)
 
 
