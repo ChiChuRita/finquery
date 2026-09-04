@@ -562,6 +562,18 @@ export const transactionsQuery = (profileId: string | undefined, filters: Filter
     enabled: profileId !== undefined,
   })
 
+/** How many bookings the profile holds, asked for with one row: the empty state offers questions
+ *  about spending only once there is spending to ask about. */
+export const transactionCountQuery = (profileId: string | undefined) =>
+  queryOptions({
+    queryKey: ['transactions', 'count', { profileId }],
+    queryFn: async () => {
+      const page = await request<TransactionPage>(`/api/transactions?profile_id=${profileId}&limit=1`)
+      return page.total
+    },
+    enabled: profileId !== undefined,
+  })
+
 export const accountsQuery = (profileId: string | undefined) =>
   queryOptions({
     queryKey: ['accounts', { profileId }],

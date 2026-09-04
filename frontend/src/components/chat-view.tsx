@@ -229,15 +229,31 @@ function thinkingMessage(isStreaming: boolean, duration?: number) {
 
 type MessagePart = ChatMessage['parts'][number]
 
+/** The part types below draw something. `step-start`, the data parts and a tool without a card
+ *  take up no room, so they must not separate two panels either. */
+const DRAWN = new Set([
+  'reasoning',
+  'text',
+  'tool-query',
+  'tool-chart',
+  'tool-ask_user',
+  'tool-set_rule',
+  'tool-review_batch',
+  'tool-propose_changeset',
+  'tool-apply_simple_edit',
+])
+
+const drawn = (part: MessagePart) =>
+  DRAWN.has(part.type) && (part.type !== 'text' || part.text.trim() !== '')
+
 /** One turn can think several times in a row (a tool call ends a model response). One panel.
  *
- * `step-start` parts sit between the steps of a turn and render nothing, so they are dropped
- * first: otherwise a sub-agent's narration and the thinking that follows it would show as two
- * panels for one pause.
+ * The parts that draw nothing go first, so a pause that only wrote a memory in between still
+ * reads as the one pause it was.
  */
 function foldReasoning(parts: MessagePart[]): MessagePart[] {
   const folded: MessagePart[] = []
-  for (const part of parts.filter((candidate) => candidate.type !== 'step-start')) {
+  for (const part of parts.filter(drawn)) {
     const previous = folded.at(-1)
     if (part.type === 'reasoning' && previous?.type === 'reasoning') {
       folded[folded.length - 1] = { ...previous, state: part.state, text: `${previous.text}\n\n${part.text}` }
@@ -246,6 +262,41 @@ function foldReasoning(parts: MessagePart[]): MessagePart[] {
     folded.push(part)
   }
   return folded
+}
+
+/** How tall a panel of thinking may grow while the turn runs. Past that it scrolls itself, so
+ *  the tool step and the answer below it stay on screen. */
+const THINKING_CAP = 'max-h-56 overflow-y-auto pr-1 [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]'
+
+/** The thinking of one pause. While the turn runs the panel is capped and follows its own tail. */
+function ThinkingPanel({
+  text,
+  isStreaming,
+  capped,
+  duration,
+}: {
+  text: string
+  isStreaming: boolean
+  /** The turn is still going, so the panel keeps its cap until it folds itself away. */
+  capped: boolean
+  duration?: number
+}) {
+  const box = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!capped) return
+    const element = box.current
+    if (element) element.scrollTop = element.scrollHeight
+  }, [capped, text])
+
+  return (
+    <Reasoning className="mb-0 w-full" duration={duration} isStreaming={isStreaming}>
+      <ReasoningTrigger getThinkingMessage={thinkingMessage} />
+      <ReasoningContent className={capped ? THINKING_CAP : undefined} ref={box}>
+        {text}
+      </ReasoningContent>
+    </Reasoning>
+  )
 }
 
 function TranscriptMessage({
@@ -285,10 +336,13 @@ function TranscriptMessage({
             const seconds = message.metadata?.thinking_seconds
             const duration = !isStreaming && seconds !== undefined ? Math.max(1, Math.round(seconds)) : undefined
             return (
-              <Reasoning className="mb-0 w-full" duration={duration} isStreaming={isStreaming} key={`${message.id}-${index}`}>
-                <ReasoningTrigger getThinkingMessage={thinkingMessage} />
-                <ReasoningContent>{part.text}</ReasoningContent>
-              </Reasoning>
+              <ThinkingPanel
+                capped={live}
+                duration={duration}
+                isStreaming={isStreaming}
+                key={`${message.id}-${index}`}
+                text={part.text}
+              />
             )
           }
           if (part.type === 'tool-query') {

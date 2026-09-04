@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { CheckCircle2Icon, SparklesIcon, UploadCloudIcon, XIcon } from 'lucide-react'
+import { CheckCircle2Icon, InfoIcon, SparklesIcon, UploadCloudIcon, XIcon } from 'lucide-react'
 import { useRef, useState, type DragEvent } from 'react'
 
 import { ImportsList } from '@/components/imports-list'
@@ -204,21 +204,31 @@ export function ImportPage() {
         )}
 
         {done && (
+          // Nothing imported is news, not success: the same file twice ends here with a green
+          // tick over "Imported 0 of 433 rows", which reads like something went right.
           <div className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3 text-sm">
-            <CheckCircle2Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+            {done.imported_count === 0 ? (
+              <InfoIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            ) : (
+              <CheckCircle2Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+            )}
             <div>
               <p className="font-medium">
-                Imported {done.imported_count} of {done.row_count} rows into {done.account_name}
+                {done.imported_count === 0
+                  ? `No new rows for ${done.account_name}`
+                  : `Imported ${done.imported_count} of ${done.row_count} rows into ${done.account_name}`}
               </p>
               <p className="text-muted-foreground text-xs">
                 {done.duplicate_count > 0
                   ? `${done.duplicate_count} rows were already in this profile and were skipped. `
                   : ''}
-                {report
-                  ? `${report.by_rule} categorized by your rules, ${report.by_dictionary} by the merchant ` +
-                    `dictionary and ${report.by_model} by the categorizer. ${report.needs_review} rows across ` +
-                    `${report.uncertain.length} merchants are Needs review.`
-                  : 'Every new row is Needs review until it is categorized.'}
+                {done.imported_count === 0
+                  ? 'Nothing was added, so nothing was categorized.'
+                  : report
+                    ? `${report.by_rule} categorized by your rules, ${report.by_dictionary} by the merchant ` +
+                      `dictionary and ${report.by_model} by the categorizer. ${report.needs_review} rows across ` +
+                      `${report.uncertain.length} merchants are Needs review.`
+                    : 'Every new row is Needs review until it is categorized.'}
               </p>
             </div>
             <Button className="ml-auto" onClick={() => setDone(null)} size="icon-sm" variant="ghost">

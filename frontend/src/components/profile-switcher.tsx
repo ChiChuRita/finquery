@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { createProfile, deleteProfile, profilesQuery, renameProfile } from '@/lib/api'
-import { useWorkspace } from '@/lib/workspace'
+import { readActiveTab, useWorkspace } from '@/lib/workspace'
 import { cn } from '@/lib/utils'
 
 export function ProfileSwitcher() {
@@ -33,6 +33,9 @@ export function ProfileSwitcher() {
     if (profileId === profile?.id) return
     await leaveConversation()
     switchProfile(profileId)
+    // Each profile keeps its own tabs, so coming back lands on the one that was in front.
+    const inFront = readActiveTab(profileId)
+    if (inFront) await navigate({ to: '/c/$conversationId', params: { conversationId: inFront } })
   }
 
   return (

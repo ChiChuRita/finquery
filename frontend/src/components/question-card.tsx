@@ -28,6 +28,11 @@ function chosenLabel(row: AskRow, answers: AskAnswer[], fallback: AskOption[]): 
   return answer.text ?? null
 }
 
+const sendLabel = (count: number) => {
+  if (count === 0) return 'Send answers'
+  return count === 1 ? 'Send 1 answer' : `Send ${count} answers`
+}
+
 function RowHeader({ row }: { row: AskRow }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -177,7 +182,7 @@ export function QuestionCard({
           </Button>
           <Button disabled={!open || answers().length === 0} onClick={() => send(answers())} size="sm">
             <SendIcon className="size-3.5" />
-            Send {answers().length > 0 ? `${answers().length} answer(s)` : 'answers'}
+            {sendLabel(answers().length)}
           </Button>
         </div>
       )}

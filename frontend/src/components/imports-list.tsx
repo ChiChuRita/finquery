@@ -42,10 +42,18 @@ export function ImportsList() {
             <TableBody>
               {imports.map((record) => (
                 <TableRow key={record.id}>
-                  <TableCell className="max-w-[16rem] truncate font-medium" title={record.file_name}>
+                  {/* Seven columns need more room than 1024 wide gives, so the two text columns
+                      give way first: a truncated file name that carries its full name in the
+                      title beats a "When" column cut down to a "W". */}
+                  <TableCell className="max-w-[9rem] truncate font-medium xl:max-w-[13rem]" title={record.file_name}>
                     {record.file_name}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{record.account_name}</TableCell>
+                  <TableCell
+                    className="max-w-[9rem] truncate text-muted-foreground xl:max-w-[12rem]"
+                    title={record.account_name}
+                  >
+                    {record.account_name}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={record.preset ? 'secondary' : 'outline'}>{record.preset ?? 'custom'}</Badge>
                   </TableCell>

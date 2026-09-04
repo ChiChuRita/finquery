@@ -329,6 +329,11 @@ export const MessageResponse = memo(
         className
       )}
       plugins={streamdownPlugins}
+      // A table in an answer grows to its rows instead of becoming a 300px scroll box.
+      // Streamdown pins a capped table to its own bottom while the answer streams, which
+      // leaves it parked past its header with the top rows out of sight. The transcript
+      // scrolls; the table does not have to.
+      tableMaxHeight={0}
       {...props}
     />
   ),
