@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from finquery.local.wire import WireName
 from finquery.providers import MODEL_SLOTS, ModelSlot
 
 FileKind = Literal["weights", "projector"]
@@ -39,6 +40,8 @@ class ModelSpec:
 
     slot: ModelSlot
     name: str
+    wire: WireName
+    """Which chat wire format this model speaks (`finquery.local.wire`)."""
     weights: FileSpec
     projector: FileSpec
 
@@ -57,6 +60,7 @@ LOCAL_MODELS: dict[ModelSlot, ModelSpec] = {
     "fast": ModelSpec(
         slot="fast",
         name="gemma-4-E4B-it",
+        wire="gemma",
         weights=FileSpec(
             kind="weights",
             repo_id="unsloth/gemma-4-E4B-it-GGUF",
@@ -74,20 +78,21 @@ LOCAL_MODELS: dict[ModelSlot, ModelSpec] = {
     ),
     "quality": ModelSpec(
         slot="quality",
-        name="gemma-4-12b-it",
+        name="Qwen3.5-9B",
+        wire="qwen",
         weights=FileSpec(
             kind="weights",
-            repo_id="unsloth/gemma-4-12b-it-GGUF",
-            filename="gemma-4-12b-it-Q4_K_M.gguf",
-            size=7121861440,
-            sha256="0a270ec9fe6b34f4a0d33992b6135117b484ebc4766ab76b51d4ae8c457e4c42",
+            repo_id="unsloth/Qwen3.5-9B-GGUF",
+            filename="Qwen3.5-9B-Q4_K_M.gguf",
+            size=5680522464,
+            sha256="03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8",
         ),
         projector=FileSpec(
             kind="projector",
-            repo_id="unsloth/gemma-4-12b-it-GGUF",
+            repo_id="unsloth/Qwen3.5-9B-GGUF",
             filename="mmproj-F16.gguf",
-            size=175115840,
-            sha256="91f086971e56d7a7d8d39e271873fccdb49541bd259d6e02c401a4f1cb7a219e",
+            size=918166080,
+            sha256="f70dc3509053962b0d0d3ee8a7eacebf5d60aa560cad78254ae8698516ae029f",
         ),
     ),
 }

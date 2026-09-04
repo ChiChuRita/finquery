@@ -149,7 +149,10 @@ whose findings are the repair instructions the sub-agent gets back. Avoid: valid
 ## Models
 
 **Model slot**: one of two logical positions, **fast** and **quality**. The chat agent uses the
-slot chosen in the conversation, sub-agents always use fast. Avoid: model name, tier, engine.
+slot chosen in the conversation, sub-agents always use fast. Fast is Gemma 4 E4B and quality is
+Qwen3.5 9B, on either provider, and the selector labels them with those names; what a
+conversation stores and every module passes around is still the slot. Avoid: model name, tier,
+engine.
 
 **Provider**: the setting (FINQUERY_PROVIDER) that resolves each slot to a concrete model:
 openrouter during development, local for the demo and hand-in. See ADR 0002. Avoid: backend,
@@ -158,6 +161,12 @@ vendor.
 **Sub-agent**: a Pydantic AI agent the chat agent delegates to for one job (query, chart,
 categorizer, extraction, memory distillation). Always on the fast slot. Avoid: tool (a tool is
 what the chat agent calls; the sub-agent is what runs behind it), worker.
+
+**Wire format**: how one local model writes a whole turn into a single text stream: the markers
+around its thinking, the syntax of its tool calls, and what its chat template calls the
+reasoning of an earlier assistant message. Gemma 4 and Qwen3.5 have one each, so the local
+provider has one module each and picks it from the model, not from the slot. Avoid: chat format
+(llama.cpp's word for the template itself), protocol.
 
 **Adapter**: a LoRA adapter attached to the fast slot for one sub-agent (query, chart) on the
 local provider. Not to be confused with the Vercel stream adapter, which the code calls the

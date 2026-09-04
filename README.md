@@ -30,7 +30,7 @@ Settings (environment or `.env`):
 | `FINQUERY_CONTEXT_BUDGET`    | `32768`            | Tokens per turn; compression starts at 60%    |
 | `FINQUERY_MODELS_DIR`        | `models`           | Where the local GGUF files live               |
 | `FINQUERY_PARKED_MODELS_DIR` |                    | Folder of GGUFs to reuse instead of download  |
-| `FINQUERY_LOCAL_N_CTX`       | `16384`            | Context cap per resident local model          |
+| `FINQUERY_LOCAL_N_CTX`       | `32768`            | Context cap per resident local model          |
 
 ## Run on the local models
 
@@ -42,8 +42,8 @@ CMAKE_ARGS="-DGGML_METAL=on" uv sync
 FINQUERY_PROVIDER=local uv run finquery
 ```
 
-The two slots become Gemma 4 E4B (fast) and Gemma 4 12B (quality), running in this process
-through llama-cpp-python with Metal. Startup begins downloading the four GGUF files (13.3 GB)
+The two slots become Gemma 4 E4B (fast) and Qwen3.5 9B (quality), running in this process
+through llama-cpp-python with Metal. Startup begins downloading the four GGUF files (12.6 GB)
 into `models/`; watch it on the Settings page, which also has a sanity check button. A file
 already sitting in `FINQUERY_PARKED_MODELS_DIR` whose sha256 matches is linked in instead of
 downloaded. Each model loads on its first use and then stays resident.
@@ -54,8 +54,9 @@ Prove the setup before a demo:
 uv run finquery-check    # both slots: answer, thinking, tool call, vision
 ```
 
-See `docs/adr/0006-local-gemma-4-through-llama-cpp.md`, including why the context cap is 16k
-and not 32k on a 24 GB Mac.
+The two models speak different chat formats, which is why `src/finquery/local/` has one wire
+module each. See `docs/adr/0006-local-gemma-4-through-llama-cpp.md`, including what the two
+of them take out of a 24 GB Mac at 32k.
 
 ## Develop
 
@@ -192,7 +193,8 @@ merchant token leaves at most once per profile: the result is cached. Search nee
   `extract/` (PDF text and page rendering, statement layouts, the extraction sub-agent, the
   verbatim and reconciliation guards, the bill flow, the review card),
   `api/` (REST and chat endpoints),
-  `local/` (the local provider: catalog, downloads, runtime, model, Gemma wire format, check)
+  `local/` (the local provider: catalog, downloads, runtime, model, the Gemma 4 and Qwen3.5
+  wire formats, check)
 - `frontend/`: Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router, Query and
   Charts. `src/chart-runtime/` is a second page: the sandboxed frame charts render in
 - `training/preference/`: the DPO export, the train script and the loop they belong to

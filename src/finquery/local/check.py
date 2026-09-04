@@ -88,8 +88,9 @@ async def check_slot(stack: LocalStack, slot: ModelSlot) -> SlotReport:
     return report
 
 
-#: Multi-step and about money: Gemma 4 answers a one-step sum straight out even with thinking
-#: enabled, so a trivial question proves nothing about the thought channel. 12.40 + 3.60 - 5 = 11.
+#: Multi-step and about money: both models answer a one-step sum straight out even with
+#: thinking enabled, so a trivial question proves nothing about the thought channel.
+#: 12.40 + 3.60 - 5 = 11.
 ARITHMETIC = "A shop charges 12.40 EUR, then 3.60 EUR, then refunds 5.00 EUR. What is the net amount?"
 CAREFUL = "You are a careful assistant. Work the problem out in your thinking first, then answer in one short sentence."
 

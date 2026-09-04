@@ -83,26 +83,28 @@ _log_sink: Any = None
 
 
 class LlamaSlot:
-    """A Gemma 4 GGUF loaded through llama-cpp-python with its multimodal projector."""
+    """One GGUF loaded through llama-cpp-python with its multimodal projector."""
 
     def __init__(self, spec: ModelSpec, weights: Path, projector: Path, n_ctx: int) -> None:
         import llama_cpp
         from llama_cpp import Llama
-        from llama_cpp.llama_chat_format import Gemma4ChatHandler
+        from llama_cpp.llama_chat_format import MTMDChatHandler
 
         _quiet_llama_cpp()
         self.name = weights.stem
         started = time.monotonic()
-        # `guess_chat_format_from_gguf_metadata` returns None for Gemma 4, so the handler is
-        # chosen here; it reads the chat template out of the GGUF metadata itself.
-        self._handler = Gemma4ChatHandler(clip_model_path=str(projector), verbose=False)
+        # `guess_chat_format_from_gguf_metadata` returns None for both of these, so the handler
+        # is chosen here rather than sniffed. One handler covers both: it reads the chat
+        # template out of the GGUF metadata itself, and `Gemma4ChatHandler` is an empty
+        # subclass of it. What differs per model is the wire format (`finquery.local.wire`).
+        self._handler = MTMDChatHandler(clip_model_path=str(projector), verbose=False)
         self._llama = Llama(
             model_path=str(weights),
             n_ctx=n_ctx,
             n_gpu_layers=-1,
-            # Flash attention plus a q8_0 KV cache is what makes both models fit: it takes the
-            # 12B's KV cache at 16k from 5.8 GB to 2.9 GB and its compute buffer from 1.2 GB to
-            # 0.5 GB. Measured numbers are in docs/adr/0006-local-gemma-4-through-llama-cpp.md.
+            # Flash attention plus a q8_0 KV cache is what makes both models fit inside the
+            # Metal working set of a 24 GB Mac. Measured numbers are in
+            # docs/adr/0006-local-gemma-4-through-llama-cpp.md.
             flash_attn=True,
             type_k=llama_cpp.GGML_TYPE_Q8_0,
             type_v=llama_cpp.GGML_TYPE_Q8_0,
