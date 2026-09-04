@@ -52,6 +52,11 @@ N26, comdirect, Trade Republic). A preset never calls a model. Avoid: template, 
 until applied through the UI. Applying is deterministic code. Avoid: patch, batch edit,
 proposal.
 
+**Changeset status**: `proposed` until the user acts, then `applied` or `discarded`. `stale`
+when the rows moved after the preview was computed, so it refuses to apply. `superseded` when a
+newer changeset for the same rows arrived. An applied changeset that was undone becomes
+`discarded` with its applied time still on it. Avoid: pending, cancelled, expired.
+
 **Preference record**: a prompt, a chosen output, a rejected output, the kind (answer or
 chart), the SQL and chart code involved, and the rating. Training data for the adapters.
 Avoid: feedback, rating (the rating is one field of the record).

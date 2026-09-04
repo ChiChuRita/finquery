@@ -14,6 +14,10 @@ Every endpoint is explicitly profile-scoped, the same convention as conversation
 a read takes `profile_id` as a required query parameter, a write carries it in the body, an
 unknown profile is a 404, and a transaction that belongs to another profile is a 404 too. No
 endpoint reads an ambient profile, because there is none.
+
+What may be written is `finquery.edits`, not this module: changesets mutate the same rows
+through the same resolvers, so the rules live next to the data model and this file is the HTTP
+shape around them.
 """
 
 from collections.abc import Sequence
@@ -21,17 +25,22 @@ from datetime import date
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, Select, exists, func, or_, select
+from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.orm import Session, aliased
 
 from finquery.api.profiles import get_profile_or_404
 from finquery.db import Account, Category, Subcategory, Transaction, fingerprint
+from finquery.edits import (
+    LegInput,
+    clean_description,
+    find_transaction,
+    listing_conditions,
+    replace_split_legs,
+    resolve_account,
+    resolve_taxonomy,
+)
 
 router = APIRouter()
-
-
-class TransactionEditError(ValueError):
-    """An edit the taxonomy or the profile refuses. Shown in place by the cell that caused it."""
 
 
 class TransactionOut(BaseModel):
@@ -112,53 +121,6 @@ class BulkDelete(BaseModel):
     ids: list[str]
 
 
-def _like(text: str) -> str:
-    """A contains-pattern for LIKE, with the wildcards a user may have typed escaped."""
-    escaped = text.strip().replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
-    return f"%{escaped}%"
-
-
-def _conditions(
-    profile_id: str,
-    *,
-    q: str | None,
-    date_from: date | None,
-    date_to: date | None,
-    category_id: str | None,
-    account_id: str | None,
-    needs_review: bool,
-    include_parents: bool,
-) -> list[ColumnElement[bool]]:
-    child = aliased(Transaction)
-    conditions: list[ColumnElement[bool]] = [Transaction.profile_id == profile_id]
-    conditions.append(
-        Transaction.parent_id.is_(None)
-        if include_parents
-        else ~exists().where(child.parent_id == Transaction.id)
-    )
-    if q and q.strip():
-        pattern = _like(q)
-        conditions.append(
-            or_(
-                Transaction.description.ilike(pattern, escape="\\"),
-                Transaction.counterparty.ilike(pattern, escape="\\"),
-                Transaction.enriched_title.ilike(pattern, escape="\\"),
-            )
-        )
-    if date_from:
-        conditions.append(Transaction.booked_on >= date_from)
-    if date_to:
-        conditions.append(Transaction.booked_on <= date_to)
-    if category_id:
-        conditions.append(Transaction.category_id == category_id)
-    if account_id:
-        conditions.append(Transaction.account_id == account_id)
-    if needs_review:
-        # Needs review is the absence of a category, not a category.
-        conditions.append(Transaction.category_id.is_(None))
-    return conditions
-
-
 Row = tuple[Transaction, str | None, str | None, str, int]
 
 
@@ -214,51 +176,11 @@ def _children(session: Session, profile_id: str, parent_id: str) -> list[Transac
 
 
 def _get(session: Session, profile_id: str, transaction_id: str) -> Transaction:
-    row = session.scalars(
-        select(Transaction).where(Transaction.profile_id == profile_id, Transaction.id == transaction_id)
-    ).one_or_none()
+    """The row this profile owns, or a 404. Ownership is the lookup, not a separate check."""
+    row = find_transaction(session, profile_id, transaction_id)
     if row is None:
         raise HTTPException(status_code=404, detail="That transaction is not in this profile.")
     return row
-
-
-def _resolve_account(session: Session, profile_id: str, account_id: str) -> str:
-    known = session.scalar(select(Account.id).where(Account.profile_id == profile_id, Account.id == account_id))
-    if known is None:
-        raise TransactionEditError("That account is not in this profile.")
-    return known
-
-
-def _resolve_taxonomy(
-    session: Session, profile_id: str, *, category_id: str | None, subcategory_id: str | None
-) -> tuple[str | None, str | None]:
-    """Check the pair a cell or a bulk action wants to store. No category means Needs review."""
-    if category_id is not None:
-        known = session.scalar(
-            select(Category.id).where(Category.profile_id == profile_id, Category.id == category_id)
-        )
-        if known is None:
-            raise TransactionEditError("That category is not in this profile.")
-    if subcategory_id is None:
-        return category_id, None
-    found = session.execute(
-        select(Subcategory.name, Subcategory.category_id).where(
-            Subcategory.profile_id == profile_id, Subcategory.id == subcategory_id
-        )
-    ).first()
-    if found is None:
-        raise TransactionEditError("That subcategory is not in this profile.")
-    name, owner = found
-    if owner != category_id:
-        raise TransactionEditError(f"{name} is not a subcategory of the chosen category.")
-    return category_id, subcategory_id
-
-
-def _description(text: str) -> str:
-    stripped = text.strip()
-    if not stripped:
-        raise TransactionEditError("A description cannot be empty.")
-    return stripped
 
 
 @router.get("/transactions", response_model=TransactionPage)
@@ -275,7 +197,7 @@ async def list_transactions(
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
 ) -> TransactionPage:
-    conditions = _conditions(
+    conditions = listing_conditions(
         profile_id,
         q=q,
         date_from=date_from,
@@ -302,11 +224,11 @@ async def create_transaction(request: Request, payload: TransactionIn) -> Transa
     profile_id = payload.profile_id
     with request.app.state.session_factory() as session:
         get_profile_or_404(session, profile_id)
-        account_id = _resolve_account(session, profile_id, payload.account_id)
-        category_id, subcategory_id = _resolve_taxonomy(
+        account_id = resolve_account(session, profile_id, payload.account_id)
+        category_id, subcategory_id = resolve_taxonomy(
             session, profile_id, category_id=payload.category_id, subcategory_id=payload.subcategory_id
         )
-        description = _description(payload.description)
+        description = clean_description(payload.description)
         row = Transaction(
             profile_id=profile_id,
             account_id=account_id,
@@ -334,20 +256,20 @@ async def patch_transaction(request: Request, transaction_id: str, patch: Transa
         # a half-applied row and let the split guard judge a state that was never asked for.
         updates: dict[str, object] = {}
         if "description" in fields:
-            updates["description"] = _description(fields["description"] or "")
+            updates["description"] = clean_description(fields["description"] or "")
         if fields.get("booked_on") is not None:
             updates["booked_on"] = fields["booked_on"]
         if fields.get("amount_cents") is not None:
             updates["amount_cents"] = fields["amount_cents"]
         if fields.get("account_id") is not None:
-            updates["account_id"] = _resolve_account(session, profile_id, fields["account_id"])
+            updates["account_id"] = resolve_account(session, profile_id, fields["account_id"])
         if "category_id" in fields or "subcategory_id" in fields:
             category_id = fields.get("category_id", row.category_id)
             subcategory_id = fields.get("subcategory_id", row.subcategory_id)
             # Moving a row to another category drops a subcategory that no longer belongs to it.
             if "subcategory_id" not in fields and category_id != row.category_id:
                 subcategory_id = None
-            updates["category_id"], updates["subcategory_id"] = _resolve_taxonomy(
+            updates["category_id"], updates["subcategory_id"] = resolve_taxonomy(
                 session, profile_id, category_id=category_id, subcategory_id=subcategory_id
             )
 
@@ -376,58 +298,21 @@ async def replace_splits(request: Request, transaction_id: str, payload: SplitsI
     with request.app.state.session_factory() as session:
         get_profile_or_404(session, profile_id)
         parent = _get(session, profile_id, transaction_id)
-        if parent.parent_id is not None:
-            raise TransactionEditError("One leg of a split cannot be split again.")
-        existing = {
-            row.id: row
-            for row in session.scalars(select(Transaction).where(Transaction.parent_id == parent.id)).all()
-        }
-        # Every leg is checked first, because a query in between would autoflush the legs
-        # written so far and the split guard would judge a set that is still half saved.
-        legs = []
-        for child in payload.children:
-            category_id, subcategory_id = _resolve_taxonomy(
-                session, profile_id, category_id=child.category_id, subcategory_id=child.subcategory_id
-            )
-            description = _description(child.description)
-            # A leg is the parent's booking with a share of its money, so date and account follow.
-            legs.append(
-                (
-                    child.id,
-                    {
-                        "booked_on": parent.booked_on,
-                        "description": description,
-                        "amount_cents": child.amount_cents,
-                        "category_id": category_id,
-                        "subcategory_id": subcategory_id,
-                        "fingerprint": fingerprint(
-                            parent.account_id, parent.booked_on, child.amount_cents, description
-                        ),
-                    },
+        replace_split_legs(
+            session,
+            profile_id,
+            parent,
+            [
+                LegInput(
+                    id=child.id,
+                    description=child.description,
+                    amount_cents=child.amount_cents,
+                    category_id=child.category_id,
+                    subcategory_id=child.subcategory_id,
                 )
-            )
-
-        for child_id, edited in legs:
-            if child_id is None:
-                session.add(
-                    Transaction(
-                        profile_id=profile_id,
-                        account_id=parent.account_id,
-                        source=parent.source,
-                        import_id=parent.import_id,
-                        parent_id=parent.id,
-                        **edited,
-                    )
-                )
-                continue
-            row = existing.pop(child_id, None)
-            if row is None:
-                raise TransactionEditError("One of those split rows is no longer part of this transaction.")
-            for name, value in edited.items():
-                setattr(row, name, value)
-        # Whatever the editor did not send back was removed from the split.
-        for row in existing.values():
-            session.delete(row)
+                for child in payload.children
+            ],
+        )
         session.commit()
         return _children(session, profile_id, transaction_id)
 
@@ -437,7 +322,7 @@ async def bulk_recategorize(request: Request, payload: BulkRecategorize) -> dict
     profile_id = payload.profile_id
     with request.app.state.session_factory() as session:
         get_profile_or_404(session, profile_id)
-        category_id, subcategory_id = _resolve_taxonomy(
+        category_id, subcategory_id = resolve_taxonomy(
             session, profile_id, category_id=payload.category_id, subcategory_id=payload.subcategory_id
         )
         rows = session.scalars(

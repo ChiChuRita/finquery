@@ -11,6 +11,7 @@ import { Message, MessageContent, MessageResponse, MessageToolbar } from '@/comp
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Suggestion } from '@/components/ai-elements/suggestion'
+import { ChangesetCard } from '@/components/changeset-card'
 import { Composer } from '@/components/composer'
 import { ContextBadge } from '@/components/context-badge'
 import { EmptyState } from '@/components/empty-state'
@@ -301,6 +302,9 @@ function TranscriptMessage({
           }
           if (part.type === 'tool-review_batch') {
             return <ReviewToolStep key={`${message.id}-${index}`} part={part} />
+          }
+          if (part.type === 'tool-propose_changeset' || part.type === 'tool-apply_simple_edit') {
+            return <ChangesetCard key={`${message.id}-${index}`} part={part} />
           }
           if (part.type === 'text') {
             return message.role === 'user' ? (
