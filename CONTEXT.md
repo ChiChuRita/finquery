@@ -70,6 +70,12 @@ A turn is one agent run: the user's message plus everything the assistant produc
 stored both as Pydantic AI message history and as AI SDK UI messages. A turn can be marked
 interrupted when Stop cut it short. Avoid: chat, thread, session.
 
+**Question card**: the card in the transcript that asks the user for a decision only they can
+make, with buttons per row and a free text field. It is the `ask_user` tool: the run ends with
+the call pending and resumes from the answer, so no model slot waits for a human. Used for
+uncertain categorization, duplicate decisions, a mapping confirmation and extraction review.
+See ADR 0007. Avoid: prompt, dialog, confirmation.
+
 **Memory**: a durable fact with text, kind (rule, preference, fact) and source (explicit or
 distilled), created from a turn and shared across all conversations of the profile. Avoid:
 note, knowledge.

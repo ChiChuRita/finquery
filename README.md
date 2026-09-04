@@ -88,6 +88,14 @@ Import a bank CSV export on `/import`: drop the file, check the mapping, commit.
 ING, N26, comdirect and Trade Republic are recognized by their headers; any other bank gets a
 mapping proposed by the fast slot and edited in the preview.
 
+The commit is followed by categorization in three stages: your own category rules, a dictionary
+of about sixty German merchants, then the categorizer sub-agent on the fast slot with a
+confidence per merchant. Every row gets a friendly title and a short description. What stays
+below the confidence threshold is Needs review, and the page hands those merchants to a new
+conversation that asks about them in Question cards. Each answer becomes a category rule and
+recategorizes every booking of that merchant, and telling the assistant "PayPal to Anna is
+always Dining" in chat does the same.
+
 Then ask in the chat. The query sub-agent writes the SQL on the fast slot, a guard admits only a
 single read-only SELECT over your own transactions, and the tool step in the transcript shows the
 statement and the rows behind every number.
@@ -101,12 +109,15 @@ it with `uv run python scripts/generate_synthetic.py`.
 - `src/finquery/`: `main.py` (CLI), `app.py` (factory), `settings.py`, `providers.py` (slots),
   `db.py` (SQLAlchemy models and the query view), `taxonomy.py` (default categories),
   `agent.py` (chat agent and its tools), `query/` (query sub-agent, SQL guard, execution),
-  `followups.py` (post-turn suggestions),
+  `categorize/` (rules, merchant dictionary, categorizer sub-agent, review queue),
+  `ask_user.py` (the Question card tool), `followups.py` (post-turn suggestions),
   `ingest/` (CSV reader, presets, mapping sub-agent, commit),
   `api/` (REST and chat endpoints),
   `local/` (the local provider: catalog, downloads, runtime, model, Gemma wire format, check)
 - `frontend/`: Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router and Query
 - `tests/`: HTTP-seam tests
-- `fixtures/synthetic/`: shipped demo dataset. `scripts/`: its generator
+- `fixtures/synthetic/`: shipped demo dataset. `scripts/`: its generator, and
+  `measure_categorization.py`, which imports a CSV into a running app and prints what each
+  categorization stage placed
 - `CONTEXT.md`: domain glossary. `docs/adr/`: architecture decisions
 - `.scratch/finquery/`: spec and tickets

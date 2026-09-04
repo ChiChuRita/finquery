@@ -1,6 +1,6 @@
 import { useChat } from '@ai-sdk/react'
 import { useQueryClient } from '@tanstack/react-query'
-import { DefaultChatTransport } from 'ai'
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from 'ai'
 import { CircleStopIcon, SparklesIcon, ZapIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { StickToBottomContext } from 'use-stick-to-bottom'
@@ -13,6 +13,8 @@ import { Suggestion } from '@/components/ai-elements/suggestion'
 import { Composer } from '@/components/composer'
 import { EmptyState } from '@/components/empty-state'
 import { QueryToolStep } from '@/components/query-tool'
+import { QuestionCard } from '@/components/question-card'
+import { ReviewToolStep, RuleToolStep } from '@/components/rule-tool'
 import {
   chatUrl,
   conversationQuery,
@@ -20,6 +22,7 @@ import {
   patchConversation,
   slotLabel,
   stopConversation,
+  type AskUserOutput,
   type ChatMessage,
   type ConversationDetail,
   type ModelSlot,
@@ -47,10 +50,13 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
     [conversation.id],
   )
 
-  const { messages, sendMessage, status, stop, error } = useChat<ChatMessage>({
+  const { messages, sendMessage, status, stop, error, addToolOutput } = useChat<ChatMessage>({
     id: conversation.id,
     messages: conversation.messages,
     transport,
+    // A Question card answers a tool call the server left open. Once the output is in, the next
+    // request goes out by itself and the run picks up where it parked.
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onFinish: () => {
       void queryClient.invalidateQueries(conversationsQuery(profile?.id))
       void queryClient.invalidateQueries(conversationQuery(conversation.id))
@@ -93,6 +99,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
                 isLast={message === lastMessage}
                 key={message.id}
                 message={message}
+                onAnswer={(toolCallId, output) => void addToolOutput({ tool: 'ask_user', toolCallId, output })}
                 onPickFollowup={(text) => void sendMessage({ text })}
                 slot={slot}
                 streaming={streaming}
@@ -206,21 +213,24 @@ function TranscriptMessage({
   streaming,
   slot,
   onPickFollowup,
+  onAnswer,
 }: {
   message: ChatMessage
   isLast: boolean
   streaming: boolean
   slot: ModelSlot
   onPickFollowup: (text: string) => void
+  onAnswer: (toolCallId: string, output: AskUserOutput) => void
 }) {
   const interrupted = message.metadata?.interrupted === true
   const live = isLast && streaming
   // The turn's own slot, or the conversation's while the turn is still streaming and has no metadata.
   const turnSlot = message.metadata?.model_slot ?? slot
   const TurnIcon = SLOT_ICONS[turnSlot]
-  // Only the newest answer offers follow-ups: older ones have already been followed up on.
-  const followups =
-    isLast && !live ? message.parts.flatMap((p) => (p.type === 'data-followups' ? p.data.suggestions : [])) : []
+  // Only the newest answer offers follow-ups, and only the newest set of them: a turn that
+  // resumed a Question card is one message with one part per round.
+  const suggestions = message.parts.filter((p) => p.type === 'data-followups')
+  const followups = isLast && !live ? (suggestions.at(-1)?.data.suggestions ?? []) : []
 
   return (
     <Message from={message.role}>
@@ -240,6 +250,21 @@ function TranscriptMessage({
           }
           if (part.type === 'tool-query') {
             return <QueryToolStep key={`${message.id}-${index}`} part={part} />
+          }
+          if (part.type === 'tool-ask_user') {
+            return (
+              <QuestionCard
+                key={part.toolCallId}
+                onAnswer={(output) => onAnswer(part.toolCallId, output)}
+                part={part}
+              />
+            )
+          }
+          if (part.type === 'tool-set_rule') {
+            return <RuleToolStep key={`${message.id}-${index}`} part={part} />
+          }
+          if (part.type === 'tool-review_batch') {
+            return <ReviewToolStep key={`${message.id}-${index}`} part={part} />
           }
           if (part.type === 'text') {
             return message.role === 'user' ? (

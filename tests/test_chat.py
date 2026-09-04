@@ -157,6 +157,39 @@ async def test_local_provider_refuses_to_chat_until_the_models_are_downloaded(tm
             assert "not downloaded yet" in response.json()["detail"]
 
 
+async def test_a_thinking_only_response_is_retried_without_a_user_bubble(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    """A model that answers with nothing but thinking gets a retry prompt from the agent.
+
+    That prompt is a request message, so the dump would render it as if the user had typed
+    "Validation feedback: ...". The model history keeps it; the transcript must not show it.
+    """
+    attempts = 0
+
+    async def thinks_then_answers(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        nonlocal attempts
+        if is_followup_request(messages):
+            yield "No follow-ups."
+            return
+        attempts += 1
+        if attempts == 1:
+            yield {0: DeltaThinkingPart(content="Only thinking, no answer.")}
+            return
+        yield "Groceries are the biggest share."
+
+    scripts.fast = thinks_then_answers
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+
+    await chat(conversation_id, "What do I spend most on?")
+
+    assert attempts == 2
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
+    assert detail["messages"][0]["parts"][0]["text"] == "What do I spend most on?"
+    assert "Validation feedback" not in detail["messages"][-1]["parts"][-1].get("text", "")
+
+
 async def test_unknown_conversation_is_404(client: httpx.AsyncClient) -> None:
     assert (await client.get("/api/conversations/nope")).status_code == 404
     assert (await client.post("/api/conversations/nope/chat", json=chat_body("hi", "nope"))).status_code == 404
