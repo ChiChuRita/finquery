@@ -14,6 +14,7 @@ import { Suggestion } from '@/components/ai-elements/suggestion'
 import { Composer } from '@/components/composer'
 import { ContextBadge } from '@/components/context-badge'
 import { EmptyState } from '@/components/empty-state'
+import { LookupToolStep } from '@/components/lookup-tool'
 import { QueryToolStep } from '@/components/query-tool'
 import { QuestionCard } from '@/components/question-card'
 import { ReviewToolStep, RuleToolStep } from '@/components/rule-tool'
@@ -301,6 +302,9 @@ function TranscriptMessage({
           }
           if (part.type === 'tool-review_batch') {
             return <ReviewToolStep key={`${message.id}-${index}`} part={part} />
+          }
+          if (part.type === 'tool-lookup_merchant') {
+            return <LookupToolStep key={`${message.id}-${index}`} part={part} />
           }
           if (part.type === 'text') {
             return message.role === 'user' ? (

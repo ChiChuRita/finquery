@@ -12,6 +12,7 @@ import { ImportPage } from '@/components/import-page'
 import { MemoryPage } from '@/components/memory-page'
 import { ModelsCard } from '@/components/models-card'
 import { TransactionsPage } from '@/components/transactions-page'
+import { WebLookupCard } from '@/components/web-lookup-card'
 import { conversationQuery, conversationsQuery, createConversation, type ModelSlot } from '@/lib/api'
 import { stashPendingPrompt } from '@/lib/pending'
 import { useWorkspace, WorkspaceProvider } from '@/lib/workspace'
@@ -119,8 +120,9 @@ function SettingsPage() {
       <div className="mx-auto w-full max-w-3xl px-6 py-10">
         <h1 className="font-heading font-semibold text-2xl tracking-tight">Settings</h1>
         <p className="mt-1 text-muted-foreground text-sm">How FinQuery runs on this machine.</p>
-        <div className="mt-6">
+        <div className="mt-6 space-y-4">
           <ModelsCard />
+          <WebLookupCard />
         </div>
       </div>
     </div>

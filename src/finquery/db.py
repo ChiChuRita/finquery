@@ -3,7 +3,8 @@
 Two families of tables. Conversations: a turn is one agent run, storing the Pydantic AI
 message history (what the model sees next time) and the AI SDK UI messages (what the
 transcript renders), both as JSON text, plus the memories that every conversation of a profile
-shares. Data: accounts, transactions, the taxonomy, category rules and import records.
+shares. Data: accounts, transactions, the taxonomy, category rules and import records, plus
+the outbound log and the web lookup cache of the one feature that ever talks to the internet.
 
 Money is stored as integer cents so sums and the split constraint are exact. `transaction_view`
 is what queries and charts read: it joins the names in and drops split parents so children are
@@ -20,6 +21,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -56,6 +58,10 @@ class Profile(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(120), unique=True)
+    web_lookup_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    """Whether a merchant token may leave this machine for a web lookup. Off by default,
+    switched in Settings, and the only thing that makes the outbound log grow. See
+    finquery.weblookup."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="profile", cascade="all, delete-orphan")
@@ -112,6 +118,48 @@ class Memory(Base):
     """The conversation the memory was established in. Null once that conversation is deleted."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class OutboundRequest(Base):
+    """One request that left this machine, written before it is sent. See CONTEXT.md.
+
+    The whole privacy story is checkable from this table: `target` is literally what was sent
+    (the search query or the URL) and `merchant_token` is the only thing about the household
+    that any of it carries.
+    """
+
+    __tablename__ = "outbound_request"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profile.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(8))
+    """search or fetch."""
+    target: Mapped[str] = mapped_column(String(500))
+    """The query that was searched for, or the URL that was fetched."""
+    merchant_token: Mapped[str] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(String(120), default="sent")
+    """sent while it is in flight, then ok or a short reason it failed."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WebLookup(Base):
+    """What a web lookup found about one merchant token, so it leaves at most once per profile."""
+
+    __tablename__ = "web_lookup"
+    __table_args__ = (UniqueConstraint("profile_id", "merchant_token"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profile.id", ondelete="CASCADE"), index=True)
+    merchant_token: Mapped[str] = mapped_column(String(120))
+    summary: Mapped[str] = mapped_column(String(500))
+    sources_json: Mapped[str] = mapped_column(Text, default="[]")
+    """The pages it relied on, as a JSON list of {"url", "title"}."""
+    category: Mapped[str | None] = mapped_column(String(60), default=None)
+    subcategory: Mapped[str | None] = mapped_column(String(60), default=None)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    searches: Mapped[int] = mapped_column(Integer, default=0)
+    fetches: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class Account(Base):
@@ -309,7 +357,10 @@ NEW_COLUMNS: dict[str, dict[str, str]] = {
     "conversation": {
         "summary": "TEXT",
         "summary_through": "INTEGER NOT NULL DEFAULT -1",
-    }
+    },
+    "profile": {
+        "web_lookup_enabled": "BOOLEAN NOT NULL DEFAULT 0",
+    },
 }
 
 

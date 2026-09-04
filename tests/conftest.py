@@ -16,6 +16,7 @@ from finquery.context import SUMMARY_MARKER
 from finquery.followups import FOLLOWUP_MARKER
 from finquery.memory import DISTILL_MARKER, DISTILL_TOOL, MemoryKind
 from finquery.settings import Settings
+from finquery.weblookup import Hit, Page
 
 StreamFn = Callable[[list[ModelMessage], AgentInfo], AsyncIterator[object]]
 CallFn = Callable[[list[ModelMessage], AgentInfo], ModelResponse]
@@ -121,6 +122,21 @@ def script(
     return fn
 
 
+class NoWeb:
+    """The web client every test gets unless it scripts its own: calling it is the failure.
+
+    Web lookup is the only feature that would leave this machine, and it is off by default, so
+    a test that reaches here has either flipped the switch without scripting a stub or leaked a
+    request from somewhere it should not be. See `tests/test_web_lookup.py` for the stub.
+    """
+
+    async def search(self, query: str) -> list[Hit]:
+        raise AssertionError(f"a test tried to search the web for {query!r}")
+
+    async def fetch(self, url: str) -> Page:
+        raise AssertionError(f"a test tried to fetch {url!r}")
+
+
 def make_settings(**overrides: object) -> Settings:
     """The app's settings for a test. In-memory database unless the test asks for a file."""
     return Settings(_env_file=None, **{"db_path": ":memory:", **overrides})  # type: ignore[call-arg]
@@ -138,8 +154,19 @@ def settings_overrides() -> dict[str, object]:
 
 
 @pytest.fixture
-def app(scripts: Scripts, settings_overrides: dict[str, object]) -> FastAPI:
-    return create_app(make_settings(**settings_overrides), resolve_model=scripts.resolve, serve_frontend=False)
+def web_client() -> object:
+    """The search and page fetch of the web lookup. Overridden by the module that scripts it."""
+    return NoWeb()
+
+
+@pytest.fixture
+def app(scripts: Scripts, settings_overrides: dict[str, object], web_client: object) -> FastAPI:
+    return create_app(
+        make_settings(**settings_overrides),
+        resolve_model=scripts.resolve,
+        web_client=web_client,  # type: ignore[arg-type]
+        serve_frontend=False,
+    )
 
 
 @pytest.fixture

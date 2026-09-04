@@ -37,6 +37,7 @@ from finquery.ingest.csv_reader import (
 )
 from finquery.ingest.mapping_agent import mapping_agent, mapping_prompt
 from finquery.providers import ModelSlot, ProviderNotAvailable
+from finquery.weblookup import Lookups, lookups_for
 
 router = APIRouter()
 
@@ -278,16 +279,19 @@ class QuestionOut(BaseModel):
 
 
 class CategorizeOut(BaseModel):
-    """What the three stages did, and the merchants a human still has to place."""
+    """What the stages did, and the merchants a human still has to place."""
 
     import_id: str
     rows: int
     by_rule: int
     by_dictionary: int
+    by_lookup: int
     by_model: int
     needs_review: int
     merchants: int
     model_calls: int
+    lookups: int
+    lookups_refused: int
     uncertain: list[QuestionOut]
     error: str | None
 
@@ -297,6 +301,18 @@ class ReviewConversationOut(BaseModel):
     title: str
     questions: int
     pending_merchants: int
+
+
+def _lookups(request: Request, profile_id: str) -> Lookups | None:
+    """The web lookup stage for this profile, or None when it has web lookup switched off."""
+    state = request.app.state
+    return lookups_for(
+        state.session_factory,
+        profile_id,
+        client=state.web_client,
+        resolve_model=state.resolve_model,
+        model_settings=state.subagent_settings,
+    )
 
 
 def _import_or_404(session: Session, profile_id: str, import_id: str) -> Import:
@@ -309,11 +325,12 @@ def _import_or_404(session: Session, profile_id: str, import_id: str) -> Import:
 
 @router.post("/imports/{import_id}/categorize", response_model=CategorizeOut)
 async def categorize(request: Request, import_id: str, body: ProfileBody) -> CategorizeOut:
-    """Run the three stages over what this import brought in.
+    """Run the stages over what this import brought in.
 
     Called by the Import page right after a commit. Rules first, then the merchant dictionary,
-    then the categorizer sub-agent on the fast slot; rows below the confidence threshold stay
-    Needs review and come back here as `uncertain`.
+    then the web lookup when this profile switched it on, then the categorizer sub-agent on the
+    fast slot; rows below the confidence threshold stay Needs review and come back here as
+    `uncertain`.
     """
     state = request.app.state
     with state.session_factory() as session:
@@ -324,16 +341,20 @@ async def categorize(request: Request, import_id: str, body: ProfileBody) -> Cat
             import_id,
             resolve_model=state.resolve_model,
             model_settings=state.subagent_settings,
+            lookups=_lookups(request, body.profile_id),
         )
     return CategorizeOut(
         import_id=import_id,
         rows=report.rows,
         by_rule=report.by_rule,
         by_dictionary=report.by_dictionary,
+        by_lookup=report.by_lookup,
         by_model=report.by_model,
         needs_review=report.needs_review,
         merchants=report.merchants,
         model_calls=report.model_calls,
+        lookups=report.lookups,
+        lookups_refused=report.lookups_refused,
         uncertain=[QuestionOut(**vars(question)) for question in report.questions],
         error=report.error,
     )
@@ -376,6 +397,7 @@ async def review_conversation(request: Request, import_id: str, body: ReviewBody
             body.profile_id,
             resolve_model=state.resolve_model,
             model_settings=state.subagent_settings,
+            lookups=_lookups(request, body.profile_id),
         )
         if not questions:
             raise HTTPException(status_code=409, detail="Nothing is left to review in this profile.")

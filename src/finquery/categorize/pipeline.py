@@ -1,9 +1,13 @@
-"""Categorization in three stages, in this order: rules, merchant dictionary, then the model.
+"""Categorization in stages, in this order: rules, merchant dictionary, web lookup, the model.
 
     1. The profile's own category rules. Highest priority, no model, and it runs before any
        model call, so a rule the user gave always wins over a guess.
     2. Merchant enrichment: the booking text is stripped to a merchant and looked up in the
        seed dictionary. A hit is a category and an enrichment for free.
+    2b. Web lookup, only when the profile switched it on: the merchants the dictionary does not
+       know are searched for on the web, and what comes back is a placement with a confidence
+       like any other, so the threshold and the Question cards keep working unchanged. A
+       merchant it answers does not reach the model. See finquery.weblookup.
     3. The categorizer sub-agent on the fast slot, in batches, one entry per merchant, with a
        confidence. At or above `CONFIDENCE_THRESHOLD` the row is set; below it the row stays
        Needs review and the merchant becomes a Question card entry.
@@ -19,6 +23,7 @@ import logging
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date
+from typing import TYPE_CHECKING
 
 from pydantic_ai.settings import ModelSettings
 from sqlalchemy import func, select
@@ -45,6 +50,11 @@ from finquery.ask_user import AskOption, AskRow, AskUser
 from finquery.db import Category, Transaction
 from finquery.providers import ModelResolver, ProviderNotAvailable
 
+if TYPE_CHECKING:
+    # Only a type here: the web lookup imports this package's merchant helpers, so importing it
+    # back at runtime would close a circle.
+    from finquery.weblookup import Lookups
+
 logger = logging.getLogger(__name__)
 
 QUESTIONS_PER_CARD = 5
@@ -56,6 +66,17 @@ as the first button instead of applying it."""
 
 MAX_OPTIONS = 5
 UNKNOWN = "Unknown"
+
+LOOKUP_BLURB_CHARS = 120
+"""How much of a web lookup's summary becomes the row's enrichment."""
+
+LOOKUPS_PER_RUN = 5
+"""Merchants one run may look up on the web, busiest first.
+
+A lookup is a handful of model calls and a network round trip each, so an import of an
+unfamiliar bank does not turn into minutes of searching. What is left over is asked about in a
+Question card, and the next run looks the next few up.
+TODO: a fixed cap. Make it a setting if a real import needs more than a card's worth at once."""
 
 
 @dataclass
@@ -138,10 +159,15 @@ class Report:
     rows: int = 0
     by_rule: int = 0
     by_dictionary: int = 0
+    by_lookup: int = 0
     by_model: int = 0
     needs_review: int = 0
     merchants: int = 0
     model_calls: int = 0
+    lookups: int = 0
+    """Merchants the web lookup stage looked up, zero unless the profile switched it on."""
+    lookups_refused: int = 0
+    """Merchants it refused to look up because nothing was safe to send (a person's name)."""
     questions: list[Question] = field(default_factory=list)
     error: str | None = None
 
@@ -150,10 +176,13 @@ class Report:
             "rows": self.rows,
             "by_rule": self.by_rule,
             "by_dictionary": self.by_dictionary,
+            "by_lookup": self.by_lookup,
             "by_model": self.by_model,
             "needs_review": self.needs_review,
             "merchants": self.merchants,
             "model_calls": self.model_calls,
+            "lookups": self.lookups,
+            "lookups_refused": self.lookups_refused,
             "questions": [question.payload() for question in self.questions],
             "error": self.error,
         }
@@ -271,6 +300,54 @@ class Decision:
     confidence: float | None = None
 
 
+def _placement_of(categories: list[Category], category: str | None, subcategory: str | None) -> Placement | None:
+    """Where automation says a merchant goes, or None when it named nothing this profile has.
+
+    Automation never produces `Unknown`: that is the category a human picks when nothing fits,
+    so a row it would land on stays Needs review instead.
+    """
+    placement = resolve(categories, category or "", subcategory)
+    if placement is not None and placement.category.name == UNKNOWN:
+        return None
+    return placement
+
+
+async def _look_up(
+    groups: list[Group], categories: list[Category], lookups: "Lookups"
+) -> tuple[dict[str, Guess], int, int]:
+    """Search the web for the merchants the dictionary does not know, busiest first.
+
+    Returns a guess per merchant the lookup placed, how many lookups ran, and how many it
+    refused because nothing about the booking was safe to send (a person's name). A merchant it
+    could not place is left for the model stage.
+
+    Sequential on purpose: one lookup is its own agent loop and its own network traffic, and
+    the point of the cap is that an import stays quick.
+    """
+    taxonomy = taxonomy_of(categories)
+    answers: dict[str, Guess] = {}
+    ran = refused = 0
+    for group in groups:
+        if ran >= LOOKUPS_PER_RUN:
+            break
+        found = await lookups.merchant(group.sample.description, group.sample.counterparty, taxonomy)
+        if not found.token:
+            # Nothing was safe to send, so nothing was spent either: it does not use the budget.
+            refused += 1
+            continue
+        ran += 1
+        placement = _placement_of(categories, found.category, found.subcategory)
+        if placement is None:
+            continue
+        answers[group.key] = Guess(
+            placement=placement,
+            confidence=found.confidence,
+            title=group.title,
+            blurb=found.summary[:LOOKUP_BLURB_CHARS],
+        )
+    return answers, ran, refused
+
+
 async def _ask_model(
     groups: list[Group],
     categories: list[Category],
@@ -302,12 +379,8 @@ async def _ask_model(
             error = f"The categorizer failed on one batch: {exc}"
             continue
         for key, answer in batch_answers.items():
-            placement = resolve(categories, answer.category, answer.subcategory)
-            if placement is not None and placement.category.name == UNKNOWN:
-                # Automation never produces Unknown: a row it would land on stays Needs review.
-                placement = None
             answers[key] = Guess(
-                placement=placement,
+                placement=_placement_of(categories, answer.category, answer.subcategory),
                 confidence=answer.confidence,
                 title=answer.title,
                 blurb=answer.description,
@@ -322,14 +395,18 @@ async def categorize_rows(
     *,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None = None,
+    lookups: "Lookups | None" = None,
     question_limit: int = QUESTIONS_PER_CARD,
     threshold: float = CONFIDENCE_THRESHOLD,
 ) -> Report:
-    """The three stages over these rows, committing what they place.
+    """The stages over these rows, committing what they place.
 
     `threshold=ALWAYS_ASK` turns the model pass into a suggestion pass: rules and the
     dictionary still place what they know, and every merchant left becomes a question carrying
     the model's guess as its first button. That is how the review queue is built.
+
+    `lookups` is the web lookup stage, present only for a profile that switched it on
+    (`weblookup.lookups_for` returns None otherwise), so "off" needs no branch here.
     """
     report = Report(rows=len(rows))
     if not rows:
@@ -371,10 +448,17 @@ async def categorize_rows(
         else:
             known[group.key] = placement
 
+    # Stage 2b: the web, for the merchants the dictionary does not know.
+    found: dict[str, Guess] = {}
+    if lookups is not None and for_model:
+        found, report.lookups, report.lookups_refused = await _look_up(for_model, categories, lookups)
+        for_model = [group for group in for_model if group.key not in found]
+
     # Stage 3: the categorizer sub-agent, for what is left.
     answers, report.model_calls, report.error = await _ask_model(
         for_model, categories, resolve_model=resolve_model, model_settings=model_settings
     )
+    guesses = {**found, **answers}
 
     # What each merchant came to, before anything is written, so the buttons on a Question card
     # can offer the categories this run is putting to use.
@@ -384,7 +468,7 @@ async def categorize_rows(
         title = group.title
         blurb = entry.blurb if entry is not None else None
         placement = known.get(group.key)
-        guessed = answers.get(group.key)
+        guessed = guesses.get(group.key)
         if guessed is not None:
             title = guessed.title.strip() or title
             blurb = guessed.blurb.strip() or blurb
@@ -414,6 +498,8 @@ async def categorize_rows(
         if decision.placement is not None:
             if group.key in known:
                 report.by_dictionary += placed
+            elif group.key in found:
+                report.by_lookup += placed
             else:
                 report.by_model += placed
         elif len(report.questions) < question_limit and any(row.id not in ruled for row in group.rows):
@@ -456,6 +542,7 @@ async def categorize_import(
     *,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None = None,
+    lookups: "Lookups | None" = None,
 ) -> Report:
     """Categorize what one import brought in. This is what the Import page calls after a commit."""
     rows = needs_review_rows(session, profile_id, import_id=import_id)
@@ -465,6 +552,7 @@ async def categorize_import(
         rows,
         resolve_model=resolve_model,
         model_settings=model_settings,
+        lookups=lookups,
         question_limit=len(rows),
     )
 
@@ -475,6 +563,7 @@ async def pending_questions(
     *,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None = None,
+    lookups: "Lookups | None" = None,
     limit: int = QUESTIONS_PER_CARD,
 ) -> tuple[list[Question], int]:
     """The next merchants to ask about, and how many merchants are still waiting in total.
@@ -495,6 +584,7 @@ async def pending_questions(
         batch,
         resolve_model=resolve_model,
         model_settings=model_settings,
+        lookups=lookups,
         question_limit=limit,
         threshold=ALWAYS_ASK,
     )

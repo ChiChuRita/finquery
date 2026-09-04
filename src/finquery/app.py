@@ -10,11 +10,13 @@ from fastapi.staticfiles import StaticFiles
 
 from finquery.api import chat, conversations, imports, memories, profiles, taxonomy, transactions
 from finquery.api import models as models_api
+from finquery.api import settings as settings_api
 from finquery.api.transactions import TransactionEditError
 from finquery.context import context_budget
 from finquery.db import SplitSumError, ensure_default_profile, make_session_factory
 from finquery.providers import MODEL_SLOTS, ModelResolver, build_local_stack, build_resolver, subagent_settings
 from finquery.settings import Settings
+from finquery.weblookup import HttpWebClient, WebClient
 
 if TYPE_CHECKING:
     from finquery.local.runtime import LocalStack
@@ -27,12 +29,15 @@ def create_app(
     *,
     resolve_model: ModelResolver | None = None,
     local: "LocalStack | None" = None,
+    web_client: WebClient | None = None,
     serve_frontend: bool = True,
 ) -> FastAPI:
     """Build the app.
 
-    Tests pass `resolve_model` to replace both slots with scripted models, and `local` to
-    replace the local provider's downloader and loaded models with stubs.
+    Tests pass `resolve_model` to replace both slots with scripted models, `local` to replace
+    the local provider's downloader and loaded models with stubs, and `web_client` to replace
+    the search and page fetch of the web lookup, which is the only thing here that would
+    otherwise leave the machine.
     """
 
     @asynccontextmanager
@@ -45,6 +50,8 @@ def create_app(
         app.state.resolve_model = resolve_model or build_resolver(settings, local=app.state.local)
         app.state.subagent_settings = subagent_settings(settings)
         app.state.context_budget = context_budget(settings, app.state.local)
+        # Nothing calls it until a profile switches web lookup on. See finquery.weblookup.
+        app.state.web_client = web_client if web_client is not None else HttpWebClient()
         app.state.running_turns = {}
         yield
 
@@ -70,6 +77,7 @@ def create_app(
     app.include_router(transactions.router, prefix="/api")
     app.include_router(taxonomy.router, prefix="/api")
     app.include_router(models_api.router, prefix="/api")
+    app.include_router(settings_api.router, prefix="/api")
 
     if serve_frontend and FRONTEND_DIST.is_dir():
         app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")

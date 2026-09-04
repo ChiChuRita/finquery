@@ -63,6 +63,9 @@ query, search term.
 **Outbound log**: every request that ever left the machine, written before it is sent. Avoid:
 audit log, history.
 
+**Web lookup cache**: what one web lookup found about a merchant token, kept per profile so
+that token never leaves twice. Avoid: cache (unqualified), lookup history.
+
 ## Conversation
 
 **Conversation**: profile-scoped, with a title, a model slot, a rolling summary and its turns.

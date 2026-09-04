@@ -358,6 +358,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
         conversation_id=conversation_id,
         resolve_model=state.resolve_model,
         subagent_settings=state.subagent_settings,
+        web_client=state.web_client,
     )
 
     # The one place memory enters the prompt: the block is handed to the assembly, which joins
