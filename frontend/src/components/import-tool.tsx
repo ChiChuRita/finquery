@@ -8,6 +8,7 @@ import {
   ScaleIcon,
 } from 'lucide-react'
 
+import { MessageResponse } from '@/components/ai-elements/message'
 import { Tool, ToolContent, ToolHeader } from '@/components/ai-elements/tool'
 import { ChangesetProposal } from '@/components/changeset-card'
 import { Step } from '@/components/tool-step'
@@ -140,7 +141,7 @@ export function ImportToolStep({ part, progress }: { part: ImportFilePart; progr
           <Progress lines={progress} />
         ) : part.output.status === 'imported' ? (
           <div className="space-y-3">
-            <p className="text-sm">{part.output.summary}</p>
+            <MessageResponse className="text-sm">{part.output.summary}</MessageResponse>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Counts label="rows read" value={part.output.rows_read} />
               <Counts label="imported" value={part.output.imported} />
@@ -182,9 +183,9 @@ export function ImportToolStep({ part, progress }: { part: ImportFilePart; progr
             </p>
           </div>
         ) : part.output.status === 'confirm_mapping' ? (
-          <p className="text-sm">{part.output.note}</p>
+          <MessageResponse className="text-sm">{part.output.note}</MessageResponse>
         ) : 'message' in part.output ? (
-          <p className="text-sm">{part.output.message}</p>
+          <MessageResponse className="text-sm">{part.output.message}</MessageResponse>
         ) : (
           <p className="rounded-md bg-destructive/10 px-3 py-2 text-destructive text-sm">{part.output.error}</p>
         )}

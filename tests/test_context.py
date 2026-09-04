@@ -25,9 +25,9 @@ from .conftest import (
 # What the budget has to clear is the floor a compressed prompt cannot go below (the system
 # prompt, the summary and the last six turns), measured at 3389 tokens here. The real default is
 # 32768, far above any floor. Every ticket that adds a prompt block has had to move this: this
-# is the fifth, for ticket 10's duplicates block and ticket 11's two paragraphs about statement
+# is the sixth, for ticket 22's prompt rules on top of for ticket 10's duplicates block and ticket 11's two paragraphs about statement
 # PDFs and photos.
-BUDGET = 3800
+BUDGET = 4000
 SUMMARY = "The user asked about groceries and rent in the spring and cares about subscriptions."
 
 # Long enough that a turn is worth about a hundred tokens on either side.

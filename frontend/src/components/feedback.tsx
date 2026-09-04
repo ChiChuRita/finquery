@@ -116,6 +116,7 @@ export function PairSide({
   note,
   picked,
   disabled,
+  unavailable,
   onPick,
   children,
 }: {
@@ -123,6 +124,8 @@ export function PairSide({
   note?: string
   picked?: boolean
   disabled?: boolean
+  /** Why this side cannot be picked. A chart that did not draw is not a preference. */
+  unavailable?: string
   onPick: () => void
   children: React.ReactNode
 }) {
@@ -134,15 +137,19 @@ export function PairSide({
       </div>
       <div className="min-w-0 flex-1">{children}</div>
       <div className="border-t px-3 py-2">
-        <Button
-          className="w-full"
-          disabled={disabled || picked}
-          onClick={onPick}
-          size="sm"
-          variant={picked ? 'secondary' : 'outline'}
-        >
-          {picked ? 'Picked' : 'Pick this one'}
-        </Button>
+        {unavailable ? (
+          <p className="text-center text-muted-foreground text-xs">{unavailable}</p>
+        ) : (
+          <Button
+            className="w-full"
+            disabled={disabled || picked}
+            onClick={onPick}
+            size="sm"
+            variant={picked ? 'secondary' : 'outline'}
+          >
+            {picked ? 'Picked' : 'Pick this one'}
+          </Button>
+        )}
       </div>
     </div>
   )

@@ -7,7 +7,8 @@ a record always says what really happened (`finquery.preferences`).
 Two endpoints produce the second half of a pair, and neither one is a chat turn: nothing is
 appended to the conversation, no follow-ups run and nothing is remembered.
 
-- `chart-alternative` runs the chart sub-agent again for the same request on the fast slot.
+- `chart-alternative` runs the chart sub-agent again for the same request on the fast slot,
+  retrying until the definition differs from the one already on the card.
 - `answer-alternative` runs the chat agent again for the same user message at a higher
   temperature, with only the read-only `query` tool. A turn that wrote something (a changeset, a
   rule) or that waited for a Question card is refused: rerunning it would either write twice or
@@ -26,7 +27,7 @@ from sqlalchemy.orm import Session
 from finquery.agent import ChatDeps, chat_agent, query
 from finquery.api.chat import load_history
 from finquery.api.profiles import get_profile_or_404
-from finquery.chart import run_chart
+from finquery.chart import ChartOutcome, run_chart
 from finquery.context import assemble
 from finquery.db import Conversation, PreferenceRecord, Turn
 from finquery.memory import build_memory_block
@@ -52,6 +53,9 @@ AB_TEMPERATURE = 1.2
 
 The chat agent runs without a temperature otherwise, so this is the only knob the A/B turns.
 """
+
+ALTERNATIVE_ATTEMPTS = 3
+"""How many times Regenerate asks for a second chart before it admits it drew the same one."""
 
 EXPORT_FILENAME = "finquery-preferences.jsonl"
 
@@ -146,7 +150,7 @@ def _out(record: PreferenceRecord) -> PreferenceOut:
     )
 
 
-def _turn_or_404(session: Session, profile_id: str, turn_id: str) -> tuple[Turn, Conversation]:
+def turn_or_404(session: Session, profile_id: str, turn_id: str) -> tuple[Turn, Conversation]:
     """The turn, if it is this profile's. Another profile's turn is simply not found."""
     turn = session.get(Turn, turn_id)
     conversation = session.get(Conversation, turn.conversation_id) if turn else None
@@ -155,7 +159,7 @@ def _turn_or_404(session: Session, profile_id: str, turn_id: str) -> tuple[Turn,
     return turn, conversation
 
 
-def _chart_or_404(content: TurnContent, tool_call_id: str) -> dict[str, Any]:
+def chart_or_404(content: TurnContent, tool_call_id: str) -> dict[str, Any]:
     chart = content.charts.get(tool_call_id)
     if chart is None:
         raise HTTPException(status_code=404, detail="That turn drew no such chart")
@@ -171,7 +175,7 @@ def _sides(content: TurnContent, target: str | None) -> tuple[Kind, str, dict[st
     """
     if target is None:
         return "answer", content.prompt, answer_side(content.text, content.tools), None
-    chart = _chart_or_404(content, target)
+    chart = chart_or_404(content, target)
     return "chart", chart_prompt(chart), chart_side(chart), "fast"
 
 
@@ -204,7 +208,7 @@ async def rate(request: Request, body: RatingBody) -> PreferenceOut:
     preference for anything, it is a rejection, and only a pair fills both sides.
     """
     with request.app.state.session_factory() as session:
-        turn, conversation = _turn_or_404(session, body.profile_id, body.turn_id)
+        turn, conversation = turn_or_404(session, body.profile_id, body.turn_id)
         content = read_turn(turn)
         kind, prompt, side, slot = _sides(content, body.target)
         record = store(
@@ -230,7 +234,7 @@ async def store_pair(request: Request, body: PairBody) -> PreferenceOut:
     """Store the pick of a pair: the stored output against the one that was regenerated."""
     candidate = body.candidate
     with request.app.state.session_factory() as session:
-        turn, conversation = _turn_or_404(session, body.profile_id, body.turn_id)
+        turn, conversation = turn_or_404(session, body.profile_id, body.turn_id)
         content = read_turn(turn)
         kind, prompt, original, slot = _sides(content, body.target)
         if kind == "chart":
@@ -269,23 +273,35 @@ async def chart_alternative(request: Request, body: AlternativeChartBody) -> dic
     """Draw the same chart request a second time, so the user can pick the better one.
 
     The chart sub-agent runs on the fast slot with the sub-agent settings, the same way the
-    `chart` tool runs it. Nothing is appended to the conversation: the second chart lives in the
+    `chart` tool runs it, up to `ALTERNATIVE_ATTEMPTS` times until the definition differs from
+    the one on the turn. Nothing is appended to the conversation: the second chart lives in the
     card until it is picked or the page is left.
     """
     state = request.app.state
     with state.session_factory() as session:
-        turn, conversation = _turn_or_404(session, body.profile_id, body.turn_id)
+        turn, conversation = turn_or_404(session, body.profile_id, body.turn_id)
         content = read_turn(turn)
-        chart = _chart_or_404(content, body.tool_call_id)
+        chart = chart_or_404(content, body.tool_call_id)
         profile_id = conversation.profile_id
-    outcome = await run_chart(
-        resolve_model=state.resolve_model,
-        model_settings=state.subagent_settings,
-        session_factory=state.session_factory,
-        profile_id=profile_id,
-        request=str(chart.get("request") or ""),
-        hints=content.chart_hints.get(body.tool_call_id),
-    )
+    async def draw() -> ChartOutcome:
+        return await run_chart(
+            resolve_model=state.resolve_model,
+            model_settings=state.subagent_settings,
+            session_factory=state.session_factory,
+            profile_id=profile_id,
+            request=str(chart.get("request") or ""),
+            hints=content.chart_hints.get(body.tool_call_id),
+        )
+
+    # The sub-agent is free to write the same definition again, and two identical charts are
+    # nothing to pick between. The user pressed Regenerate once, so the further attempts happen
+    # here rather than costing them three presses of about 45 seconds each (review of
+    # 2026-09-04). A chart that could not be drawn at all is reported, not retried.
+    outcome = await draw()
+    for _ in range(ALTERNATIVE_ATTEMPTS - 1):
+        if not outcome.rendered or outcome.code != chart.get("code"):
+            break
+        outcome = await draw()
     return outcome.payload()
 
 
@@ -299,7 +315,7 @@ async def answer_alternative(request: Request, body: AlternativeAnswerBody) -> A
     """
     state = request.app.state
     with state.session_factory() as session:
-        turn, conversation = _turn_or_404(session, body.profile_id, body.turn_id)
+        turn, conversation = turn_or_404(session, body.profile_id, body.turn_id)
         content = read_turn(turn)
         if not content.prompt:
             raise HTTPException(status_code=409, detail="That turn has no user message to answer again")

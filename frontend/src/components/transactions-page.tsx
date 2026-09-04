@@ -255,7 +255,13 @@ export function TransactionsPage() {
         <p className="truncate text-muted-foreground text-xs">
           {list.isPending
             ? 'Loading...'
-            : `${total} ${total === 1 ? 'row' : 'rows'}${hasFilters(filters) ? ' match these filters' : ' in this profile'}`}
+            : `${total} ${total === 1 ? 'row' : 'rows'}${
+                hasFilters(filters)
+                  ? total === 1
+                    ? ' matches these filters'
+                    : ' match these filters'
+                  : ' in this profile'
+              }`}
           {rows.length < total && ` · ${rows.length} loaded`}
         </p>
         <div className="ml-auto flex items-center gap-2">

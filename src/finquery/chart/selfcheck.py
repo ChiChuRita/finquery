@@ -372,7 +372,10 @@ __finquery.run = function (source, rowsJson) {
       if (typeof value !== 'number' || !isFinite(value)) {
         throw new Error('the link value must be a finite number, got ' + JSON.stringify(value));
       }
-      if (value < 0) throw new Error('a link value must not be negative, got ' + value);
+      if (value <= 0) throw new Error('a link value must be a positive amount, got ' + value);
+      if (String(from) === String(to)) {
+        throw new Error('the link "' + from + '" flows into itself; a flow needs two names');
+      }
       links.push({
         kind: 'link', key: l, data: row, source: row, sourceRows: [row], sourceIndexes: [l],
         sourceKey: String(from), targetKey: String(to),
@@ -383,6 +386,38 @@ __finquery.run = function (source, rowsJson) {
     }
     record('sankeyDiagram', linkRows, pick(options, ['source', 'target', 'value', 'linkKey']));
     record('sankey_nodes', nodeRows, pick(options, ['nodeKey']));
+    // A cycle is what the layout reports as "circular link" in the browser, so it is refused
+    // here with the names on it instead.
+    var outgoing = {};
+    for (var c = 0; c < links.length; c++) {
+      if (!outgoing[links[c].sourceKey]) outgoing[links[c].sourceKey] = [];
+      outgoing[links[c].sourceKey].push(links[c].targetKey);
+    }
+    var state = {};
+    var trail = [];
+    var walk = function (node) {
+      state[node] = 1;
+      trail.push(node);
+      var next = outgoing[node] || [];
+      for (var w = 0; w < next.length; w++) {
+        if (state[next[w]] === 1) return trail.slice(trail.indexOf(next[w])).concat([next[w]]);
+        if (!state[next[w]]) {
+          var found = walk(next[w]);
+          if (found) return found;
+        }
+      }
+      state[node] = 2;
+      trail.pop();
+      return null;
+    };
+    for (var k = 0; k < keys.length; k++) {
+      if (state[keys[k]]) continue;
+      var cycle = walk(keys[k]);
+      if (cycle) {
+        throw new Error('the links form the circular flow ' + cycle.join(' -> ') +
+          '; a sankey cannot lay that out');
+      }
+    }
     if (typeof options.marks !== 'function') {
       throw new Error('sankeyDiagram needs a marks function returning the child marks');
     }
@@ -673,6 +708,114 @@ def _house_findings(report: dict[str, Any], shape: Shape, rows: list[dict[str, A
         if series < 2 and spec["legend"] and not rule.series:
             findings.append(LEGEND_EXTRA)
     return findings
+
+
+def _pair_findings(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
+    """A stacked or grouped bar needs one figure per position and series.
+
+    TanStack Charts throws "A stack requires at most one value for each position and series" in
+    the browser, which the review of 2026-09-04 saw twice. The rows are what decide it, so this
+    is judged on them and not on the code: two rows for 2025-01 / Groceries cannot be drawn by
+    any definition, however well written.
+    """
+    if len(columns) < 2:
+        return []
+    position, series = columns[0], columns[1]
+    seen: dict[tuple[str, str], int] = {}
+    for row in rows:
+        key = (str(row.get(position)), str(row.get(series)))
+        seen[key] = seen.get(key, 0) + 1
+    repeated = [key for key, count in seen.items() if count > 1]
+    if not repeated:
+        return []
+    shown = ", ".join(f"{first} / {second}" for first, second in repeated[:3])
+    pairs = "one pair" if len(repeated) == 1 else f"{len(repeated)} pairs"
+    return [
+        f"The rows carry {pairs} of {position} and {series} more than once ({shown}), and "
+        f"stacked or grouped bars need one figure per pair. The query has to group by both "
+        f"columns and return each combination once."
+    ]
+
+
+def _flow_findings(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
+    """A sankey draws a flow, so its links must go somewhere and must not come back.
+
+    The layout throws "circular link" on a cycle and refuses a value it cannot allocate. Both
+    are properties of the rows, so both are decided here rather than in the browser.
+    """
+    if len(columns) < 3:
+        return []
+    source, target, amount = columns[0], columns[1], columns[2]
+    findings: list[str] = []
+    edges: dict[str, list[str]] = {}
+    loops: list[str] = []
+    for row in rows:
+        start, end = str(row.get(source)), str(row.get(target))
+        if start == end:
+            loops.append(start)
+        edges.setdefault(start, []).append(end)
+    if loops:
+        flowing = "One row flows" if len(loops) == 1 else f"{len(loops)} rows flow"
+        findings.append(
+            f"{flowing} from a name into itself ({', '.join(dict.fromkeys(loops))}). "
+            f"A flow needs a {source} and a {target} that differ."
+        )
+    if cycle := _first_cycle(edges):
+        findings.append(
+            f"The rows form a circular flow ({' -> '.join(cycle)}), which a sankey cannot lay "
+            f"out. Every euro has to travel from a source to a target and stop there."
+        )
+    unusable = [
+        row
+        for row in rows
+        if not isinstance(row.get(amount), (int, float))
+        or isinstance(row.get(amount), bool)
+        or float(row.get(amount) or 0) <= 0
+    ]
+    if unusable:
+        carrying = "One row carries" if len(unusable) == 1 else f"{len(unusable)} rows carry"
+        findings.append(
+            f"{carrying} no positive figure in {amount}. Every flow is a positive euro amount, "
+            f"so spending travels as `ROUND(-SUM(amount), 2)`."
+        )
+    return findings
+
+
+def _first_cycle(edges: dict[str, list[str]]) -> list[str] | None:
+    """The first cycle a depth-first walk finds, as the names on it. None when there is none."""
+    colour: dict[str, int] = {}
+    path: list[str] = []
+
+    def walk(node: str) -> list[str] | None:
+        colour[node] = 1
+        path.append(node)
+        for next_node in edges.get(node, []):
+            if colour.get(next_node) == 1:
+                return path[path.index(next_node) :] + [next_node]
+            if colour.get(next_node) is None and (found := walk(next_node)) is not None:
+                return found
+        colour[node] = 2
+        path.pop()
+        return None
+
+    for node in list(edges):
+        if colour.get(node) is None and (found := walk(node)) is not None:
+            return found
+    return None
+
+
+def data_findings(shape: Shape, columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
+    """What the rows themselves make impossible for this shape, before any code is written.
+
+    The code check judges intent against a stub; these two rules are about the data a definition
+    would be handed, so no repair round could fix them. `run_chart` calls this once the query has
+    answered and reports the finding instead of drawing something the browser would throw on.
+    """
+    if SHAPES[shape].series:
+        return _pair_findings(columns, rows)
+    if shape == "sankey":
+        return _flow_findings(columns, rows)
+    return []
 
 
 def judge(report: dict[str, Any], shape: Shape, rows: list[dict[str, Any]]) -> list[str]:

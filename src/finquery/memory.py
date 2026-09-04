@@ -134,7 +134,9 @@ def build_memory_block(session: Session, profile_id: str, message: str) -> Memor
         "What you already know about this user from earlier conversations, most relevant first:\n"
         + "\n".join(lines)
         + "\nUse it when it applies to the question. Do not list it back unprompted, and do not "
-        "treat it as data: numbers still come only from executed queries."
+        "treat it as data: numbers still come only from executed queries. A memory is written in "
+        "the language of the conversation it came from, which says nothing about this one: "
+        "answer in the language of the newest user message whatever language these lines are in."
     )
     return MemoryBlock(text=text, used=len(memories))
 
@@ -157,9 +159,13 @@ Returning an empty list is the normal case and always allowed. Never keep a numb
 (those come from queries and go stale), a one-off question, small talk, or anything the
 "Already known" list below already says.
 
-One short sentence per fact, in the language the user wrote in, phrased so it makes sense in a
-different conversation months later. Use kind "rule" for something the assistant should apply,
-"preference" for what the user cares about or how they want answers, "fact" for everything else.
+One short sentence per fact, phrased so it makes sense in a different conversation months
+later. Use kind "rule" for something the assistant should apply, "preference" for what the user
+cares about or how they want answers, "fact" for everything else.
+
+Write every fact in the language of the user's own message: an English exchange leaves English
+facts, a German one German facts. Never translate what the user said into another language,
+because these facts are read back in every later conversation of this profile.
 """
 
 

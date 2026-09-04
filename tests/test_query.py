@@ -352,3 +352,62 @@ async def test_a_row_dump_is_capped_at_two_hundred_rows(
     assert output["sql"].endswith("LIMIT 200")
     assert output["row_count"] == 200
     assert "200 row limit was reached" in output["summary"]
+
+
+async def test_a_category_classifier_in_the_sql_is_refused_and_the_sub_agent_regroups(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The blocker of the second review: the sub-agent labelling bookings itself.
+
+    `CASE WHEN description LIKE '%rewe%' THEN 'Groceries'` puts model guesses next to the
+    household's own categories and nothing on screen tells the two apart, so the guard refuses
+    it and says what to write instead.
+    """
+    await import_synthetic(client, profile_id)
+    invented = (
+        "SELECT CASE WHEN lower(coalesce(counterparty, description)) LIKE '%rewe%' THEN 'Groceries' "
+        "ELSE 'Sonstiges' END AS topic, ROUND(-SUM(amount), 2) AS total_eur "
+        "FROM transaction_view WHERE amount_cents < 0 GROUP BY topic"
+    )
+    honest = (
+        "SELECT coalesce(category, 'Needs review') AS topic, ROUND(-SUM(amount), 2) AS total_eur "
+        "FROM transaction_view WHERE amount_cents < 0 GROUP BY topic ORDER BY total_eur DESC"
+    )
+    respond = scripted_sql(invented, honest)
+    scripts.fast = ask_query_then_report("spending per category in 2025")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Wie viel habe ich pro Kategorie ausgegeben?")
+
+    output = tool_output(chunks)
+    assert output["error"] is None
+    # Nothing is categorized in a freshly imported profile, so every euro is one honest bucket.
+    assert [row["topic"] for row in output["rows"]] == ["Needs review"]
+    prompts = respond.prompts  # type: ignore[attr-defined]
+    assert len(prompts) == 2
+    assert "invents a categorization" in prompts[1]
+    assert "coalesce(category, 'Needs review')" in prompts[1]
+    assert "THEN 'Groceries'" in prompts[1], "the refused statement goes back with the reason"
+
+
+async def test_a_case_that_does_not_label_the_booking_text_still_runs(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The rule is about labelling, not about CASE: a bucket over the amount is arithmetic."""
+    await import_synthetic(client, profile_id)
+    sql = (
+        "SELECT CASE WHEN amount_cents < -20000 THEN 'gross' ELSE 'klein' END AS size_group, "
+        "COUNT(*) AS bookings FROM transaction_view WHERE amount_cents < 0 GROUP BY size_group"
+    )
+    respond = scripted_sql(sql)
+    scripts.fast = ask_query_then_report("how many large and small payments there are")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Wie viele grosse und kleine Zahlungen habe ich?")
+
+    output = tool_output(chunks)
+    assert output["error"] is None
+    assert len(respond.prompts) == 1, "no retry: the statement was admitted the first time"  # type: ignore[attr-defined]
+    assert {row["size_group"] for row in output["rows"]} == {"gross", "klein"}

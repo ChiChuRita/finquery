@@ -5,9 +5,8 @@ import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { outboundLogQuery, patchSettings, settingsQuery, type OutboundEntry } from '@/lib/api'
+import { formatDateTime } from '@/lib/format'
 import { useWorkspace } from '@/lib/workspace'
-
-const time = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
 
 function LogRow({ entry }: { entry: OutboundEntry }) {
   const ok = entry.status === 'ok'
@@ -22,7 +21,7 @@ function LogRow({ entry }: { entry: OutboundEntry }) {
         {entry.target}
       </span>
       <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
-        {time.format(new Date(entry.created_at))}
+        {formatDateTime(entry.created_at)}
       </span>
       <span className="col-start-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
         <span>

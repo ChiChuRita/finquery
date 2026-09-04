@@ -24,6 +24,8 @@ from .conftest import (
     is_followup_request,
     new_conversation,
     script,
+    tool_call_of,
+    turn_of,
 )
 from .test_categorization import call_tools
 from .test_chart import LINE_CODE, LINE_PLAN, MONTHLY_SQL, ask_chart_then_report, scripted_chart
@@ -45,29 +47,6 @@ def post_turn_only():
         return ModelResponse(parts=[TextPart(content="No follow-ups.")])
 
     return respond
-
-
-def turn_of(chunks: list[dict[str, object]]) -> str:
-    """The id of the turn that was just streamed, as the client reads it from the metadata.
-
-    A turn ends with more than one metadata chunk (the framework adds its own timestamp), and
-    the client merges them all into the message, so the id is looked for in any of them.
-    """
-    ids = [
-        chunk["messageMetadata"]["turn_id"]  # type: ignore[index]
-        for chunk in chunks
-        if chunk["type"] == "message-metadata" and "turn_id" in chunk["messageMetadata"]  # type: ignore[operator]
-    ]
-    assert len(ids) == 1, chunks
-    assert isinstance(ids[0], str)
-    return ids[0]
-
-
-def chart_call_of(chunks: list[dict[str, object]]) -> str:
-    """The tool call id of the chart in that turn, which is what a chart rating targets."""
-    calls = [c for c in chunks if c["type"] == "tool-input-available" and c["toolName"] == "chart"]
-    assert len(calls) == 1, chunks
-    return str(calls[0]["toolCallId"])
 
 
 async def rate(
@@ -157,7 +136,7 @@ async def test_regenerating_a_chart_gives_a_second_one_and_the_pick_stores_both_
     conversation_id = await new_conversation(client, profile_id)
 
     _, chunks = await chat(conversation_id, "Zeig mir die Ausgaben pro Monat als Diagramm.")
-    turn_id, chart_call = turn_of(chunks), chart_call_of(chunks)
+    turn_id, chart_call = turn_of(chunks), tool_call_of(chunks, "chart")
     first = [c for c in chunks if c["type"] == "tool-output-available"][0]["output"]
     assert isinstance(first, dict)
 
@@ -365,3 +344,43 @@ async def test_rating_a_chart_that_the_turn_never_drew_is_refused(
     )
     assert response.status_code == 404
     assert await records_of(client, profile_id) == []
+
+
+async def test_regenerate_asks_again_until_the_second_chart_differs(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The sub-agent repeating itself cost the user three presses of about 45 seconds each.
+
+    Three attempts happen inside the one press now, and "Same chart again" is only what the
+    card says when all three came back identical.
+    """
+    await import_synthetic(client, profile_id)
+    scripts.fast = ask_chart_then_report("spending per month in 2025 as a line chart")
+    scripts.fast_call = scripted_chart(plan=LINE_PLAN, sql=MONTHLY_SQL, codes=[LINE_CODE])  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+    _, chunks = await chat(conversation_id, "Zeig mir die Ausgaben pro Monat als Diagramm.")
+    turn_id, chart_call = turn_of(chunks), tool_call_of(chunks, "chart")
+
+    # The same definition twice, then a different one: one press, three attempts.
+    repeats = scripted_chart(plan=LINE_PLAN, sql=MONTHLY_SQL, codes=[LINE_CODE, LINE_CODE, SECOND_LINE_CODE])
+    scripts.fast_call = repeats  # type: ignore[assignment]
+    second = (
+        await client.post(
+            "/api/preferences/chart-alternative",
+            json={"profile_id": profile_id, "turn_id": turn_id, "tool_call_id": chart_call},
+        )
+    ).json()
+    assert second["code"] == SECOND_LINE_CODE
+    assert len(repeats.prompts["code"]) == 3  # type: ignore[attr-defined]
+
+    # Three identical ones is where it stops, and the card says so instead of looping.
+    same = scripted_chart(plan=LINE_PLAN, sql=MONTHLY_SQL, codes=[LINE_CODE])
+    scripts.fast_call = same  # type: ignore[assignment]
+    third = (
+        await client.post(
+            "/api/preferences/chart-alternative",
+            json={"profile_id": profile_id, "turn_id": turn_id, "tool_call_id": chart_call},
+        )
+    ).json()
+    assert third["code"] == LINE_CODE
+    assert len(same.prompts["code"]) == 3  # type: ignore[attr-defined]

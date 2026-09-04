@@ -220,7 +220,7 @@ export function ConfirmDeleteDialog({
         </DialogHeader>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="ghost">Keep them</Button>
+            <Button variant="ghost">{count === 1 ? 'Keep it' : 'Keep them'}</Button>
           </DialogClose>
           <Button
             className="bg-destructive text-white hover:bg-destructive/90"
@@ -230,7 +230,7 @@ export function ConfirmDeleteDialog({
               setOpen(false)
             }}
           >
-            {pending ? 'Deleting...' : `Delete ${count}`}
+            {pending ? 'Deleting...' : count === 1 ? 'Delete it' : `Delete ${count}`}
           </Button>
         </DialogFooter>
       </DialogContent>

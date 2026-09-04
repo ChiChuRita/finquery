@@ -516,3 +516,56 @@ async def test_a_file_of_a_kind_we_cannot_read_is_refused_before_the_turn_starts
     assert "not a kind FinQuery can read" in response.json()["detail"]
     # The turn never ran: nothing was stored and nothing was said.
     assert (await transcript(client, conversation_id))["messages"] == []
+
+
+async def test_a_typed_transaction_never_stores_the_word_null_as_its_counterparty(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """The extraction sub-agent answers an optional field with the word, not with nothing.
+
+    "I paid 12 EUR cash for lunch today" created a booking whose counterparty was the string
+    "null" (review of 2026-09-04), while the same booking added by hand stores a real null.
+    """
+    typed = "I paid 12 EUR cash for lunch today"
+    responder = sub_agents(
+        transactions=[
+            {
+                "booked_on": "2025-06-02",
+                "amount": "12.00",
+                "direction": "out",
+                "description": "Lunch",
+                "counterparty": "null",
+                "account_name": "Cash",
+            }
+        ]
+    )
+    scripts.fast = typing_a_transaction(typed)
+    scripts.fast_call = responder  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    first = await client.post(
+        f"/api/conversations/{conversation_id}/chat",
+        json={"id": conversation_id, "trigger": "submit-message",
+              "messages": [{"id": "u1", "role": "user", "parts": [{"type": "text", "text": typed}]}]},
+    )
+    assert first.status_code == 200, first.text
+    chunks = parse_sse(first.text)
+    assert outputs_of(chunks)[0]["drafts"][0]["counterparty"] is None
+    # The preview row names the account only, never "null · Cash".
+    assert cards_in(chunks)[0]["input"]["rows"][0]["description"] == "Cash"
+
+    pending = (await transcript(client, conversation_id))["messages"][1]
+    second = await client.post(
+        f"/api/conversations/{conversation_id}/chat",
+        json=answer_card(
+            conversation_id,
+            pending["id"],
+            pending_card(pending),
+            {"answers": [{"ref": "t1", "value": "add", "text": None}]},
+        ),
+    )
+    assert second.status_code == 200, second.text
+
+    rows = await rows_of(client, profile_id)
+    assert len(rows) == 1
+    assert rows[0]["counterparty"] is None

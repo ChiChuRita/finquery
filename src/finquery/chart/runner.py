@@ -12,7 +12,7 @@ from typing import Any
 from pydantic_ai.settings import ModelSettings
 from sqlalchemy.orm import Session, sessionmaker
 
-from finquery.chart.selfcheck import check_chart_code
+from finquery.chart.selfcheck import check_chart_code, data_findings
 from finquery.chart.shapes import SHAPES
 from finquery.chart.subagent import ChartPlan, write_code, write_plan
 from finquery.providers import ModelResolver, ProviderNotAvailable
@@ -45,6 +45,11 @@ class ChartOutcome:
     summary: str = ""
     error: str | None = None
 
+    @property
+    def rendered(self) -> bool:
+        """Whether a chart is actually on screen."""
+        return self.code is not None and self.error is None
+
     def payload(self) -> dict[str, Any]:
         """The tool result: what the chat agent reads and what the chart card renders."""
         return {
@@ -60,6 +65,10 @@ class ChartOutcome:
             "notes": self.notes,
             "summary": self.summary,
             "error": self.error,
+            # The one field the chat agent has to read before it writes a sentence about the
+            # picture: false means there is nothing on screen, so the answer gives the figures
+            # instead of describing a drawing that is not there.
+            "rendered": self.rendered,
         }
 
 
@@ -94,6 +103,33 @@ def _honest_shape(plan: ChartPlan, columns: list[str], rows: list[dict[str, Any]
     grouping = _grouping_columns(columns, rows)
     crossed = len(grouping) > 1 and len(rows) > len({str(row[grouping[0]]) for row in rows})
     return plan if crossed else plan.model_copy(update={"shape": PLAIN_BARS})
+
+
+# What a query calls the bucket everything else was folded into. A doughnut whose rest slice
+# holds most of the money carries no information, and the review of 2026-09-04 saw one at 90
+# percent, so the share goes into the caption where the user reads it.
+REST_LABELS = ("rest", "other", "others", "sonstige", "sonstiges", "andere", "uebrige", "übrige")
+REST_MAJORITY = 0.5
+
+
+def _rest_share(shape: str, columns: list[str], rows: list[dict[str, Any]]) -> str | None:
+    """The share of a doughnut's rest slice, as a percentage, when it holds the majority."""
+    if shape != "doughnut" or len(columns) < 2 or len(rows) < 2:
+        return None
+    label_column, value_column = columns[0], columns[1]
+    values = [row.get(value_column) for row in rows]
+    if any(not isinstance(value, (int, float)) or isinstance(value, bool) for value in values):
+        return None
+    total = sum(float(value) for value in values)  # type: ignore[arg-type]
+    if total <= 0:
+        return None
+    for row in rows:
+        if str(row.get(label_column) or "").strip().casefold() not in REST_LABELS:
+            continue
+        share = float(row[value_column]) / total  # type: ignore[arg-type]
+        if share > REST_MAJORITY:
+            return f"{round(share * 100)} %"
+    return None
 
 
 async def run_chart(
@@ -140,9 +176,10 @@ async def run_chart(
         # is categorized) or grouping by only one of them silently produces a single series.
         shaped += (
             f" `GROUP BY {plan.columns[0]}, {plan.columns[1]}`, so there is one row per "
-            f"combination and no row where {plan.columns[1]} is NULL. When the taxonomy is not "
-            f"filled, build {plan.columns[1]} as a CASE expression over the merchants, repeat it "
-            f"in the GROUP BY, and add a WHERE that keeps only the bookings it names."
+            f"combination and never two rows with the same pair: a stacked bar needs one value "
+            f"per position and series. Build {plan.columns[1]} from the `category` column with "
+            f"`coalesce(category, 'Needs review') AS {plan.columns[1]}` so an uncategorized "
+            f"booking is an honest bucket, and never from a CASE over the booking text."
         )
     outcome = await run_query(
         resolve_model=resolve_model,
@@ -169,10 +206,31 @@ async def run_chart(
         )
     say(f"Data: {len(outcome.rows)} rows over {', '.join(outcome.columns)}.")
 
+    # What the rows make impossible, judged before a single line of code is written: no repair
+    # round can fold two rows for the same month and category into one, or straighten a
+    # circular flow, so the honest answer is the reason and the figures.
+    if impossible := data_findings(plan.shape, outcome.columns, outcome.rows):
+        reason = f"The chart could not be drawn from these rows: {' '.join(impossible)}"
+        say(reason)
+        return _failed(
+            request,
+            reason,
+            title=plan.title,
+            shape=plan.shape,
+            plan=plan.as_text(),
+            sql=outcome.sql,
+            columns=outcome.columns,
+            rows=outcome.rows,
+        )
+
     honest = _honest_shape(plan, outcome.columns, outcome.rows)
     if honest.shape != plan.shape:
         say(f"The rows carry only one series, so the shape becomes {honest.shape}.")
         plan = honest
+
+    if (share := _rest_share(plan.shape, outcome.columns, outcome.rows)) is not None:
+        plan = plan.model_copy(update={"title": f"{plan.title} ({share} in the rest slice)"})
+        say(f"One slice holds {share} of the total, so the title says so.")
 
     notes: list[str] = []
     code: str | None = None
@@ -224,7 +282,8 @@ async def run_chart(
                 notes=notes,
                 summary=(
                     f"A {plan.shape} chart titled \"{plan.title}\" is now shown to the user, drawn "
-                    f"from {len(outcome.rows)} rows of the executed query."
+                    f"from {len(outcome.rows)} rows of the executed query. Write your answer as "
+                    f"text now: one or two sentences quoting at most the two figures that matter."
                 ),
             )
         findings = result.instructions()
