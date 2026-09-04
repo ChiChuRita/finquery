@@ -1,7 +1,8 @@
 import { useChat } from '@ai-sdk/react'
 import { useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { DefaultChatTransport } from 'ai'
-import { CircleStopIcon, SparklesIcon, ZapIcon } from 'lucide-react'
+import { BrainIcon, CircleStopIcon, SparklesIcon, ZapIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { StickToBottomContext } from 'use-stick-to-bottom'
 
@@ -215,6 +216,9 @@ function TranscriptMessage({
 }) {
   const interrupted = message.metadata?.interrupted === true
   const live = isLast && streaming
+  // How many durable facts of the profile this turn was given (memory page: /memory).
+  const memoriesUsed =
+    message.parts.flatMap((p) => (p.type === 'data-context' ? [p.data.memories_used] : []))[0] ?? 0
   // The turn's own slot, or the conversation's while the turn is still streaming and has no metadata.
   const turnSlot = message.metadata?.model_slot ?? slot
   const TurnIcon = SLOT_ICONS[turnSlot]
@@ -262,6 +266,16 @@ function TranscriptMessage({
             <TurnIcon className="size-3" />
             {slotLabel(turnSlot)} model
           </span>
+          {memoriesUsed > 0 && (
+            <Link
+              className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-0.5 transition-colors hover:text-foreground"
+              title="What the assistant remembers about you"
+              to="/memory"
+            >
+              <BrainIcon className="size-3" />
+              {memoriesUsed === 1 ? '1 memory' : `${memoriesUsed} memories`} used
+            </Link>
+          )}
           {interrupted && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-2.5 py-0.5">
               <CircleStopIcon className="size-3" />

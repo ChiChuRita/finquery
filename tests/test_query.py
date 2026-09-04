@@ -16,7 +16,15 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.db import create_profile, ensure_account
 
-from .conftest import SYNTHETIC, Chat, Scripts, is_followup_request, new_conversation
+from .conftest import (
+    SYNTHETIC,
+    Chat,
+    Scripts,
+    distilled,
+    is_distillation_request,
+    is_followup_request,
+    new_conversation,
+)
 from .test_data_model import add_transaction
 from .test_import import upload
 
@@ -62,17 +70,19 @@ def ask_query_then_report(request: str, hints: str | None = None):
     return fn
 
 
-def scripted_sql(*statements: str, followups: Sequence[str] = ()):
+def scripted_sql(*statements: str, followups: Sequence[str] = (), memories: Sequence[str] = ()):
     """The sub-agent's forced single tool call, one statement per attempt.
 
-    The post-turn follow-up step runs on the same slot and is not streamed either, so it lands
-    here too. It is answered with text and never counts as an attempt.
+    Both post-turn steps run on the same slot and are not streamed either, so they land here
+    too. They get their own answer and never count as an attempt.
     """
     prompts: list[str] = []
 
     def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         if is_followup_request(messages):
             return ModelResponse(parts=[TextPart(content="\n".join(followups) if followups else "No follow-ups.")])
+        if is_distillation_request(messages):
+            return ModelResponse(parts=[distilled(*memories)])
         prompts.append(_last_user_prompt(messages))
         assert [tool.name for tool in info.output_tools] == ["run_sql"]
         assert info.allow_text_output is False
@@ -138,8 +148,8 @@ async def test_scripted_sql_executes_and_its_rows_reach_the_transcript(
 
     _, chunks = await chat(conversation_id, "Wie viel habe ich im Mai bei REWE ausgegeben?")
 
-    # The chat model on quality, then the sub-agent and the follow-up step on fast.
-    assert scripts.resolved == ["quality", "fast", "fast"]
+    # The chat model on quality, then the sub-agent and both post-turn steps on fast.
+    assert scripts.resolved == ["quality", "fast", "fast", "fast"]
     # The tool step is announced, resolved, and only then does the answer start.
     types = [str(c["type"]) for c in chunks]
     assert types.index("tool-input-available") < types.index("tool-output-available") < types.index("text-start")
@@ -174,8 +184,13 @@ async def test_scripted_sql_executes_and_its_rows_reach_the_transcript(
     # A reload shows one assistant message with the same tool step, its SQL and its rows.
     detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
     assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
-    # Thinking, tool step, answer and the follow-ups are one message, live and on reload.
-    assert [p["type"] for p in detail["messages"][-1]["parts"]] == ["tool-query", "text", "data-followups"]
+    # Thinking, tool step, answer and the post-turn parts are one message, live and on reload.
+    assert [p["type"] for p in detail["messages"][-1]["parts"]] == [
+        "tool-query",
+        "text",
+        "data-context",
+        "data-followups",
+    ]
     assert detail["messages"][-1]["parts"][-1]["data"] == {"suggestions": ["Und im Vergleich zum April?"]}
     part = detail["messages"][-1]["parts"][0]
     assert part["state"] == "output-available"
@@ -263,7 +278,9 @@ async def test_an_empty_profile_is_answered_without_calling_the_sub_agent(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
 ) -> None:
     def never(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
-        # The post-turn follow-up step shares this slot; nothing else may reach it.
+        # Both post-turn steps share this slot; nothing else may reach it.
+        if is_distillation_request(messages):
+            return ModelResponse(parts=[distilled()])
         assert is_followup_request(messages), "the query sub-agent must not run without data"
         return ModelResponse(parts=[TextPart(content="No follow-ups.")])
 
@@ -273,9 +290,9 @@ async def test_an_empty_profile_is_answered_without_calling_the_sub_agent(
 
     _, chunks = await chat(conversation_id, "How much did I spend in May?")
 
-    # The chat model and the follow-up step, and no third resolution for the sub-agent: the
-    # tool answered before any model was involved.
-    assert scripts.resolved == ["fast", "fast"]
+    # The chat model and the two post-turn steps, and no fourth resolution for the sub-agent:
+    # the tool answered before any model was involved.
+    assert scripts.resolved == ["fast", "fast", "fast"]
     output = tool_output(chunks)
     assert output["sql"] is None
     assert output["row_count"] == 0

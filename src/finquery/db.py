@@ -2,8 +2,8 @@
 
 Two families of tables. Conversations: a turn is one agent run, storing the Pydantic AI
 message history (what the model sees next time) and the AI SDK UI messages (what the
-transcript renders), both as JSON text. Data: accounts, transactions, the taxonomy, category
-rules and import records.
+transcript renders), both as JSON text, plus the memories that every conversation of a profile
+shares. Data: accounts, transactions, the taxonomy, category rules and import records.
 
 Money is stored as integer cents so sums and the split constraint are exact. `transaction_view`
 is what queries and charts read: it joins the names in and drops split parents so children are
@@ -89,6 +89,24 @@ class Turn(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     conversation: Mapped[Conversation] = relationship(back_populates="turns")
+
+
+class Memory(Base):
+    """A durable fact, shared by every conversation of the profile. See finquery.memory."""
+
+    __tablename__ = "memory"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profile.id", ondelete="CASCADE"), index=True)
+    text: Mapped[str] = mapped_column(String(500))
+    kind: Mapped[str] = mapped_column(String(16), default="fact")
+    """rule, preference or fact."""
+    source: Mapped[str] = mapped_column(String(16), default="distilled")
+    """explicit (the user asked to remember it) or distilled (the post-turn pass found it)."""
+    created_from: Mapped[str | None] = mapped_column(ForeignKey("conversation.id", ondelete="SET NULL"), default=None)
+    """The conversation the memory was established in. Null once that conversation is deleted."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class Account(Base):

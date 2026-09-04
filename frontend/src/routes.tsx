@@ -9,6 +9,7 @@ import { Composer } from '@/components/composer'
 import { ConversationTabs } from '@/components/conversation-tabs'
 import { EmptyState } from '@/components/empty-state'
 import { ImportPage } from '@/components/import-page'
+import { MemoryPage } from '@/components/memory-page'
 import { ModelsCard } from '@/components/models-card'
 import { conversationQuery, conversationsQuery, createConversation, type ModelSlot } from '@/lib/api'
 import { stashPendingPrompt } from '@/lib/pending'
@@ -103,6 +104,8 @@ const conversationRoute = createRoute({
 
 const importRoute = createRoute({ getParentRoute: () => rootRoute, path: '/import', component: ImportPage })
 
+const memoryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/memory', component: MemoryPage })
+
 function SettingsPage() {
   return (
     <div className="h-full overflow-y-auto">
@@ -120,7 +123,7 @@ function SettingsPage() {
 const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', component: SettingsPage })
 
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([indexRoute, conversationRoute, importRoute, settingsRoute]),
+  routeTree: rootRoute.addChildren([indexRoute, conversationRoute, importRoute, memoryRoute, settingsRoute]),
 })
 
 declare module '@tanstack/react-router' {

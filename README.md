@@ -102,6 +102,7 @@ it with `uv run python scripts/generate_synthetic.py`.
   `db.py` (SQLAlchemy models and the query view), `taxonomy.py` (default categories),
   `agent.py` (chat agent and its tools), `query/` (query sub-agent, SQL guard, execution),
   `followups.py` (post-turn suggestions),
+  `memory.py` (durable facts: the `remember` tool, the distillation pass, prompt selection),
   `ingest/` (CSV reader, presets, mapping sub-agent, commit),
   `api/` (REST and chat endpoints),
   `local/` (the local provider: catalog, downloads, runtime, model, Gemma wire format, check)

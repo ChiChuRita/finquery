@@ -7,6 +7,7 @@ import pytest
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart
 
+from finquery.api import chat as chat_api
 from finquery.app import create_app
 from finquery.local.runtime import LocalStack
 
@@ -15,6 +16,8 @@ from .conftest import (
     Scripts,
     chat_body,
     default_profile_id,
+    distilled,
+    is_distillation_request,
     is_followup_request,
     make_settings,
     new_conversation,
@@ -59,6 +62,8 @@ async def test_stream_order_reasoning_text_finish(client: httpx.AsyncClient, scr
         "text-start",
         "text-delta",
         "text-end",
+        # What the turn was given of the model's context, for the badge.
+        "data-context",
         "finish-step",
         "finish",
     ]
@@ -75,6 +80,9 @@ async def test_turn_is_persisted_and_history_is_server_owned(
         if is_followup_request(messages):
             yield "No follow-ups."
             return
+        if is_distillation_request(messages):
+            yield distilled()
+            return
         seen.append(messages)
         yield {0: DeltaThinkingPart(content="thinking")}
         yield f"answer {len(seen)}"
@@ -87,7 +95,7 @@ async def test_turn_is_persisted_and_history_is_server_owned(
     assert detail["title"] == "first question"
     assert detail["interrupted"] is False
     assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
-    assert [p["type"] for p in detail["messages"][1]["parts"]] == ["reasoning", "text"]
+    assert [p["type"] for p in detail["messages"][1]["parts"]] == ["reasoning", "text", "data-context"]
     assert detail["messages"][1]["metadata"]["thinking_seconds"] >= 0
     assert detail["messages"][1]["parts"][1]["text"] == "answer 1"
 
@@ -155,6 +163,35 @@ async def test_local_provider_refuses_to_chat_until_the_models_are_downloaded(tm
             )
             assert response.status_code == 503
             assert "not downloaded yet" in response.json()["detail"]
+
+
+async def test_a_hanging_post_turn_step_does_not_hold_the_finished_answer(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The two post-turn steps run on a clock: a model looping on one of them costs the
+    suggestions, never the answer."""
+    monkeypatch.setattr(chat_api, "POST_TURN_TIMEOUT", 0.2)
+
+    async def stalling(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        if is_followup_request(messages):
+            await asyncio.sleep(60)
+            yield "never sent"
+            return
+        if is_distillation_request(messages):
+            yield distilled()
+            return
+        yield "the answer"
+
+    scripts.fast = stalling
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+
+    _, chunks = await chat(conversation_id, "anything")
+
+    assert "finish" in kinds(chunks)
+    assert [c for c in chunks if c["type"] == "data-followups"] == []
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
+    assert detail["messages"][-1]["parts"][-1]["type"] == "data-context"
 
 
 async def test_unknown_conversation_is_404(client: httpx.AsyncClient) -> None:

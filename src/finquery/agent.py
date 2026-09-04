@@ -1,9 +1,12 @@
-"""The chat agent: the model the user talks to, and the tools it may call.
+"""The chat agent: its system prompt, the deps one turn hands it, and its tools.
 
 The model is chosen per run from the conversation's slot. Tools get what they need from
-`ChatDeps`, so the agent itself holds no application state. `query` is the first tool; later
-tickets add chart, import_file, ask_user, propose_changeset and friends the same way, and each
-one that needs a model resolves its own slot through the deps.
+`ChatDeps`, so the agent itself holds no application state. `query` and `remember` are the
+first two tools; later tickets add chart, import_file, ask_user, propose_changeset and friends
+the same way, and each one that needs a model resolves its own slot through the deps.
+
+Selected memories arrive as run instructions built by `finquery.memory.build_memory_block`,
+not from here.
 """
 
 from dataclasses import dataclass
@@ -13,6 +16,7 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.settings import ModelSettings
 from sqlalchemy.orm import Session, sessionmaker
 
+from finquery.memory import MemoryKind, add_memory
 from finquery.providers import ModelResolver
 from finquery.query import load_query_context, run_query
 
@@ -40,21 +44,32 @@ How to use `query`:
 - Never write SQL yourself and never show SQL in your answer: the transcript already shows the
   statement that ran.
 
-Keep answers short and use markdown (lists, tables) when it helps readability. Name the period
-and the figure in the first sentence.
+When the user tells you something durable about their finances (what a merchant is, that
+PayPal payments to Anna are dinner, which categories they care about), call `remember` once
+with one short sentence and confirm it in a single line of your answer. Memories are shared by
+every conversation of this profile, so never store a one-off question or a figure. Anything
+already remembered is given to you at the top of these instructions.
+
+After a tool returns, always write the answer as text. Never finish a turn with your thinking
+alone, and never mention the internal feedback you may receive between steps.
+
+Keep answers short and use markdown (lists, tables, code blocks) when it helps readability.
+Name the period and the figure in the first sentence.
 """
 
 
 @dataclass
 class ChatDeps:
-    """What a turn needs from the app: the profile's data and the model slots.
+    """What a turn needs from the app: the profile's data, the turn, and the model slots.
 
+    Nothing is implicitly profile scoped: a tool touches exactly what is on here.
     `subagent_settings` is what every sub-agent a tool starts runs with (reasoning off on
     OpenRouter), so a tool never has to know provider specifics.
     """
 
     session_factory: sessionmaker[Session]
     profile_id: str
+    conversation_id: str
     resolve_model: ModelResolver
     subagent_settings: ModelSettings
 
@@ -109,3 +124,27 @@ async def query(ctx: RunContext[ChatDeps], request: str, hints: str | None = Non
         hints=hints,
     )
     return outcome.payload()
+
+
+@chat_agent.tool
+def remember(ctx: RunContext[ChatDeps], text: str, kind: MemoryKind = "fact") -> str:
+    """Remember one durable fact about the user or their transactions across all conversations.
+
+    Args:
+        text: The fact as one short sentence, phrased to still make sense months later.
+        kind: "rule" for a mapping you should apply, "preference" for what the user cares
+            about or how they want answers, "fact" for everything else.
+    """
+    with ctx.deps.session_factory() as session:
+        memory = add_memory(
+            session,
+            ctx.deps.profile_id,
+            text,
+            kind=kind,
+            source="explicit",
+            created_from=ctx.deps.conversation_id,
+        )
+        session.commit()
+        if memory is None:
+            return f"Already remembered, nothing to do: {text}"
+        return f"Remembered: {memory.text}"

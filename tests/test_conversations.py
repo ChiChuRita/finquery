@@ -77,8 +77,9 @@ async def test_model_slot_switches_mid_conversation_and_every_turn_carries_its_s
     assert assistant_metadata(second)["model_slot"] == "quality"
     assert "".join(str(c["delta"]) for c in second if c["type"] == "text-delta").strip() == "quality answer"
 
-    # Two resolutions per turn: the chat model on the conversation's slot, the follow-up step on fast.
-    assert scripts.resolved == ["fast", "fast", "quality", "fast"]
+    # Three resolutions per turn: the chat model on the conversation's slot, then the two
+    # post-turn steps (follow-up suggestions, memory distillation), both pinned to fast.
+    assert scripts.resolved == ["fast", "fast", "fast", "quality", "fast", "fast"]
     detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
     assert [m["metadata"]["model_slot"] for m in detail["messages"] if m["role"] == "assistant"] == ["fast", "quality"]
     assert detail["model_slot"] == "quality"

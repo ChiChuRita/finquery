@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from finquery.api import chat, conversations, imports, profiles, taxonomy, transactions
+from finquery.api import chat, conversations, imports, memories, profiles, taxonomy, transactions
 from finquery.api import models as models_api
 from finquery.db import ensure_default_profile, make_session_factory
 from finquery.providers import MODEL_SLOTS, ModelResolver, build_local_stack, build_resolver, subagent_settings
@@ -54,6 +54,7 @@ def create_app(
     app.include_router(profiles.router, prefix="/api")
     app.include_router(conversations.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")
+    app.include_router(memories.router, prefix="/api")
     app.include_router(imports.router, prefix="/api")
     app.include_router(transactions.router, prefix="/api")
     app.include_router(taxonomy.router, prefix="/api")

@@ -7,12 +7,13 @@ from pathlib import Path
 import httpx
 import pytest
 from fastapi import FastAPI
-from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart, FunctionModel
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.app import create_app
 from finquery.followups import FOLLOWUP_MARKER
+from finquery.memory import DISTILL_MARKER, DISTILL_TOOL, MemoryKind
 from finquery.settings import Settings
 
 StreamFn = Callable[[list[ModelMessage], AgentInfo], AsyncIterator[object]]
@@ -25,11 +26,20 @@ PRIVATE = FIXTURES / "private"
 
 
 def _collected(fn: StreamFn) -> Callable[[list[ModelMessage], AgentInfo], Awaitable[ModelResponse]]:
-    """The same script as one response, for the steps that do not stream (follow-up suggestions)."""
+    """The same script as one response, for the steps that do not stream (the sub-agents).
+
+    A script that yields a `ToolCallPart` answers a sub-agent with a schema; anything else is
+    collected into text. The distillation pass needs its tool either way, so a script that says
+    nothing about it remembers nothing.
+    """
 
     async def function(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
-        text = "".join([item async for item in fn(messages, info) if isinstance(item, str)])
-        return ModelResponse(parts=[TextPart(content=text)])
+        items = [item async for item in fn(messages, info)]
+        if tool_calls := [item for item in items if isinstance(item, ToolCallPart)]:
+            return ModelResponse(parts=tool_calls)
+        if is_distillation_request(messages):
+            return ModelResponse(parts=[distilled()])
+        return ModelResponse(parts=[TextPart(content="".join(item for item in items if isinstance(item, str)))])
 
     return function
 
@@ -58,21 +68,44 @@ class Scripts:
         return FunctionModel(call or _collected(stream), stream_function=stream, model_name=f"scripted-{slot}")
 
 
-def is_followup_request(messages: Sequence[ModelMessage]) -> bool:
-    """True for the post-turn step that asks the fast slot for follow-up questions."""
+def _asks_for(messages: Sequence[ModelMessage], marker: str) -> bool:
     last = messages[-1]
     return last.kind == "request" and any(
-        part.part_kind == "user-prompt" and isinstance(part.content, str) and FOLLOWUP_MARKER in part.content
+        part.part_kind == "user-prompt" and isinstance(part.content, str) and marker in part.content
         for part in last.parts
     )
 
 
-def script(answer: str, *, thought: str | None = None, followups: Sequence[str] = ()) -> StreamFn:
-    """A model that thinks, answers, and offers these follow-ups when the post-turn step asks."""
+def is_followup_request(messages: Sequence[ModelMessage]) -> bool:
+    """True for the post-turn step that asks the fast slot for follow-up questions."""
+    return _asks_for(messages, FOLLOWUP_MARKER)
+
+
+def is_distillation_request(messages: Sequence[ModelMessage]) -> bool:
+    """True for the post-turn step that asks the fast slot what is worth remembering."""
+    return _asks_for(messages, DISTILL_MARKER)
+
+
+def distilled(*facts: str, kind: MemoryKind = "fact") -> ToolCallPart:
+    """The distillation pass's forced tool call: these facts are durable, none by default."""
+    return ToolCallPart(tool_name=DISTILL_TOOL, args={"facts": [{"text": text, "kind": kind} for text in facts]})
+
+
+def script(
+    answer: str, *, thought: str | None = None, followups: Sequence[str] = (), memories: Sequence[str] = ()
+) -> StreamFn:
+    """A model that thinks, answers, and serves both post-turn steps of the turn.
+
+    `followups` are the suggestions it offers, `memories` what its distillation pass finds
+    worth remembering.
+    """
 
     async def fn(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
         if is_followup_request(messages):
             yield "\n".join(followups) if followups else "No follow-ups."
+            return
+        if is_distillation_request(messages):
+            yield distilled(*memories)
             return
         if thought is not None:
             yield {0: DeltaThinkingPart(content=thought)}
