@@ -5,6 +5,7 @@ See docs/adr/0001-pydantic-ai-with-vercel-adapter.md.
 
 import asyncio
 import json
+import logging
 import time
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
@@ -22,15 +23,27 @@ from pydantic_ai.ui.vercel_ai.response_types import BaseChunk, DataChunk, Messag
 
 from finquery.agent import chat_agent
 from finquery.api.conversations import get_conversation_or_404
+from finquery.context import (
+    Assembly,
+    TurnMessages,
+    assemble,
+    estimate_tokens,
+    needs_compression,
+    summarize,
+    turns_to_fold,
+)
 from finquery.db import Conversation, Turn, utcnow
 from finquery.followups import suggest_followups
 from finquery.providers import ProviderNotAvailable
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 SDK_VERSION = 7
 TITLE_LENGTH = 60
 FOLLOWUPS_PART = "data-followups"
+CONTEXT_PART = "data-context"
 
 
 @dataclass
@@ -39,11 +52,15 @@ class RunningTurn:
     finished: asyncio.Event = field(default_factory=asyncio.Event)
 
 
-def _load_history(conversation: Conversation) -> list[ModelMessage]:
-    history: list[ModelMessage] = []
-    for turn in conversation.turns:
-        history.extend(ModelMessagesTypeAdapter.validate_json(turn.model_messages_json))
-    return history
+def _stored_turns(conversation: Conversation) -> list[TurnMessages]:
+    return [
+        TurnMessages(
+            position=turn.position,
+            messages=list(ModelMessagesTypeAdapter.validate_json(turn.model_messages_json)),
+            ui_count=len(json.loads(turn.ui_messages_json)),
+        )
+        for turn in conversation.turns
+    ]
 
 
 def _user_prompts(messages: Sequence[ModelMessage]) -> list[str]:
@@ -95,16 +112,20 @@ def _persist_turn(
     new_messages: list[ModelMessage],
     slot: str,
     metadata: dict[str, object],
-    followups: list[str],
+    parts: Sequence[DataUIPart],
 ) -> None:
+    """Store the turn, with the data parts the client saw appended to its assistant message.
+
+    Streaming a part and storing it is one code path, so a reloaded transcript renders exactly
+    what the live one did.
+    """
     if notes := _audit_notes(new_messages):
         metadata["audit_notes"] = notes
     interrupted = bool(metadata.get("interrupted"))
     ui_messages = VercelAIAdapter.dump_messages(new_messages, sdk_version=SDK_VERSION)
     if ui_messages and ui_messages[-1].role == "assistant":
         ui_messages[-1].metadata = {**(ui_messages[-1].metadata or {}), **metadata}
-        if followups:
-            ui_messages[-1].parts.append(DataUIPart(type=FOLLOWUPS_PART, data={"suggestions": followups}))
+        ui_messages[-1].parts.extend(parts)
     with request.app.state.session_factory() as session:
         conversation = session.get(Conversation, conversation_id)
         if conversation is None:
@@ -124,13 +145,50 @@ def _persist_turn(
         session.commit()
 
 
+def _store_summary(request: Request, conversation_id: str, summary: str, through: int) -> None:
+    with request.app.state.session_factory() as session:
+        conversation = session.get(Conversation, conversation_id)
+        if conversation is None:
+            return
+        conversation.summary = summary
+        conversation.summary_through = through
+        session.commit()
+
+
+async def _prompt_for(
+    request: Request, conversation_id: str, turns: Sequence[TurnMessages], summary: str | None, through: int
+) -> Assembly:
+    """This turn's prompt, compressed first when the history has grown past the threshold.
+
+    Compression happens before the answer rather than after it, so the turn that crosses the
+    threshold is already the one that runs small. It costs one fast-slot call on that turn.
+    """
+    state = request.app.state
+    assembly = assemble(turns, summary, through)
+    if not needs_compression(assembly, state.context_budget):
+        return assembly
+    folded = turns_to_fold(turns, through)
+    try:
+        # Sub-agents are pinned to the fast slot whatever the conversation runs on.
+        model = state.resolve_model("fast")
+    except ProviderNotAvailable:
+        logger.warning("cannot compress: the fast slot is unavailable", exc_info=True)
+        return assembly
+    text = await summarize(model, state.subagent_settings, summary, folded)
+    if text is None:
+        return assembly
+    _store_summary(request, conversation_id, text, folded[-1].position)
+    return assemble(turns, text, folded[-1].position)
+
+
 @router.post("/conversations/{conversation_id}/chat")
 async def chat(request: Request, conversation_id: str) -> Response:
     state = request.app.state
     with state.session_factory() as session:
         conversation = get_conversation_or_404(session, conversation_id)
         slot = conversation.model_slot
-        history = _load_history(conversation)
+        turns = _stored_turns(conversation)
+        summary, summary_through = conversation.summary, conversation.summary_through
 
     running: dict[str, RunningTurn] = state.running_turns
     if conversation_id in running:
@@ -148,6 +206,9 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # The server owns the history: only the newest client message is appended to it.
     adapter.run_input.messages = adapter.run_input.messages[-1:]
 
+    prompt = await _prompt_for(request, conversation_id, turns, summary, summary_through)
+    history = prompt.history
+
     turn = RunningTurn()
     running[conversation_id] = turn
     # Stored on the assistant UI message and echoed to the client at the end of the turn.
@@ -159,17 +220,38 @@ async def chat(request: Request, conversation_id: str) -> Response:
     async def on_complete(result: AgentRunResult) -> AsyncIterator[BaseChunk]:
         turn_messages = result.all_messages()[len(history) :]
         followups = await _followups(turn_messages)
-        _persist_turn(request, conversation_id, turn_messages, slot, metadata, followups)
+        parts = [DataUIPart(type=CONTEXT_PART, data=_context_stats(turn_messages))]
         if followups:
-            yield DataChunk(type=FOLLOWUPS_PART, data={"suggestions": followups})
+            parts.append(DataUIPart(type=FOLLOWUPS_PART, data={"suggestions": followups}))
+        _persist_turn(request, conversation_id, turn_messages, slot, metadata, parts)
+        for part in parts:
+            yield DataChunk(type=part.type, data=part.data)
         yield MessageMetadataChunk(message_metadata=metadata)
 
     async def on_cancel(cancelled: RunCancelled) -> AsyncIterator[BaseChunk]:
         metadata["interrupted"] = True
         close_thinking()
+        turn_messages = cancelled.all_messages()[len(history) :]
         # A turn that was cut off gets no follow-ups: the answer it would build on does not exist.
-        _persist_turn(request, conversation_id, cancelled.all_messages()[len(history) :], slot, metadata, [])
+        part = DataUIPart(type=CONTEXT_PART, data=_context_stats(turn_messages))
+        _persist_turn(request, conversation_id, turn_messages, slot, metadata, [part])
+        yield DataChunk(type=part.type, data=part.data)
         yield MessageMetadataChunk(message_metadata=metadata)
+
+    def _context_stats(turn_messages: Sequence[ModelMessage]) -> dict[str, object]:
+        """What the header badge shows: this turn's footprint against the slot's budget.
+
+        `used` is the prompt that was sent plus what the turn produced, which is where the next
+        turn's history starts and therefore the number compression is decided on.
+        """
+        return {
+            "used": prompt.tokens + estimate_tokens(turn_messages),
+            "budget": state.context_budget,
+            "slot": slot,
+            # Ticket 13 selects memories into the same prompt and reports how many here.
+            "memories": 0,
+            "summarized_turns": prompt.summarized_turns,
+        }
 
     async def _followups(turn_messages: Sequence[ModelMessage]) -> list[str]:
         prompts = _user_prompts(turn_messages)
@@ -191,6 +273,8 @@ async def chat(request: Request, conversation_id: str) -> Response:
         try:
             async for chunk in adapter.run_stream(
                 message_history=history,
+                # The rolling summary rides in as a system-level note after the system prompt.
+                instructions=prompt.instructions,
                 model=model,
                 cancellation_token=turn.token,
                 on_complete=on_complete,

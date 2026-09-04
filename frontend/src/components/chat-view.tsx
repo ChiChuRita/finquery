@@ -2,7 +2,7 @@ import { useChat } from '@ai-sdk/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { DefaultChatTransport } from 'ai'
 import { CircleStopIcon, SparklesIcon, ZapIcon } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { StickToBottomContext } from 'use-stick-to-bottom'
 
 import { Conversation, ConversationContent, ConversationScrollButton } from '@/components/ai-elements/conversation'
@@ -11,7 +11,9 @@ import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-e
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Suggestion } from '@/components/ai-elements/suggestion'
 import { Composer } from '@/components/composer'
+import { ContextBadge } from '@/components/context-badge'
 import { EmptyState } from '@/components/empty-state'
+import { SummaryDivider } from '@/components/summary-divider'
 import {
   chatUrl,
   conversationQuery,
@@ -20,6 +22,7 @@ import {
   slotLabel,
   stopConversation,
   type ChatMessage,
+  type ContextStats,
   type ConversationDetail,
   type ModelSlot,
 } from '@/lib/api'
@@ -79,23 +82,43 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
 
   const streaming = status === 'streaming' || status === 'submitted'
   const lastMessage = messages.at(-1)
+  const context = latestContext(messages)
+  // The turns before this index are the ones the rolling summary stands in for.
+  const boundary = conversation.summarized_messages
 
+  // min-h-0 rather than h-full: with the tabs bar above it, a full-height child pushes the page
+  // past the viewport and the tabs and this header scroll out of view.
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex h-11 shrink-0 items-center gap-3 border-b px-6">
+        <p className="min-w-0 flex-1 truncate font-medium text-sm" title={conversation.title}>
+          {conversation.title}
+        </p>
+        {context && <ContextBadge stats={context} />}
+      </div>
+
       <Conversation className="flex-1" contextRef={scrollContext} initial={false}>
         <ConversationContent className="mx-auto w-full max-w-3xl gap-6 px-6 py-8">
           {messages.length === 0 && !streaming ? (
             <EmptyState onPick={(text) => void sendMessage({ text })} />
           ) : (
-            messages.map((message) => (
-              <TranscriptMessage
-                isLast={message === lastMessage}
-                key={message.id}
-                message={message}
-                onPickFollowup={(text) => void sendMessage({ text })}
-                slot={slot}
-                streaming={streaming}
-              />
+            messages.map((message, index) => (
+              <Fragment key={message.id}>
+                {boundary > 0 && index === boundary && conversation.summary && (
+                  <SummaryDivider
+                    conversationId={conversation.id}
+                    summary={conversation.summary}
+                    turns={conversation.summarized_turns}
+                  />
+                )}
+                <TranscriptMessage
+                  isLast={message === lastMessage}
+                  message={message}
+                  onPickFollowup={(text) => void sendMessage({ text })}
+                  slot={slot}
+                  streaming={streaming}
+                />
+              </Fragment>
             ))
           )}
           {status === 'submitted' && (
@@ -131,6 +154,16 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
       </div>
     </div>
   )
+}
+
+/** The stats of the newest turn that reported any, which is what the header badge shows. */
+function latestContext(messages: ChatMessage[]): ContextStats | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    for (const part of messages[i].parts) {
+      if (part.type === 'data-context') return part.data
+    }
+  }
+  return undefined
 }
 
 const SETTLE_MS = 300

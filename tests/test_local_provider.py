@@ -159,7 +159,7 @@ async def test_thinking_is_split_out_of_the_text_stream(tmp_path: Path) -> None:
         assert slots["fast"].requests[0]["top_k"] == 64
 
         detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
-        assert [p["type"] for p in detail["messages"][1]["parts"]] == ["reasoning", "text"]
+        assert [p["type"] for p in detail["messages"][1]["parts"]] == ["reasoning", "text", "data-context"]
 
 
 async def test_gemma_tool_call_syntax_becomes_a_tool_part(tmp_path: Path) -> None:

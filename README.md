@@ -27,6 +27,7 @@ Settings (environment or `.env`):
 | `FINQUERY_DB_PATH`           | `data/finquery.db` | SQLite file                                   |
 | `FINQUERY_HOST`              | `127.0.0.1`        | Bind address                                  |
 | `FINQUERY_PORT`              | `8000`             | Port                                          |
+| `FINQUERY_CONTEXT_BUDGET`    | `32768`            | Tokens per turn; compression starts at 60%    |
 | `FINQUERY_MODELS_DIR`        | `models`           | Where the local GGUF files live               |
 | `FINQUERY_PARKED_MODELS_DIR` |                    | Folder of GGUFs to reuse instead of download  |
 | `FINQUERY_LOCAL_N_CTX`       | `16384`            | Context cap per resident local model          |
@@ -97,6 +98,7 @@ it with `uv run python scripts/generate_synthetic.py`.
 - `src/finquery/`: `main.py` (CLI), `app.py` (factory), `settings.py`, `providers.py` (slots),
   `db.py` (SQLAlchemy models and the query view), `taxonomy.py` (default categories),
   `agent.py` (chat agent), `followups.py` (post-turn suggestions),
+  `context.py` (token budget, per-turn prompt assembly, rolling summary),
   `ingest/` (CSV reader, presets, mapping sub-agent, commit),
   `api/` (REST and chat endpoints),
   `local/` (the local provider: catalog, downloads, runtime, model, Gemma wire format, check)

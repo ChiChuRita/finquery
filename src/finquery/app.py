@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from finquery.api import chat, conversations, imports, profiles, taxonomy, transactions
 from finquery.api import models as models_api
+from finquery.context import context_budget
 from finquery.db import ensure_default_profile, make_session_factory
 from finquery.providers import MODEL_SLOTS, ModelResolver, build_local_stack, build_resolver, subagent_settings
 from finquery.settings import Settings
@@ -42,6 +43,7 @@ def create_app(
         app.state.local = local if local is not None else (build_local_stack(settings) if settings.provider == "local" else None)
         app.state.resolve_model = resolve_model or build_resolver(settings, local=app.state.local)
         app.state.subagent_settings = subagent_settings(settings)
+        app.state.context_budget = context_budget(settings, app.state.local)
         app.state.running_turns = {}
         yield
 

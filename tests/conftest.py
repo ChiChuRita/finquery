@@ -12,6 +12,7 @@ from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart, FunctionMo
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.app import create_app
+from finquery.context import SUMMARY_MARKER
 from finquery.followups import FOLLOWUP_MARKER
 from finquery.settings import Settings
 
@@ -58,13 +59,22 @@ class Scripts:
         return FunctionModel(call or _collected(stream), stream_function=stream, model_name=f"scripted-{slot}")
 
 
-def is_followup_request(messages: Sequence[ModelMessage]) -> bool:
-    """True for the post-turn step that asks the fast slot for follow-up questions."""
+def _asks_for(messages: Sequence[ModelMessage], marker: str) -> bool:
     last = messages[-1]
     return last.kind == "request" and any(
-        part.part_kind == "user-prompt" and isinstance(part.content, str) and FOLLOWUP_MARKER in part.content
+        part.part_kind == "user-prompt" and isinstance(part.content, str) and marker in part.content
         for part in last.parts
     )
+
+
+def is_followup_request(messages: Sequence[ModelMessage]) -> bool:
+    """True for the post-turn step that asks the fast slot for follow-up questions."""
+    return _asks_for(messages, FOLLOWUP_MARKER)
+
+
+def is_summary_request(messages: Sequence[ModelMessage]) -> bool:
+    """True for the compression step that asks the fast slot for the rolling summary."""
+    return _asks_for(messages, SUMMARY_MARKER)
 
 
 def script(answer: str, *, thought: str | None = None, followups: Sequence[str] = ()) -> StreamFn:
@@ -82,7 +92,8 @@ def script(answer: str, *, thought: str | None = None, followups: Sequence[str] 
 
 
 def make_settings(**overrides: object) -> Settings:
-    return Settings(_env_file=None, db_path=":memory:", **overrides)  # type: ignore[call-arg]
+    """The app's settings for a test. In-memory database unless the test asks for a file."""
+    return Settings(_env_file=None, **{"db_path": ":memory:", **overrides})  # type: ignore[call-arg]
 
 
 @pytest.fixture
@@ -91,8 +102,14 @@ def scripts() -> Scripts:
 
 
 @pytest.fixture
-def app(scripts: Scripts) -> FastAPI:
-    return create_app(make_settings(), resolve_model=scripts.resolve, serve_frontend=False)
+def settings_overrides() -> dict[str, object]:
+    """Settings a test module changes for its whole app, such as a small context budget."""
+    return {}
+
+
+@pytest.fixture
+def app(scripts: Scripts, settings_overrides: dict[str, object]) -> FastAPI:
+    return create_app(make_settings(**settings_overrides), resolve_model=scripts.resolve, serve_frontend=False)
 
 
 @pytest.fixture

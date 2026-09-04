@@ -30,6 +30,7 @@ from sqlalchemy import (
     func,
     select,
 )
+from sqlalchemy.engine import Connection
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
 from finquery.taxonomy import DEFAULT_TAXONOMY
@@ -67,6 +68,10 @@ class Conversation(Base):
     profile_id: Mapped[str] = mapped_column(ForeignKey("profile.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(200), default="New chat")
     model_slot: Mapped[str] = mapped_column(String(16), default="fast")
+    summary: Mapped[str | None] = mapped_column(Text, default=None)
+    """The rolling summary of the turns that no longer fit in the prompt. Editable by the user."""
+    summary_through: Mapped[int] = mapped_column(Integer, default=-1)
+    """Position of the last turn the summary covers. Turns after it are sent verbatim."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -277,6 +282,27 @@ def fingerprint(account_id: str, booked_on: date, amount_cents: int, description
     return sha256(f"{account_id}|{booked_on.isoformat()}|{amount_cents}|{normalized}".encode()).hexdigest()[:32]
 
 
+# Columns added to a table that already shipped. `create_all` creates tables but never alters
+# them, so a database from an earlier version needs these statements or it loses its rows.
+# TODO: additive columns only. A change of shape needs a real versioned upgrade function.
+NEW_COLUMNS: dict[str, dict[str, str]] = {
+    "conversation": {
+        "summary": "TEXT",
+        "summary_through": "INTEGER NOT NULL DEFAULT -1",
+    }
+}
+
+
+def _add_new_columns(connection: Connection) -> None:
+    for table, columns in NEW_COLUMNS.items():
+        existing = {row[1] for row in connection.exec_driver_sql(f"PRAGMA table_info({table})")}
+        if not existing:
+            continue
+        for column, declaration in columns.items():
+            if column not in existing:
+                connection.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {declaration}")
+
+
 def make_session_factory(db_path: Path | str) -> sessionmaker[Session]:
     """Create the schema if needed and return a session factory.
 
@@ -296,9 +322,9 @@ def make_session_factory(db_path: Path | str) -> sessionmaker[Session]:
     def _enable_foreign_keys(dbapi_connection, _record):  # noqa: ANN001
         dbapi_connection.execute("PRAGMA foreign_keys=ON")
 
-    # TODO: create_all only; versioned upgrade functions once a released schema has to change.
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
+        _add_new_columns(connection)
         connection.exec_driver_sql(f"DROP VIEW IF EXISTS {QUERY_VIEW}")
         connection.exec_driver_sql(QUERY_VIEW_SQL)
 

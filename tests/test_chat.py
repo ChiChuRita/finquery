@@ -59,6 +59,8 @@ async def test_stream_order_reasoning_text_finish(client: httpx.AsyncClient, scr
         "text-start",
         "text-delta",
         "text-end",
+        # The context badge's token stats, streamed at the end of every turn (ticket 12).
+        "data-context",
         "finish-step",
         "finish",
     ]
@@ -87,7 +89,7 @@ async def test_turn_is_persisted_and_history_is_server_owned(
     assert detail["title"] == "first question"
     assert detail["interrupted"] is False
     assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
-    assert [p["type"] for p in detail["messages"][1]["parts"]] == ["reasoning", "text"]
+    assert [p["type"] for p in detail["messages"][1]["parts"]] == ["reasoning", "text", "data-context"]
     assert detail["messages"][1]["metadata"]["thinking_seconds"] >= 0
     assert detail["messages"][1]["parts"][1]["text"] == "answer 1"
 
