@@ -12,12 +12,19 @@ number in an answer to be reproducible and auditable.
 
 - Any figure the assistant states must come from a SQL query it executed against the profile's
   transactions. The system prompt forbids arithmetic in prose and tells the assistant to call the
-  query tool for any number. Until the query tool exists (ticket 05) the prompt says so, and the
-  assistant answers that it cannot compute numbers yet.
+  `query` tool for any number, so a question it cannot query is answered without a figure.
 - Executed SQL and its rows are shown in the transcript as a collapsible tool step so the user
   can check any number.
-- SQL is validated as read-only before it runs (single SELECT over the profile-scoped view,
-  no writes, no attach, auto LIMIT) and the view excludes split parents.
+- SQL is validated as read-only before it runs (`finquery.query.guard`): sqlglot parses it, one
+  SELECT over `transaction_view` is admitted, a schema prefix, another relation, a write, an
+  attach, a pragma and a file-system function are refused, and a LIMIT of at most 200 is
+  applied. The view excludes split parents.
+- Profile scoping is not a predicate the generated SQL could widen. The executing connection
+  gets a temp view named `transaction_view` that is already filtered to the profile: SQLite
+  resolves the unqualified name in the temp schema first, the guard refuses a qualified one, and
+  `PRAGMA query_only` makes the connection reject writes whatever the guard let through.
+- A guard or SQLite error goes back to the query sub-agent once, with the refused statement and
+  the reason. A second failure is reported to the chat agent as an error instead of a number.
 - Ingestion follows the same rule: extracted amounts must be literally present in the source
   text (verbatim guard) and statements must reconcile before they are trusted.
 

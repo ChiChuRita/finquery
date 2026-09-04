@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
-import type { UIMessage } from 'ai'
+import type { ToolUIPart, UIMessage } from 'ai'
 
 export type ModelSlot = 'fast' | 'quality'
 
@@ -21,7 +21,29 @@ export type ChatDataParts = {
   followups: { suggestions: string[] }
 }
 
-export type ChatMessage = UIMessage<ChatMetadata, ChatDataParts>
+// The `query` tool: the request the sub-agent received, the SQL that ran and its rows.
+export interface QueryToolInput {
+  request: string
+  hints?: string | null
+}
+
+export type QueryValue = string | number | boolean | null
+
+export interface QueryToolOutput {
+  request: string
+  sql: string | null
+  row_count: number
+  columns: string[]
+  rows: Record<string, QueryValue>[]
+  summary: string
+  error: string | null
+}
+
+/** The tools the agent may call. The keys become `tool-*` part types. */
+export type ChatTools = { query: { input: QueryToolInput; output: QueryToolOutput } }
+export type QueryToolPart = ToolUIPart<ChatTools>
+
+export type ChatMessage = UIMessage<ChatMetadata, ChatDataParts, ChatTools>
 
 export interface Profile {
   id: string
