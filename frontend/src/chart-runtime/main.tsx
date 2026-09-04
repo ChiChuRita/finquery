@@ -29,7 +29,10 @@ const failed = (error: unknown) =>
 /** Evaluate the generated body and let the card's theme own the colours, the size and the motion. */
 function buildChart(message: ChartRenderMessage): unknown {
   const body = new Function('data', ...GLOBAL_NAMES, message.code)
-  const definition = body(message.rows, ...globalValues(message.theme.palette)) as Record<string, unknown>
+  const definition = body(
+    message.rows,
+    ...globalValues(message.theme.palette, message.language),
+  ) as Record<string, unknown>
   if (!definition || typeof definition !== 'object' || !('marks' in definition)) {
     throw new Error('the code did not return a chart definition')
   }

@@ -21,6 +21,7 @@ import {
   FRAME_URL,
   isFrameMessage,
   type ChartFrameTheme,
+  type ChartLanguage,
   type ChartRow,
 } from '@/lib/chart-frame'
 
@@ -57,11 +58,13 @@ function readTheme(): ChartFrameTheme {
  */
 function ChartFrame({
   title,
+  language,
   code,
   rows,
   onError,
 }: {
   title: string
+  language: ChartLanguage
   code: string
   rows: ChartRow[]
   onError?: (message: string) => void
@@ -107,10 +110,10 @@ function ChartFrame({
   useEffect(() => {
     if (!ready) return
     frame.current?.contentWindow?.postMessage(
-      { source: CARD_SOURCE, kind: 'render', title, code, rows, theme: readTheme() },
+      { source: CARD_SOURCE, kind: 'render', title, language, code, rows, theme: readTheme() },
       '*',
     )
-  }, [ready, title, code, rows, themeChanges])
+  }, [ready, title, language, code, rows, themeChanges])
 
   return (
     <div className="relative" style={{ height: CHART_HEIGHT }}>
@@ -240,6 +243,8 @@ function ChartResult({
   // What this card shows: the chart of the turn, or the one a retry drew in its place.
   const chart = redrawn ?? output
   const title = chart.title || chart.request
+  // A chart written for an English question says so, and the frame writes its months in it.
+  const language: ChartLanguage = chart.language ?? 'de'
   // The definition to draw, or null when this chart failed and the card shows the reason.
   const code = chart.error ? null : chart.code
 
@@ -314,6 +319,7 @@ function ChartResult({
             >
               <ChartFrame
                 code={code}
+                language={language}
                 onError={() => setBroken((sides) => ({ ...sides, original: true }))}
                 rows={chart.rows}
                 title={title}
@@ -329,6 +335,7 @@ function ChartResult({
             >
               <ChartFrame
                 code={second.code}
+                language={second.language ?? language}
                 onError={() => setBroken((sides) => ({ ...sides, candidate: true }))}
                 rows={second.rows}
                 title={second.title || title}
@@ -342,10 +349,25 @@ function ChartResult({
           </p>
         </div>
       ) : code ? (
-        <ChartFrame code={code} onError={(message) => void renderFailed(message)} rows={chart.rows} title={title} />
+        <ChartFrame
+          code={code}
+          language={language}
+          onError={(message) => void renderFailed(message)}
+          rows={chart.rows}
+          title={title}
+        />
       ) : (
         <div className="px-4 pb-2">
           <ErrorSection message={chart.error ?? 'The chart could not be drawn.'} />
+          {/* A chart that passed the check and then failed in the browser was `rendered: true`
+              when the model read the tool result, so the answer under this card describes a
+              picture that is not here. Re-running the turn is a bigger change than saying so. */}
+          {chart.render_error && (
+            <p className="pt-2 text-muted-foreground text-xs">
+              This one passed the check and failed in the browser, after the answer below was
+              written: read the rows rather than what it says about the picture.
+            </p>
+          )}
         </div>
       )}
       <Footer

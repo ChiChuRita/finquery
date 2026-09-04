@@ -1,6 +1,8 @@
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 import type { ToolUIPart, UIMessage } from 'ai'
 
+import type { ChartLanguage } from '@/lib/chart-frame'
+
 export type ModelSlot = 'fast' | 'quality'
 
 export const MODEL_SLOTS: { slot: ModelSlot; label: string; description: string }[] = [
@@ -197,6 +199,8 @@ export interface ChartToolOutput {
   request: string
   title: string
   shape: string
+  /** The language the plan wrote the caption in; the frame writes its month labels in it. */
+  language?: ChartLanguage
   plan: string
   sql: string | null
   row_count: number

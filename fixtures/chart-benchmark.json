@@ -1,0 +1,209 @@
+{
+  "about": "The chart benchmark set: the requests a chart quality pass is measured on. Every prompt is sent to the chat as a user message against a profile holding fixtures/synthetic/sparkasse-2025.csv, imported and categorized. `shape` is the shape the plan pass should choose; `also` lists the shapes that answer the same question just as honestly, so a run counts as on-shape when the plan picks any of them. `covers` names the dimension the prompt is in the set for. Ticket 25.",
+  "profile": "fixtures/synthetic/sparkasse-2025.csv, imported through the Sparkasse preset and categorized",
+  "checklist": [
+    "shape: the drawing matches the comparison the request asks for",
+    "axis: the euro axis starts at zero for bars and areas; a line that does not is marked as truncated",
+    "labels: every category label is readable, thinned or rotated rather than dropped or overlapping",
+    "legend: present with more than one series, absent with one",
+    "colours: from the theme palette, in a stable order",
+    "language: the title is in the language of the request, and so are the month labels",
+    "money: euros formatted the German way on ticks and in the tooltip",
+    "junk: no title, no height, no second axis, no decoration inside the frame",
+    "tooltip: hovering a mark shows the category and the euro figure"
+  ],
+  "prompts": [
+    {
+      "id": "01-monthly-line-en",
+      "language": "en",
+      "prompt": "Show me my total spending per month in 2025 as a line chart.",
+      "shape": "line",
+      "also": [],
+      "covers": ["month period", "one series", "line"]
+    },
+    {
+      "id": "02-monthly-line-de",
+      "language": "de",
+      "prompt": "Wie haben sich meine Ausgaben pro Monat 2025 entwickelt? Zeig es als Liniendiagramm.",
+      "shape": "line",
+      "also": [],
+      "covers": ["month period", "German", "line"]
+    },
+    {
+      "id": "03-cumulative-area-en",
+      "language": "en",
+      "prompt": "Chart my cumulative spending over 2025 as an area chart.",
+      "shape": "area",
+      "also": [],
+      "covers": ["running total", "area"]
+    },
+    {
+      "id": "04-cumulative-area-de",
+      "language": "de",
+      "prompt": "Zeig die kumulierten Ausgaben 2025 als Flaechendiagramm.",
+      "shape": "area",
+      "also": [],
+      "covers": ["running total", "German", "area"]
+    },
+    {
+      "id": "05-category-bars-en",
+      "language": "en",
+      "prompt": "Show my spending per category in 2025 as a bar chart.",
+      "shape": "bar",
+      "also": ["bar_horizontal"],
+      "covers": ["year period", "category magnitude", "bar"]
+    },
+    {
+      "id": "06-category-bars-de",
+      "language": "de",
+      "prompt": "Ausgaben pro Kategorie 2025 als Balkendiagramm.",
+      "shape": "bar",
+      "also": ["bar_horizontal"],
+      "covers": ["year period", "German", "bar"]
+    },
+    {
+      "id": "07-top-merchants-en",
+      "language": "en",
+      "prompt": "Which merchants took the most money in 2025? Show the top ten as a horizontal bar chart.",
+      "shape": "bar_horizontal",
+      "also": [],
+      "covers": ["ranking", "long labels", "bar_horizontal"]
+    },
+    {
+      "id": "08-top-merchants-de",
+      "language": "de",
+      "prompt": "Zeig die zehn groessten Haendler 2025 als liegendes Balkendiagramm.",
+      "shape": "bar_horizontal",
+      "also": [],
+      "covers": ["ranking", "German", "bar_horizontal"]
+    },
+    {
+      "id": "09-quarter-groups-en",
+      "language": "en",
+      "prompt": "Compare what I spent on groceries and on dining per quarter in 2025 as grouped bars.",
+      "shape": "bar_grouped",
+      "also": [],
+      "covers": ["quarter period", "category versus category", "bar_grouped"]
+    },
+    {
+      "id": "10-quarter-groups-de",
+      "language": "de",
+      "prompt": "Vergleiche Lebensmittel und Restaurants pro Quartal 2025 als gruppierte Balken.",
+      "shape": "bar_grouped",
+      "also": [],
+      "covers": ["quarter period", "German", "bar_grouped"]
+    },
+    {
+      "id": "11-stacked-months-en",
+      "language": "en",
+      "prompt": "Show my monthly spending split by category in 2025 as a stacked bar chart.",
+      "shape": "bar_stacked",
+      "also": [],
+      "covers": ["month by category", "many series", "bar_stacked"]
+    },
+    {
+      "id": "12-stacked-months-de",
+      "language": "de",
+      "prompt": "Monatliche Ausgaben nach Kategorie 2025 als gestapelte Balken.",
+      "shape": "bar_stacked",
+      "also": [],
+      "covers": ["month by category", "German", "bar_stacked"]
+    },
+    {
+      "id": "13-doughnut-categories-en",
+      "language": "en",
+      "prompt": "Show the share of my 2025 spending by category as a doughnut.",
+      "shape": "doughnut",
+      "also": [],
+      "covers": ["share of a whole", "more categories than slices", "doughnut"]
+    },
+    {
+      "id": "14-doughnut-merchants-de",
+      "language": "de",
+      "prompt": "Zeig den Anteil der groessten Haendler an meinen Ausgaben 2025 als Donut.",
+      "shape": "doughnut",
+      "also": [],
+      "covers": ["share of a whole", "German", "doughnut"]
+    },
+    {
+      "id": "15-sankey-income-en",
+      "language": "en",
+      "prompt": "Draw a sankey of my 2025 income flowing into the spending categories.",
+      "shape": "sankey",
+      "also": [],
+      "covers": ["flow", "income to categories", "sankey"]
+    },
+    {
+      "id": "16-sankey-income-de",
+      "language": "de",
+      "prompt": "Zeig als Sankey, wie mein Einkommen 2025 in die Ausgabenkategorien fliesst.",
+      "shape": "sankey",
+      "also": [],
+      "covers": ["flow", "German", "sankey"]
+    },
+    {
+      "id": "17-two-halves-en",
+      "language": "en",
+      "prompt": "Compare my total spending in the first half of 2025 with the second half in a chart.",
+      "shape": "bar",
+      "also": ["bar_horizontal"],
+      "covers": ["two periods", "two bars only", "bar"]
+    },
+    {
+      "id": "18-two-months-de",
+      "language": "de",
+      "prompt": "Vergleiche meine Ausgaben im Januar 2025 mit denen im Juli 2025 als Diagramm.",
+      "shape": "bar",
+      "also": ["bar_horizontal"],
+      "covers": ["two periods", "German", "bar"]
+    },
+    {
+      "id": "19-quarters-en",
+      "language": "en",
+      "prompt": "Chart my spending per quarter in 2025.",
+      "shape": "bar",
+      "also": ["line"],
+      "covers": ["quarter period", "no shape named", "bar"]
+    },
+    {
+      "id": "20-daily-march-en",
+      "language": "en",
+      "prompt": "Show my spending per day in March 2025 as a line chart.",
+      "shape": "line",
+      "also": [],
+      "covers": ["single month of data", "many x labels", "line"]
+    },
+    {
+      "id": "21-groceries-months-en",
+      "language": "en",
+      "prompt": "Show what I spent on groceries per month in 2025.",
+      "shape": "line",
+      "also": ["bar"],
+      "covers": ["one series", "narrow value range", "line"]
+    },
+    {
+      "id": "22-all-categories-de",
+      "language": "de",
+      "prompt": "Zeig die Ausgaben aller Kategorien 2025 als Balkendiagramm, auch die kleinen.",
+      "shape": "bar",
+      "also": ["bar_horizontal"],
+      "covers": ["many categories", "German", "label crowding"]
+    },
+    {
+      "id": "23-income-versus-spending-en",
+      "language": "en",
+      "prompt": "Chart my income and my spending per month in 2025 side by side.",
+      "shape": "bar_grouped",
+      "also": ["line"],
+      "covers": ["two series", "income and spending", "bar_grouped"]
+    },
+    {
+      "id": "24-net-per-month-de",
+      "language": "de",
+      "prompt": "Zeig den monatlichen Saldo 2025, also Einnahmen minus Ausgaben, als Diagramm.",
+      "shape": "bar",
+      "also": ["line"],
+      "covers": ["negative and positive together", "German", "zero baseline"]
+    }
+  ]
+}
