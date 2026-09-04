@@ -26,7 +26,7 @@ from finquery.local.check import solid_png
 from finquery.local.downloads import DownloadManager, Report
 from finquery.local.runtime import LocalStack
 
-from .conftest import chat_body, default_profile_id, make_settings, new_conversation, parse_sse
+from .conftest import NoWeb, chat_body, default_profile_id, make_settings, new_conversation, parse_sse
 
 
 def spec(slot: str, name: str, weights_size: int) -> ModelSpec:
@@ -108,7 +108,7 @@ def local_stack(tmp_path: Path, slots: dict[str, FakeSlot]) -> LocalStack:
 
 @asynccontextmanager
 async def local_client(stack: LocalStack) -> AsyncIterator[httpx.AsyncClient]:
-    app = create_app(make_settings(provider="local"), local=stack, serve_frontend=False)
+    app = create_app(make_settings(provider="local"), local=stack, web_client=NoWeb(), serve_frontend=False)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             yield client
@@ -361,7 +361,7 @@ async def test_the_fallback_note_reaches_the_client_and_the_stored_turn(tmp_path
 
 
 async def test_models_endpoint_also_answers_on_openrouter() -> None:
-    app = create_app(make_settings(openrouter_api_key="test-key"), serve_frontend=False)
+    app = create_app(make_settings(openrouter_api_key="test-key"), web_client=NoWeb(), serve_frontend=False)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             body = (await client.get("/api/models")).json()

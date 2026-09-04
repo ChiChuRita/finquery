@@ -154,6 +154,28 @@ export interface ChangesetToolInput {
 
 export type ChangesetToolOutput = Changeset & { undo_token?: string }
 
+// `lookup_merchant`: the self-directed web lookup. Only present when the profile switched web
+// lookup on, so a transcript from a profile with it off never carries this part.
+export interface LookupSource {
+  url: string
+  title: string
+}
+
+export interface LookupMerchantOutput {
+  /** The scrubbed merchant token, the only thing that left the machine. Empty when it refused. */
+  merchant: string
+  summary: string
+  category: string | null
+  subcategory: string | null
+  confidence: number
+  sources: LookupSource[]
+  searches: number
+  fetches: number
+  /** True when the answer came from the profile's cache, so nothing left this time. */
+  cached: boolean
+  error: string | null
+}
+
 /** The tools the agent may call. The keys become `tool-*` part types. */
 export type ChatTools = {
   query: { input: QueryToolInput; output: QueryToolOutput }
@@ -163,6 +185,7 @@ export type ChatTools = {
   review_batch: { input: { limit?: number }; output: ReviewBatchOutput }
   propose_changeset: { input: ChangesetToolInput; output: ChangesetToolOutput }
   apply_simple_edit: { input: ChangesetToolInput; output: ChangesetToolOutput }
+  lookup_merchant: { input: { merchant: string }; output: LookupMerchantOutput }
 }
 export type QueryToolPart = ToolUIPart<{ query: ChatTools['query'] }>
 export type AskUserPart = ToolUIPart<{ ask_user: ChatTools['ask_user'] }>
@@ -174,6 +197,7 @@ export type ChangesetToolPart = ToolUIPart<{
   apply_simple_edit: ChatTools['apply_simple_edit']
 }>
 export type ChartToolPart = ToolUIPart<{ chart: ChatTools['chart'] }>
+export type LookupMerchantPart = ToolUIPart<{ lookup_merchant: ChatTools['lookup_merchant'] }>
 
 export type ChatMessage = UIMessage<ChatMetadata, ChatDataParts, ChatTools>
 
@@ -287,6 +311,44 @@ export const patchMemory = (id: string, patch: { text?: string; kind?: MemoryKin
   request<Memory>(`/api/memories/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
 
 export const deleteMemory = (id: string) => request<void>(`/api/memories/${id}`, { method: 'DELETE' })
+
+// Per-profile settings, and the log of everything that ever left the machine.
+
+export interface ProfileSettings {
+  profile_id: string
+  web_lookup_enabled: boolean
+}
+
+export interface OutboundEntry {
+  id: string
+  kind: 'search' | 'fetch'
+  /** Literally what was sent: the search query or the URL. */
+  target: string
+  merchant_token: string
+  /** `sent` while it is in flight, then `ok` or a short reason it failed. */
+  status: string
+  created_at: string
+}
+
+export const settingsQuery = (profileId: string | undefined) =>
+  queryOptions({
+    queryKey: ['settings', { profileId }],
+    queryFn: () => request<ProfileSettings>(`/api/settings?profile_id=${profileId}`),
+    enabled: profileId !== undefined,
+  })
+
+export const patchSettings = (profileId: string, patch: { web_lookup_enabled?: boolean }) =>
+  request<ProfileSettings>('/api/settings', {
+    method: 'PATCH',
+    body: JSON.stringify({ profile_id: profileId, ...patch }),
+  })
+
+export const outboundLogQuery = (profileId: string | undefined) =>
+  queryOptions({
+    queryKey: ['outbound-log', { profileId }],
+    queryFn: () => request<OutboundEntry[]>(`/api/outbound-log?profile_id=${profileId}`),
+    enabled: profileId !== undefined,
+  })
 
 export type FileState = 'missing' | 'verifying' | 'downloading' | 'ready' | 'error'
 
@@ -434,10 +496,15 @@ export interface CategorizeReport {
   rows: number
   by_rule: number
   by_dictionary: number
+  by_lookup: number
   by_model: number
   needs_review: number
   merchants: number
   model_calls: number
+  /** Merchants looked up on the web, zero unless the profile switched web lookup on. */
+  lookups: number
+  /** Merchants it refused to look up because nothing was safe to send. */
+  lookups_refused: number
   uncertain: ReviewQuestion[]
   error: string | null
 }

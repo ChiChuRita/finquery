@@ -2,9 +2,9 @@
 
 The model is chosen per run from the conversation's slot. Tools get what they need from
 `ChatDeps`, so the agent itself holds no application state. `query`, `chart`, `remember`,
-`set_rule`, `review_batch`, `propose_changeset` and `apply_simple_edit` are the tools; a later
-ticket adds import_file the same way, and each one that needs a model resolves its own slot
-through the deps.
+`set_rule`, `review_batch`, `propose_changeset`, `apply_simple_edit` and `lookup_merchant` are
+the tools; a later ticket adds import_file the same way, and each one that needs a model
+resolves its own slot through the deps.
 
 `propose_changeset` and `apply_simple_edit` are the writing tools. Neither one decides anything
 about the data: `finquery.changesets` resolves the intent, refuses what the data model refuses
@@ -12,6 +12,10 @@ about the data: `finquery.changesets` resolves the intent, refuses what the data
 
 `ask_user` is the odd one out: it has no function, because a human answers it in the browser.
 See `finquery.ask_user` and ADR 0008.
+
+`lookup_merchant` is the other odd one: it is only declared when the profile has web lookup
+switched on (its `prepare` reads the switch per run), and when it is off the instructions say
+so and say where to turn it on. See `finquery.weblookup`.
 
 Selected memories and the rolling summary arrive as run instructions assembled by
 `finquery.context.assemble`, not from here.
@@ -24,13 +28,14 @@ from typing import Any
 
 from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.settings import ModelSettings
-from pydantic_ai.tools import DeferredToolRequests
+from pydantic_ai.tools import DeferredToolRequests, ToolDefinition
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.ask_user import ask_user_toolset
 from finquery.categorize import QUESTIONS_PER_CARD, pending_questions
 from finquery.categorize import set_rule as store_category_rule
 from finquery.categorize import split_choice
+from finquery.categorize.rules import load_categories, taxonomy_of
 from finquery.changesets import ChangesetError, ChangesetIntent, propose, to_out
 from finquery.changesets import apply as apply_changeset
 from finquery.chart import run_chart
@@ -39,6 +44,7 @@ from finquery.edits import TransactionEditError
 from finquery.memory import MemoryKind, add_memory
 from finquery.providers import ModelResolver
 from finquery.query import load_query_context, run_query
+from finquery.weblookup import MAX_FETCHES, MAX_SEARCHES, WebClient, lookups_for, web_lookup_enabled
 
 SYSTEM_PROMPT = """\
 You are FinQuery, a local-first personal-finance analyst. You help the user understand their
@@ -145,6 +151,9 @@ class ChatDeps:
     conversation_id: str
     resolve_model: ModelResolver
     subagent_settings: ModelSettings
+    web_client: WebClient
+    """The search and page fetch of `lookup_merchant`. Untouched unless the profile switched
+    web lookup on, and replaced by a stub in tests."""
     narrate: Callable[[str], None] = field(default=lambda _text: None)
 
 
@@ -355,12 +364,22 @@ async def review_batch(ctx: RunContext[ChatDeps], limit: int = QUESTIONS_PER_CAR
     Args:
         limit: How many merchants to ask about at once, at most five.
     """
+    lookups = lookups_for(
+        ctx.deps.session_factory,
+        ctx.deps.profile_id,
+        client=ctx.deps.web_client,
+        resolve_model=ctx.deps.resolve_model,
+        model_settings=ctx.deps.subagent_settings,
+    )
     with ctx.deps.session_factory() as session:
         questions, pending = await pending_questions(
             session,
             ctx.deps.profile_id,
             resolve_model=ctx.deps.resolve_model,
             model_settings=ctx.deps.subagent_settings,
+            # None when the profile has web lookup off, and then no merchant is looked up for a
+            # card either.
+            lookups=lookups,
             limit=max(1, min(limit, QUESTIONS_PER_CARD)),
         )
     return {
@@ -392,3 +411,81 @@ async def chart(ctx: RunContext[ChatDeps], request: str, hints: str | None = Non
         narrate=ctx.deps.narrate,
     )
     return outcome.payload()
+
+
+# Web lookup is off by default, per profile. Both halves of that read the same switch: the
+# instructions below tell the model whether it has the tool and, when it does not, where the
+# user turns it on, and `prepare` decides whether the tool is declared at all.
+WEB_LOOKUP_ON = """\
+Unknown merchants:
+- `lookup_merchant` finds out what a merchant is by searching the web itself, deciding how many
+  searches and page reads it needs (at most {searches} searches and {fetches} page reads).
+- Only the scrubbed merchant name leaves this machine: never an amount, a date, an account
+  number or a person's name, and a booking whose merchant reads as a person is refused. Every
+  request is written to the outbound log the user can read in Settings.
+- Call it when the user asks what a merchant is, or before you place a booking whose merchant
+  you do not recognize. Pass the merchant as it stands in the booking text.
+- Say what it found in one or two lines and name the category it suggests. The sources it used
+  are shown under your answer, so never list URLs yourself.
+- It is not a source of figures. Numbers still come from `query` only.
+- If it comes back with an `error`, say that one line and place nothing."""
+
+WEB_LOOKUP_OFF = """\
+Unknown merchants: web lookup is switched off for this profile, so you cannot look a merchant
+up and nothing about these transactions can leave this machine. If the user asks what an
+unknown merchant is, say that web lookup is off and that it can be switched on in Settings
+under Web lookup, and offer to file the booking from what the booking text says instead."""
+
+
+@chat_agent.instructions
+def web_lookup_brief(ctx: RunContext[ChatDeps]) -> str:
+    """Whether this profile lets a merchant token leave, and what that means for this turn."""
+    with ctx.deps.session_factory() as session:
+        enabled = web_lookup_enabled(session, ctx.deps.profile_id)
+    if not enabled:
+        return WEB_LOOKUP_OFF
+    return WEB_LOOKUP_ON.format(searches=MAX_SEARCHES, fetches=MAX_FETCHES)
+
+
+def _only_when_web_lookup_is_on(ctx: RunContext[ChatDeps], tool_def: ToolDefinition) -> ToolDefinition | None:
+    """Declare `lookup_merchant` only for a profile that switched web lookup on.
+
+    Read per run, so a switch flipped in Settings takes the tool away from the next turn. A
+    model that never sees the tool cannot call it, which is the first half of "off means
+    nothing leaves"; the second half is that the tool itself refuses too.
+    """
+    with ctx.deps.session_factory() as session:
+        return tool_def if web_lookup_enabled(session, ctx.deps.profile_id) else None
+
+
+@chat_agent.tool(prepare=_only_when_web_lookup_is_on)
+async def lookup_merchant(ctx: RunContext[ChatDeps], merchant: str) -> dict[str, Any]:
+    """Find out what an unknown merchant is by searching the web.
+
+    Scrubs the merchant down to a token (no amounts, no dates, no account or reference numbers,
+    no personal names), answers from the profile's cache when that token was looked up before,
+    and otherwise runs a search loop that decides for itself how many searches and page reads
+    it needs. Returns what the merchant is, a suggested category with a confidence, and the
+    sources it relied on.
+
+    Args:
+        merchant: The merchant as it stands in the booking text or as the user named it, for
+            instance "KARLS DANKT" or "Xbox Game Pass". Not a whole sentence, no amount, no
+            date and no booking id.
+    """
+    lookups = lookups_for(
+        ctx.deps.session_factory,
+        ctx.deps.profile_id,
+        client=ctx.deps.web_client,
+        resolve_model=ctx.deps.resolve_model,
+        model_settings=ctx.deps.subagent_settings,
+    )
+    if lookups is None:
+        return {
+            "merchant": merchant,
+            "error": "Web lookup is switched off for this profile. It can be switched on in Settings.",
+        }
+    with ctx.deps.session_factory() as session:
+        taxonomy = taxonomy_of(load_categories(session, ctx.deps.profile_id))
+    lookup = await lookups.merchant(merchant, None, taxonomy)
+    return lookup.payload()

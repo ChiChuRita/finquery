@@ -13,6 +13,7 @@ from finquery.local.runtime import LocalStack
 
 from .conftest import (
     Chat,
+    NoWeb,
     Scripts,
     chat_body,
     default_profile_id,
@@ -153,7 +154,7 @@ async def test_stop_persists_partial_turn_as_interrupted(client: httpx.AsyncClie
 async def test_local_provider_refuses_to_chat_until_the_models_are_downloaded(tmp_path: Path) -> None:
     settings = make_settings(provider="local", models_dir=tmp_path / "empty")
     stack = LocalStack(settings, load=lambda *_: pytest.fail("nothing should be loaded"))
-    app = create_app(settings, local=stack, serve_frontend=False)
+    app = create_app(settings, local=stack, web_client=NoWeb(), serve_frontend=False)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             assert (await client.get("/api/health")).json()["provider"] == "local"

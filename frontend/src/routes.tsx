@@ -13,6 +13,7 @@ import { MemoryPage } from '@/components/memory-page'
 import { ModelsCard } from '@/components/models-card'
 import { TaxonomyCard } from '@/components/taxonomy-card'
 import { TransactionsPage } from '@/components/transactions-page'
+import { WebLookupCard } from '@/components/web-lookup-card'
 import { conversationQuery, conversationsQuery, createConversation, type ModelSlot } from '@/lib/api'
 import { stashPendingPrompt } from '@/lib/pending'
 import { useWorkspace, WorkspaceProvider } from '@/lib/workspace'
@@ -123,6 +124,7 @@ function SettingsPage() {
         <div className="mt-6 space-y-6">
           <TaxonomyCard />
           <ModelsCard />
+          <WebLookupCard />
         </div>
       </div>
     </div>

@@ -89,8 +89,9 @@ Import a bank CSV export on `/import`: drop the file, check the mapping, commit.
 ING, N26, comdirect and Trade Republic are recognized by their headers; any other bank gets a
 mapping proposed by the fast slot and edited in the preview.
 
-The commit is followed by categorization in three stages: your own category rules, a dictionary
-of about sixty German merchants, then the categorizer sub-agent on the fast slot with a
+The commit is followed by categorization in stages: your own category rules, a dictionary
+of about sixty German merchants, then, if you switched web lookup on, a web lookup of the
+merchants nobody recognizes, and finally the categorizer sub-agent on the fast slot with a
 confidence per merchant. Every row gets a friendly title and a short description. What stays
 below the confidence threshold is Needs review, and the page hands those merchants to a new
 conversation that asks about them in Question cards. Each answer becomes a category rule and
@@ -110,6 +111,21 @@ rows behind the drawing. The contract is `docs/chart-runtime.md`.
 as a Sparkasse CSV, a renamed-header CSV, a text PDF statement and four bill images. Regenerate
 it with `uv run python scripts/generate_synthetic.py`.
 
+## Web lookup
+
+Off by default, one switch per profile in Settings. With it on, the assistant can find out what
+an unknown merchant is: the fast slot drives its own search loop (search, read a page, or finish,
+at most four searches and three page reads), and what comes back is a suggested category with a
+confidence plus the sources, which the transcript shows under the answer.
+
+Only a scrubbed merchant token ever leaves the machine, never an amount, a date, an account or
+reference number, and a booking whose merchant reads as a person is refused instead of sent.
+Every request is written to the outbound log before it goes out, and the Settings card lists that
+log, so "nothing left my machine" is something you can read rather than something we claim. A
+merchant token leaves at most once per profile: the result is cached. Search needs no API key
+(`ddgs` over DuckDuckGo, Bing and Brave in that order). See
+`docs/adr/0010-web-lookup-behind-a-merchant-token.md`.
+
 ## Layout
 
 - `src/finquery/`: `main.py` (CLI), `app.py` (factory), `settings.py`, `providers.py` (slots),
@@ -118,6 +134,8 @@ it with `uv run python scripts/generate_synthetic.py`.
   `chart/` (chart sub-agent, shapes, QuickJS self-check),
   `changesets.py` and `edits.py` (proposed changes and the rules about what may be written),
   `categorize/` (rules, merchant dictionary, categorizer sub-agent, review queue),
+  `weblookup/` (the merchant token scrubber, the keyless search client, the self-directed
+  lookup loop, the outbound log and the lookup cache),
   `ask_user.py` (the Question card tool), `followups.py` (post-turn suggestions),
   `memory.py` (durable facts: the `remember` tool, the distillation pass, prompt selection),
   `context.py` (token budget, per-turn prompt assembly, rolling summary),

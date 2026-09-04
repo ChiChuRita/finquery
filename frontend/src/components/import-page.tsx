@@ -216,8 +216,13 @@ export function ImportPage() {
                   : ''}
                 {report
                   ? `${report.by_rule} categorized by your rules, ${report.by_dictionary} by the merchant ` +
-                    `dictionary and ${report.by_model} by the categorizer. ${report.needs_review} rows across ` +
-                    `${report.uncertain.length} merchants are Needs review.`
+                    `dictionary${report.lookups > 0 ? `, ${report.by_lookup} by web lookup` : ''} and ` +
+                    `${report.by_model} by the categorizer. ${report.needs_review} rows across ` +
+                    `${report.uncertain.length} merchants are Needs review.` +
+                    (report.lookups > 0
+                      ? ` ${report.lookups} merchant(s) were looked up on the web` +
+                        `${report.lookups_refused > 0 ? `, ${report.lookups_refused} were not because only a person's name was left` : ''}.`
+                      : '')
                   : 'Every new row is Needs review until it is categorized.'}
               </p>
             </div>
