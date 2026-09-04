@@ -27,7 +27,7 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.orm import Session, sessionmaker
 
-from finquery.ask_user import ask_user_toolset
+from finquery.ask_user import AskApply, ask_user_toolset
 from finquery.categorize import QUESTIONS_PER_CARD, pending_questions
 from finquery.categorize import set_rule as store_category_rule
 from finquery.categorize import split_choice
@@ -58,9 +58,12 @@ How to use `query`:
   unless the user asked to see the bookings themselves.
 - Answer every part of the question: a "which and how much" question needs the breakdown and
   the total, so ask for both in one request.
-- Quote the figures from the rows exactly as they came back, as EUR with two decimals.
+- Quote the figures from the rows exactly as they came back, never rounded or rescaled.
 - If the result carries an `error`, say in one line what failed and state no figure.
 - If it returns no rows, say the data holds no answer for that question.
+- If the question cannot be answered from bank transactions at all (a credit score, a share
+  price, next month's rent), call nothing, say in one sentence why it is not in the data, and
+  name one question about these transactions you can answer instead.
 - Never write SQL yourself and never show SQL in your answer: the transcript already shows the
   statement that ran.
 
@@ -90,6 +93,9 @@ every booking from Netflix"), so a change names real rows.
   the categories, or anything the user did not literally ask for. It writes nothing. The user
   sees a card with the exact rows and presses Apply or Discard, so describe what you proposed
   and never say it has happened.
+- A request to move bookings that already exist ("recategorize all Netflix rows as
+  Subscriptions", "alle Edeka-Buchungen zu Lebensmitteln") is a bulk change: use
+  `propose_changeset` and never `set_rule`, so the user sees the exact rows before they move.
 - A split needs at least two legs in cents that add up to the booking exactly, negative for
   spending. If a tool refuses, read the sentence it gives you and correct the call once.
 - Adding, renaming, merging or deleting a category or subcategory is `propose_changeset` with
@@ -107,25 +113,32 @@ Categories and rules:
 - A category rule is the user's own pattern to category mapping and the highest-priority
   categorization stage. `set_rule` stores one and immediately recategorizes every booking of
   that merchant in the profile.
-- When the user states a rule in plain words ("PayPal to Anna is always Dining", "Rewe ist
-  immer Lebensmittel"), call `set_rule` and then confirm in one line with the figures it
-  returned. Never say a rule was stored without calling the tool.
+- `set_rule` is only for a statement about a merchant, now and in future ("PayPal to Anna is
+  always Dining", "Rewe ist immer Lebensmittel"). Call it and confirm in one line with the
+  figures it returned. Never say a rule was stored without calling the tool.
 - The pattern is the merchant as it appears in the booking text ("Anna Weber", "REWE"), never a
-  whole sentence and never a booking id.
+  whole sentence, never a booking id and never a phrase like "all Netflix rows".
 - `review_batch` returns the merchants that still need the user's decision, each with a guess
-  and ready-made buttons. Hand those rows straight to `ask_user` as a Question card.
-- When a Question card comes back answered, call `set_rule` once per answer, with the row's
-  `ref` as the pattern and the answer's `value` as the category ("Groceries > Supermarket" is a
-  category and its subcategory; free text is a category name you resolve to one of the
-  profile's categories). A row with no answer stays Needs review and is never guessed at.
-- After the rules are stored, call `review_batch` again and ask the next card, until nothing is
-  pending or the user asks you to stop. When nothing is pending, say so in one line.
+  and ready-made buttons. Hand those rows straight to `ask_user` as a Question card, together
+  with the `apply` object it returned.
+- An answered Question card is already done when you see it: the rules were stored and the
+  bookings moved before you were called again, and the tool result's `applied` line says
+  exactly what happened. Say it back in one or two sentences and make no `set_rule` call for
+  it. A row with no answer stays Needs review and is never guessed at.
+- Then call `review_batch` again and ask the next card, until nothing is pending or the user
+  asks you to stop. When nothing is pending, say so in one line.
+
+Answer in the language of the user's newest message, whatever language the conversation used
+before it: a German question gets a German answer, an English question an English one, even in
+the same conversation. Write money the German way, comma for the decimals, dot for the
+thousands, EUR after the number: 1.234,56 EUR, 843,60 EUR. Dates the same way: 04.09.2026.
 
 After a tool returns, always write the answer as text. Never finish a turn with your thinking
 alone, and never mention the internal feedback you may receive between steps.
 
 Keep answers short and use markdown (lists, tables) when it helps readability. Name the period
-and the figure in the first sentence.
+and the figure in the first sentence, and write the whole answer in the language of the
+message you are answering.
 """
 
 
@@ -329,6 +342,9 @@ def set_rule(
     text contains the pattern, including ones another stage had placed differently. The rule is
     then the highest-priority stage, so the same merchant is never asked about again.
 
+    Only for a statement about a merchant. A request to move bookings that already exist is
+    `propose_changeset`, so the user sees the rows before they move.
+
     Args:
         pattern: The merchant as it appears in the booking text, for instance "REWE" or
             "Anna Weber". Not a sentence, not a booking id. Case and punctuation do not matter.
@@ -350,7 +366,8 @@ async def review_batch(ctx: RunContext[ChatDeps], limit: int = QUESTIONS_PER_CAR
 
     Each row carries the merchant pattern to use as an `ask_user` ref, a sample booking, how
     many bookings it stands for, a guess from the categorizer and the buttons to offer. Call
-    `ask_user` with these rows; do not ask about a merchant this did not return.
+    `ask_user` with these rows and with the `apply` object this returns; do not ask about a
+    merchant this did not return.
 
     Args:
         limit: How many merchants to ask about at once, at most five.
@@ -366,6 +383,8 @@ async def review_batch(ctx: RunContext[ChatDeps], limit: int = QUESTIONS_PER_CAR
     return {
         "pending_merchants": pending,
         "questions": [question.payload() for question in questions],
+        # Copied onto the card, so the answers become rules in code rather than through you.
+        "apply": AskApply().model_dump(mode="json"),
     }
 
 

@@ -32,6 +32,14 @@ QUOTE = '<|"|>'
 #: but a model that spells it out should still stop.
 STOP = [TURN_CLOSE, "<|turn>"]
 
+TEMPLATE_MARKERS = (THOUGHT_OPEN, THOUGHT_CLOSE, TOOL_CALL_OPEN, TOOL_CALL_CLOSE, TURN_CLOSE, "<|turn>")
+"""Every token of the chat template. None of them is ever text the user should read.
+
+The local provider's `StreamSplitter` consumes them, but OpenRouter serves the same Gemma
+models and hands the end-of-turn marker back as plain text at the end of a message, so the
+chat path filters them out for both providers. See `MarkerFilter`.
+"""
+
 _CALL_HEAD = re.compile(r"\s*call\s*:\s*(?P<name>[A-Za-z_][A-Za-z0-9_.-]*)\s*")
 _NUMBER = re.compile(r"-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
 
@@ -69,6 +77,41 @@ def _split_at_marker(buffer: str, markers: tuple[str, ...]) -> tuple[str, str | 
         if any(m.startswith(tail) for m in markers):
             return buffer[:-size], None, tail
     return buffer, None, ""
+
+
+def strip_markers(text: str) -> str:
+    """Remove every chat-template token from a finished piece of text."""
+    for marker in TEMPLATE_MARKERS:
+        text = text.replace(marker, "")
+    return text
+
+
+class MarkerFilter:
+    """Strip chat-template tokens out of streamed text, safely across delta boundaries.
+
+    A marker straddles token boundaries (`<tur` then `n|>`), so a tail that could still become
+    one is held back until the next delta decides. `flush` releases what is left when the text
+    part ends, so a stray `<` at the end of an answer is not eaten.
+    """
+
+    def __init__(self) -> None:
+        self._held = ""
+
+    def feed(self, delta: str) -> str:
+        buffer = self._held + delta
+        out: list[str] = []
+        while buffer:
+            content, marker, rest = _split_at_marker(buffer, TEMPLATE_MARKERS)
+            out.append(content)
+            buffer = rest
+            if marker is None:
+                break
+        self._held = buffer
+        return "".join(out)
+
+    def flush(self) -> str:
+        held, self._held = self._held, ""
+        return held
 
 
 class StreamSplitter:

@@ -18,13 +18,13 @@ from .conftest import (
     new_conversation,
 )
 
-# 60 percent of this is 1560 tokens, which the system prompt (about 1200 since ticket 09 added
-# the block about changing the data) plus the turns below pass early, so compression fires on the
+# 60 percent of this is 1920 tokens, which the system prompt (about 1300 since ticket 20 added
+# the language and money paragraph) plus the turns below pass early, so compression fires on the
 # eighth turn, the first with anything older than the last six to fold in. Room above the floor a
 # compressed prompt cannot go below (the system prompt, the summary and the last six turns, about
-# 2100 tokens here) is what the budget of a test like this has to leave; the real default is
+# 2600 tokens here) is what the budget of a test like this has to leave; the real default is
 # 32768, far above any floor.
-BUDGET = 2600
+BUDGET = 3200
 SUMMARY = "The user asked about groceries and rent in the spring and cares about subscriptions."
 
 # Long enough that a turn is worth about a hundred tokens on either side.

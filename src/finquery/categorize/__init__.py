@@ -12,13 +12,14 @@ from finquery.categorize.pipeline import (
     pending_questions,
     review_card,
 )
-from finquery.categorize.rules import RuleOutcome, set_rule, split_choice
+from finquery.categorize.rules import RuleOutcome, apply_answers, set_rule, split_choice
 
 __all__ = [
     "QUESTIONS_PER_CARD",
     "Question",
     "Report",
     "RuleOutcome",
+    "apply_answers",
     "categorize_import",
     "pending_questions",
     "review_card",

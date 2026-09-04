@@ -34,9 +34,13 @@ token for that whole time, and a reload would lose the question.
   tool part carries its output and a reload renders what the stream rendered. This is also why
   the Import page can seed a first turn nobody streamed (summary plus a pending `ask_user`
   call) and have answering it resume that run.
-- What the answers mean is not the tool's business. For categorization the assistant reads them
-  and calls `set_rule` once per answer, which is deterministic code, so the rule and the rows
-  it moves never depend on the model's arithmetic.
+- What the answers mean is not the wire format's business, and it is not the model's either.
+  The card carries an `apply` hint (`{"kind": "category_rule"}` today) and
+  `finquery.answers` acts on the answers in code between the two halves of the run: for
+  categorization that is one `set_rule` per answer. What it did goes back as the `applied`
+  line of the tool result, so the model summarizes rather than sequences. Asking the fast
+  model to make those calls itself is what looped for 145 seconds and stored nothing in the
+  review of 2026-09-04. Tickets 08 and 10 add a kind and an applier, not a wire change.
 
 ## Consequences
 

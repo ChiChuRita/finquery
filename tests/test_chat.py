@@ -5,7 +5,7 @@ from pathlib import Path
 import httpx
 import pytest
 from pydantic_ai.messages import ModelMessage
-from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart
+from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart, DeltaToolCall
 
 from finquery.api import chat as chat_api
 from finquery.app import create_app
@@ -29,6 +29,17 @@ from .conftest import (
 def kinds(chunks: list[dict[str, object]]) -> list[str]:
     # message-metadata is bookkeeping (model slot, interrupted flag), not part of the visible order.
     return [str(c["type"]) for c in chunks if c["type"] != "message-metadata"]
+
+
+def turn_metadata(chunks: list[dict[str, object]]) -> dict[str, object]:
+    """The turn's own metadata, told apart from the one pydantic AI adds for its timestamp."""
+    ours = [
+        c["messageMetadata"]
+        for c in chunks
+        if c["type"] == "message-metadata" and "model_slot" in c["messageMetadata"]  # type: ignore[operator]
+    ]
+    assert ours, chunks
+    return dict(ours[-1])  # type: ignore[call-overload]
 
 
 def collapse(types: list[str]) -> list[str]:
@@ -229,6 +240,156 @@ async def test_a_thinking_only_response_is_retried_without_a_user_bubble(
     assert detail["messages"][0]["parts"][0]["text"] == "What do I spend most on?"
     texts = [part.get("text", "") for message in detail["messages"] for part in message["parts"]]
     assert not any("Validation feedback" in text for text in texts)
+
+
+async def test_chat_template_tokens_never_reach_the_answer(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    """Gemma's end-of-turn marker is text on OpenRouter, and it arrives split across deltas.
+
+    It has to be gone from the stream and from what a reload renders, whichever provider
+    produced it.
+    """
+
+    async def leaks(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        if is_followup_request(messages):
+            yield "No follow-ups."
+            return
+        if is_distillation_request(messages):
+            yield distilled()
+            return
+        yield "In 2025 your income was 68.469,80 EUR."
+        # One marker split over two deltas, one whole: both are template tokens, not text.
+        yield "<tur"
+        yield "n|>"
+        yield " Nothing else.<turn|>"
+
+    scripts.fast = leaks
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+
+    response, chunks = await chat(conversation_id, "What was my income in 2025?")
+
+    text = "".join(str(c["delta"]) for c in chunks if c["type"] == "text-delta")
+    assert text.strip() == "In 2025 your income was 68.469,80 EUR. Nothing else."
+    assert "turn|>" not in response.text
+    detail = await client.get(f"/api/conversations/{conversation_id}")
+    assert "turn|>" not in detail.text
+
+
+async def test_the_thinking_duration_covers_the_whole_turn(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """A turn thinks once before its tool call and once after; the badge reports both.
+
+    Only the last block used to be measured, so a turn that visibly thought for eight seconds
+    reported one (review of 2026-09-04).
+    """
+    step = 0
+
+    async def thinks_twice(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        nonlocal step
+        if is_followup_request(messages):
+            yield "No follow-ups."
+            return
+        if is_distillation_request(messages):
+            yield distilled()
+            return
+        step += 1
+        if step == 1:
+            yield {0: DeltaThinkingPart(content="Let me remember that.")}
+            # The block stays open while this sleeps, which is what has to be measured.
+            await asyncio.sleep(0.4)
+            yield {1: DeltaToolCall(name="remember", json_args='{"text": "Anna is a friend."}')}
+            return
+        yield {0: DeltaThinkingPart(content="Done.")}
+        yield "Stored."
+
+    scripts.fast = thinks_twice
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Remember that Anna is a friend.")
+
+    seconds = turn_metadata(chunks)["thinking_seconds"]
+    assert isinstance(seconds, float) and seconds >= 0.4, "the first block was not counted"
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert detail["messages"][-1]["metadata"]["thinking_seconds"] == seconds
+
+
+async def test_a_turn_keeps_the_slot_that_produced_it_when_the_conversation_switches(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """Story 10: a turn's model label is what produced it and never changes."""
+    scripts.fast = script("The fast answer.")
+    scripts.quality = script("The careful answer.")
+    conversation_id = await new_conversation(client, profile_id, slot="fast")
+
+    await chat(conversation_id, "first question")
+    patched = await client.patch(f"/api/conversations/{conversation_id}", json={"model_slot": "quality"})
+    assert patched.status_code == 200, patched.text
+    await chat(conversation_id, "second question")
+
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assistants = [m for m in detail["messages"] if m["role"] == "assistant"]
+    assert [m["metadata"]["model_slot"] for m in assistants] == ["fast", "quality"]
+
+
+async def test_the_prompt_carries_the_language_money_and_bulk_rules(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """Three findings of the review are prompt work, so the prompt is what is asserted."""
+    seen: list[str] = []
+
+    async def recording(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        if is_followup_request(messages):
+            yield "No follow-ups."
+            return
+        if is_distillation_request(messages):
+            yield distilled()
+            return
+        seen.append(getattr(messages[-1], "instructions", None) or "")
+        yield "Alles klar."
+
+    scripts.fast = recording
+    conversation_id = await new_conversation(client, profile_id)
+
+    await chat(conversation_id, "Wie viel habe ich im Mai ausgegeben?")
+
+    prompt = seen[-1]
+    # The language follows the newest message, not the conversation so far.
+    assert "language of the user's newest message" in prompt
+    # Money in prose is German, so the answer and the tool result read the same.
+    assert "1.234,56 EUR" in prompt
+    # A bulk change is a changeset with a preview, never a rule that writes rows at once.
+    assert "never `set_rule`" in prompt
+    # A question the data cannot answer gets a reason and an alternative.
+    assert "one sentence why" in prompt
+
+
+async def test_a_question_the_data_cannot_answer_still_gets_follow_ups(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The unanswerable turn was the one turn of the review with no suggestions under it."""
+    asked: list[str] = []
+
+    async def recording(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        if is_followup_request(messages):
+            asked.append(getattr(messages[-1], "instructions", None) or "")
+            yield "How much did I spend in 2025?"
+            return
+        if is_distillation_request(messages):
+            yield distilled()
+            return
+        yield "A credit score is not part of a bank statement, so the data cannot say."
+
+    scripts.fast = recording
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "What is my credit score?")
+
+    # The follow-up step is told to offer what the data can answer instead of giving up.
+    assert "cannot be answered from the data" in asked[-1]
+    suggestions = [c["data"] for c in chunks if c["type"] == "data-followups"]
+    assert suggestions == [{"suggestions": ["How much did I spend in 2025?"]}]
 
 
 async def test_unknown_conversation_is_404(client: httpx.AsyncClient) -> None:

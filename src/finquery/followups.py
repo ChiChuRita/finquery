@@ -20,8 +20,11 @@ You suggest what a user of a personal-finance assistant could usefully ask next.
 
 Write at most three short questions, one per line, each ending with a question mark, in the
 language of the exchange. No numbering, no bullets, no other text. Each question must be
-answerable from bank transactions and must not repeat what was just asked. If nothing sensible
-follows, answer "No follow-ups."
+answerable from bank transactions and must not repeat what was just asked.
+
+When the exchange shows the question cannot be answered from the data at all, that is exactly
+when to suggest something the transactions do hold, so the user has a way forward. Answer
+"No follow-ups." only when you can think of nothing a bank statement could answer.
 """
 
 followup_agent: Agent[None, str] = Agent(instructions=INSTRUCTIONS, name="finquery-followups")
