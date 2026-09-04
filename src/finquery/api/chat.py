@@ -360,7 +360,7 @@ def persist_turn(
     both halves are dumped together, so the tool part carries its output and the reload shows
     the answered card.
 
-    Also used by the Import page's review conversation, which seeds a turn nobody streamed.
+    Also used by the review conversation, which seeds a turn nobody streamed.
 
     Returns the id of the stored turn. It rides the assistant message's metadata as well, so a
     rating can name the turn it is about whether the transcript was streamed or reloaded

@@ -547,7 +547,7 @@ async def categorize_import(
     model_settings: ModelSettings | None = None,
     lookups: "Lookups | None" = None,
 ) -> Report:
-    """Categorize what one import brought in. This is what the Import page calls after a commit."""
+    """Categorize what one import brought in, which is what a chat import does after its commit."""
     rows = needs_review_rows(session, profile_id, import_id=import_id)
     return await categorize_rows(
         session,

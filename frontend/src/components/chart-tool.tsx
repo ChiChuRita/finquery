@@ -29,6 +29,33 @@ const SHAPE_LABELS: Record<string, string> = {
   sankey: 'Sankey',
 }
 
+/** Where a reason stops being a sentence and starts being quoted code. */
+const QUOTED_CODE = /\n|--|\/\*|```|\bWITH\b|\bSELECT\b|\bAS \(/
+const HEADLINE = 160
+
+/** The one line a failed card shows.
+ *
+ * A failure reason quotes whatever refused the chart, and that can be the sub-agent's own
+ * statement with its scratch notes in it ("-- This is wrong, I want top spenders ... -- Let's
+ * try aga"). A comment the model wrote to itself is not an error message, so the line stops
+ * where the quoted code starts; the whole reason stays under the details toggle, where the plan
+ * and the SQL already are.
+ */
+function failureLine(error: string): string {
+  const parts = error.split(QUOTED_CODE)
+  let said = parts[0].trim().replace(/[\s,;:]+$/, '')
+  // Cutting the code off can leave half a clause behind (", top_categories"), so a line that
+  // was cut ends on the last sentence that finished.
+  if (parts.length > 1 && !said.endsWith('.')) {
+    const stop = said.lastIndexOf('.')
+    if (stop > 0) said = said.slice(0, stop + 1)
+  }
+  if (!said) return 'The chart could not be drawn.'
+  if (said.length <= HEADLINE) return said
+  const cut = said.lastIndexOf(' ', HEADLINE)
+  return `${said.slice(0, cut > 0 ? cut : HEADLINE).trimEnd()}...`
+}
+
 /** The app's own colours, resolved, because the sandboxed frame cannot read our stylesheet. */
 function readTheme(): ChartFrameTheme {
   const style = getComputedStyle(document.documentElement)
@@ -131,6 +158,14 @@ function Footer({ output, actions }: { output: ChartToolOutput; actions: ReactNo
           <p className="text-sm">{output.request}</p>
           {output.plan && <p className="text-muted-foreground text-sm">{output.plan}</p>}
         </Section>
+        {output.error && (
+          // The card says the failure in one line; what was quoted into it, code and all, is here.
+          <Section label="Why it failed">
+            <p className="whitespace-pre-wrap break-words rounded-md bg-muted px-3 py-2 font-mono text-muted-foreground text-xs">
+              {output.error}
+            </p>
+          </Section>
+        )}
         {output.notes.length > 0 && (
           <Section label="Repairs">
             <ul className="space-y-1 text-muted-foreground text-sm">
@@ -269,8 +304,11 @@ function ChartResult({
       ) : code ? (
         <ChartFrame code={code} rows={output.rows} title={title} />
       ) : (
-        <div className="px-4 pb-2">
-          <ErrorSection message={output.error ?? 'The chart could not be drawn.'} />
+        <div className="space-y-2 px-4 pb-3">
+          <ErrorSection message={failureLine(output.error ?? '')} />
+          <p className="text-muted-foreground text-xs">
+            Nothing was drawn. The whole reason, the plan and the query it tried are under Details.
+          </p>
         </div>
       )}
       <Footer

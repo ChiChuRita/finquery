@@ -241,6 +241,20 @@ export interface ImportCounts {
   error: string | null
 }
 
+/** The column mapping a chat import confirms on a Question card before it commits. */
+export type DateFormat = 'DD.MM.YYYY' | 'DD.MM.YY' | 'YYYY-MM-DD' | 'DD/MM/YYYY' | 'MM/DD/YYYY'
+
+export interface CsvMapping {
+  date_column: string
+  amount_column?: string | null
+  debit_column?: string | null
+  credit_column?: string | null
+  description_column?: string | null
+  counterparty_column?: string | null
+  date_format: DateFormat
+  decimal_separator: 'comma' | 'dot'
+}
+
 export type ImportFileOutput =
   | {
       status: 'imported'
@@ -600,44 +614,7 @@ export const chatUrl = (id: string) => `/api/conversations/${id}/chat`
 
 // Import
 
-export const DATE_FORMATS = ['DD.MM.YYYY', 'DD.MM.YY', 'YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY'] as const
-export type DateFormat = (typeof DATE_FORMATS)[number]
-
-export interface CsvMapping {
-  date_column: string
-  amount_column?: string | null
-  debit_column?: string | null
-  credit_column?: string | null
-  description_column?: string | null
-  counterparty_column?: string | null
-  date_format: DateFormat
-  decimal_separator: 'comma' | 'dot'
-}
-
-export interface PreviewRow {
-  booked_on: string
-  amount_cents: number
-  description: string
-  counterparty: string | null
-}
-
-export interface ImportPreview {
-  file_name: string
-  encoding: string
-  delimiter: string
-  header: string[]
-  row_count: number
-  skipped_count: number
-  preset: string | null
-  preset_label: string | null
-  mapping: CsvMapping
-  account_name: string
-  note: string
-  mapping_source: 'preset' | 'model' | 'user'
-  rows: PreviewRow[]
-  issues: string[]
-}
-
+/** One past import as the overview page reads it. Importing itself happens in a chat. */
 export interface ImportRecord {
   id: string
   file_name: string
@@ -651,84 +628,11 @@ export interface ImportRecord {
   duplicates_removed: number
   skipped_count: number
   reconciliation: string | null
+  /** Bookings of this import with no category yet. */
+  needs_review: number
+  /** The conversation the file was dropped into, or null when it was committed over REST. */
+  conversation_id: string | null
   created_at: string
-}
-
-async function postForm<T>(url: string, form: FormData): Promise<T> {
-  const response = await fetch(url, { method: 'POST', body: form })
-  if (!response.ok) throw new Error(await problem(response))
-  return (await response.json()) as T
-}
-
-// The file is posted again with every mapping change, so the server keeps no upload state.
-export function previewImport(file: File, mapping?: CsvMapping, accountName?: string) {
-  const form = new FormData()
-  form.set('file', file)
-  if (mapping) form.set('mapping', JSON.stringify(mapping))
-  if (accountName) form.set('account_name', accountName)
-  return postForm<ImportPreview>('/api/imports/preview', form)
-}
-
-export function commitImport(profileId: string, file: File, mapping: CsvMapping, accountName: string) {
-  const form = new FormData()
-  form.set('profile_id', profileId)
-  form.set('file', file)
-  form.set('mapping', JSON.stringify(mapping))
-  form.set('account_name', accountName)
-  return postForm<ImportRecord>('/api/imports', form)
-}
-
-// The duplicate candidates one import held aside, and the decision about them.
-
-export type ImportDuplicates = DuplicateCounts & {
-  import_id: string
-  file_name: string
-  account_name: string
-  candidates: DuplicateCandidate[]
-}
-
-export interface DuplicateDecided {
-  kept: number
-  removed: number
-  remaining: number
-  needs_review: number
-  /** The import summary sentence again, now saying how many were kept and removed. */
-  summary: string
-  error: string | null
-}
-
-export const importDuplicates = (importId: string, profileId: string) =>
-  request<ImportDuplicates>(`/api/imports/${importId}/duplicates?profile_id=${profileId}`)
-
-export const decideDuplicates = (
-  importId: string,
-  profileId: string,
-  decisions: { ref: string; decision: 'keep' | 'remove' }[],
-  removeAllExact = false,
-) =>
-  request<DuplicateDecided>(`/api/imports/${importId}/duplicates`, {
-    method: 'POST',
-    body: JSON.stringify({ profile_id: profileId, decisions, remove_all_exact: removeAllExact }),
-  })
-
-// Categorization of a finished import, and the conversation that asks about what is left.
-
-export interface CategorizeReport {
-  import_id: string
-  rows: number
-  by_rule: number
-  by_dictionary: number
-  by_lookup: number
-  by_model: number
-  needs_review: number
-  merchants: number
-  model_calls: number
-  /** Merchants looked up on the web, zero unless the profile switched web lookup on. */
-  lookups: number
-  /** Merchants it refused to look up because nothing was safe to send. */
-  lookups_refused: number
-  uncertain: ReviewQuestion[]
-  error: string | null
 }
 
 export interface ReviewConversation {
@@ -737,12 +641,6 @@ export interface ReviewConversation {
   questions: number
   pending_merchants: number
 }
-
-export const categorizeImport = (importId: string, profileId: string) =>
-  request<CategorizeReport>(`/api/imports/${importId}/categorize`, {
-    method: 'POST',
-    body: JSON.stringify({ profile_id: profileId }),
-  })
 
 export const openReviewConversation = (importId: string, profileId: string, model_slot: ModelSlot = 'fast') =>
   request<ReviewConversation>(`/api/imports/${importId}/review-conversation`, {
@@ -757,6 +655,17 @@ export const importsQuery = (profileId: string | undefined) =>
     queryFn: () => request<ImportRecord[]>(`/api/imports?profile_id=${profileId}`),
     enabled: profileId !== undefined,
   })
+
+/** Candidates of this import nobody has decided yet: the number the overview marks amber. */
+export const pendingDuplicates = (record: ImportRecord) =>
+  record.duplicate_count - record.duplicates_kept - record.duplicates_removed
+
+/** Undo one import: its record, its bookings and its candidates go together. */
+export const deleteImport = (importId: string, profileId: string) =>
+  request<{ transactions: number; candidates: number }>(
+    `/api/imports/${importId}?profile_id=${profileId}`,
+    { method: 'DELETE' },
+  )
 
 // Transactions
 

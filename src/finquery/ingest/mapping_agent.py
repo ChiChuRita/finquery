@@ -1,7 +1,7 @@
 """The mapping sub-agent: it proposes a column mapping for a bank we do not have a preset for.
 
 Fast slot, one forced tool call, no free-form text. The user always sees the proposal before
-anything is committed and can correct every field, in the Import page preview or, when the file
+anything is committed and can correct every field, on the Question card the chat shows, or, when the file
 was dropped into a chat, on the Question card `import_file` asks with. So a wrong guess costs a
 click. Files from a recognized bank never reach this module.
 

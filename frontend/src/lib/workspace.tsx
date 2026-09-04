@@ -21,6 +21,20 @@ function readIds(key: string): string[] {
   }
 }
 
+/** The profile the browser was left in, read before the first query goes out.
+ *
+ * Empty when this browser has never chosen one, which is a first visit or a storage another
+ * origin wrote (127.0.0.1 and localhost are two). The provider then falls back to the first
+ * profile and writes that back, so what is on screen and what is remembered never disagree.
+ */
+function readActiveProfile(): string {
+  try {
+    return localStorage.getItem(ACTIVE_PROFILE_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
 export const readDraft = (conversationId: string) => localStorage.getItem(draftKey(conversationId)) ?? ''
 
 export function writeDraft(conversationId: string, text: string) {
@@ -84,8 +98,10 @@ function edited(profileId: string, edit: (ids: string[]) => string[]): string[] 
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { data: profiles } = useQuery(profilesQuery)
-  const [activeId, setActiveId] = useState(() => localStorage.getItem(ACTIVE_PROFILE_KEY) ?? '')
+  const [activeId, setActiveId] = useState(readActiveProfile)
   // A remembered profile can be gone (deleted here or in another tab), so fall back to the first.
+  // Until the list is here there is no profile at all: a query that would run against the wrong
+  // one is better not run, which is what every `enabled: profileId !== undefined` is about.
   const profile = profiles?.find((p) => p.id === activeId) ?? profiles?.[0]
 
   const profileId = profile?.id
@@ -118,6 +134,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setTabIds(profileId ? readIds(tabsKey(profileId)) : [])
   }, [profileId])
+
+  // The fallback is a choice, so it is written down like any other: what is done after a reload
+  // lands in the profile the sidebar names, and the next reload opens that same one again.
+  useEffect(() => {
+    if (profile && profile.id !== activeId) switchProfile(profile.id)
+  }, [activeId, profile, switchProfile])
 
   const workspace = useMemo<Workspace>(() => {
     const byId = new Map((conversations ?? []).map((c) => [c.id, c]))

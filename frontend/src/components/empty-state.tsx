@@ -1,9 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { UploadIcon } from 'lucide-react'
 
 import { Suggestion } from '@/components/ai-elements/suggestion'
-import { Button } from '@/components/ui/button'
 import { transactionCountQuery } from '@/lib/api'
 import { useWorkspace } from '@/lib/workspace'
 
@@ -14,8 +11,8 @@ export const STARTER_SUGGESTIONS = [
   'Compare my spending in April and May',
 ]
 
-/** Nothing imported yet, so nothing to count. The one question that still has an answer, and
- *  the way out of an empty profile, which is a button and not a question. */
+/** Nothing imported yet, so nothing to count. The one question that still has an answer; the
+ *  way out of an empty profile is the composer right below, not a page somewhere else. */
 const NO_DATA_SUGGESTIONS = ['What can you help me with?']
 
 export function EmptyState({ onPick }: { onPick: (text: string) => void }) {
@@ -30,8 +27,8 @@ export function EmptyState({ onPick }: { onPick: (text: string) => void }) {
           What do you want to know about your money?
         </h2>
         <p className="mx-auto max-w-md text-balance text-muted-foreground text-sm">
-          Import your bank statements, then ask in your own words. Every number in an answer comes from a query
-          you can inspect.
+          Drop your bank statements into the chat, then ask in your own words. Every number in an answer comes
+          from a query you can inspect.
         </p>
       </div>
       {/* While the count is on its way there is nothing honest to offer, so nothing is offered. */}
@@ -43,11 +40,10 @@ export function EmptyState({ onPick }: { onPick: (text: string) => void }) {
             ))}
           </div>
           {empty && (
-            <Button asChild size="sm" variant="outline">
-              <Link to="/import">
-                <UploadIcon /> Import a bank statement
-              </Link>
-            </Button>
+            <p className="max-w-md text-balance text-muted-foreground text-sm">
+              There is nothing imported in this profile yet. Drop a CSV export, a statement PDF or a bill
+              photo into the box below and I will read it, ask about anything I am unsure of and import it.
+            </p>
           )}
         </div>
       )}

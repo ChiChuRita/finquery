@@ -1,17 +1,23 @@
-"""Import endpoints: preview a CSV upload, commit it, categorize it, hand it to a chat.
+"""Import endpoints: read a CSV, commit it, categorize it, list what an import came to.
 
-The preview holds no server-side state. The browser keeps the dropped file and posts it again
-with the mapping it wants, so editing the mapping is just another preview call and a commit
-never depends on an earlier upload still being around.
+Importing is a chat job (`import_file` and the Question cards it leads to); the Import page is
+an overview of what those runs produced, with a delete per import and a way back into the
+conversation that is still asking about one. `preview` and `create` stay because they are the
+same pipeline behind an HTTP door, which is what the tests and `scripts/` drive.
 
-After a commit the page calls `categorize`, and if merchants are left over `review-conversation`,
-which seeds a conversation whose first turn summarizes the import and asks the first Question
-card. Every figure in that seeded turn is counted here in code, never written by a model.
+The preview holds no server-side state. The caller keeps the file and posts it again with the
+mapping it wants, so editing the mapping is just another preview call and a commit never
+depends on an earlier upload still being around.
+
+`review-conversation` seeds a conversation whose first turn summarizes the import and asks the
+first Question card: the bookings it held aside as possible duplicates, or, when there are
+none, the merchants categorization was unsure about. Every figure in that seeded turn is
+counted here in code, never written by a model.
 
 A commit inserts nothing it may already have: those rows are held aside as duplicate candidates
-(see `finquery.ingest.duplicates`), and the two `duplicates` endpoints are how the page lists
-them and applies Keep both or Remove. The chat asks the same question on a Question card and
-applies it through the same function.
+(see `finquery.ingest.duplicates`), and the two `duplicates` endpoints list them and apply Keep
+both or Remove. The chat asks the same question on a Question card and applies it through the
+same function.
 """
 
 from datetime import date, datetime
@@ -20,14 +26,14 @@ from typing import Literal
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, ValidationError
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, ToolCallPart, UserPromptPart
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from finquery.api.chat import persist_turn
 from finquery.api.profiles import get_profile_or_404
-from finquery.ask_user import ASK_USER
+from finquery.ask_user import ASK_USER, AskUser
 from finquery.categorize import categorize_import, pending_questions, review_card
-from finquery.db import Account, Conversation, Import
+from finquery.db import Account, Attachment, Conversation, DuplicateCandidate, Import, Transaction
 from finquery.ingest import duplicates
 from finquery.ingest.commit import commit_rows, import_summary
 from finquery.ingest.csv_reader import (
@@ -55,6 +61,7 @@ and the shortcut is there for exactly that; this keeps the list readable."""
 MappingSource = Literal["preset", "model", "user"]
 
 REVIEW_PROMPT = "Categorize the import I just did."
+DUPLICATE_PROMPT = "Decide the bookings this import held aside as possible duplicates."
 
 
 class PreviewRow(BaseModel):
@@ -81,6 +88,13 @@ class PreviewOut(BaseModel):
 
 
 class ImportOut(BaseModel):
+    """One row of the Import page, which is an overview and nothing else.
+
+    `needs_review` and `conversation_id` are what makes a row actionable: how many of its
+    bookings still have no category, and the conversation the file was dropped into, which is
+    where anything undecided about it is decided.
+    """
+
     id: str
     file_name: str
     kind: str
@@ -93,6 +107,8 @@ class ImportOut(BaseModel):
     duplicates_removed: int
     skipped_count: int
     reconciliation: str | None
+    needs_review: int = 0
+    conversation_id: str | None = None
     created_at: datetime
 
 
@@ -225,7 +241,9 @@ async def create_import(
         return _out(record, account)
 
 
-def _out(record: Import, account_name: str) -> ImportOut:
+def _out(
+    record: Import, account_name: str, *, needs_review: int = 0, conversation_id: str | None = None
+) -> ImportOut:
     return ImportOut(
         id=record.id,
         file_name=record.file_name,
@@ -239,21 +257,91 @@ def _out(record: Import, account_name: str) -> ImportOut:
         duplicates_removed=record.duplicates_removed,
         skipped_count=record.skipped_count,
         reconciliation=record.reconciliation,
+        needs_review=needs_review,
+        conversation_id=conversation_id,
         created_at=record.created_at,
     )
 
 
+def _import_or_404(session: Session, profile_id: str, import_id: str) -> Import:
+    get_profile_or_404(session, profile_id)
+    record = session.get(Import, import_id)
+    if record is None or record.profile_id != profile_id:
+        raise HTTPException(status_code=404, detail="Import not found")
+    return record
+
+
 @router.get("/imports", response_model=list[ImportOut])
 async def list_imports(request: Request, profile_id: str) -> list[ImportOut]:
+    """Every import of the profile, with what is still open about it.
+
+    The conversation is the one the file was dropped into: an attachment is what links a chat
+    import to its transcript, so the page can send the user back to the card that is waiting.
+    """
+    needs_review = (
+        select(func.count(Transaction.id))
+        .where(Transaction.import_id == Import.id, Transaction.category_id.is_(None))
+        .correlate(Import)
+        .scalar_subquery()
+    )
+    came_from = (
+        select(Attachment.conversation_id)
+        .where(Attachment.import_id == Import.id)
+        .correlate(Import)
+        .limit(1)
+        .scalar_subquery()
+    )
     with request.app.state.session_factory() as session:
         get_profile_or_404(session, profile_id)
         rows = session.execute(
-            select(Import, Account.name)
+            select(Import, Account.name, needs_review, came_from)
             .join(Account, Account.id == Import.account_id)
             .where(Import.profile_id == profile_id)
             .order_by(Import.created_at.desc())
         ).all()
-        return [_out(record, account_name) for record, account_name in rows]
+        return [
+            _out(record, account_name, needs_review=review, conversation_id=conversation_id)
+            for record, account_name, review, conversation_id in rows
+        ]
+
+
+class DeletedOut(BaseModel):
+    """What undoing one import took with it."""
+
+    transactions: int
+    candidates: int
+
+
+@router.delete("/imports/{import_id}", response_model=DeletedOut)
+async def delete_import(request: Request, import_id: str, profile_id: str) -> DeletedOut:
+    """Undo one import: the record, its bookings, and its candidates with the decisions on them.
+
+    There is no other way back from an import into the wrong profile, and a booking whose import
+    record is gone is a booking nobody can account for, so the two go together. The bookings of
+    other imports stay, including the ones a duplicate candidate of this import matched: those
+    were in the profile before it. A booking a Keep both inserted belongs to this import and goes.
+    """
+    with request.app.state.session_factory() as session:
+        record = _import_or_404(session, profile_id, import_id)
+        rows = session.scalars(
+            select(Transaction).where(
+                Transaction.profile_id == profile_id, Transaction.import_id == import_id
+            )
+        ).all()
+        # A split child is imported with its parent, and the foreign key takes it along, so
+        # deleting one explicitly would be a second delete of a row that is already gone.
+        doomed = {row.id for row in rows}
+        for row in rows:
+            if row.parent_id not in doomed:
+                session.delete(row)
+        candidates = session.scalars(
+            select(DuplicateCandidate).where(DuplicateCandidate.import_id == import_id)
+        ).all()
+        for candidate in candidates:
+            session.delete(candidate)
+        session.delete(record)
+        session.commit()
+        return DeletedOut(transactions=len(rows), candidates=len(candidates))
 
 
 # Categorization of an import, and the conversation that asks about what is left.
@@ -316,14 +404,6 @@ def _lookups(request: Request, profile_id: str) -> Lookups | None:
         resolve_model=state.resolve_model,
         model_settings=state.subagent_settings,
     )
-
-
-def _import_or_404(session: Session, profile_id: str, import_id: str) -> Import:
-    get_profile_or_404(session, profile_id)
-    record = session.get(Import, import_id)
-    if record is None or record.profile_id != profile_id:
-        raise HTTPException(status_code=404, detail="Import not found")
-    return record
 
 
 # The duplicate candidates one import held aside, and the user's decision about them.
@@ -430,10 +510,9 @@ async def decide_duplicates(request: Request, import_id: str, body: DecideBody) 
 async def categorize(request: Request, import_id: str, body: ProfileBody) -> CategorizeOut:
     """Run the stages over what this import brought in.
 
-    Called by the Import page right after a commit. Rules first, then the merchant dictionary,
-    then the web lookup when this profile switched it on, then the categorizer sub-agent on the
-    fast slot; rows below the confidence threshold stay Needs review and come back here as
-    `uncertain`.
+    Called right after a commit. Rules first, then the merchant dictionary, then the web lookup
+    when this profile switched it on, then the categorizer sub-agent on the fast slot; rows below
+    the confidence threshold stay Needs review and come back here as `uncertain`.
     """
     state = request.app.state
     with state.session_factory() as session:
@@ -465,26 +544,41 @@ async def categorize(request: Request, import_id: str, body: ProfileBody) -> Cat
 
 @router.post("/imports/{import_id}/review-conversation", response_model=ReviewConversationOut, status_code=201)
 async def review_conversation(request: Request, import_id: str, body: ReviewBody) -> ReviewConversationOut:
-    """Open the conversation that asks about the rows categorization was unsure about.
+    """Open the conversation that asks about whatever this import left undecided.
 
     The first turn is seeded, not generated: the user's request, the assistant's summary of the
     import and a pending `ask_user` call holding the first Question card. Answering the card
     resumes that same run, which is what the chat endpoint's deferred-result path is for.
+
+    Which card it is depends on what is open. Bookings held aside as possible duplicates come
+    first, because a booking nobody has decided about is not in the data yet and there is
+    nothing to categorize about it; otherwise it is the merchants categorization was unsure
+    about. This is how the Import page's "Continue in chat" reaches an import that was committed
+    outside a conversation, so nothing an older import left open is stranded.
     """
     state = request.app.state
     with state.session_factory() as session:
         record = _import_or_404(session, body.profile_id, import_id)
         account = session.get(Account, record.account_id)
         account_name = account.name if account else "the account"
-        questions, pending = await pending_questions(
-            session,
-            body.profile_id,
-            resolve_model=state.resolve_model,
-            model_settings=state.subagent_settings,
-            lookups=_lookups(request, body.profile_id),
-        )
-        if not questions:
-            raise HTTPException(status_code=409, detail="Nothing is left to review in this profile.")
+        waiting = duplicates.tally(session, body.profile_id, import_id=import_id).pending
+        pending = 0
+        if waiting:
+            batch = duplicates.review(session, body.profile_id, import_id=import_id)
+            card = AskUser.model_validate(batch["card"])
+            prompt = DUPLICATE_PROMPT
+        else:
+            questions, pending = await pending_questions(
+                session,
+                body.profile_id,
+                resolve_model=state.resolve_model,
+                model_settings=state.subagent_settings,
+                lookups=_lookups(request, body.profile_id),
+            )
+            if not questions:
+                raise HTTPException(status_code=409, detail="Nothing is left to review in this profile.")
+            card = review_card(questions, pending)
+            prompt = REVIEW_PROMPT
         title = f"Review {record.file_name}"[:120]
         conversation = Conversation(profile_id=body.profile_id, model_slot=body.model_slot, title=title)
         session.add(conversation)
@@ -492,12 +586,11 @@ async def review_conversation(request: Request, import_id: str, body: ReviewBody
         session.commit()
         conversation_id = conversation.id
 
-    card = review_card(questions, pending)
     persist_turn(
         state.session_factory,
         conversation_id,
         [
-            ModelRequest(parts=[UserPromptPart(content=REVIEW_PROMPT)]),
+            ModelRequest(parts=[UserPromptPart(content=prompt)]),
             ModelResponse(
                 parts=[
                     TextPart(content=summary),
@@ -511,6 +604,6 @@ async def review_conversation(request: Request, import_id: str, body: ReviewBody
     return ReviewConversationOut(
         conversation_id=conversation_id,
         title=title,
-        questions=len(questions),
+        questions=len(card.rows),
         pending_merchants=pending,
     )

@@ -20,8 +20,12 @@ import httpx
 import pytest
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo
+from sqlalchemy import select
+from sqlalchemy.orm import Session, sessionmaker
 
-from .conftest import PRIVATE, SYNTHETIC, Scripts, new_conversation, parse_sse
+from finquery.db import DuplicateCandidate
+
+from .conftest import PRIVATE, SYNTHETIC, Scripts, new_conversation, parse_sse, script
 from .test_categorization import TOTAL_ROWS, answer, answer_card, outputs_of, scripted_categorizer
 from .test_chat_import import _call, _returns, cards_in, sub_agents, transcript
 from .test_import import upload
@@ -609,3 +613,129 @@ async def test_two_overlapping_trade_republic_frames_find_exactly_the_shared_mon
     result = await decide(client, profile_id, second["id"], remove_all_exact=True)
     assert (result["kept"], result["removed"], result["remaining"]) == (0, OVERLAP_ROWS, 0)
     assert len(await rows_of(client, profile_id)) == total
+
+
+# The candidates of an import that is no longer the latest one, and undoing an import.
+
+
+async def delete_import(client: httpx.AsyncClient, profile_id: str, import_id: str) -> dict[str, Any]:
+    response = await client.delete(f"/api/imports/{import_id}", params={"profile_id": profile_id})
+    assert response.status_code == 200, response.text
+    return dict(response.json())
+
+
+async def test_the_candidates_of_an_older_import_are_still_listed_and_still_decidable(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """The page reads them back whenever it opens, not only right after the commit that held them.
+
+    An undecided import stays undecided while other imports happen, and the endpoint answers for
+    that import alone: its counts, its pending candidates and the file they came from.
+    """
+    await commit(client, profile_id, upload_bytes(SIX_FILE, mini_csv(SIX[:3])))
+    waiting = await commit(client, profile_id, upload_bytes(SIX_FILE, mini_csv(SIX[:3])))
+    later = await commit(client, profile_id, upload_bytes(EIGHT_FILE, mini_csv(SIX[3:])))
+
+    assert (waiting["imported_count"], waiting["duplicate_count"]) == (0, 3)
+    assert (later["imported_count"], later["duplicate_count"]) == (3, 0)
+    assert (await duplicates_of(client, profile_id, later["id"]))["pending"] == 0
+
+    found = await duplicates_of(client, profile_id, waiting["id"])
+    assert (found["found"], found["pending"], found["exact"]) == (3, 3, 3)
+    assert found["file_name"] == SIX_FILE
+    assert len(found["candidates"]) == 3
+
+    # Deciding from that list works the same as deciding right after the commit.
+    result = await decide(
+        client,
+        profile_id,
+        waiting["id"],
+        [{"ref": candidate["ref"], "decision": "remove"} for candidate in found["candidates"]],
+    )
+    assert (result["kept"], result["removed"], result["remaining"]) == (0, 3, 0)
+    record = await import_record(client, profile_id, waiting["id"])
+    assert (record["duplicates_kept"], record["duplicates_removed"]) == (0, 3)
+
+
+async def test_an_import_with_candidates_opens_a_conversation_that_asks_about_them(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """"Continue in chat" on the Import page, for an import that has no conversation of its own.
+
+    Nothing is stranded: the seeded turn holds the duplicate card, not the categorization one,
+    because a booking nobody has decided about is not in the data yet.
+    """
+    scripts.fast = script("Removed those three.")
+    await commit(client, profile_id, upload_bytes(SIX_FILE, mini_csv(SIX[:3])))
+    waiting = await commit(client, profile_id, upload_bytes(SIX_FILE, mini_csv(SIX[:3])))
+
+    opened = await client.post(
+        f"/api/imports/{waiting['id']}/review-conversation", json={"profile_id": profile_id}
+    )
+    assert opened.status_code == 201, opened.text
+    body = opened.json()
+    assert (body["questions"], body["pending_merchants"]) == (3, 0)
+
+    detail = (await client.get(f"/api/conversations/{body['conversation_id']}")).json()
+    assistant = detail["messages"][1]
+    assert [part["type"] for part in assistant["parts"]] == ["text", "tool-ask_user"]
+    assert "3 look like bookings you already have" in assistant["parts"][0]["text"]
+    card = assistant["parts"][1]["input"]
+    assert card["apply"] == {"kind": "duplicate_decision"}
+    assert [option["value"] for option in card["rows"][0]["options"]] == ["keep", "remove"]
+
+    # Answering it decides the candidates, the same as any other duplicate card.
+    answered = await answers_for(
+        client,
+        body["conversation_id"],
+        {"answers": [{"ref": row["ref"], "value": "remove", "text": None} for row in card["rows"]]},
+    )
+    assert answered.status_code == 200, answered.text
+    assert (await duplicates_of(client, profile_id, waiting["id"]))["pending"] == 0
+
+
+async def test_deleting_an_import_takes_its_bookings_candidates_and_decisions_with_it(
+    client: httpx.AsyncClient, scripts: Scripts, session_factory: sessionmaker[Session], profile_id: str
+) -> None:
+    """An import into the wrong profile has to be undoable, and undoing it leaves nothing behind.
+
+    The booking a Keep both decision inserted belongs to the second import and goes with it; the
+    booking it was a near match of came in with the first import and stays.
+    """
+    scripts.fast_call = scripted_categorizer()  # type: ignore[assignment]
+    first = await commit(client, profile_id, upload_bytes(SIX_FILE, mini_csv(SIX)))
+    second = await commit(client, profile_id, upload_bytes(SIX_FILE, mini_csv(shift_first(SIX, 1))))
+
+    found = await duplicates_of(client, profile_id, second["id"])
+    near = [candidate for candidate in found["candidates"] if candidate["kind"] == "near"]
+    assert len(near) == 1
+    kept = await decide(client, profile_id, second["id"], [{"ref": near[0]["ref"], "decision": "keep"}])
+    assert (kept["kept"], kept["removed"]) == (1, 0)
+    assert len(await rows_of(client, profile_id)) == len(SIX) + 1
+
+    deleted = await delete_import(client, profile_id, second["id"])
+    assert deleted == {"transactions": 1, "candidates": len(SIX)}
+
+    # The bookings of the first import are untouched, the kept one is gone with its import.
+    assert len(await rows_of(client, profile_id)) == len(SIX)
+    imports = (await client.get("/api/imports", params={"profile_id": profile_id})).json()
+    assert [record["id"] for record in imports] == [first["id"]]
+
+    gone = await client.get(f"/api/imports/{second['id']}/duplicates", params={"profile_id": profile_id})
+    assert gone.status_code == 404
+    # A candidate and the decision on it are one row: it goes too, rather than only stops showing.
+    with session_factory() as session:
+        assert session.scalars(select(DuplicateCandidate)).all() == []
+
+
+async def test_an_import_of_another_profile_cannot_be_deleted(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    other = (await client.post("/api/profiles", json={"name": "Haushalt"})).json()
+    record = await commit(client, profile_id, upload_bytes(SIX_FILE, mini_csv(SIX[:3])))
+
+    refused = await client.delete(f"/api/imports/{record['id']}", params={"profile_id": other["id"]})
+    assert refused.status_code == 404
+
+    assert len(await rows_of(client, profile_id)) == 3
+    assert (await import_record(client, profile_id, record["id"]))["id"] == record["id"]

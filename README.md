@@ -85,33 +85,38 @@ FINQUERY_PROVIDER=local FINQUERY_SMOKE=1 uv run pytest tests/test_local_smoke.py
 
 ## Data
 
-Import a bank CSV export on `/import`: drop the file, check the mapping, commit. Sparkasse, DKB,
-ING, N26, comdirect and Trade Republic are recognized by their headers; any other bank gets a
-mapping proposed by the fast slot and edited in the preview.
+Import a bank CSV export by dropping it on the chat composer and sending it: the assistant runs
+the import as a tool call, with the rows read, imported and categorized ticking past in the tool
+step. Sparkasse, DKB, ING, N26, comdirect and Trade Republic are recognized by their headers; any
+other bank gets a mapping proposed by the fast slot and confirmed on a Question card before
+anything is written. PDFs and photos are accepted and stored, but reading them lands in ticket 11.
+Typing "I paid 12 EUR cash for lunch today" or pasting a few statement lines gives a preview card
+to confirm, and confirming writes the booking and categorizes it.
 
 A commit never inserts a booking the profile may already have, and never drops one either.
 A row that matches an existing booking exactly (same account, date, amount and normalized
 description) or nearly (same amount, at most two days apart, a similar description) is held
-aside as a duplicate candidate, and the page asks about each one with Keep both or Remove.
-Keeping inserts the booking and categorizes it; removing leaves the data as it was. Re-importing
-the same statement is hundreds of exact matches, so that card offers to remove them all in one
-click. In a chat the same question arrives as a Question card, five candidates at a time.
+aside as a duplicate candidate, and a Question card asks about each one with Keep both or Remove,
+five candidates at a time. Keeping inserts the booking and categorizes it; removing leaves the
+data as it was. Re-importing the same statement is hundreds of exact matches, so that card offers
+to remove them all in one click.
 
 The commit is followed by categorization in stages: your own category rules, a dictionary
 of about sixty German merchants, then, if you switched web lookup on, a web lookup of the
 merchants nobody recognizes, and finally the categorizer sub-agent on the fast slot with a
 confidence per merchant. Every row gets a friendly title and a short description. What stays
-below the confidence threshold is Needs review, and the page hands those merchants to a new
-conversation that asks about them in Question cards. Each answer becomes a category rule and
-recategorizes every booking of that merchant, and telling the assistant "PayPal to Anna is
-always Dining" in chat does the same.
+below the confidence threshold is Needs review, and the assistant asks about those merchants in
+Question cards right there. Each answer becomes a category rule and recategorizes every booking
+of that merchant, and telling the assistant "PayPal to Anna is always Dining" in chat does the
+same.
 
-A CSV can also go straight into the chat: drop it on the composer, send it, and the assistant
-runs the same pipeline as a tool call, with the rows read, imported and categorized ticking past
-in the tool step and the uncertain merchants asked about right there. An unknown bank layout is
-confirmed on a Question card first. PDFs and photos are accepted and stored, but reading them
-lands in ticket 11. Typing "I paid 12 EUR cash for lunch today" or pasting a few statement lines
-gives a preview card to confirm, and confirming writes the booking and categorizes it.
+`/import` is the overview of what all of this produced, and imports nothing itself: per past
+import the file, its kind, the account, when it ran, how many rows were read and how many landed,
+how many duplicates it found and how many of them are still undecided, the reconciliation verdict
+and how many of its bookings are still Needs review. An import with something open carries a
+"Continue in chat" link into the conversation it came from, and every import has a Delete that
+takes its bookings, its candidates and the decisions on them with it, which is the way back from
+an import into the wrong profile.
 
 Then ask in the chat. The query sub-agent writes the SQL on the fast slot, a guard admits only a
 single read-only SELECT over your own transactions, and the tool step in the transcript shows the

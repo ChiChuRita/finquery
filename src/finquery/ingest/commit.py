@@ -22,7 +22,7 @@ def commit_rows(
 ) -> Import:
     """Insert the rows the profile does not have and hold the rest aside for a decision.
 
-    Every ingestion path lands here (the Import page, `import_file` in a chat, and the
+    Every ingestion path lands here (`import_file` in a chat, the REST commit the tests drive, and the
     extraction path of ticket 11), which is why duplicate detection lives at this seam: a row
     that matches a booking the profile already has, exactly or nearly, becomes a
     `duplicate_candidate` instead of a transaction. Nothing is inserted and nothing is dropped
