@@ -590,9 +590,19 @@ export const deleteMemory = (id: string) => request<void>(`/api/memories/${id}`,
 
 // Per-profile settings, and the log of everything that ever left the machine.
 
+/** Onboarding is shown to a profile that has not started it, and never again after that. */
+export type OnboardingState = 'not_started' | 'done' | 'skipped'
+
+/** What language the assistant answers in: the language of each message, or a fixed one. */
+export type AnswerLanguage = 'follow' | 'de' | 'en'
+
 export interface ProfileSettings {
   profile_id: string
   web_lookup_enabled: boolean
+  onboarding_state: OnboardingState
+  answer_language: AnswerLanguage
+  /** The slot a new conversation of this profile starts on. */
+  default_model_slot: ModelSlot
 }
 
 export interface OutboundEntry {
@@ -613,10 +623,34 @@ export const settingsQuery = (profileId: string | undefined) =>
     enabled: profileId !== undefined,
   })
 
-export const patchSettings = (profileId: string, patch: { web_lookup_enabled?: boolean }) =>
+export const patchSettings = (
+  profileId: string,
+  patch: {
+    web_lookup_enabled?: boolean
+    onboarding_state?: OnboardingState
+    answer_language?: AnswerLanguage
+    default_model_slot?: ModelSlot
+  },
+) =>
   request<ProfileSettings>('/api/settings', {
     method: 'PATCH',
     body: JSON.stringify({ profile_id: profileId, ...patch }),
+  })
+
+// Onboarding: the two conversations the server seeds for the flow. Neither calls a model.
+
+/** Imports the shipped synthetic year through the chat path and answers with its conversation. */
+export const loadSampleYear = (profileId: string) =>
+  request<{ conversation_id: string; imported: number; needs_review: number; duplicates: number }>(
+    '/api/onboarding/sample',
+    { method: 'POST', body: JSON.stringify({ profile_id: profileId }) },
+  )
+
+/** The chat Finish lands in: a welcome turn naming what the profile holds, with three questions. */
+export const openWelcome = (profileId: string) =>
+  request<{ conversation_id: string; title: string; suggestions: string[] }>('/api/onboarding/welcome', {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId }),
   })
 
 export const outboundLogQuery = (profileId: string | undefined) =>

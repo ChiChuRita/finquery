@@ -13,10 +13,17 @@ import { FeedbackPage } from '@/components/feedback-page'
 import { ImportPage } from '@/components/import-page'
 import { MemoryPage } from '@/components/memory-page'
 import { ModelsCard } from '@/components/models-card'
+import { clampStep, OnboardingCard, OnboardingPage } from '@/components/onboarding'
 import { TaxonomyCard } from '@/components/taxonomy-card'
 import { TransactionsPage } from '@/components/transactions-page'
 import { WebLookupCard } from '@/components/web-lookup-card'
-import { conversationQuery, conversationsQuery, createConversation, type ModelSlot } from '@/lib/api'
+import {
+  conversationQuery,
+  conversationsQuery,
+  createConversation,
+  settingsQuery,
+  type ModelSlot,
+} from '@/lib/api'
 import { stashPendingPrompt } from '@/lib/pending'
 import { useWorkspace, WorkspaceProvider } from '@/lib/workspace'
 
@@ -38,14 +45,23 @@ function NewChatPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { profile } = useWorkspace()
-  const [slot, setSlot] = useState<ModelSlot>('fast')
+  const { data: settings } = useQuery(settingsQuery(profile?.id))
+  const [slot, setSlot] = useState<ModelSlot>()
   const [creating, setCreating] = useState(false)
+  // Until the user picks one for this chat, a new conversation starts on the profile's default.
+  const chosen = slot ?? settings?.default_model_slot ?? 'fast'
+
+  // A profile that has never seen the setup opens it instead of an empty chat, once.
+  const pending = settings?.onboarding_state === 'not_started'
+  useEffect(() => {
+    if (pending) void navigate({ to: '/onboarding', search: { step: 1 }, replace: true })
+  }, [navigate, pending])
 
   const start = async (text: string, files: FileUIPart[] = []) => {
     if (creating || !profile) return
     setCreating(true)
     try {
-      const conversation = await createConversation(profile.id, slot)
+      const conversation = await createConversation(profile.id, chosen)
       stashPendingPrompt(conversation.id, { text: text || undefined, files })
       void queryClient.invalidateQueries(conversationsQuery(profile.id))
       await navigate({ to: '/c/$conversationId', params: { conversationId: conversation.id } })
@@ -59,7 +75,13 @@ function NewChatPage() {
       <div className="flex flex-1 flex-col items-center justify-center px-6">
         <div className="w-full max-w-3xl">
           <EmptyState onPick={(text) => void start(text)} />
-          <Composer autoFocus onSlotChange={setSlot} onSubmit={start} slot={slot} status={creating ? 'submitted' : 'ready'} />
+          <Composer
+            autoFocus
+            onSlotChange={setSlot}
+            onSubmit={start}
+            slot={chosen}
+            status={creating ? 'submitted' : 'ready'}
+          />
         </div>
       </div>
       <p className="pb-5 text-center text-[11px] text-muted-foreground">
@@ -126,6 +148,7 @@ function SettingsPage() {
         <h1 className="font-heading font-semibold text-2xl tracking-tight">Settings</h1>
         <p className="mt-1 text-muted-foreground text-sm">How FinQuery runs on this machine.</p>
         <div className="mt-6 space-y-6">
+          <OnboardingCard />
           <TaxonomyCard />
           <ModelsCard />
           <WebLookupCard />
@@ -137,6 +160,17 @@ function SettingsPage() {
 
 const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', component: SettingsPage })
 
+// The step is a search parameter, so a reload resumes where the user was.
+const onboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/onboarding',
+  validateSearch: (search: Record<string, unknown>) => ({ step: clampStep(search.step) }),
+  component: function OnboardingRoute() {
+    const { step } = onboardingRoute.useSearch()
+    return <OnboardingPage step={step} />
+  },
+})
+
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     indexRoute,
@@ -146,6 +180,7 @@ export const router = createRouter({
     memoryRoute,
     feedbackRoute,
     settingsRoute,
+    onboardingRoute,
   ]),
 })
 
