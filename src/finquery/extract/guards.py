@@ -67,7 +67,7 @@ def money(text: str) -> int:
     transaction reads it (`ingest.typed.to_cents`): a statement that writes `1,234.56` must not
     become 123456 euros.
     """
-    cleaned = unicodedata.normalize("NFKC", text).replace("−", "-").replace("−", "-")
+    cleaned = unicodedata.normalize("NFKC", text).replace("−", "-")
     separator = "comma" if cleaned.rfind(",") > cleaned.rfind(".") else "dot"
     return parse_amount(cleaned, separator)
 
@@ -103,6 +103,8 @@ def parse_statement_date(text: str, *, year: int | None = None) -> date:
 
 def occurs(span: str, text: str) -> bool:
     """Whether a figure the model reported was really printed in the source text."""
+    # The currency sign and the non-breaking space in front of it are typesetting, not the
+    # figure: a page prints "79,90 €" and a model may quote either.
     needle = span.strip().strip("€$ \t ")
     return bool(needle) and needle in text
 
@@ -345,9 +347,20 @@ def reconcile(
     difference = opening + booked - closing
     whole = f"{_euro(opening)} + {_euro(booked)} = {_euro(closing)}"
     if difference == 0 and not pages_failed:
+        # The sums closing does not mean every row is sound: a misread balance breaks the chain
+        # twice and cancels out, so the line has to name what is still flagged.
+        still = (
+            f" {flagged} booking(s) still need a decision, because the running balance "
+            "disagrees with them."
+            if flagged
+            else ""
+        )
         return Reconciliation(
             status="ok",
-            line=f"Reconciled: opening balance plus {len(rows)} bookings equals the closing balance ({whole}).",
+            line=(
+                f"Reconciled: opening balance plus {len(rows)} bookings equals the closing "
+                f"balance ({whole}).{still}"
+            ),
             opening_cents=opening,
             closing_cents=closing,
             booked_cents=booked,

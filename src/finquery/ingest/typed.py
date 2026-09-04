@@ -169,10 +169,15 @@ def preview_card(drafts: list[TransactionDraft]) -> AskUser:
             AskRow(
                 ref=draft.ref,
                 label=draft.description,
-                # The counterparty is dropped when it says nothing the account does not: a cash
-                # lunch would otherwise read "Cash - Cash".
+                # The counterparty is dropped when it says nothing the label and the account do
+                # not: a cash lunch would otherwise read "Cash - Cash", and a receipt whose
+                # description is the shop would read "EDEKA Sander / EDEKA Sander - Cash".
                 description=" · ".join(
-                    dict.fromkeys(part for part in (draft.counterparty, draft.account_name) if part)
+                    dict.fromkeys(
+                        part
+                        for part in (draft.counterparty, draft.account_name)
+                        if part and part != draft.description
+                    )
                 ),
                 amount_cents=draft.amount_cents,
                 date=draft.booked_on.isoformat(),

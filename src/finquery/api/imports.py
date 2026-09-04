@@ -315,9 +315,13 @@ async def extract_upload(request: Request, file: UploadFile = File(...)) -> Extr
     except PdfUnreadable as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if not extraction.rows:
+        # A page that failed says why (a local run out of context, a transport error): that is a
+        # different problem from a file that is not a statement, and the user has to be told which.
         raise HTTPException(
             status_code=422,
-            detail=extraction.note or "No booking could be read out of this file. It may not be a bank statement.",
+            detail=extraction.note
+            or (extraction.errors[0] if extraction.errors else None)
+            or "No booking could be read out of this file. It may not be a bank statement.",
         )
     return _extraction_out(extraction)
 

@@ -61,7 +61,9 @@ function committed(row: ExtractedRow, decision: Decision | undefined): CommitRow
 }
 
 function Verdict({ extraction }: { extraction: Extraction }) {
-  const ok = extraction.reconciliation.status === 'ok'
+  // The sums closing is not enough to look settled: a misread balance breaks the running chain
+  // twice and cancels itself out, and those rows still need a decision.
+  const ok = extraction.reconciliation.status === 'ok' && extraction.flagged === 0
   return (
     <div
       className={cn(
