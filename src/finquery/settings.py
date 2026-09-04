@@ -17,6 +17,14 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
 
+    context_budget: int = 32768
+    """Tokens one turn may fill, summary and recent turns together.
+
+    A cap, not a raise: the OpenRouter models hold 262k, which no personal-finance conversation
+    reaches, so the budget is capped here to keep prompts small and compression demonstrable.
+    On the local provider `local_n_ctx` caps it further. Compression starts at 60 percent of
+    this. See finquery.context."""
+
     # Local provider (FINQUERY_PROVIDER=local).
     models_dir: Path = Path("models")
     parked_models_dir: Path | None = None

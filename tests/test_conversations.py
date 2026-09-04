@@ -1,9 +1,13 @@
 import asyncio
+import sqlite3
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import httpx
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart
+
+from finquery.app import create_app
 
 from .conftest import (
     Chat,
@@ -11,6 +15,7 @@ from .conftest import (
     chat_body,
     default_profile_id,
     is_followup_request,
+    make_settings,
     new_conversation,
     parse_sse,
     script,
@@ -171,3 +176,28 @@ async def test_the_conversation_continues_after_an_interruption(client: httpx.As
     assert detail["messages"][1]["metadata"]["interrupted"] is True
     assert detail["messages"][3]["metadata"].get("interrupted") is None
     assert detail["interrupted"] is False
+
+
+async def test_a_database_from_before_the_rolling_summary_keeps_its_conversations(tmp_path: Path) -> None:
+    """Columns added to a shipped table are migrated in, so nobody's chats are lost on upgrade."""
+    db = tmp_path / "finquery.db"
+
+    async def conversations(title: str | None = None) -> list[dict[str, object]]:
+        app = create_app(make_settings(db_path=db), resolve_model=lambda _slot: None, serve_frontend=False)  # type: ignore[arg-type,return-value]
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+                profile_id = await default_profile_id(client)
+                if title is not None:
+                    conversation_id = await new_conversation(client, profile_id)
+                    await client.patch(f"/api/conversations/{conversation_id}", json={"title": title})
+                return list((await client.get(f"/api/conversations?profile_id={profile_id}")).json())
+
+    await conversations("Groceries in May")
+    # Make the file look like one written before ticket 12 added the rolling summary.
+    with sqlite3.connect(db) as connection:
+        connection.execute("ALTER TABLE conversation DROP COLUMN summary")
+        connection.execute("ALTER TABLE conversation DROP COLUMN summary_through")
+
+    rows = await conversations()
+
+    assert [row["title"] for row in rows] == ["Groceries in May"]

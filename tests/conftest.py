@@ -12,6 +12,7 @@ from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart, FunctionMo
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.app import create_app
+from finquery.context import SUMMARY_MARKER
 from finquery.followups import FOLLOWUP_MARKER
 from finquery.memory import DISTILL_MARKER, DISTILL_TOOL, MemoryKind
 from finquery.settings import Settings
@@ -86,6 +87,11 @@ def is_distillation_request(messages: Sequence[ModelMessage]) -> bool:
     return _asks_for(messages, DISTILL_MARKER)
 
 
+def is_summary_request(messages: Sequence[ModelMessage]) -> bool:
+    """True for the compression step that asks the fast slot for the rolling summary."""
+    return _asks_for(messages, SUMMARY_MARKER)
+
+
 def distilled(*facts: str, kind: MemoryKind = "fact") -> ToolCallPart:
     """The distillation pass's forced tool call: these facts are durable, none by default."""
     return ToolCallPart(tool_name=DISTILL_TOOL, args={"facts": [{"text": text, "kind": kind} for text in facts]})
@@ -94,10 +100,11 @@ def distilled(*facts: str, kind: MemoryKind = "fact") -> ToolCallPart:
 def script(
     answer: str, *, thought: str | None = None, followups: Sequence[str] = (), memories: Sequence[str] = ()
 ) -> StreamFn:
-    """A model that thinks, answers, and serves both post-turn steps of the turn.
+    """A model that thinks, answers, and serves every fast-slot step of the turn.
 
     `followups` are the suggestions it offers, `memories` what its distillation pass finds
-    worth remembering.
+    worth remembering. It says nothing about compression: a test whose conversation crosses the
+    budget scripts `is_summary_request` itself (see `test_context.py`).
     """
 
     async def fn(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
@@ -115,7 +122,8 @@ def script(
 
 
 def make_settings(**overrides: object) -> Settings:
-    return Settings(_env_file=None, db_path=":memory:", **overrides)  # type: ignore[call-arg]
+    """The app's settings for a test. In-memory database unless the test asks for a file."""
+    return Settings(_env_file=None, **{"db_path": ":memory:", **overrides})  # type: ignore[call-arg]
 
 
 @pytest.fixture
@@ -124,8 +132,14 @@ def scripts() -> Scripts:
 
 
 @pytest.fixture
-def app(scripts: Scripts) -> FastAPI:
-    return create_app(make_settings(), resolve_model=scripts.resolve, serve_frontend=False)
+def settings_overrides() -> dict[str, object]:
+    """Settings a test module changes for its whole app, such as a small context budget."""
+    return {}
+
+
+@pytest.fixture
+def app(scripts: Scripts, settings_overrides: dict[str, object]) -> FastAPI:
+    return create_app(make_settings(**settings_overrides), resolve_model=scripts.resolve, serve_frontend=False)
 
 
 @pytest.fixture

@@ -43,11 +43,12 @@ class Recorder:
         return self.instructions[-1]
 
 
-def context(chunks: list[dict[str, object]]) -> dict[str, object]:
-    """The turn's `data-context` part: how much of the context it used."""
+def memories_in_prompt(chunks: list[dict[str, object]]) -> object:
+    """What the turn's one `data-context` part says it carried, which is what the chip shows."""
     parts = [c["data"] for c in chunks if c["type"] == "data-context"]
     assert len(parts) == 1, f"expected one data-context part, got {len(parts)}"
-    return parts[0]  # type: ignore[return-value]
+    assert isinstance(parts[0], dict)
+    return parts[0]["memories"]
 
 
 def answer_of(chunks: list[dict[str, object]]) -> str:
@@ -81,7 +82,7 @@ async def test_a_distilled_fact_reaches_a_new_conversation_and_stays_in_its_prof
     scripts.fast = asking
     _, chunks = await chat(await new_conversation(client, profile_id), "What is that PayPal payment to Anna?")
     assert f"- [fact] {fact}" in asking.prompt
-    assert context(chunks) == {"memories_used": 1}
+    assert memories_in_prompt(chunks) == 1
 
     # Another profile does not: memory is inside the isolation boundary.
     other = (await client.post("/api/profiles", json={"name": "Household"})).json()["id"]
@@ -109,7 +110,7 @@ async def test_a_deleted_memory_is_not_sent_to_the_model_again(
     scripts.fast = forgetful
     _, chunks = await chat(await new_conversation(client, profile_id), "Where do I buy groceries?")
     assert "Rewe" not in forgetful.prompt
-    assert context(chunks) == {"memories_used": 0}
+    assert memories_in_prompt(chunks) == 0
 
 
 async def test_at_most_five_memories_travel_with_a_turn(
@@ -126,7 +127,7 @@ async def test_at_most_five_memories_travel_with_a_turn(
     _, chunks = await chat(await new_conversation(client, profile_id), "Which merchants are supermarkets?")
 
     assert asking.prompt.count("\n- [") == 5
-    assert context(chunks) == {"memories_used": 5}
+    assert memories_in_prompt(chunks) == 5
 
 
 async def test_the_remember_tool_stores_an_explicit_memory_and_the_answer_confirms_it(

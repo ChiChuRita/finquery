@@ -16,11 +16,23 @@ export interface ChatMetadata {
   model_slot?: ModelSlot
 }
 
+/** What the context badge shows, emitted once per turn and stored on its assistant message. */
+export interface ContextStats {
+  /** Tokens the prompt and the answer of this turn took, so the badge can climb. */
+  used: number
+  budget: number
+  slot: ModelSlot
+  /** Memories selected into the prompt (at most five). */
+  memories: number
+  /** Turns the rolling summary stands in for. */
+  summarized_turns: number
+}
+
 /** Custom data parts the agent emits. The keys become `data-*` part types. */
 export type ChatDataParts = {
   followups: { suggestions: string[] }
-  /** What the turn used of the model's context. Ticket 12 adds the token counts here. */
-  context: { memories_used: number }
+  /** What the turn used of the model's context: tokens, budget, memories, summary. */
+  context: ContextStats
 }
 
 // The `query` tool: the request the sub-agent received, the SQL that ran and its rows.
@@ -65,6 +77,11 @@ export interface Conversation {
 export interface ConversationDetail extends Conversation {
   messages: ChatMessage[]
   interrupted: boolean
+  /** The rolling summary of the turns before the divider, editable in the transcript. */
+  summary: string | null
+  summarized_turns: number
+  /** How many of `messages` the summary replaces, which is where the divider goes. */
+  summarized_messages: number
 }
 
 // The API refuses a write with a readable `detail`; FastAPI's own body validation answers with
@@ -116,7 +133,7 @@ export const conversationQuery = (id: string) =>
 export const createConversation = (profile_id: string, model_slot: ModelSlot) =>
   request<Conversation>('/api/conversations', { method: 'POST', body: JSON.stringify({ profile_id, model_slot }) })
 
-export const patchConversation = (id: string, patch: { title?: string; model_slot?: ModelSlot }) =>
+export const patchConversation = (id: string, patch: { title?: string; model_slot?: ModelSlot; summary?: string }) =>
   request<Conversation>(`/api/conversations/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
 
 export const deleteConversation = (id: string) => request<void>(`/api/conversations/${id}`, { method: 'DELETE' })

@@ -9,6 +9,7 @@ from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from finquery.api.profiles import get_profile_or_404
+from finquery.context import clean_summary
 from finquery.db import Conversation
 from finquery.providers import ModelSlot
 
@@ -29,6 +30,12 @@ class ConversationOut(BaseModel):
 class ConversationDetail(ConversationOut):
     messages: list[dict[str, Any]]
     interrupted: bool
+    summary: str | None
+    """The rolling summary standing in for the turns before the divider."""
+    summarized_turns: int
+    summarized_messages: int
+    """How many messages of `messages` the summary replaces, so the transcript knows where the
+    divider goes. Zero means nothing has been compressed yet."""
 
 
 class ConversationCreate(BaseModel):
@@ -39,6 +46,18 @@ class ConversationCreate(BaseModel):
 class ConversationPatch(BaseModel):
     title: str | None = None
     model_slot: ModelSlot | None = None
+    summary: str | None = None
+    """An edited rolling summary. The next turn sends this text instead of the older turns."""
+
+    @field_validator("summary")
+    @classmethod
+    def _summary_not_empty(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        summary = clean_summary(value)
+        if summary is None:
+            raise ValueError("A summary cannot be empty")
+        return summary
 
     @field_validator("title")
     @classmethod
@@ -64,10 +83,24 @@ def _out(conversation: Conversation) -> ConversationOut:
 
 def _detail(conversation: Conversation) -> ConversationDetail:
     messages: list[dict[str, Any]] = []
+    summarized_turns = 0
+    summarized_messages = 0
     for turn in conversation.turns:
-        messages.extend(json.loads(turn.ui_messages_json))
+        turn_messages = json.loads(turn.ui_messages_json)
+        messages.extend(turn_messages)
+        # Compressed turns stay in the transcript; only the prompt drops them.
+        if turn.position <= conversation.summary_through:
+            summarized_turns += 1
+            summarized_messages += len(turn_messages)
     interrupted = bool(conversation.turns) and conversation.turns[-1].interrupted
-    return ConversationDetail(**_out(conversation).model_dump(), messages=messages, interrupted=interrupted)
+    return ConversationDetail(
+        **_out(conversation).model_dump(),
+        messages=messages,
+        interrupted=interrupted,
+        summary=conversation.summary,
+        summarized_turns=summarized_turns,
+        summarized_messages=summarized_messages,
+    )
 
 
 def get_conversation_or_404(session: Session, conversation_id: str) -> Conversation:
@@ -115,6 +148,8 @@ async def patch_conversation(request: Request, conversation_id: str, body: Conve
             conversation.title = body.title
         if body.model_slot is not None:
             conversation.model_slot = body.model_slot
+        if body.summary is not None:
+            conversation.summary = body.summary
         session.commit()
         return _out(conversation)
 

@@ -62,7 +62,7 @@ async def test_stream_order_reasoning_text_finish(client: httpx.AsyncClient, scr
         "text-start",
         "text-delta",
         "text-end",
-        # What the turn was given of the model's context, for the badge.
+        # The context badge's stats: tokens, budget and the memories the turn was given.
         "data-context",
         "finish-step",
         "finish",
