@@ -198,6 +198,18 @@ export interface ChartToolOutput {
   notes: string[]
   summary: string
   error: string | null
+  /** Whether a chart really reached the screen. False means the answer gives the figures. */
+  rendered: boolean
+  /** What the sandboxed frame said when it refused to draw this definition, if it did. */
+  render_error?: string | null
+  /** True on a chart a server-side retry drew, which is what stops a second retry. */
+  retried?: boolean
+}
+
+/** What the server did with a chart the browser could not draw: recorded it, and redrew once. */
+export interface ChartRetry {
+  retried: boolean
+  chart: ChartToolOutput
 }
 
 // The changeset tools: `propose_changeset` hands back an inert proposal the user applies or
@@ -1052,6 +1064,24 @@ export const chartAlternative = (profileId: string, turn_id: string, tool_call_i
   request<ChartToolOutput>('/api/preferences/chart-alternative', {
     method: 'POST',
     body: JSON.stringify({ profile_id: profileId, turn_id, tool_call_id }),
+  })
+
+/**
+ * Tell the server a chart failed in the sandboxed frame.
+ *
+ * It records the failure on the turn (so a reload shows the failed card and nothing can claim
+ * a drawing that was never there) and draws the same request once more. `retried` says whether
+ * the card should swap its content for the one that came back.
+ */
+export const chartRenderFailure = (
+  profileId: string,
+  turn_id: string,
+  tool_call_id: string,
+  message: string,
+) =>
+  request<ChartRetry>('/api/charts/render-failure', {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId, turn_id, tool_call_id, message }),
   })
 
 /** Answer the same message a second time, hotter, with only the read-only query tool. */

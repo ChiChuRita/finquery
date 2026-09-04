@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 
 from finquery import attachments
 from finquery.ask_user import MAPPING_CONFIRMATION, AskApply, AskOption, AskUser
-from finquery.categorize import QUESTIONS_PER_CARD, categorize_import, pending_questions
+from finquery.categorize import QUESTIONS_PER_CARD, categorize_import, pending_questions, review_card
 from finquery.db import Attachment, Import
 from finquery.ingest import duplicates
 from finquery.ingest.commit import commit_rows, import_summary
@@ -363,9 +363,10 @@ async def _import_csv(
             "near_duplicates": held.near,
             "duplicate_card": review["card"] if review else None,
             # The same shape `review_batch` returns, so the assistant asks about them the way it
-            # asks in a review conversation.
+            # asks in a review conversation: one ready card, written here.
             "pending_merchants": merchants_pending,
             "questions": [question.payload() for question in questions],
+            "card": review_card(questions, merchants_pending).model_dump(mode="json") if questions else None,
         }
     )
     if review:

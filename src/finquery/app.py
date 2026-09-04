@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from finquery.api import (
     attachments,
     changesets,
+    charts,
     chat,
     conversations,
     imports,
@@ -111,6 +112,7 @@ def create_app(
     app.include_router(taxonomy.router, prefix="/api")
     app.include_router(changesets.router, prefix="/api")
     app.include_router(preferences.router, prefix="/api")
+    app.include_router(charts.router, prefix="/api")
     app.include_router(models_api.router, prefix="/api")
     app.include_router(settings_api.router, prefix="/api")
 

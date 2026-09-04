@@ -201,13 +201,19 @@ export function PickerCell({
   value,
   choices,
   placeholder,
+  clearLabel,
   label,
   clearable = true,
   onSave,
 }: {
   value: string | null
   choices: Choice[]
+  /** What the cell shows when nothing is chosen. An absence reads as a dash, like every other
+   * empty cell of this table; "None" next to real names read as a subcategory of that name
+   * (review of 2026-09-04). */
   placeholder: string
+  /** What the item that clears the cell says, when the placeholder is not a sentence. */
+  clearLabel?: string
   label: string
   clearable?: boolean
   onSave: Save<string | null>
@@ -236,12 +242,19 @@ export function PickerCell({
           className="h-7! w-full min-w-0 rounded-md border-transparent px-1.5 font-normal shadow-none hover:bg-accent dark:bg-transparent dark:hover:bg-accent"
           size="sm"
         >
-          <SelectValue placeholder={placeholder} />
+          {/* An empty cell shows the placeholder, not the label of the item that clears it:
+              a `Select` whose value is the clear item would otherwise print that item's words
+              ("None") as if they were a real subcategory. */}
+          {value === null ? (
+            <span className="truncate text-muted-foreground">{placeholder}</span>
+          ) : (
+            <SelectValue placeholder={placeholder} />
+          )}
         </SelectTrigger>
         <SelectContent className="max-h-72">
           {clearable && (
             <>
-              <SelectItem value={NONE}>{placeholder}</SelectItem>
+              <SelectItem value={NONE}>{clearLabel ?? placeholder}</SelectItem>
               <SelectSeparator />
             </>
           )}

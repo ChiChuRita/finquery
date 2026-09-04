@@ -14,7 +14,16 @@ from pydantic_ai.models.function import AgentInfo, DeltaToolCall
 
 from finquery.chart.subagent import EXAMPLES
 
-from .conftest import Chat, Scripts, distilled, is_distillation_request, is_followup_request, new_conversation
+from .conftest import (
+    Chat,
+    Scripts,
+    distilled,
+    is_distillation_request,
+    is_followup_request,
+    new_conversation,
+    tool_call_of,
+    turn_of,
+)
 from .test_query import import_synthetic
 
 MONTHLY_SQL = (
@@ -462,3 +471,257 @@ async def test_an_empty_profile_gets_no_chart_and_calls_no_sub_agent(
     assert output["sql"] is None
     assert "no transactions yet" in output["error"]
     assert not any(character.isdigit() for character in answer(chunks))
+
+
+# --------------------------------------------------------------------------- rows that cannot be drawn
+
+STACKED_PLAN = {
+    "shape": "bar_stacked",
+    "title": "Ausgaben pro Monat und Kategorie",
+    "question": "spending per month and category in 2025",
+    "columns": ["month", "topic", "total_eur"],
+    "reason": "Stacked bars carry both dimensions.",
+}
+
+# Two rows for the same month and topic, which is what a UNION of real and guessed categories
+# produced in the review of 2026-09-04 and what made TanStack throw "A stack requires at most
+# one value for each position and series".
+DUPLICATE_PAIRS_SQL = (
+    "SELECT strftime('%Y-%m', booked_on) AS month, 'Groceries' AS topic, "
+    "ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 GROUP BY 1 "
+    "UNION ALL "
+    "SELECT strftime('%Y-%m', booked_on) AS month, 'Groceries' AS topic, "
+    "ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 GROUP BY 1"
+)
+
+SANKEY_PLAN = {
+    "shape": "sankey",
+    "title": "Geldfluss 2025",
+    "question": "the flow from income into the spending groups in 2025",
+    "columns": ["source", "target", "amount_eur"],
+    "reason": "A flow reads as a sankey.",
+}
+
+# Einkommen -> Wohnen and Wohnen -> Einkommen: the layout reports that as "circular link".
+CIRCULAR_SANKEY_SQL = (
+    "SELECT 'Einkommen' AS source, 'Wohnen' AS target, ROUND(-SUM(amount), 2) AS amount_eur "
+    "FROM transaction_view WHERE amount_cents < 0 "
+    "UNION ALL "
+    "SELECT 'Wohnen' AS source, 'Einkommen' AS target, ROUND(SUM(amount), 2) AS amount_eur "
+    "FROM transaction_view WHERE amount_cents > 0"
+)
+
+
+async def test_duplicate_pairs_stop_a_stacked_chart_before_any_code_is_written(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """A stack needs one figure per position and series, and no repair round can fold two rows."""
+    await import_synthetic(client, profile_id)
+    respond = scripted_chart(plan=STACKED_PLAN, sql=DUPLICATE_PAIRS_SQL, codes=[BAR_CODE])
+    scripts.fast = ask_chart_then_report("spending per month and category in 2025 as stacked bars")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Gestapelte Balken pro Monat und Kategorie bitte.")
+
+    output = chart_output(chunks)
+    assert output["code"] is None
+    assert output["rendered"] is False
+    assert "12 pairs of month and topic more than once" in output["error"]
+    assert "2025-01 / Groceries" in output["error"]
+    # No code pass at all: the rows decided it.
+    assert respond.prompts["code"] == []  # type: ignore[attr-defined]
+    # The rows are still on the card, so the answer can quote them.
+    assert output["row_count"] == 24
+    assert answer(chunks).startswith("I could not draw that:")
+    assert "12 pairs of month and topic more than once" in narration(chunks)
+
+
+async def test_a_circular_flow_stops_a_sankey_before_any_code_is_written(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    await import_synthetic(client, profile_id)
+    respond = scripted_chart(plan=SANKEY_PLAN, sql=CIRCULAR_SANKEY_SQL, codes=[EXAMPLES["sankey"].split("\n", 1)[1]])
+    scripts.fast = ask_chart_then_report("the money flow in 2025 as a sankey")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Zeig den Geldfluss 2025 als Sankey.")
+
+    output = chart_output(chunks)
+    assert output["code"] is None
+    assert output["rendered"] is False
+    assert "circular flow (Einkommen -> Wohnen -> Einkommen)" in output["error"]
+    assert respond.prompts["code"] == []  # type: ignore[attr-defined]
+    assert answer(chunks).startswith("I could not draw that:")
+
+
+async def test_a_drawn_chart_says_it_is_rendered_and_tells_the_model_to_write_text(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    await import_synthetic(client, profile_id)
+    respond = scripted_chart(plan=LINE_PLAN, sql=MONTHLY_SQL, codes=[LINE_CODE])
+    scripts.fast = ask_chart_then_report("spending per month in 2025 as a line chart")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Zeig mir die Ausgaben pro Monat als Diagramm.")
+
+    output = chart_output(chunks)
+    assert output["rendered"] is True
+    # The tool result is the last thing the model reads before it answers, so the instruction
+    # that a chart turn ends with text is on it.
+    assert "Write your answer as text now" in output["summary"]
+
+
+async def test_a_doughnut_whose_rest_slice_holds_the_majority_says_so_in_its_title(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """A "Rest" slice with most of the money carries no information, so the caption admits it."""
+    await import_synthetic(client, profile_id)
+    sql = (
+        "SELECT 'Rest' AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view "
+        "WHERE amount_cents < 0 AND amount_cents < -5000 "
+        "UNION ALL "
+        "SELECT 'Kleinkram' AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view "
+        "WHERE amount_cents < 0 AND amount_cents >= -5000"
+    )
+    respond = scripted_chart(plan=DOUGHNUT_PLAN, sql=sql, codes=[DOUGHNUT_CODE])
+    scripts.fast = ask_chart_then_report("the largest merchants in 2025 as a doughnut")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Zeig die groessten Haendler als Donut.")
+
+    output = chart_output(chunks)
+    assert output["error"] is None
+    assert output["title"].startswith("Anteil der Haendler (")
+    assert output["title"].endswith("% in the rest slice)")
+    assert "One slice holds 71 % of the total" in narration(chunks)
+
+
+# --------------------------------------------------------------------------- the browser refuses one
+
+async def test_a_chart_the_browser_could_not_draw_is_recorded_and_drawn_once_more(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The frame's error reaches the turn, and one retry replaces the card when it renders.
+
+    The self-check judges intent against a stub, so a real layout can still throw. What must
+    never happen is the transcript keeping a chart that was never on screen.
+    """
+    await import_synthetic(client, profile_id)
+    scripts.fast = ask_chart_then_report("spending per month in 2025 as a line chart")
+    scripts.fast_call = scripted_chart(plan=LINE_PLAN, sql=MONTHLY_SQL, codes=[LINE_CODE])  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+    _, chunks = await chat(conversation_id, "Zeig mir die Ausgaben pro Monat als Diagramm.")
+    turn_id, chart_call = turn_of(chunks), tool_call_of(chunks, "chart")
+    assert chart_output(chunks)["rendered"] is True
+
+    # The card reports what the frame said, and the server draws the same request again.
+    redrawn = LINE_CODE.replace("strokeWidth: 2.25", "strokeWidth: 3")
+    second = scripted_chart(plan=LINE_PLAN, sql=MONTHLY_SQL, codes=[redrawn])
+    scripts.fast_call = second  # type: ignore[assignment]
+    response = await client.post(
+        "/api/charts/render-failure",
+        json={
+            "profile_id": profile_id,
+            "turn_id": turn_id,
+            "tool_call_id": chart_call,
+            "message": "TypeError: A stack requires at most one value for each position and series",
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["retried"] is True
+    assert body["chart"]["code"] == redrawn
+    assert body["chart"]["rendered"] is True
+
+    # The turn now carries the chart that really drew, in both message families.
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    part = next(p for p in detail["messages"][-1]["parts"] if p["type"] == "tool-chart")
+    assert part["output"]["code"] == redrawn
+    assert len(detail["messages"]) == 2, "a retry adds no turn to the transcript"
+
+    # And that is the one retry this chart gets: what a retry drew is not retried again.
+    def never(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        raise AssertionError("one retry per chart, whether or not the first one drew")
+
+    scripts.fast_call = never  # type: ignore[assignment]
+    again = (
+        await client.post(
+            "/api/charts/render-failure",
+            json={
+                "profile_id": profile_id,
+                "turn_id": turn_id,
+                "tool_call_id": chart_call,
+                "message": "Error: circular link",
+            },
+        )
+    ).json()
+    assert again["retried"] is False
+    assert again["chart"]["rendered"] is False
+
+
+async def test_a_second_failure_is_recorded_without_a_second_retry(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """One automatic retry, ever. A retry that fails too leaves an honest failed card."""
+    await import_synthetic(client, profile_id)
+    scripts.fast = ask_chart_then_report("spending per month in 2025 as a line chart")
+    scripts.fast_call = scripted_chart(plan=LINE_PLAN, sql=MONTHLY_SQL, codes=[LINE_CODE])  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+    _, chunks = await chat(conversation_id, "Zeig mir die Ausgaben pro Monat als Diagramm.")
+    turn_id, chart_call = turn_of(chunks), tool_call_of(chunks, "chart")
+
+    body = {
+        "profile_id": profile_id,
+        "turn_id": turn_id,
+        "tool_call_id": chart_call,
+        "message": "Error: circular link",
+    }
+    # The retry writes code that does not compile, so it fails the self-check three times.
+    failing = scripted_chart(plan=LINE_PLAN, sql=MONTHLY_SQL, codes=["return defineChart({ marks: [ }"])
+    scripts.fast_call = failing  # type: ignore[assignment]
+    first = (await client.post("/api/charts/render-failure", json=body)).json()
+    assert first["retried"] is False
+    assert first["chart"]["code"] is None
+    assert first["chart"]["rendered"] is False
+    assert "circular link" in first["chart"]["error"]
+    assert first["chart"]["rows"], "the rows stay on the card so the answer can quote them"
+
+    def never(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        raise AssertionError("a chart is retried once, not once per report")
+
+    scripts.fast_call = never  # type: ignore[assignment]
+    again = (await client.post("/api/charts/render-failure", json=body)).json()
+    assert again["retried"] is False
+    assert again["chart"]["rendered"] is False
+
+    # The stored turn says so too, so a reload shows the failure and never the drawing.
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    part = next(p for p in detail["messages"][-1]["parts"] if p["type"] == "tool-chart")
+    assert part["output"]["code"] is None
+    assert part["output"]["rendered"] is False
+
+
+async def test_another_profile_cannot_report_a_render_failure(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    await import_synthetic(client, profile_id)
+    other = (await client.post("/api/profiles", json={"name": "Haushalt"})).json()
+    scripts.fast = ask_chart_then_report("spending per month in 2025 as a line chart")
+    scripts.fast_call = scripted_chart(plan=LINE_PLAN, sql=MONTHLY_SQL, codes=[LINE_CODE])  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+    _, chunks = await chat(conversation_id, "Zeig mir die Ausgaben pro Monat als Diagramm.")
+
+    refused = await client.post(
+        "/api/charts/render-failure",
+        json={
+            "profile_id": other["id"],
+            "turn_id": turn_of(chunks),
+            "tool_call_id": tool_call_of(chunks, "chart"),
+            "message": "Error: circular link",
+        },
+    )
+    assert refused.status_code == 404, refused.text

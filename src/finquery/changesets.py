@@ -53,6 +53,7 @@ from finquery.edits import (
     resolve_names,
     resolve_taxonomy,
 )
+from finquery.nullish import nullish_before
 
 ChangesetKind = Literal["recategorize", "split", "edit", "delete", "taxonomy"]
 TaxonomyOperation = Literal["add", "rename", "merge", "delete"]
@@ -137,6 +138,10 @@ class ChangesetIntent(BaseModel):
     booked_on: date | None = Field(default=None, description="For edit: the new booking date.")
     legs: list[SplitLeg] = Field(default_factory=list, description="For split: the parts, which must sum to the booking.")
     taxonomy: TaxonomyChange | None = Field(default=None, description="For taxonomy: the change to the categories.")
+
+    # A model that writes "None" for a subcategory it does not want would have every row of the
+    # preview carry that word as its subcategory (review of 2026-09-04).
+    _nulls = nullish_before("category", "subcategory", "description", "amount_cents", "booked_on")
 
 
 # --------------------------------------------------------------------------- payload

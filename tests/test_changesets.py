@@ -607,3 +607,37 @@ async def test_a_bulk_edit_of_fields_previews_and_applies_every_row(
     assert len(edited) == 12
     assert {row["category"] for row in edited} == {"Subscriptions"}
     assert {row["subcategory"] for row in edited} == {"Software"}
+
+
+async def test_a_subcategory_the_model_wrote_as_the_word_none_is_stored_as_no_subcategory(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The fast slot fills an optional field with the word instead of leaving it out.
+
+    A bulk recategorize then put the literal string "None" on every row, which the transactions
+    table dutifully printed (review of 2026-09-04). The word is read as the absence it meant.
+    """
+    await import_synthetic(client, profile_id)
+    scripts.fast = call_tool(
+        "propose_changeset",
+        {
+            "kind": "recategorize",
+            "title": "Netflix is a subscription",
+            "where": {"q": "netflix"},
+            "category": "Subscriptions",
+            "subcategory": "None",
+        },
+    )
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Recategorize the Netflix rows as Subscriptions.")
+
+    preview = tool_output(chunks)
+    assert preview["status"] == "proposed"
+    assert after(preview, "category") == {"Subscriptions"}
+    assert after(preview, "subcategory") == {None}, "the word None is not a subcategory"
+
+    applied = await client.post(f"/api/changesets/{preview['id']}/apply", json={"profile_id": profile_id})
+    assert applied.status_code == 200, applied.text
+    rows = (await listing(client, profile_id, q="netflix", limit=500))["rows"]
+    assert {row["subcategory"] for row in rows} == {None}

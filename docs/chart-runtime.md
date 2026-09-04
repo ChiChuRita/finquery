@@ -103,6 +103,17 @@ record what was asked for instead of drawing it, then judges the recording:
 2. compilation, then one run with the real rows, so a thrown error is a finding;
 3. the rules above, over the recorded marks, scales, channels and series.
 
+Two rules are about the rows rather than about the code, so `data_findings(shape, columns,
+rows)` judges them before a line is written and no repair round is spent on them:
+
+- a stacked or grouped bar needs **one figure per (position, series) pair**. Two rows for
+  2025-01 / Groceries cannot be drawn by any definition, and TanStack says so as "A stack
+  requires at most one value for each position and series";
+- a sankey needs links that **go somewhere and do not come back**: no row flowing from a name
+  into itself, no cycle over the source and target columns, and a positive amount on every
+  link. The QuickJS stub applies the same three rules to whatever graph the code builds, so a
+  definition that assembles its own links is caught too.
+
 The stub mimics the parts of the library the rules need: `pie` allocates real angles and rejects
 a negative value, `sankeyDiagram` validates the graph and calls the `marks` callback with node
 and link rows that carry the documented fields (`x0`, `x1`, `y0`, `y1`, `x`, `y`, `key`, `value`,
@@ -155,13 +166,30 @@ renders:
   "request": "...", "title": "...", "shape": "line", "plan": "Chart plan: line, ...",
   "sql": "SELECT ...", "row_count": 12, "columns": ["month", "total_eur"], "rows": [ ... ],
   "code": "return defineChart({ ... });", "notes": ["Repair 1 of 2: ..."],
-  "summary": "...", "error": null
+  "summary": "...", "error": null, "rendered": true
 }
 ```
 
-`code` is `null` when no chart could be drawn, and `error` says why in one sentence. The card
-shows the title, the frame, the thumbs and Regenerate, and, on demand, the request, the plan,
-the repairs, the SQL and the rows.
+`code` is `null` when no chart could be drawn, and `error` says why in one sentence.
+`rendered` is the field the chat agent reads before it writes a word about the picture: false
+means there is none, so the answer says so and gives the figures from `rows` instead of
+describing a drawing that is not there. The card shows the title, the frame, the thumbs and
+Regenerate, and, on demand, the request, the plan, the repairs, the SQL and the rows.
+
+## When the browser refuses anyway
+
+The check judges intent against a stub, so a real layout can still throw on rows the stub was
+happy with. The frame posts its error to the card, and the card posts it to
+`POST /api/charts/render-failure` (`src/finquery/api/charts.py`), which does two things:
+
+- it **records the failure on the turn**: the stored chart loses its `code` and carries
+  `rendered: false`, the frame's message and the reason. A reload shows the failed card, and no
+  later reading of that turn can claim a chart that was never on screen;
+- it runs **one retry** through `run_chart` with the same request and hints. The sub-agent is
+  not deterministic, so a second definition usually draws; when it does, it replaces the chart
+  on the turn and the card swaps its content.
+
+One retry per chart, ever: the recorded failure is the flag, so a second report only records.
 
 Regenerate runs this whole path again for the same request through
 `POST /api/preferences/chart-alternative`, which is not a chat turn: the second chart lives in

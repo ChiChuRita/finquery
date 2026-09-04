@@ -7,7 +7,13 @@ import { ErrorSection, RowsTable, Section, SqlSection, rowLabel } from '@/compon
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { chartAlternative, type ChartToolOutput, type ChartToolPart, type PreferenceRating } from '@/lib/api'
+import {
+  chartAlternative,
+  chartRenderFailure,
+  type ChartToolOutput,
+  type ChartToolPart,
+  type PreferenceRating,
+} from '@/lib/api'
 import { useWorkspace } from '@/lib/workspace'
 import {
   CARD_SOURCE,
@@ -44,14 +50,35 @@ function readTheme(): ChartFrameTheme {
   }
 }
 
-/** One chart, hosted in a sandboxed frame that owns React and TanStack Charts. */
-function ChartFrame({ title, code, rows }: { title: string; code: string; rows: ChartRow[] }) {
+/** One chart, hosted in a sandboxed frame that owns React and TanStack Charts.
+ *
+ * `onError` is what makes a failure more than a red box: the card reports it to the server,
+ * which records it on the turn and draws the request once more.
+ */
+function ChartFrame({
+  title,
+  code,
+  rows,
+  onError,
+}: {
+  title: string
+  code: string
+  rows: ChartRow[]
+  onError?: (message: string) => void
+}) {
   const frame = useRef<HTMLIFrameElement>(null)
   const [ready, setReady] = useState(false)
   const [live, setLive] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // The theme toggle flips a class on <html>; watching it is independent of effect ordering.
   const [themeChanges, setThemeChanges] = useState(0)
+
+  // The message listener is installed once, so the callback reaches it through a ref rather
+  // than by re-subscribing on every render.
+  const report = useRef(onError)
+  useEffect(() => {
+    report.current = onError
+  })
 
   useEffect(() => {
     const observer = new MutationObserver(() => setThemeChanges((count) => count + 1))
@@ -70,6 +97,7 @@ function ChartFrame({ title, code, rows }: { title: string; code: string; rows: 
       if (event.data.kind === 'error') {
         setError(event.data.message)
         setLive(false)
+        report.current?.(event.data.message)
       }
     }
     window.addEventListener('message', onMessage)
@@ -198,10 +226,38 @@ function ChartResult({
   const [problem, setProblem] = useState<string>()
   const [again, setAgain] = useState(false)
   const [picked, setPicked] = useState<'original' | 'candidate'>()
+  const [redrawn, setRedrawn] = useState<ChartToolOutput>()
+  const [retrying, setRetrying] = useState(false)
+  // A side of a pair the browser could not draw. Picking one of two charts means saying which
+  // is better, which nobody can do about an error message (review of 2026-09-04).
+  const [broken, setBroken] = useState<Record<'original' | 'candidate', boolean>>({
+    original: false,
+    candidate: false,
+  })
+  // One report per chart: the server retries once, and a remount must not ask again.
+  const reported = useRef(false)
 
-  const title = output.title || output.request
+  // What this card shows: the chart of the turn, or the one a retry drew in its place.
+  const chart = redrawn ?? output
+  const title = chart.title || chart.request
   // The definition to draw, or null when this chart failed and the card shows the reason.
-  const code = output.error ? null : output.code
+  const code = chart.error ? null : chart.code
+
+  const renderFailed = async (message: string) => {
+    if (!profile || !turnId || reported.current) return
+    reported.current = true
+    setRetrying(true)
+    try {
+      const outcome = await chartRenderFailure(profile.id, turnId, toolCallId, message)
+      // Whichever way it went, the card shows what the server recorded: the chart the retry
+      // drew, or the failure with its reason and the rows behind it.
+      setRedrawn(outcome.chart)
+    } catch {
+      // The card already shows the frame's own message; a failed report changes nothing.
+    } finally {
+      setRetrying(false)
+    }
+  }
 
   const regenerate = async () => {
     if (!profile || !turnId || drawing) return
@@ -237,18 +293,31 @@ function ChartResult({
 
   return (
     <Card>
-      <Header shape={output.shape} title={title} />
+      <Header shape={chart.shape} title={title} />
+      {retrying && (
+        <div className="px-4 pb-2">
+          <Shimmer className="text-muted-foreground text-sm">
+            That chart did not draw. Trying once more...
+          </Shimmer>
+        </div>
+      )}
       {code && second?.code ? (
         <div className="px-3 pb-3">
           <PairGrid>
             <PairSide
               disabled={feedback.busy}
               label="The first chart"
-              note={SHAPE_LABELS[output.shape] ?? output.shape}
+              note={SHAPE_LABELS[chart.shape] ?? chart.shape}
               onPick={() => void pick('original')}
               picked={picked === 'original'}
+              unavailable={broken.original ? 'This one did not draw.' : undefined}
             >
-              <ChartFrame code={code} rows={output.rows} title={title} />
+              <ChartFrame
+                code={code}
+                onError={() => setBroken((sides) => ({ ...sides, original: true }))}
+                rows={chart.rows}
+                title={title}
+              />
             </PairSide>
             <PairSide
               disabled={feedback.busy}
@@ -256,8 +325,14 @@ function ChartResult({
               note={SHAPE_LABELS[second.shape] ?? second.shape}
               onPick={() => void pick('candidate')}
               picked={picked === 'candidate'}
+              unavailable={broken.candidate ? 'This one did not draw.' : undefined}
             >
-              <ChartFrame code={second.code} rows={second.rows} title={second.title || title} />
+              <ChartFrame
+                code={second.code}
+                onError={() => setBroken((sides) => ({ ...sides, candidate: true }))}
+                rows={second.rows}
+                title={second.title || title}
+              />
             </PairSide>
           </PairGrid>
           <p className="pt-2 text-muted-foreground text-xs">
@@ -267,10 +342,10 @@ function ChartResult({
           </p>
         </div>
       ) : code ? (
-        <ChartFrame code={code} rows={output.rows} title={title} />
+        <ChartFrame code={code} onError={(message) => void renderFailed(message)} rows={chart.rows} title={title} />
       ) : (
         <div className="px-4 pb-2">
-          <ErrorSection message={output.error ?? 'The chart could not be drawn.'} />
+          <ErrorSection message={chart.error ?? 'The chart could not be drawn.'} />
         </div>
       )}
       <Footer
@@ -284,7 +359,7 @@ function ChartResult({
             {code && (
               <Button
                 className="gap-1.5 text-muted-foreground"
-                disabled={!feedback.ready || drawing || Boolean(second)}
+                disabled={!feedback.ready || drawing || retrying || Boolean(second)}
                 onClick={() => void regenerate()}
                 size="sm"
                 variant="ghost"
@@ -302,7 +377,7 @@ function ChartResult({
             />
           </span>
         }
-        output={output}
+        output={chart}
       />
     </Card>
   )

@@ -199,3 +199,62 @@ async def test_an_edited_memory_is_what_the_next_turn_receives(
     scripts.fast = asking
     await chat(await new_conversation(client, profile_id), "What is that PayPal payment to Anna?")
     assert "- [rule] PayPal to Anna is rent" in asking.prompt
+
+
+class PromptSpy:
+    """A fast slot that keeps the prompt of every distillation pass, and remembers nothing."""
+
+    def __init__(self, answer: str) -> None:
+        self.distillation: list[str] = []
+        self._script = script(answer)
+
+    async def __call__(self, messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[object]:
+        if is_distillation_request(messages):
+            self.distillation.append(
+                (getattr(messages[-1], "instructions", None) or "")
+                + "\n"
+                + "\n".join(
+                    part.content
+                    for part in messages[-1].parts
+                    if part.part_kind == "user-prompt" and isinstance(part.content, str)
+                )
+            )
+        async for item in self._script(messages, info):
+            yield item
+
+
+async def test_distillation_is_told_to_write_a_fact_in_the_language_of_the_turn(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    """German facts distilled from English turns are why a fresh chat answered in German.
+
+    The rule lives in the distillation prompt, so the assertion is on the text the pass really
+    receives, not on a copy of it (review of 2026-09-04).
+    """
+    spy = PromptSpy("Groceries were 8.907,96 EUR.")
+    scripts.fast = spy
+    profile_id = await default_profile_id(client)
+
+    await chat(await new_conversation(client, profile_id), "What did I spend on groceries in 2025?")
+
+    assert len(spy.distillation) == 1
+    prompt = spy.distillation[0]
+    assert "Write every fact in the language of the user's own message" in prompt
+    assert "Never translate what the user said into another language" in prompt
+
+
+async def test_memories_in_another_language_do_not_decide_the_answer_language(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    """A German memory is still German in an English chat, and says so to the model."""
+    german = "Alle Netflix-Buchungen sollen als Leisure kategorisiert werden."
+    scripts.fast = script("Verstanden.", memories=[german])
+    profile_id = await default_profile_id(client)
+    await chat(await new_conversation(client, profile_id), "Netflix ist Leisure.")
+
+    asking = Recorder("Netflix is Leisure.")
+    scripts.fast = asking
+    await chat(await new_conversation(client, profile_id), "What is my Netflix booking?")
+
+    assert f"- [fact] {german}" in asking.prompt
+    assert "answer in the language of the newest user message" in asking.prompt

@@ -212,6 +212,29 @@ def chat_body(text: str, conversation_id: str, extra_messages: list[dict[str, ob
     }
 
 
+def turn_of(chunks: list[dict[str, object]]) -> str:
+    """The id of the turn that was just streamed, as the client reads it from the metadata.
+
+    A turn ends with more than one metadata chunk (the framework adds its own timestamp), and
+    the client merges them all into the message, so the id is looked for in any of them.
+    """
+    ids = [
+        chunk["messageMetadata"]["turn_id"]  # type: ignore[index]
+        for chunk in chunks
+        if chunk["type"] == "message-metadata" and "turn_id" in chunk["messageMetadata"]  # type: ignore[operator]
+    ]
+    assert len(ids) == 1, chunks
+    assert isinstance(ids[0], str)
+    return ids[0]
+
+
+def tool_call_of(chunks: list[dict[str, object]], tool: str) -> str:
+    """The call id of the one call to that tool in the turn, which a rating or a retry names."""
+    calls = [c for c in chunks if c["type"] == "tool-input-available" and c["toolName"] == tool]
+    assert len(calls) == 1, chunks
+    return str(calls[0]["toolCallId"])
+
+
 def parse_sse(body: str) -> list[dict[str, object]]:
     chunks: list[dict[str, object]] = []
     for line in body.splitlines():

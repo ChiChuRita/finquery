@@ -34,6 +34,17 @@ ALLOWED_STATEMENTS = (exp.Select, exp.SetOperation)
 # the guard refuses them anyway so safety does not depend on the build.
 FORBIDDEN_FUNCTIONS = frozenset({"load_extension", "readfile", "writefile", "edit", "fts3_tokenizer"})
 
+# The two columns a model reaches for when it wants to classify a booking itself.
+TEXT_COLUMNS = frozenset({"description", "counterparty"})
+
+INVENTED_CATEGORY = (
+    "A CASE over description or counterparty that returns a label of its own invents a "
+    "categorization. The category of a booking is the `category` column and nothing else: group "
+    "by it and show a booking without one as the bucket 'Needs review' "
+    "(`coalesce(category, 'Needs review')`). Match description or counterparty in a WHERE clause "
+    "to pick the bookings a question is about, never to label them."
+)
+
 
 class SqlRejected(ValueError):
     """The generated SQL is not a single read-only SELECT over the allowed view."""
@@ -90,6 +101,9 @@ def validate_sql(sql: str) -> str:
     for function in statement.find_all(exp.Anonymous):
         if str(function.this).lower() in FORBIDDEN_FUNCTIONS:
             raise SqlRejected(f"The function {function.this} may not be called.")
+    for case in statement.find_all(exp.Case):
+        if _invents_a_category(case):
+            raise SqlRejected(INVENTED_CATEGORY)
 
     current = _limit_of(statement)
     if current is None or current > MAX_ROWS:
@@ -97,6 +111,32 @@ def validate_sql(sql: str) -> str:
     # Rendered from the parsed tree, so the statement in the transcript is the one that ran,
     # formatted the same way whatever the model wrote.
     return statement.sql(dialect=DIALECT, pretty=True)
+
+
+def _invents_a_category(case: exp.Case) -> bool:
+    """True when this CASE turns a description or counterparty match into a label of its own.
+
+    The single rule behind ADR 0004 for categories: a category is data the user owns, not
+    something the model derives from the booking text. `CASE WHEN description LIKE '%rewe%'
+    THEN 'Groceries'` is indistinguishable in a chart from the profile's own categories, and
+    the review of 2026-09-04 saw it disagree with the real figures by two orders of magnitude.
+    Matching the same columns is still fine as a filter; only turning a match into a string is
+    refused.
+    """
+    conditions = [branch.this for branch in case.args.get("ifs", []) if branch.this is not None]
+    # `CASE description WHEN 'X' THEN ...` puts the column on the CASE itself.
+    if (operand := case.this) is not None:
+        conditions.append(operand)
+    matches_text = any(
+        column.name.lower() in TEXT_COLUMNS
+        for condition in conditions
+        for column in condition.find_all(exp.Column)
+    )
+    if not matches_text:
+        return False
+    results = [branch.args.get("true") for branch in case.args.get("ifs", [])]
+    results.append(case.args.get("default"))
+    return any(isinstance(result, exp.Literal) and result.is_string for result in results)
 
 
 def execute_read_only(session: Session, sql: str, profile_id: str) -> Rows:

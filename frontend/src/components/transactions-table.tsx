@@ -211,7 +211,8 @@ export function TransactionsTable({
                     },
                   )
                 }
-                placeholder="None"
+                clearLabel="No subcategory"
+                placeholder="—"
                 value={row.original.subcategory_id}
               />
             )

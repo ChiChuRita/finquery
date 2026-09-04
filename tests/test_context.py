@@ -20,10 +20,10 @@ from .conftest import (
 
 # Two conditions have to hold for compression to fire, and only the second is what this budget
 # is for: there must be something older than the last six turns (so never before the eighth),
-# and the prompt must be over 60 percent of the budget. The system prompt alone is 2291 tokens
+# and the prompt must be over 60 percent of the budget. The system prompt alone is 2374 tokens
 # now, so the token half is already true on the first turn and the turn count is what decides.
 # What the budget has to clear is the floor a compressed prompt cannot go below (the system
-# prompt, the summary and the last six turns), measured at 3199 tokens here. The real default is
+# prompt, the summary and the last six turns), measured at 3282 tokens here. The real default is
 # 32768, far above any floor. Every ticket that adds a prompt block has had to move this.
 BUDGET = 3600
 SUMMARY = "The user asked about groceries and rent in the spring and cares about subscriptions."

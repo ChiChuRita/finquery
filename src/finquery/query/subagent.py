@@ -57,9 +57,15 @@ Rules:
 - Spending is negative. For a spending question filter `amount_cents < 0` and report a positive
   figure with `ROUND(-SUM(amount), 2)`. Income is `amount_cents > 0`.
 - Give every selected column a snake_case alias: total_eur, month, merchant, bookings.
+- The category of a booking is the `category` column and nothing else. Never write a classifier:
+  a `CASE WHEN description LIKE '%rewe%' THEN 'Groceries'` invents labels the household never
+  chose, and the guard refuses it. Group by `coalesce(category, 'Needs review')` so the
+  uncategorized bookings are one honest bucket instead of being guessed at or dropped.
 - An alias must never reuse a column name of the view. `CASE ... END AS category` looks right and
   is a trap: a later `GROUP BY category` binds to the view's own column, not to your expression,
   and the result silently collapses. Call a computed group `topic` or `group_name` instead.
+- Matching `description` or `counterparty` is how you pick the bookings a question is about, in
+  the WHERE clause. It is never how you label them.
 - A month is `strftime('%Y-%m', booked_on)`. A period is `booked_on BETWEEN '2025-04-01' AND
   '2025-04-30'`. There is no date type, so never call date functions on anything else.
 - Match merchants case-insensitively, `counterparty` first and `description` second:
@@ -129,6 +135,14 @@ WHERE amount_cents < 0
     OR lower(coalesce(counterparty, description)) LIKE '%spotify%'
     OR lower(coalesce(counterparty, description)) LIKE '%prime%'
     OR lower(coalesce(counterparty, description)) LIKE '%adobe%')
+
+Question: Wie viel habe ich 2025 pro Kategorie ausgegeben?
+SQL:
+SELECT coalesce(category, 'Needs review') AS topic, ROUND(-SUM(amount), 2) AS total_eur
+FROM transaction_view
+WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
+GROUP BY topic
+ORDER BY total_eur DESC
 
 Question: Compare my spending on eating out in April 2025 with May 2025.
 SQL:
@@ -246,7 +260,8 @@ def _category_line(context: QueryContext) -> str:
     if context.categorized_count < context.transaction_count:
         return (
             f"- only {context.categorized_count} of {context.transaction_count} bookings have a category, so a "
-            "category filter alone misses the rest: combine `category` with merchant matching."
+            "category filter alone misses the rest. Group by `coalesce(category, 'Needs review')` so the rest "
+            "is visible as its own bucket, and never label a booking from its text."
         )
     return "- every booking has a category, so filter on `category` or `subcategory` with the names above."
 

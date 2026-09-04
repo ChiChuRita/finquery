@@ -396,3 +396,57 @@ async def test_a_question_the_data_cannot_answer_still_gets_follow_ups(
 async def test_unknown_conversation_is_404(client: httpx.AsyncClient) -> None:
     assert (await client.get("/api/conversations/nope")).status_code == 404
     assert (await client.post("/api/conversations/nope/chat", json=chat_body("hi", "nope"))).status_code == 404
+
+
+async def test_the_reasoning_stream_gets_the_filter_the_answer_gets(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    """Thinking is part of the transcript, so the same two things are taken out of it.
+
+    The second review found a raw `<turn|>` inside an expanded reasoning panel and the model
+    reasoning out loud about "Validation feedback: Please return text or call a tool", which is
+    pydantic AI's retry plumbing and never something the user asked about.
+    """
+
+    async def leaks(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        if is_followup_request(messages):
+            yield "No follow-ups."
+            return
+        if is_distillation_request(messages):
+            yield distilled()
+            return
+        yield {0: DeltaThinkingPart(content="The user asks about groceries.\n")}
+        # The framework's retry prompt, reasoned about out loud, and a template token split
+        # across two deltas, exactly as they arrived in the review session.
+        yield {0: DeltaThinkingPart(content="The previous message 'Validation feedback: Please ")}
+        yield {0: DeltaThinkingPart(content="return text or call a tool.' is a system message.\n")}
+        yield {0: DeltaThinkingPart(content="I will query the year.<tur")}
+        yield {0: DeltaThinkingPart(content="n|>\n")}
+        yield "Groceries were 8.907,96 EUR."
+
+    scripts.fast = leaks
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+
+    response, chunks = await chat(conversation_id, "What did I spend on groceries?")
+
+    thinking = "".join(
+        str(c["delta"]) for c in chunks if c["type"] == "reasoning-delta" and not str(c["id"]).startswith("narration")
+    )
+    assert "The user asks about groceries." in thinking
+    assert "I will query the year." in thinking
+    assert "Validation feedback" not in thinking
+    assert "turn|>" not in thinking
+    assert "Validation feedback" not in response.text
+    assert "turn|>" not in response.text
+
+    # And the reload shows the same cleaned panel, not the raw one.
+    detail = await client.get(f"/api/conversations/{conversation_id}")
+    assert "Validation feedback" not in detail.text
+    assert "turn|>" not in detail.text
+    reasoning = [
+        part["text"]
+        for message in detail.json()["messages"]
+        for part in message["parts"]
+        if part["type"] == "reasoning"
+    ]
+    assert any("I will query the year." in text for text in reasoning)

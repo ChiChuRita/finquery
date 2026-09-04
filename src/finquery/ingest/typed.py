@@ -35,6 +35,7 @@ from finquery.db import (
 )
 from finquery.ingest import duplicates
 from finquery.ingest.csv_reader import parse_amount
+from finquery.nullish import nullish_before
 from finquery.providers import ModelResolver
 
 MAX_DRAFTS = 5
@@ -78,6 +79,10 @@ class ProposedTransaction(BaseModel):
     description: str = Field(description="What the money was for, at most 60 characters.")
     counterparty: str | None = Field(default=None, description="The shop, company or person, or null.")
     account_name: str | None = Field(default=None, description="The account named, or null.")
+
+    # The fast slot answers a null field with the word: a cash lunch stored the counterparty
+    # "null" (review of 2026-09-04).
+    _nulls = nullish_before("counterparty", "account_name")
 
 
 class ProposedTransactions(BaseModel):

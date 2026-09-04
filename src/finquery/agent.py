@@ -33,8 +33,8 @@ from pydantic_ai.tools import DeferredToolRequests, ToolDefinition
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery import attachments
-from finquery.ask_user import AskApply, ask_user_toolset
-from finquery.categorize import QUESTIONS_PER_CARD, pending_questions
+from finquery.ask_user import ask_user_toolset
+from finquery.categorize import QUESTIONS_PER_CARD, pending_questions, review_card
 from finquery.categorize import set_rule as store_category_rule
 from finquery.categorize import split_choice
 from finquery.categorize.rules import load_categories, taxonomy_of
@@ -89,11 +89,15 @@ When to use `chart`:
   did.
 - One chart per answer. Do not call `chart` and `query` for the same figures: the chart's rows
   come from an executed query, so you may quote them.
-- The chart is already on screen when the tool returns. Say in one or two sentences what it
-  shows, quoting at most the two figures that matter. Never describe the code, the columns or
-  the shape, and never write chart code yourself.
-- If the result carries an `error`, say in one line that the chart could not be drawn and answer
-  in words instead.
+- Read `rendered` before you write a word about the chart. `rendered: true` means it is on
+  screen: say in one or two sentences what it shows, quoting at most the two figures that
+  matter. Never describe the code, the columns or the shape, and never write chart code
+  yourself.
+- `rendered: false` means there is no picture. Say in one line that the chart could not be
+  drawn, give the reason from `error` in plain words, and answer with the figures from its
+  `rows` instead. Never describe a chart that was not drawn.
+- The chart tool always ends your turn with text. Writing that text is the last step of the
+  turn, never something to leave for the next one.
 
 Changing the data. You never write to a booking on a hunch: first call `query` for the rows,
 asking for their `id` alongside the columns you need ("the id, date, description and amount of
@@ -131,9 +135,9 @@ Categories and rules:
   figures it returned. Never say a rule was stored without calling the tool.
 - The pattern is the merchant as it appears in the booking text ("Anna Weber", "REWE"), never a
   whole sentence, never a booking id and never a phrase like "all Netflix rows".
-- `review_batch` returns the merchants that still need the user's decision, each with a guess
-  and ready-made buttons. Hand those rows straight to `ask_user` as a Question card, together
-  with the `apply` object it returned.
+- `review_batch` returns the merchants that still need the user's decision as a ready `card`.
+  Show that card with `ask_user` unchanged: the same title, the same note, the same rows and
+  the same `apply` object. Never rewrite it and never build one of your own.
 - An answered Question card is already done when you see it: the rules were stored and the
   bookings moved before you were called again, and the tool result's `applied` line says
   exactly what happened. Say it back in one or two sentences and make no `set_rule` call for
@@ -155,8 +159,8 @@ Files the user attaches:
   unchanged, and when the user confirms, call `import_file` again for the same file with
   `confirmed=true`.
 - When a file is imported the tool returns a `summary` counted in code and the merchants it
-  could not place. Say the summary in one line, quoting its figures, and hand the `questions`
-  straight to `ask_user` as a Question card, exactly as you do after `review_batch`.
+  could not place. Say the summary in one line, quoting its figures, and show its `card` with
+  `ask_user` unchanged, exactly as you do after `review_batch`.
 - A PDF or a photo is stored but cannot be read yet. Pass the tool's `message` on as it is; it
   is not an error and there is nothing to retry.
 
@@ -425,12 +429,11 @@ def set_rule(
 
 @chat_agent.tool
 async def review_batch(ctx: RunContext[ChatDeps], limit: int = QUESTIONS_PER_CARD) -> dict[str, Any]:
-    """The merchants that still need the user's decision, ready to become a Question card.
+    """The merchants that still need the user's decision, as a ready Question card.
 
-    Each row carries the merchant pattern to use as an `ask_user` ref, a sample booking, how
-    many bookings it stands for, a guess from the categorizer and the buttons to offer. Call
-    `ask_user` with these rows and with the `apply` object this returns; do not ask about a
-    merchant this did not return.
+    `card` is the whole question, already written: show it with `ask_user` unchanged, the way
+    you do with `review_duplicates`. `questions` is the same rows in detail, for the step the
+    transcript renders. Never ask about a merchant this did not return.
 
     Args:
         limit: How many merchants to ask about at once, at most five.
@@ -456,8 +459,10 @@ async def review_batch(ctx: RunContext[ChatDeps], limit: int = QUESTIONS_PER_CAR
     return {
         "pending_merchants": pending,
         "questions": [question.payload() for question in questions],
-        # Copied onto the card, so the answers become rules in code rather than through you.
-        "apply": AskApply().model_dump(mode="json"),
+        # The card is built here rather than by the model: it carries the `apply` object that
+        # makes the answers become rules in code, and its copy is written once (real plurals,
+        # "3 merchants I am not sure about") instead of being invented per turn.
+        "card": review_card(questions, pending).model_dump(mode="json") if questions else None,
     }
 
 
@@ -484,8 +489,11 @@ async def chart(ctx: RunContext[ChatDeps], request: str, hints: str | None = Non
     """Draw one chart of the user's transactions and show it in the answer.
 
     The chart sub-agent plans the shape, gets its rows through the same query path as `query`,
-    writes the chart and checks it before it is shown. The chart is already visible to the user
-    when this returns, so do not describe it in detail.
+    writes the chart and checks it before it is shown. `rendered` says whether a chart really
+    reached the screen: true means it is visible and needs no description, false means there is
+    none and the answer has to give the figures from `rows` instead.
+
+    Whatever it returns, write your answer as text in the same turn.
 
     Args:
         request: What to chart, in plain words and standing on its own: the period, the topic
@@ -516,6 +524,9 @@ Unknown merchants:
   request is written to the outbound log the user can read in Settings.
 - Call it when the user asks what a merchant is, or before you place a booking whose merchant
   you do not recognize. Pass the merchant as it stands in the booking text.
+- Call it even when this conversation already looked the merchant up: the second call answers
+  from this profile's own cache without anything leaving the machine, and the step it renders is
+  what shows the user that.
 - Say what it found in one or two lines and name the category it suggests. The sources it used
   are shown under your answer, so never list URLs yourself.
 - It is not a source of figures. Numbers still come from `query` only.

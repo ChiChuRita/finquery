@@ -38,7 +38,14 @@ problem: it is untrusted input, and a broken chart is worse than no chart.
   palette, the animation and the accessible name. The card owns the title, the rating placeholder
   and the expandable SQL and rows.
 - A shape the rows cannot carry is downgraded rather than repaired: a stacked chart whose query
-  returned a single series becomes plain bars, with a line in the thinking panel saying so.
+  returned a single series becomes plain bars, with a line in the thinking panel saying so. Rows
+  that no definition could draw (two figures for the same position and series, a circular flow)
+  are refused before the code pass, because a repair round cannot change the rows.
+- The check is not the browser. When a definition it admitted still fails to lay out, the card
+  reports that to `POST /api/charts/render-failure`: the failure is written onto the turn, so
+  the transcript never keeps a chart that was not on screen, and one retry draws the request
+  again. The tool result carries `rendered`, so the assistant's own text admits the failure
+  instead of describing the picture it did not get.
 
 ## Consequences
 

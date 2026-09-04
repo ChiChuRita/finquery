@@ -34,22 +34,13 @@ card whose kind nobody handles is simply handed to the model as it came.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from pydantic_ai.tools import GenerateToolJsonSchema, ToolDefinition
 from pydantic_ai.toolsets import ExternalToolset
 
+from finquery.nullish import nullish_before
+
 ASK_USER = "ask_user"
-
-NULLISH = {"null", "none", "nil", ""}
-"""What a model writes when it stringifies its own JSON arguments.
-
-`"amount_cents": "null"` reaches us from the fast slot (OpenRouter, 2026-09-04). Read as a
-value it fails validation, and a card that fails validation is a card whose answers apply
-nothing (`finquery.answers`), so the optional fields treat it as the null it meant to be."""
-
-
-def _nullish(value: object) -> object:
-    return None if isinstance(value, str) and value.strip().casefold() in NULLISH else value
 
 
 class AskOption(BaseModel):
@@ -70,9 +61,9 @@ class AskRow(BaseModel):
     bookings: int | None = Field(default=None, description="How many bookings this row stands for.")
     options: list[AskOption] = Field(default_factory=list, description="Buttons for this row.")
 
-    _nulls = field_validator("description", "amount_cents", "date", "bookings", mode="before")(
-        staticmethod(_nullish)
-    )
+    # A card that fails validation is a card whose answers apply nothing, and the fast slot
+    # writes `"amount_cents": "null"`, so the word is read as the absence it meant.
+    _nulls = nullish_before("description", "amount_cents", "date", "bookings")
 
 
 ApplyKind = Literal["category_rule", "duplicate_decision", "mapping_confirmation", "transaction_draft"]
@@ -122,7 +113,7 @@ class AskUser(BaseModel):
         description="What the answers mean, copied from the tool that handed you the rows.",
     )
 
-    _nulls = field_validator("note", "apply", mode="before")(staticmethod(_nullish))
+    _nulls = nullish_before("note", "apply")
 
 
 MAX_UNWRAP = 3
@@ -187,8 +178,8 @@ Rules:
   "Groceries > Supermarket" is a category and its subcategory.
 - `title` says what you want to know; the row labels carry the merchants.
 - Leave `allow_free_text` true so the user can type a category that is not a button.
-- Copy the `apply` object from the tool that gave you the rows (`review_batch` returns one).
-  It is what makes the answers take effect in code, without you having to act on them.
+- Copy the `apply` object from the card the tool gave you. It is what makes the answers take
+  effect in code, without you having to act on them.
 - When a tool hands you a whole `card`, pass its fields as your own arguments, unchanged: the
   same title, the same `note`, the same rows in the same order. Never leave a field out, never
   shorten one, and never pass the card as a `card` argument.

@@ -164,6 +164,7 @@ merchant token leaves at most once per profile: the result is cached. Search nee
   `followups.py` (post-turn suggestions),
   `memory.py` (durable facts: the `remember` tool, the distillation pass, prompt selection),
   `preferences.py` (ratings and picks as training data),
+  `nullish.py` (the one place that knows what a model writes when it means nothing),
   `context.py` (token budget, per-turn prompt assembly, rolling summary),
   `attachments.py` (files dropped into a chat), `progress.py` (a tool's live progress part),
   `ingest/` (CSV reader, presets, mapping sub-agent, commit, duplicate candidates, the chat

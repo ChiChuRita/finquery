@@ -6,6 +6,7 @@ See docs/adr/0001-pydantic-ai-with-vercel-adapter.md.
 import asyncio
 import json
 import logging
+import re
 import time
 from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -78,6 +79,52 @@ POST_TURN_TIMEOUT = 30
 """Seconds the follow-up and distillation steps together may take after an answer."""
 # The reasoning part id the narration of a tool's sub-agents streams under.
 NARRATION_ID = "narration"
+
+RETRY_FEEDBACK = "validation feedback"
+"""pydantic AI's own retry prompt, quoted back by the model inside its thinking.
+
+A response with nothing but thinking earns a `ModelRequest` reading "Validation feedback:
+Please return text or call a tool." `_renderable` keeps that request out of the transcript, but
+the next response reasons about it out loud ("the user's previous message 'Validation
+feedback...' is likely a system message"), which the review of 2026-09-04 saw on three turns.
+The sentence is framework plumbing, so it is dropped from the thinking the user reads, live and
+stored.
+"""
+
+# One sentence, terminator included, or a last one with no terminator. A newline ends a sentence
+# too: a thinking stream is mostly short lines rather than prose.
+_SENTENCE = re.compile(r"[^.!?\n]*[.!?\n]+|[^.!?\n]+")
+_SENTENCE_ENDS = ".!?\n"
+
+
+def strip_retry_feedback(text: str) -> str:
+    """Drop whole sentences that quote the framework's retry prompt."""
+    if RETRY_FEEDBACK not in text.casefold():
+        return text
+    return "".join(part for part in _SENTENCE.findall(text) if RETRY_FEEDBACK not in part.casefold())
+
+
+class ThinkingFilter:
+    """What the text stream's `MarkerFilter` does, for the reasoning stream, plus the retry prompt.
+
+    Chat-template tokens are held back across delta boundaries by `MarkerFilter`. The retry
+    sentence has to be judged whole, so a delta is released only up to the last sentence end and
+    the tail waits for the next one; `flush` releases it when the block ends.
+    """
+
+    def __init__(self) -> None:
+        self._markers = MarkerFilter()
+        self._held = ""
+
+    def feed(self, delta: str) -> str:
+        buffer = self._held + self._markers.feed(delta)
+        cut = max((buffer.rfind(end) for end in _SENTENCE_ENDS), default=-1) + 1
+        ready, self._held = buffer[:cut], buffer[cut:]
+        return strip_retry_feedback(ready)
+
+    def flush(self) -> str:
+        held, self._held = self._held + self._markers.flush(), ""
+        return strip_retry_feedback(held)
 
 
 @dataclass
@@ -308,10 +355,11 @@ def _renderable(messages: list[ModelMessage]) -> list[ModelMessage]:
 
 
 def _clean_text(messages: Sequence[ModelMessage]) -> None:
-    """Take the chat template's own tokens out of the text a response carries.
+    """Take the chat template's own tokens out of what a response carries, text and thinking.
 
-    The stream is filtered on its way to the browser (`MarkerFilter`); this is the same
-    vocabulary applied to what gets stored, so a reload does not bring `<turn|>` back.
+    The stream is filtered on its way to the browser (`MarkerFilter`, `ThinkingFilter`); this is
+    the same vocabulary applied to what gets stored, so a reload does not bring `<turn|>` or the
+    framework's retry sentence back.
     """
     for message in messages:
         if message.kind != "response":
@@ -319,6 +367,10 @@ def _clean_text(messages: Sequence[ModelMessage]) -> None:
         for part in message.parts:
             if part.part_kind == "text":
                 part.content = strip_markers(part.content)
+            elif part.part_kind == "thinking":
+                # The thinking panel survives a reload, so it is cleaned with the same
+                # vocabulary the live stream is filtered with (`ThinkingFilter`).
+                part.content = strip_retry_feedback(strip_markers(part.content))
 
 
 def _insert_narration(parts: list[Any], narration: list[tuple[int, str]]) -> None:
@@ -689,6 +741,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
         # Gemma's own template tokens are text on OpenRouter, and the answer is what the user
         # reads, so they are taken out here for both providers.
         markers = MarkerFilter()
+        thinking = ThinkingFilter()
         source = adapter.run_stream(
             message_history=history,
             # The summary and the memories ride in as one system-level note after the
@@ -720,7 +773,16 @@ async def chat(request: Request, conversation_id: str) -> Response:
                 # not the model thinking, so it never enters the measurement.
                 if item.type == "reasoning-start" and thinking_started is None:
                     thinking_started = time.monotonic()
+                elif item.type == "reasoning-delta":
+                    # The thinking panel is part of the transcript, so it gets the same filter
+                    # the answer gets, plus the framework's retry sentence.
+                    delta = thinking.feed(item.delta)
+                    if not delta:
+                        continue
+                    item = item.model_copy(update={"delta": delta})
                 elif item.type == "reasoning-end":
+                    if tail := thinking.flush():
+                        yield ReasoningDeltaChunk(id=item.id, delta=tail)
                     close_thinking()
                 elif item.type == "tool-input-available":
                     # Which tool step a narration block belongs to, for the reload.

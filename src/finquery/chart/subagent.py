@@ -38,11 +38,15 @@ Rules:
   reads better.
 - A series over time asks for `month` formatted as 'YYYY-MM', ordered, one row per month.
 - bar or bar_horizontal: one row per category or merchant, ordered by the figure, at most twelve.
-- bar_grouped or bar_stacked: three columns, one row per month and group. Name the group column
-  `topic`, never `category`: the taxonomy is often empty, so the group is built from the
-  merchants and an alias that reuses a view column name breaks the grouping.
+- bar_grouped or bar_stacked: three columns, one row per month and group, and never two rows
+  with the same month and group. Name the group column `topic`, never `category`: an alias that
+  reuses a view column name breaks the grouping. The group itself always comes from the
+  household's own `category` column, with the uncategorized bookings as one 'Needs review'
+  bucket; never ask for a grouping derived from the booking text.
 - doughnut: at most {MAX_SLICES} rows, so ask for the largest {MAX_SLICES - 1} plus a rest row
-  when there are more categories than that.
+  when there are more categories than that. A rest row that would hold most of the money says
+  nothing, so ask for the largest {MAX_SLICES} instead when a handful of buckets carry the
+  spending.
 - sankey: one row per flow with the columns source, target and amount_eur. Every amount is a
   positive figure and no row may miss a source or a target, so ask for the household's income as
   one source ('Einkommen') flowing into the spending groups, or for the income streams by name.
