@@ -54,9 +54,26 @@ def _title_from(messages: Sequence[ModelMessage]) -> str | None:
     return None
 
 
+def _audit_notes(messages: Sequence[ModelMessage]) -> list[dict[str, object]]:
+    """Notes a model attached to its response about how the answer was produced.
+
+    The local provider uses this to say that a sub-agent ran on the base weights because its
+    LoRA adapter was missing. They ride the turn metadata, so the client sees them live and a
+    reload still shows them.
+    """
+    return [
+        note
+        for message in messages
+        if message.kind == "response" and message.metadata
+        for note in message.metadata.get("audit_notes", [])
+    ]
+
+
 def _persist_turn(
     request: Request, conversation_id: str, new_messages: list[ModelMessage], slot: str, metadata: dict[str, object]
 ) -> None:
+    if notes := _audit_notes(new_messages):
+        metadata["audit_notes"] = notes
     interrupted = bool(metadata.get("interrupted"))
     ui_messages = VercelAIAdapter.dump_messages(new_messages, sdk_version=SDK_VERSION)
     if ui_messages and ui_messages[-1].role == "assistant":

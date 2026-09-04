@@ -16,5 +16,17 @@ class Settings(BaseSettings):
     db_path: Path = Path("data/finquery.db")
     host: str = "127.0.0.1"
     port: int = 8000
+
+    # Local provider (FINQUERY_PROVIDER=local).
+    models_dir: Path = Path("models")
+    parked_models_dir: Path | None = None
+    """A folder of already-downloaded GGUF files. A copy whose hash matches is linked in
+    instead of downloaded again."""
+    local_n_ctx: int = 16384
+    """Context cap per resident model.
+
+    16k is the largest that keeps both Gemma 4 models resident inside the 18.2 GB Metal
+    working set of a 24 GB Mac, with flash attention and a q8_0 KV cache. Raise it on a
+    machine with more memory. See docs/adr/0005-local-gemma-4-through-llama-cpp.md."""
     # OpenRouter's own tooling expects this exact name, so it is read without the prefix.
     openrouter_api_key: str | None = Field(default=None, validation_alias="OPENROUTER_API_KEY")

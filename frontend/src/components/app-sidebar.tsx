@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { MessageSquareIcon, PlusIcon, UploadIcon } from 'lucide-react'
+import { MessageSquareIcon, PlusIcon, SettingsIcon, UploadIcon } from 'lucide-react'
 
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
@@ -78,9 +78,17 @@ export function AppSidebar() {
         )}
       </nav>
 
-      <div className="flex items-center justify-between border-t px-3 py-2">
-        <span className="px-1 text-muted-foreground text-xs">Default profile</span>
-        <ThemeToggle />
+      <div className="border-t px-3 py-2">
+        <Button asChild className="w-full justify-start gap-2 text-muted-foreground" size="sm" variant="ghost">
+          <Link activeProps={{ className: 'bg-sidebar-accent text-foreground' }} to="/settings">
+            <SettingsIcon className="size-3.5" />
+            Settings
+          </Link>
+        </Button>
+        <div className="mt-1 flex items-center justify-between">
+          <span className="px-1 text-muted-foreground text-xs">Default profile</span>
+          <ThemeToggle />
+        </div>
       </div>
     </aside>
   )
