@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/empty-state'
 import { ImportPage } from '@/components/import-page'
 import { MemoryPage } from '@/components/memory-page'
 import { ModelsCard } from '@/components/models-card'
+import { TaxonomyCard } from '@/components/taxonomy-card'
 import { TransactionsPage } from '@/components/transactions-page'
 import { conversationQuery, conversationsQuery, createConversation, type ModelSlot } from '@/lib/api'
 import { stashPendingPrompt } from '@/lib/pending'
@@ -119,7 +120,8 @@ function SettingsPage() {
       <div className="mx-auto w-full max-w-3xl px-6 py-10">
         <h1 className="font-heading font-semibold text-2xl tracking-tight">Settings</h1>
         <p className="mt-1 text-muted-foreground text-sm">How FinQuery runs on this machine.</p>
-        <div className="mt-6">
+        <div className="mt-6 space-y-6">
+          <TaxonomyCard />
           <ModelsCard />
         </div>
       </div>

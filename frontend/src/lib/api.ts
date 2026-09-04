@@ -41,9 +41,26 @@ export interface QueryToolOutput {
   error: string | null
 }
 
+// The changeset tools: `propose_changeset` hands back an inert proposal the user applies or
+// discards, `apply_simple_edit` hands back a change that already happened, with an undo token.
+export interface ChangesetToolInput {
+  kind?: ChangesetKind
+  title?: string
+}
+
+export type ChangesetToolOutput = Changeset & { undo_token?: string }
+
 /** The tools the agent may call. The keys become `tool-*` part types. */
-export type ChatTools = { query: { input: QueryToolInput; output: QueryToolOutput } }
-export type QueryToolPart = ToolUIPart<ChatTools>
+export type ChatTools = {
+  query: { input: QueryToolInput; output: QueryToolOutput }
+  propose_changeset: { input: ChangesetToolInput; output: ChangesetToolOutput }
+  apply_simple_edit: { input: ChangesetToolInput; output: ChangesetToolOutput }
+}
+export type QueryToolPart = Extract<ToolUIPart<ChatTools>, { type: 'tool-query' }>
+export type ChangesetToolPart = Extract<
+  ToolUIPart<ChatTools>,
+  { type: 'tool-propose_changeset' | 'tool-apply_simple_edit' }
+>
 
 export type ChatMessage = UIMessage<ChatMetadata, ChatDataParts, ChatTools>
 
@@ -476,3 +493,73 @@ export const bulkDelete = (profileId: string, ids: string[]) =>
     method: 'POST',
     body: JSON.stringify({ profile_id: profileId, ids }),
   })
+
+// Changesets: a proposal with the exact rows it would touch, inert until it is applied.
+
+export type ChangesetKind = 'recategorize' | 'split' | 'edit' | 'delete' | 'taxonomy'
+export type ChangesetStatus = 'proposed' | 'applied' | 'discarded' | 'stale' | 'superseded'
+export type ChangesetField = 'date' | 'description' | 'amount' | 'category' | 'subcategory'
+
+/** Display strings straight from the preview, so the card never recomputes a number. */
+export type ChangesetValues = Partial<Record<ChangesetField, string | null>>
+
+export interface ChangesetRow {
+  /** The transaction, or null for a row the changeset creates (a leg of a split). */
+  id: string | null
+  before: ChangesetValues | null
+  /** Null when the row goes away: deleted, or replaced by the legs of a split. */
+  after: ChangesetValues | null
+}
+
+export interface Changeset {
+  id: string
+  profile_id: string
+  conversation_id: string | null
+  kind: ChangesetKind
+  title: string
+  status: ChangesetStatus
+  summary: string
+  note: string | null
+  /** Every affected row, even when `rows` below is only the first page of them. */
+  total: number
+  fields: ChangesetField[]
+  rows: ChangesetRow[]
+  undoable: boolean
+  created_at: string
+  applied_at: string | null
+}
+
+/** The card's own source of truth: the tool output shows the preview, the server the status. */
+export const changesetQuery = (profileId: string | undefined, id: string) =>
+  queryOptions({
+    queryKey: ['changeset', { profileId }, id],
+    queryFn: () => request<Changeset>(`/api/changesets/${id}?profile_id=${profileId}`),
+    enabled: profileId !== undefined,
+  })
+
+export type TaxonomyOperation = 'add' | 'rename' | 'merge' | 'delete'
+
+export interface TaxonomyChange {
+  operation: TaxonomyOperation
+  category: string
+  subcategory?: string | null
+  new_name?: string | null
+  into?: string | null
+}
+
+/** The Settings editor proposes the same changeset the assistant would, then applies it. */
+export const proposeTaxonomyChange = (profileId: string, title: string, taxonomy: TaxonomyChange) =>
+  request<Changeset>('/api/changesets', {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId, intent: { kind: 'taxonomy', title, taxonomy } }),
+  })
+
+const changesetAction = (action: string) => (profileId: string, id: string) =>
+  request<Changeset>(`/api/changesets/${id}/${action}`, {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId }),
+  })
+
+export const applyChangeset = changesetAction('apply')
+export const discardChangeset = changesetAction('discard')
+export const undoChangeset = changesetAction('undo')

@@ -2,20 +2,29 @@
 
 The model is chosen per run from the conversation's slot. Tools get what they need from
 `ChatDeps`, so the agent itself holds no application state. `query` and `remember` are the
-first two tools; later tickets add chart, import_file, ask_user, propose_changeset and friends
-the same way, and each one that needs a model resolves its own slot through the deps.
+first two tools; later tickets add chart, import_file and ask_user the same way, and each one
+that needs a model resolves its own slot through the deps.
+
+`propose_changeset` and `apply_simple_edit` are the writing tools. Neither one decides anything
+about the data: `finquery.changesets` resolves the intent, refuses what the data model refuses
+(and that sentence goes back to the model as a retry), and the user applies through REST.
 
 Selected memories arrive as run instructions built by `finquery.memory.build_memory_block`,
 not from here.
 """
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.settings import ModelSettings
 from sqlalchemy.orm import Session, sessionmaker
 
+from finquery.changesets import ChangesetError, ChangesetIntent, propose, to_out
+from finquery.changesets import apply as apply_changeset
+from finquery.db import SplitSumError
+from finquery.edits import TransactionEditError
 from finquery.memory import MemoryKind, add_memory
 from finquery.providers import ModelResolver
 from finquery.query import load_query_context, run_query
@@ -43,6 +52,22 @@ How to use `query`:
 - If it returns no rows, say the data holds no answer for that question.
 - Never write SQL yourself and never show SQL in your answer: the transcript already shows the
   statement that ran.
+
+Changing the data. You never write to a booking on a hunch: first call `query` for the rows,
+asking for their `id` alongside the columns you need ("the id, date, description and amount of
+every booking from Netflix"), so a change names real rows.
+
+- `apply_simple_edit` is for one row the user pointed at and one change they spelled out ("set
+  this one to Dining", "that Edeka booking was 42.30"). It applies immediately and the user
+  gets an Undo button, so say in one line what you changed.
+- `propose_changeset` is for everything else: more than one row, a split, a delete, a change to
+  the categories, or anything the user did not literally ask for. It writes nothing. The user
+  sees a card with the exact rows and presses Apply or Discard, so describe what you proposed
+  and never say it has happened.
+- A split needs at least two legs in cents that add up to the booking exactly, negative for
+  spending. If a tool refuses, read the sentence it gives you and correct the call once.
+- Adding, renaming, merging or deleting a category or subcategory is `propose_changeset` with
+  kind `taxonomy`.
 
 When the user tells you something durable about their finances (what a merchant is, that
 PayPal payments to Anna are dinner, which categories they care about), call `remember` once
@@ -88,10 +113,12 @@ def data_brief(ctx: RunContext[ChatDeps]) -> str:
             "tell the user the profile is empty and that a bank statement can be imported on the "
             "Import page."
         )
+    # The subcategories are here because a changeset names them, and a name it invents is refused.
+    taxonomy = "; ".join(f"{name} ({', '.join(subs)})" if subs else name for name, subs in context.taxonomy)
     lines = [
         f"Today is {context.today.isoformat()}. The profile holds {context.transaction_count} bookings from "
         f"{context.first_booked_on} to {context.last_booked_on} in {', '.join(context.accounts)}.",
-        f"Categories: {', '.join(name for name, _ in context.taxonomy)}.",
+        f"Categories, with their subcategories: {taxonomy}.",
     ]
     if context.categorized_count == 0:
         lines.append(
@@ -124,6 +151,82 @@ async def query(ctx: RunContext[ChatDeps], request: str, hints: str | None = Non
         hints=hints,
     )
     return outcome.payload()
+
+
+@chat_agent.tool(retries=2)
+def propose_changeset(ctx: RunContext[ChatDeps], intent: ChangesetIntent) -> dict[str, Any]:
+    """Propose a change to the user's bookings or categories, for them to apply or discard.
+
+    Nothing is written. The selection is resolved and validated here and the exact rows it would
+    touch come back as a preview, which the user sees as a card with Apply and Discard. Use this
+    for anything touching more than one booking, for a split, for a delete, for a change to the
+    categories, and for anything the user did not literally ask for.
+
+    A refusal comes back as a sentence: read it and correct the call once.
+    """
+    with ctx.deps.session_factory() as session:
+        try:
+            changeset = propose(
+                session, ctx.deps.profile_id, intent, conversation_id=ctx.deps.conversation_id
+            )
+            out = to_out(changeset)
+        except (TransactionEditError, SplitSumError, ChangesetError) as exc:
+            session.rollback()
+            raise ModelRetry(str(exc)) from exc
+        session.commit()
+    return out.model_dump(mode="json")
+
+
+@chat_agent.tool(retries=2)
+def apply_simple_edit(
+    ctx: RunContext[ChatDeps],
+    transaction_id: str,
+    title: str,
+    category: str | None = None,
+    subcategory: str | None = None,
+    description: str | None = None,
+    amount_cents: int | None = None,
+    booked_on: date | None = None,
+) -> dict[str, Any]:
+    """Change one booking the user pointed at, immediately, with an Undo button.
+
+    Only for a single row and a change the user spelled out ("set this one to Dining", "that
+    Edeka booking was 42.30"). Anything broader, anything you inferred, and every split, delete
+    or category change is `propose_changeset` instead. The `undo_token` in the result is what
+    the Undo button reverts, so the user can always take it back.
+
+    Args:
+        transaction_id: The booking's id, as a query returned it.
+        title: One short line naming the change, for the card.
+        category: The category to put it in.
+        subcategory: The subcategory, inside that category.
+        description: A new description, when the user corrected the text.
+        amount_cents: A new amount in cents, negative for spending.
+        booked_on: A new booking date.
+    """
+    intent = ChangesetIntent(
+        kind="edit",
+        title=title,
+        transaction_ids=[transaction_id],
+        category=category,
+        subcategory=subcategory,
+        description=description,
+        amount_cents=amount_cents,
+        booked_on=booked_on,
+    )
+    with ctx.deps.session_factory() as session:
+        try:
+            changeset = propose(
+                session, ctx.deps.profile_id, intent, conversation_id=ctx.deps.conversation_id
+            )
+            apply_changeset(session, ctx.deps.profile_id, changeset)
+            out = to_out(changeset)
+        except (TransactionEditError, SplitSumError, ChangesetError) as exc:
+            session.rollback()
+            raise ModelRetry(str(exc)) from exc
+        session.commit()
+    # The changeset is the undo token: one POST to /api/changesets/{id}/undo puts it back.
+    return {**out.model_dump(mode="json"), "undo_token": out.id}
 
 
 @chat_agent.tool

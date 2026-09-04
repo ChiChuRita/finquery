@@ -11,6 +11,7 @@ import { Message, MessageContent, MessageResponse, MessageToolbar } from '@/comp
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Suggestion } from '@/components/ai-elements/suggestion'
+import { ChangesetCard } from '@/components/changeset-card'
 import { Composer } from '@/components/composer'
 import { EmptyState } from '@/components/empty-state'
 import { QueryToolStep } from '@/components/query-tool'
@@ -244,6 +245,9 @@ function TranscriptMessage({
           }
           if (part.type === 'tool-query') {
             return <QueryToolStep key={`${message.id}-${index}`} part={part} />
+          }
+          if (part.type === 'tool-propose_changeset' || part.type === 'tool-apply_simple_edit') {
+            return <ChangesetCard key={`${message.id}-${index}`} part={part} />
           }
           if (part.type === 'text') {
             return message.role === 'user' ? (

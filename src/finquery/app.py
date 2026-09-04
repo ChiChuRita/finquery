@@ -8,10 +8,11 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from finquery.api import chat, conversations, imports, memories, profiles, taxonomy, transactions
+from finquery.api import changesets, chat, conversations, imports, memories, profiles, taxonomy, transactions
 from finquery.api import models as models_api
-from finquery.api.transactions import TransactionEditError
+from finquery.changesets import ChangesetError, ChangesetStale
 from finquery.db import SplitSumError, ensure_default_profile, make_session_factory
+from finquery.edits import TransactionEditError
 from finquery.providers import MODEL_SLOTS, ModelResolver, build_local_stack, build_resolver, subagent_settings
 from finquery.settings import Settings
 
@@ -57,8 +58,15 @@ def create_app(
     async def refused(_request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=400)
 
+    # A changeset whose rows moved under it is a conflict, not a bad request: the client can
+    # ask for a fresh proposal and try again.
+    async def conflicted(_request: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=409)
+
     app.add_exception_handler(TransactionEditError, refused)
     app.add_exception_handler(SplitSumError, refused)
+    app.add_exception_handler(ChangesetError, refused)
+    app.add_exception_handler(ChangesetStale, conflicted)
 
     app.include_router(profiles.router, prefix="/api")
     app.include_router(conversations.router, prefix="/api")
@@ -67,6 +75,7 @@ def create_app(
     app.include_router(imports.router, prefix="/api")
     app.include_router(transactions.router, prefix="/api")
     app.include_router(taxonomy.router, prefix="/api")
+    app.include_router(changesets.router, prefix="/api")
     app.include_router(models_api.router, prefix="/api")
 
     if serve_frontend and FRONTEND_DIST.is_dir():

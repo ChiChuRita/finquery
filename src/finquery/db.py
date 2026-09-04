@@ -232,8 +232,49 @@ WHERE NOT EXISTS (SELECT 1 FROM "transaction" child WHERE child.parent_id = t.id
 """
 
 
+class Changeset(Base):
+    """An agent-proposed mutation with an exact preview, inert until applied.
+
+    `payload_json` is the resolved intent: every category and every row is already an id, so
+    applying it is deterministic code that needs no model. `preview_json` is the affected rows
+    with their before and after as they were at proposal time, which is what the card renders.
+    `row_version` is a hash of those rows: if it no longer matches when Apply arrives, the data
+    moved underneath and the changeset is stale rather than applied to a state nobody saw.
+    """
+
+    __tablename__ = "changeset"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profile.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("conversation.id", ondelete="SET NULL"), default=None, index=True
+    )
+    """The chat it was proposed in. Null for the Settings taxonomy editor, or once that chat is gone."""
+    kind: Mapped[str] = mapped_column(String(16))
+    """recategorize, split, edit, delete or taxonomy."""
+    title: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(16), default="proposed", index=True)
+    """proposed, applied, discarded, stale or superseded."""
+    payload_json: Mapped[str] = mapped_column(Text)
+    preview_json: Mapped[str] = mapped_column(Text)
+    row_version: Mapped[str] = mapped_column(String(64))
+    undo_json: Mapped[str | None] = mapped_column(Text, default=None)
+    """The state to restore, for the kinds an Undo can revert."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    """Set once it ran. Still set after an undo, which is what tells that apart from a discard."""
+
+
 class SplitSumError(ValueError):
     """The children of a split do not sum to their parent's amount."""
+
+
+def split_sum_error(legs_cents: int, amount_cents: int) -> SplitSumError:
+    """The one wording for a broken split, whether a flush found it or a proposal did."""
+    return SplitSumError(
+        f"The legs of the split add up to {legs_cents / 100:.2f} "
+        f"but the transaction is {amount_cents / 100:.2f}."
+    )
 
 
 def _split_parents_touched(session: Session) -> set[str]:
@@ -281,10 +322,7 @@ def _enforce_split_sums(session: Session, _context: object) -> None:
     )
     for parent_id, amount_cents in parents:
         if sums[parent_id] != amount_cents:
-            raise SplitSumError(
-                f"The legs of the split add up to {sums[parent_id] / 100:.2f} "
-                f"but the transaction is {amount_cents / 100:.2f}."
-            )
+            raise split_sum_error(sums[parent_id], amount_cents)
 
 
 _WHITESPACE = re.compile(r"\s+")
