@@ -97,6 +97,10 @@ Merged into main on 2026-09-04 on top of 01, 02, 03, 05, 13 and 16. What changed
   server, so it predates the merge. It needs its own ticket; the likely fix is to stop measuring
   the expanded row through `virtualizer.measureElement` and give the split editor its own
   scroll box instead.
+- Correction from ticket 19: that reading was wrong. There is no measure loop and no render loop.
+  The freeze is `agent-browser press Enter` never stopping when the focused input calls `blur()`
+  in its keydown handler, which a static HTML page with no React reproduces. Nothing in the page
+  needed fixing. Verify inline cells by clicking away to save, not by sending Enter.
 - For ticket 09 (changesets): the mutation endpoints are still the apply path, and they are now
   profile-scoped, so a changeset carries the profile it applies to and every leg of it
   (`_resolve_taxonomy`, `_resolve_account`, `replace_splits`, the two bulk endpoints) takes the
