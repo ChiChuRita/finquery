@@ -1,3 +1,14 @@
 .env
 .env.*
 !.env.example
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/

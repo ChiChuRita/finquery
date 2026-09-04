@@ -1,0 +1,59 @@
+"""FastAPI application factory."""
+
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+from finquery.api import chat, conversations
+from finquery.db import ensure_default_profile, make_session_factory
+from finquery.providers import MODEL_SLOTS, ModelResolver, build_resolver
+from finquery.settings import Settings
+
+FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+
+def create_app(settings: Settings, *, resolve_model: ModelResolver | None = None, serve_frontend: bool = True) -> FastAPI:
+    """Build the app. Tests pass `resolve_model` to replace both slots with scripted models."""
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        app.state.settings = settings
+        app.state.session_factory = make_session_factory(settings.db_path)
+        with app.state.session_factory() as session:
+            app.state.profile_id = ensure_default_profile(session).id
+        app.state.resolve_model = resolve_model or build_resolver(settings)
+        app.state.running_turns = {}
+        yield
+
+    app = FastAPI(title="FinQuery", lifespan=lifespan)
+
+    @app.get("/api/health")
+    async def health() -> dict[str, object]:
+        return {"provider": settings.provider, "slots": list(MODEL_SLOTS)}
+
+    app.include_router(conversations.router, prefix="/api")
+    app.include_router(chat.router, prefix="/api")
+
+    if serve_frontend and FRONTEND_DIST.is_dir():
+        app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+
+        @app.get("/{path:path}", include_in_schema=False)
+        async def spa(path: str) -> FileResponse:
+            candidate = (FRONTEND_DIST / path).resolve()
+            if path and candidate.is_file() and candidate.is_relative_to(FRONTEND_DIST):
+                return FileResponse(candidate)
+            return FileResponse(FRONTEND_DIST / "index.html")
+
+    elif serve_frontend:
+
+        @app.get("/{path:path}", include_in_schema=False)
+        async def missing_frontend(path: str) -> JSONResponse:
+            return JSONResponse(
+                {"detail": "Frontend not built. Run `npm run build` in frontend/ or start `uv run finquery --dev`."},
+                status_code=503,
+            )
+
+    return app

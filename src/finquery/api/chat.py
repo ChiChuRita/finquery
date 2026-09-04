@@ -1,0 +1,146 @@
+"""Chat and stop endpoints speaking the AI SDK UI message stream.
+
+See docs/adr/0001-pydantic-ai-with-vercel-adapter.md.
+"""
+
+import asyncio
+import json
+from collections.abc import AsyncIterator, Sequence
+from dataclasses import dataclass, field
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import Response
+from pydantic import ValidationError
+from pydantic_ai import CancellationToken
+from pydantic_ai.agent import AgentRunResult
+from pydantic_ai.exceptions import RunCancelled
+from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
+from pydantic_ai.ui.vercel_ai import VercelAIAdapter
+from pydantic_ai.ui.vercel_ai.response_types import BaseChunk, MessageMetadataChunk
+
+from finquery.agent import chat_agent
+from finquery.api.conversations import get_conversation_or_404
+from finquery.db import Conversation, Turn, utcnow
+from finquery.providers import ProviderNotAvailable
+
+router = APIRouter()
+
+SDK_VERSION = 7
+TITLE_LENGTH = 60
+
+
+@dataclass
+class RunningTurn:
+    token: CancellationToken = field(default_factory=CancellationToken)
+    finished: asyncio.Event = field(default_factory=asyncio.Event)
+
+
+def _load_history(conversation: Conversation) -> list[ModelMessage]:
+    history: list[ModelMessage] = []
+    for turn in conversation.turns:
+        history.extend(ModelMessagesTypeAdapter.validate_json(turn.model_messages_json))
+    return history
+
+
+def _title_from(messages: Sequence[ModelMessage]) -> str | None:
+    for message in messages:
+        if message.kind != "request":
+            continue
+        for part in message.parts:
+            if part.part_kind == "user-prompt" and isinstance(part.content, str):
+                text = " ".join(part.content.split())
+                return text[:TITLE_LENGTH].rstrip() + ("..." if len(text) > TITLE_LENGTH else "")
+    return None
+
+
+def _persist_turn(
+    request: Request, conversation_id: str, new_messages: list[ModelMessage], slot: str, interrupted: bool
+) -> None:
+    ui_messages = VercelAIAdapter.dump_messages(new_messages, sdk_version=SDK_VERSION)
+    if interrupted and ui_messages and ui_messages[-1].role == "assistant":
+        ui_messages[-1].metadata = {**(ui_messages[-1].metadata or {}), "interrupted": True}
+    with request.app.state.session_factory() as session:
+        conversation = session.get(Conversation, conversation_id)
+        if conversation is None:
+            return
+        conversation.turns.append(
+            Turn(
+                position=len(conversation.turns),
+                model_slot=slot,
+                interrupted=interrupted,
+                model_messages_json=ModelMessagesTypeAdapter.dump_json(new_messages).decode(),
+                ui_messages_json=json.dumps([m.model_dump(by_alias=True, mode="json") for m in ui_messages]),
+            )
+        )
+        if conversation.title == "New chat" and (title := _title_from(new_messages)):
+            conversation.title = title
+        conversation.updated_at = utcnow()
+        session.commit()
+
+
+@router.post("/conversations/{conversation_id}/chat")
+async def chat(request: Request, conversation_id: str) -> Response:
+    state = request.app.state
+    with state.session_factory() as session:
+        conversation = get_conversation_or_404(session, conversation_id)
+        slot = conversation.model_slot
+        history = _load_history(conversation)
+
+    running: dict[str, RunningTurn] = state.running_turns
+    if conversation_id in running:
+        raise HTTPException(status_code=409, detail="A turn is already running for this conversation")
+
+    try:
+        model = state.resolve_model(slot)
+    except ProviderNotAvailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    try:
+        adapter = await VercelAIAdapter.from_request(request, agent=chat_agent, sdk_version=SDK_VERSION)
+    except ValidationError as exc:
+        return Response(content=exc.json(), media_type="application/json", status_code=422)
+    # The server owns the history: only the newest client message is appended to it.
+    adapter.run_input.messages = adapter.run_input.messages[-1:]
+
+    turn = RunningTurn()
+    running[conversation_id] = turn
+
+    # The adapter feeds the client's message in through message_history, so new_messages() would
+    # miss it. Everything after the server-side history is this turn.
+    async def on_complete(result: AgentRunResult) -> None:
+        _persist_turn(request, conversation_id, result.all_messages()[len(history) :], slot, interrupted=False)
+
+    async def on_cancel(cancelled: RunCancelled) -> AsyncIterator[BaseChunk]:
+        _persist_turn(request, conversation_id, cancelled.all_messages()[len(history) :], slot, interrupted=True)
+        yield MessageMetadataChunk(message_metadata={"interrupted": True})
+
+    async def stream() -> AsyncIterator[BaseChunk]:
+        try:
+            async for chunk in adapter.run_stream(
+                message_history=history,
+                model=model,
+                cancellation_token=turn.token,
+                on_complete=on_complete,
+                on_cancel=on_cancel,
+            ):
+                yield chunk
+        finally:
+            running.pop(conversation_id, None)
+            turn.finished.set()
+
+    return adapter.streaming_response(stream())
+
+
+@router.post("/conversations/{conversation_id}/stop")
+async def stop(request: Request, conversation_id: str) -> dict[str, bool]:
+    running: dict[str, RunningTurn] = request.app.state.running_turns
+    turn = running.get(conversation_id)
+    if turn is None:
+        return {"stopped": False}
+    turn.token.cancel()
+    # Wait for the partial turn to be persisted so a reload right after stop shows it.
+    try:
+        await asyncio.wait_for(turn.finished.wait(), timeout=10)
+    except TimeoutError:
+        pass
+    return {"stopped": True}
