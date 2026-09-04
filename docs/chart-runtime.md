@@ -160,5 +160,12 @@ renders:
 ```
 
 `code` is `null` when no chart could be drawn, and `error` says why in one sentence. The card
-shows the title, the frame, a rating placeholder (ticket 15) and, on demand, the request, the
-plan, the repairs, the SQL and the rows.
+shows the title, the frame, the thumbs and Regenerate, and, on demand, the request, the plan,
+the repairs, the SQL and the rows.
+
+Regenerate runs this whole path again for the same request through
+`POST /api/preferences/chart-alternative`, which is not a chat turn: the second chart lives in
+the card, both are shown side by side, and the pick stores the two definitions with the shared
+SQL as a preference record (`src/finquery/preferences.py`). That pair is the chart adapter's
+training data, which is why the payload carries the plan and the statement and not just the
+drawing.

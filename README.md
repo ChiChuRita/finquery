@@ -114,6 +114,15 @@ Charts definition in plain JavaScript and checks it in-process before it is draw
 frame. The plan and any repairs show up in the thinking panel; the card carries the SQL and the
 rows behind the drawing. The contract is `docs/chart-runtime.md`.
 
+Rate what comes back. Every answer has thumbs in its toolbar and every chart card has thumbs
+plus a Regenerate, which draws the same request a second time and shows both charts side by
+side with a Pick. A thumbs down on an answer offers an A/B: the same message is answered again
+at a higher temperature with only the read-only query tool, and the pick stores the pair. Each
+thumb and each pick is a preference record (prompt, chosen, rejected, kind, rating, slot), the
+Feedback page (`/feedback`) lists them and exports them as JSONL, and `training/preference/`
+turns that into a DPO dataset and a train script for the two fast-slot adapters. Running the
+training is the phase after this build; see `training/preference/README.md`.
+
 `fixtures/synthetic/` holds the shipped demo dataset, one canonical year of a German household
 as a Sparkasse CSV, a renamed-header CSV, a text PDF statement and four bill images. Regenerate
 it with `uv run python scripts/generate_synthetic.py`.
@@ -145,6 +154,7 @@ merchant token leaves at most once per profile: the result is cached. Search nee
   lookup loop, the outbound log and the lookup cache),
   `ask_user.py` (the Question card tool), `followups.py` (post-turn suggestions),
   `memory.py` (durable facts: the `remember` tool, the distillation pass, prompt selection),
+  `preferences.py` (ratings and picks as training data),
   `context.py` (token budget, per-turn prompt assembly, rolling summary),
   `attachments.py` (files dropped into a chat), `progress.py` (a tool's live progress part),
   `ingest/` (CSV reader, presets, mapping sub-agent, commit, the chat import and typed
@@ -153,6 +163,7 @@ merchant token leaves at most once per profile: the result is cached. Search nee
   `local/` (the local provider: catalog, downloads, runtime, model, Gemma wire format, check)
 - `frontend/`: Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router, Query and
   Charts. `src/chart-runtime/` is a second page: the sandboxed frame charts render in
+- `training/preference/`: the DPO export, the train script and the loop they belong to
 - `tests/`: HTTP-seam tests
 - `fixtures/synthetic/`: shipped demo dataset. `scripts/`: its generator, and
   `measure_categorization.py`, which imports a CSV into a running app and prints what each

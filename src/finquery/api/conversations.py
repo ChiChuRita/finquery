@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from finquery.api.profiles import get_profile_or_404
 from finquery.context import clean_summary
 from finquery.db import Conversation
+from finquery.preferences import Kind, Rating, records_of_conversation
 from finquery.providers import ModelSlot
 
 router = APIRouter()
@@ -27,6 +28,18 @@ class ConversationOut(BaseModel):
     updated_at: datetime
 
 
+class TurnRating(BaseModel):
+    """One rating this chat collected, so a reloaded transcript shows the thumbs again.
+
+    `target` is the tool call id of the chart it is about, or null for the answer of the turn.
+    """
+
+    turn_id: str
+    target: str | None
+    kind: Kind
+    rating: Rating
+
+
 class ConversationDetail(ConversationOut):
     messages: list[dict[str, Any]]
     interrupted: bool
@@ -36,6 +49,8 @@ class ConversationDetail(ConversationOut):
     summarized_messages: int
     """How many messages of `messages` the summary replaces, so the transcript knows where the
     divider goes. Zero means nothing has been compressed yet."""
+    ratings: list[TurnRating]
+    """The thumbs and picks already given in this chat (ticket 15)."""
 
 
 class ConversationCreate(BaseModel):
@@ -81,7 +96,7 @@ def _out(conversation: Conversation) -> ConversationOut:
     )
 
 
-def _detail(conversation: Conversation) -> ConversationDetail:
+def _detail(conversation: Conversation, session: Session) -> ConversationDetail:
     messages: list[dict[str, Any]] = []
     summarized_turns = 0
     summarized_messages = 0
@@ -93,6 +108,16 @@ def _detail(conversation: Conversation) -> ConversationDetail:
             summarized_turns += 1
             summarized_messages += len(turn_messages)
     interrupted = bool(conversation.turns) and conversation.turns[-1].interrupted
+    ratings = [
+        TurnRating(
+            turn_id=record.turn_id,
+            target=record.target,
+            kind=record.kind,  # type: ignore[arg-type]
+            rating=record.rating,  # type: ignore[arg-type]
+        )
+        for record in records_of_conversation(session, conversation.id)
+        if record.turn_id is not None
+    ]
     return ConversationDetail(
         **_out(conversation).model_dump(),
         messages=messages,
@@ -100,6 +125,7 @@ def _detail(conversation: Conversation) -> ConversationDetail:
         summary=conversation.summary,
         summarized_turns=summarized_turns,
         summarized_messages=summarized_messages,
+        ratings=ratings,
     )
 
 
@@ -137,7 +163,7 @@ async def create_conversation(request: Request, body: ConversationCreate) -> Con
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
 async def get_conversation(request: Request, conversation_id: str) -> ConversationDetail:
     with request.app.state.session_factory() as session:
-        return _detail(get_conversation_or_404(session, conversation_id))
+        return _detail(get_conversation_or_404(session, conversation_id), session)
 
 
 @router.patch("/conversations/{conversation_id}", response_model=ConversationOut)

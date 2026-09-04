@@ -50,7 +50,7 @@ from finquery.context import (
     summarize,
     turns_to_fold,
 )
-from finquery.db import Conversation, Turn, utcnow
+from finquery.db import Conversation, Turn, new_id, utcnow
 from finquery.followups import suggest_followups
 from finquery.memory import MemoryBlock, add_memory, build_memory_block, distill_memories, list_memories
 from finquery.providers import ProviderNotAvailable
@@ -169,7 +169,11 @@ async def _pump(source: AsyncIterator[BaseChunk], queue: "asyncio.Queue[tuple[st
         await queue.put(("end", None))
 
 
-def _load_history(conversation: Conversation) -> History:
+def load_history(conversation: Conversation) -> History:
+    """The stored turns of a conversation, ready to become one turn's prompt.
+
+    Also read by the answer A/B, which reruns one turn against the history it had.
+    """
     turns: list[TurnMessages] = []
     last_id: str | None = None
     last_length = 0
@@ -315,7 +319,7 @@ def persist_turn(
     attachments: Sequence[FileUIPart] = (),
     replaces: str | None = None,
     narration: Sequence[tuple[int, str]] = (),
-) -> None:
+) -> str:
     """Store one turn as both message families: what the model sees and what the UI renders.
 
     The data parts the client saw streamed are appended to the turn's assistant message, so
@@ -330,8 +334,13 @@ def persist_turn(
     the answered card.
 
     Also used by the Import page's review conversation, which seeds a turn nobody streamed.
+
+    Returns the id of the stored turn. It rides the assistant message's metadata as well, so a
+    rating can name the turn it is about whether the transcript was streamed or reloaded
+    (`finquery.preferences`).
     """
-    metadata = dict(metadata or {})
+    turn_id = new_id()
+    metadata = {**(metadata or {}), "turn_id": turn_id}
     if notes := _audit_notes(messages):
         metadata["audit_notes"] = notes
     interrupted = bool(metadata.get("interrupted"))
@@ -348,11 +357,12 @@ def persist_turn(
     with session_factory() as session:
         conversation = session.get(Conversation, conversation_id)
         if conversation is None:
-            return
+            return turn_id
         if replaces is not None and (previous := session.get(Turn, replaces)) is not None:
             conversation.turns.remove(previous)
         conversation.turns.append(
             Turn(
+                id=turn_id,
                 position=len(conversation.turns),
                 model_slot=slot,
                 interrupted=interrupted,
@@ -364,6 +374,7 @@ def persist_turn(
             conversation.title = title
         conversation.updated_at = utcnow()
         session.commit()
+    return turn_id
 
 
 def _store_summary(request: Request, conversation_id: str, summary: str, through: int) -> None:
@@ -420,7 +431,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
         slot = conversation.model_slot
         # The conversation owns the profile: every tool in this turn stays inside it.
         profile_id = conversation.profile_id
-        stored = _load_history(conversation)
+        stored = load_history(conversation)
         summary, summary_through = conversation.summary, conversation.summary_through
 
     running: dict[str, RunningTurn] = state.running_turns
@@ -538,7 +549,9 @@ async def chat(request: Request, conversation_id: str) -> Response:
         yield MessageMetadataChunk(message_metadata=metadata)
 
     def store(turn_messages: list[ModelMessage], data_parts: Sequence[DataUIPart]) -> None:
-        persist_turn(
+        # The turn's id goes back to the client in the metadata chunk that follows, so the
+        # thumbs on this answer can name the turn they rate without a reload.
+        metadata["turn_id"] = persist_turn(
             state.session_factory,
             conversation_id,
             turn_messages,

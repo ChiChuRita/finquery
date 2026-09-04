@@ -15,6 +15,7 @@ from finquery.api import (
     conversations,
     imports,
     memories,
+    preferences,
     profiles,
     taxonomy,
     transactions,
@@ -109,6 +110,7 @@ def create_app(
     app.include_router(transactions.router, prefix="/api")
     app.include_router(taxonomy.router, prefix="/api")
     app.include_router(changesets.router, prefix="/api")
+    app.include_router(preferences.router, prefix="/api")
     app.include_router(models_api.router, prefix="/api")
     app.include_router(settings_api.router, prefix="/api")
 
