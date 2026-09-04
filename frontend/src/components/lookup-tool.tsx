@@ -1,6 +1,7 @@
 import { AlertTriangleIcon, DatabaseZapIcon, GlobeIcon } from 'lucide-react'
 
 import { Source, Sources, SourcesContent, SourcesTrigger } from '@/components/ai-elements/sources'
+import { Step } from '@/components/tool-step'
 import { Badge } from '@/components/ui/badge'
 import type { LookupMerchantPart } from '@/lib/api'
 
@@ -30,26 +31,26 @@ export function LookupToolStep({ part }: { part: LookupMerchantPart }) {
   if (part.state !== 'output-available') {
     const merchant = part.state === 'input-available' ? part.input.merchant : undefined
     return (
-      <div className="not-prose mb-0 flex w-full items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-muted-foreground text-xs">
-        <GlobeIcon className="size-3.5" />
+      <Step>
+        <GlobeIcon className="size-3.5 shrink-0" />
         {merchant ? `Searching the web for ${merchant}` : 'Searching the web'}
         {part.state === 'output-error' && <span className="text-destructive">{part.errorText}</span>}
-      </div>
+      </Step>
     )
   }
 
   const output = part.output
   if (output.error) {
     return (
-      <div className="not-prose mb-0 flex w-full items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-xs">
-        <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0" />
+      <Step tone="error">
+        <AlertTriangleIcon className="size-3.5 shrink-0" />
         <span>{output.error}</span>
-      </div>
+      </Step>
     )
   }
 
   return (
-    <div className="not-prose mb-0 w-full space-y-2 rounded-lg border bg-muted/30 px-3 py-2.5 text-xs">
+    <div className="not-prose mb-0 flex w-full flex-col gap-2 rounded-lg border bg-muted/30 px-3 py-2.5 text-xs">
       <div className="flex flex-wrap items-center gap-2">
         {output.cached ? (
           <DatabaseZapIcon aria-hidden="true" className="size-3.5 text-primary" />

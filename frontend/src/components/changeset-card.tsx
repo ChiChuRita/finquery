@@ -28,7 +28,7 @@ import {
   type ChangesetRow,
   type ChangesetToolPart,
 } from '@/lib/api'
-import { formatEur } from '@/lib/format'
+import { formatDate, formatEur } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 
@@ -60,9 +60,12 @@ const FIELD_LABEL: Record<ChangesetField, string> = {
 const NEEDS_REVIEW = 'Needs review'
 
 function display(field: ChangesetField, value: string | null | undefined) {
-  if (value === null || value === undefined) return field === 'category' ? NEEDS_REVIEW : '—'
-  // The preview carries plain decimals; the euro sign is a display decision.
-  return field === 'amount' ? formatEur(Math.round(Number(value) * 100)) : value
+  if (value === null || value === undefined) return field === 'category' ? NEEDS_REVIEW : '–'
+  // The preview carries plain decimals and ISO dates; the euro sign and the German date are
+  // display decisions, the same ones every other table of the app makes.
+  if (field === 'amount') return formatEur(Math.round(Number(value) * 100))
+  if (field === 'date') return formatDate(value)
+  return value
 }
 
 function statusLabel(changeset: Changeset) {
@@ -85,11 +88,8 @@ function StatusBadge({ changeset }: { changeset: Changeset }) {
   const applied = changeset.status === 'applied'
   return (
     <Badge
-      className={cn(
-        'shrink-0 gap-1.5',
-        applied && 'border-transparent bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
-      )}
-      variant={changeset.status === 'proposed' ? 'outline' : 'secondary'}
+      className="shrink-0 gap-1.5"
+      variant={applied ? 'success' : changeset.status === 'proposed' ? 'outline' : 'secondary'}
     >
       {applied && <CheckIcon className="size-3" />}
       {changeset.status === 'stale' && <ClockAlertIcon className="size-3" />}
@@ -184,7 +184,7 @@ export function ChangesetTable({ changeset }: { changeset: Changeset }) {
 /** What a changeset would do: the sentence, the caveat and the rows. Shared with Settings. */
 export function ChangesetEffect({ changeset }: { changeset: Changeset }) {
   return (
-    <div className="space-y-2">
+    <div className="flex flex-col gap-2">
       <p className="text-sm">{changeset.summary}</p>
       {changeset.note && <p className="text-muted-foreground text-xs">{changeset.note}</p>}
       {changeset.rows.length > 0 ? (
@@ -199,7 +199,7 @@ export function ChangesetEffect({ changeset }: { changeset: Changeset }) {
 function CardShell({ changeset, children }: { changeset: Changeset; children?: React.ReactNode }) {
   const Icon = KIND_ICON[changeset.kind]
   return (
-    <div className="not-prose w-full overflow-hidden rounded-md border">
+    <div className="not-prose w-full overflow-hidden rounded-lg border">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
@@ -210,7 +210,7 @@ function CardShell({ changeset, children }: { changeset: Changeset; children?: R
         </div>
         <StatusBadge changeset={changeset} />
       </div>
-      <div className="space-y-3 p-3">
+      <div className="flex flex-col gap-3 p-3">
         <ChangesetEffect changeset={changeset} />
         {children}
       </div>
@@ -288,14 +288,14 @@ export function ChangesetCard({ part }: { part: ChangesetToolPart }) {
   if (part.state === 'output-available') return <ChangesetProposal preview={part.output} />
   if (part.state === 'output-error') {
     return (
-      <div className="not-prose w-full rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+      <div className="not-prose w-full rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
         <p className="font-medium text-sm">{part.input?.title ?? 'That change was refused'}</p>
         <p className="pt-1 text-destructive text-xs">{part.errorText}</p>
       </div>
     )
   }
   return (
-    <div className="not-prose w-full rounded-md border px-3 py-2">
+    <div className="not-prose w-full rounded-lg border px-3 py-2">
       <Shimmer className="text-sm" duration={1.5}>
         {part.input?.title ?? 'Working out the change...'}
       </Shimmer>

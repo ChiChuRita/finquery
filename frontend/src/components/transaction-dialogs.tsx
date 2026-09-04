@@ -223,8 +223,8 @@ export function ConfirmDeleteDialog({
             <Button variant="ghost">{count === 1 ? 'Keep it' : 'Keep them'}</Button>
           </DialogClose>
           <Button
-            className="bg-destructive text-white hover:bg-destructive/90"
             disabled={pending}
+            variant="destructive"
             onClick={async () => {
               await onConfirm()
               setOpen(false)

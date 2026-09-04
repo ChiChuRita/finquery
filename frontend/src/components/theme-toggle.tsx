@@ -11,7 +11,7 @@ export function ThemeToggle() {
     <Tooltip>
       <TooltipTrigger asChild>
         <Button aria-label={label} onClick={toggle} size="icon-sm" variant="ghost">
-          {theme === 'dark' ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />}
+          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         </Button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>

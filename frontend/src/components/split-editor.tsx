@@ -98,7 +98,7 @@ export function SplitEditor({
     <div className="border-t bg-muted/30 px-3 py-3 sm:px-10">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 pb-2">
         <h3 className="font-medium text-xs">Split of {formatEur(transaction.amount_cents)}</h3>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-2xs text-muted-foreground">
           Queries and charts count the legs of a split, never the transaction itself.
         </p>
       </div>

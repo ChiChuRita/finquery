@@ -77,7 +77,7 @@ export function SummaryDivider({
             <div className="space-y-2">
               <p className="whitespace-pre-wrap text-sm">{summary}</p>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   This replaces the turns above in the prompt. An edit is used on the next message.
                 </p>
                 <Button onClick={() => setDraft(summary)} size="sm" variant="outline">

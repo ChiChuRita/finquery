@@ -55,16 +55,16 @@ export function ProfileSwitcher() {
           {profiles.map((p) => (
             <DropdownMenuItem key={p.id} onSelect={() => void select(p.id)}>
               <span className="min-w-0 flex-1 truncate">{p.name}</span>
-              <CheckIcon className={cn('size-4 text-primary', p.id !== profile?.id && 'invisible')} />
+              <CheckIcon className={cn('text-primary', p.id !== profile?.id && 'invisible')} />
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setDialog('create')}>
-            <PlusIcon className="size-4" />
+            <PlusIcon />
             New profile
           </DropdownMenuItem>
           <DropdownMenuItem disabled={!profile} onSelect={() => setDialog('rename')}>
-            <PencilIcon className="size-4" />
+            <PencilIcon />
             Rename profile
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -72,7 +72,7 @@ export function ProfileSwitcher() {
             onSelect={() => setDialog('delete')}
             variant="destructive"
           >
-            <Trash2Icon className="size-4" />
+            <Trash2Icon />
             Delete profile
           </DropdownMenuItem>
         </DropdownMenuContent>

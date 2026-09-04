@@ -40,7 +40,7 @@ export function ConversationTabs() {
           >
             <Link
               aria-selected={active}
-              className="max-w-44 truncate py-1 pl-2.5"
+              className="max-w-44 truncate rounded-md py-1 pl-2.5 focus-ring"
               params={{ conversationId: tab.id }}
               role="tab"
               title={tab.title}
@@ -58,7 +58,7 @@ export function ConversationTabs() {
               size="icon-xs"
               variant="ghost"
             >
-              <XIcon className="size-3" />
+              <XIcon />
             </Button>
           </div>
         )
@@ -67,7 +67,7 @@ export function ConversationTabs() {
         <TooltipTrigger asChild>
           <Button aria-label="New chat" asChild className="shrink-0" size="icon-xs" variant="ghost">
             <Link to="/">
-              <PlusIcon className="size-3.5" />
+              <PlusIcon />
             </Link>
           </Button>
         </TooltipTrigger>

@@ -3,7 +3,9 @@ import { AlertTriangleIcon, CheckIcon, DownloadIcon, XIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { Shimmer } from '@/components/ai-elements/shimmer'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
 import { Spinner } from '@/components/ui/spinner'
 import {
   modelsQuery,
@@ -27,7 +29,7 @@ function FileRow({ file }: { file: ModelFile }) {
     <li className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 py-1.5">
       <div className="flex min-w-0 items-center gap-2">
         {file.state === 'ready' ? (
-          <CheckIcon aria-hidden="true" className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-500" />
+          <CheckIcon aria-hidden="true" className="size-3.5 shrink-0 text-primary" />
         ) : file.state === 'error' ? (
           <AlertTriangleIcon aria-hidden="true" className="size-3.5 shrink-0 text-destructive" />
         ) : busy ? (
@@ -36,9 +38,9 @@ function FileRow({ file }: { file: ModelFile }) {
           <DownloadIcon aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
         )}
         <span className="truncate font-mono text-xs">{file.filename}</span>
-        <span className="shrink-0 text-[11px] text-muted-foreground">{file.kind}</span>
+        <span className="shrink-0 text-2xs text-muted-foreground">{file.kind}</span>
       </div>
-      <span className="text-right text-[11px] text-muted-foreground tabular-nums">
+      <span className="text-right text-2xs text-muted-foreground tabular-nums">
         {file.state === 'ready'
           ? gigabytes(file.size)
           : file.state === 'error'
@@ -48,16 +50,15 @@ function FileRow({ file }: { file: ModelFile }) {
               : `${percent}% of ${gigabytes(file.size)}`}
       </span>
       {file.state !== 'ready' && (
-        <div className="col-span-2 h-1 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={percent}>
-          <div
-            className={cn('h-full rounded-full transition-[width] duration-300', file.state === 'error' ? 'bg-destructive' : 'bg-primary')}
-            style={{ width: `${file.state === 'error' ? 100 : percent}%` }}
-          />
-        </div>
+        <Progress
+          aria-label={`${file.filename} download`}
+          className={cn('col-span-2', file.state === 'error' && '[&>[data-slot=progress-indicator]]:bg-destructive')}
+          value={file.state === 'error' ? 100 : percent}
+        />
       )}
-      {file.error && <p className="col-span-2 text-[11px] text-destructive">{file.error}</p>}
+      {file.error && <p className="col-span-2 text-2xs text-destructive">{file.error}</p>}
       {file.state === 'ready' && file.source && (
-        <p className="col-span-2 truncate text-[11px] text-muted-foreground">from {file.source}</p>
+        <p className="col-span-2 truncate text-2xs text-muted-foreground">from {file.source}</p>
       )}
     </li>
   )
@@ -72,24 +73,15 @@ function SlotBlock({ model }: { model: SlotModel }) {
             {SLOT_LABEL[model.slot] ?? model.slot}
             <span className="ml-2 font-normal font-mono text-muted-foreground text-xs">{model.name}</span>
           </p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             {model.slot} slot
             {model.n_ctx ? ` - ${(model.n_ctx / 1024).toFixed(0)}k context` : ''}
             {model.n_ctx ? (model.loaded ? ` - resident, loaded in ${model.load_seconds}s` : ' - loads on first use') : ''}
           </p>
         </div>
-        <span
-          className={cn(
-            'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
-            model.loaded
-              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-              : model.ready
-                ? 'bg-muted text-muted-foreground'
-                : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
-          )}
-        >
+        <Badge className="shrink-0" variant={model.loaded ? 'success' : model.ready ? 'secondary' : 'warning'}>
           {model.loaded ? 'resident' : model.ready ? 'on disk' : 'incomplete'}
-        </span>
+        </Badge>
       </div>
       {model.files.length > 0 && <ul className="mt-2 divide-y">{model.files.map((f) => <FileRow file={f} key={f.filename} />)}</ul>}
     </div>
@@ -104,11 +96,11 @@ function CheckReport({ report }: { report: SanityReport }) {
         <span className="ml-2 font-normal font-mono text-muted-foreground">{report.model}</span>
       </p>
       {report.error && <p className="mt-1 text-destructive">{report.error}</p>}
-      <ul className="mt-2 space-y-1">
+      <ul className="mt-2 flex flex-col gap-1">
         {report.checks.map((check) => (
           <li className="flex items-start gap-2" key={check.name}>
             {check.ok ? (
-              <CheckIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-emerald-600 dark:text-emerald-500" />
+              <CheckIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-primary" />
             ) : (
               <XIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-destructive" />
             )}
@@ -154,7 +146,7 @@ export function ModelsCard() {
   const missing = data.models.some((m) => !m.ready)
 
   return (
-    <section aria-labelledby="models-heading" className="rounded-xl border bg-card p-4 shadow-sm">
+    <section aria-labelledby="models-heading" className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-heading font-semibold text-base" id="models-heading">
@@ -170,18 +162,18 @@ export function ModelsCard() {
         {local && (
           <div className="flex gap-2">
             <Button disabled={!missing || data.downloading} onClick={() => download.mutate()} size="sm" variant="outline">
-              {data.downloading ? <Spinner /> : <DownloadIcon />}
+              {data.downloading ? <Spinner data-icon="inline-start" /> : <DownloadIcon data-icon="inline-start" />}
               {data.downloading ? 'Downloading' : missing ? 'Download missing files' : 'All files on disk'}
             </Button>
             <Button disabled={missing || check.isPending} onClick={() => check.mutate()} size="sm">
-              {check.isPending && <Spinner />}
+              {check.isPending && <Spinner data-icon="inline-start" />}
               {check.isPending ? 'Checking both models' : 'Run sanity check'}
             </Button>
           </div>
         )}
       </div>
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 flex flex-col gap-2">
         {data.models.map((model) => (
           <SlotBlock key={model.slot} model={model} />
         ))}
@@ -190,7 +182,7 @@ export function ModelsCard() {
       {local && (
         <div className="mt-3">
           <p className="font-medium text-xs">Adapters</p>
-          <ul className="mt-1 space-y-0.5">
+          <ul className="mt-1 flex flex-col gap-0.5">
             {data.adapters.map((adapter) => (
               <li className="flex items-center gap-2 text-xs" key={adapter.name}>
                 <span className="w-14 font-medium">{adapter.name}</span>
@@ -217,7 +209,7 @@ export function ModelsCard() {
         </p>
       )}
       {reports && (
-        <div className="mt-3 space-y-2">
+        <div className="mt-3 flex flex-col gap-2">
           <p className="font-medium text-xs">Sanity check</p>
           {reports.map((report) => (
             <CheckReport key={report.slot} report={report} />

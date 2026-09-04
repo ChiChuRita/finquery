@@ -95,7 +95,7 @@ export function TransactionsTable({
               <button
                 aria-expanded={open}
                 aria-label={open ? 'Hide the split' : 'Show the split'}
-                className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-ring"
                 onClick={() => onExpand(open ? null : row.original.id)}
                 type="button"
               >
@@ -143,10 +143,10 @@ export function TransactionsTable({
         helper.accessor('title', {
           id: 'title',
           header: 'Enriched title',
-          meta: { width: 'minmax(5.5rem, 0.8fr)' },
+          meta: { width: 'minmax(7rem, 0.8fr)' },
           cell: ({ row }) => (
             <span className="block truncate px-1.5 py-1 text-muted-foreground text-sm" title={row.original.title ?? ''}>
-              {row.original.title ?? '—'}
+              {row.original.title ?? '–'}
             </span>
           ),
         }),
@@ -194,7 +194,7 @@ export function TransactionsTable({
           cell: ({ row }) => {
             const owner = categories.find((category) => category.id === row.original.category_id)
             if (!owner) {
-              return <span className="block px-1.5 py-1 text-muted-foreground text-sm">—</span>
+              return <span className="block px-1.5 py-1 text-muted-foreground text-sm">–</span>
             }
             const choices = owner.subcategories.map((sub) => ({ id: sub.id, name: sub.name }))
             return (
@@ -212,7 +212,7 @@ export function TransactionsTable({
                   )
                 }
                 clearLabel="No subcategory"
-                placeholder="—"
+                placeholder="–"
                 value={row.original.subcategory_id}
               />
             )
@@ -309,7 +309,9 @@ export function TransactionsTable({
               <div className="grid items-center" key={group.id} role="row" style={{ gridTemplateColumns: template }}>
                 {group.headers.map((header) => (
                   <div
-                    className="px-1.5 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wide"
+                    // One line per header, whatever the width: a wrapped header makes the whole
+                    // header row taller than every row under it.
+                    className="truncate px-1.5 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wide"
                     key={header.id}
                     role="columnheader"
                   >
@@ -372,9 +374,9 @@ export function TransactionsTable({
             aria-hidden="true"
             className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-background to-transparent"
           />
-          <p className="pointer-events-none absolute right-2 bottom-2 rounded-full border bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground">
+          <Badge className="pointer-events-none absolute right-2 bottom-2 bg-background/90 font-normal text-muted-foreground" variant="outline">
             Scroll for more columns
-          </p>
+          </Badge>
         </>
       )}
     </div>

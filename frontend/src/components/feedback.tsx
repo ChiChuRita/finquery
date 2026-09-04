@@ -133,7 +133,7 @@ export function PairSide({
     <div className={cn('flex min-w-0 flex-col rounded-lg border', picked && 'border-primary ring-1 ring-primary/30')}>
       <div className="flex items-center justify-between gap-2 border-b px-3 py-1.5">
         <span className="truncate font-medium text-xs">{label}</span>
-        {note && <span className="shrink-0 text-muted-foreground text-[11px]">{note}</span>}
+        {note && <span className="shrink-0 text-muted-foreground text-2xs">{note}</span>}
       </div>
       <div className="min-w-0 flex-1">{children}</div>
       <div className="border-t px-3 py-2">

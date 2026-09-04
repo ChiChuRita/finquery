@@ -1,13 +1,16 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import type { RowSelectionState } from '@tanstack/react-table'
-import { SearchIcon, XIcon } from 'lucide-react'
+import { SearchIcon, TableIcon, XIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { PageBar } from '@/components/page'
 import { TransactionsTable, type Patch } from '@/components/transactions-table'
 import { AddTransactionDialog, ConfirmDeleteDialog } from '@/components/transaction-dialogs'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
@@ -75,17 +78,19 @@ function FilterBar({
   const set = (fields: Partial<Filters>) => onChange({ ...filters, ...fields })
 
   return (
-    <div className="flex flex-wrap items-end gap-3 border-b px-6 py-3">
-      <div className="relative">
-        <SearchIcon aria-hidden="true" className="absolute top-2 left-2 size-4 text-muted-foreground" />
-        <Input
+    <div className="flex flex-wrap items-center gap-3 border-b px-6 py-3">
+      {/* w-56 rather than w-64: with every filter set, Clear still fits on the one row at 1440. */}
+      <InputGroup className="w-56">
+        <InputGroupInput
           aria-label="Search descriptions and counterparties"
-          className="w-64 pl-7"
           onChange={(event) => setText(event.target.value)}
           placeholder="Search text"
           value={text}
         />
-      </div>
+        <InputGroupAddon>
+          <SearchIcon aria-hidden="true" />
+        </InputGroupAddon>
+      </InputGroup>
 
       {/* A native date field reads out as three unnamed spinbuttons, so the visible label is
           not enough: each field carries its own name. */}
@@ -250,8 +255,7 @@ export function TransactionsPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b px-6">
-        <h1 className="font-heading font-semibold text-sm">Transactions</h1>
+      <PageBar title="Transactions">
         <p className="truncate text-muted-foreground text-xs">
           {list.isPending
             ? 'Loading...'
@@ -268,7 +272,7 @@ export function TransactionsPage() {
           {list.isFetching && !list.isPending && <Spinner className="size-3.5 text-muted-foreground" />}
           <AddTransactionDialog accounts={accounts} categories={categories} onCreated={reload} />
         </div>
-      </header>
+      </PageBar>
 
       <FilterBar accounts={accounts} categories={categories} filters={filters} onChange={setFilters} />
 
@@ -279,18 +283,23 @@ export function TransactionsPage() {
       )}
 
       {total === 0 && !list.isPending ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 text-center">
-          <p className="font-medium text-sm">
-            {hasFilters(filters) ? 'No transaction matches these filters.' : 'This profile has no transactions yet.'}
-          </p>
-          <p className="text-muted-foreground text-xs">
-            {hasFilters(filters)
-              ? 'Widen the date range or clear the filters.'
-              : accounts.length > 0
-                ? 'Drop a bank statement into the chat, or add a booking by hand.'
-                : 'Drop a bank statement into the chat. Manual rows need an account to book against.'}
-          </p>
-        </div>
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              {hasFilters(filters) ? <SearchIcon aria-hidden="true" /> : <TableIcon aria-hidden="true" />}
+            </EmptyMedia>
+            <EmptyTitle>
+              {hasFilters(filters) ? 'No transaction matches these filters.' : 'This profile has no transactions yet.'}
+            </EmptyTitle>
+            <EmptyDescription>
+              {hasFilters(filters)
+                ? 'Widen the date range or clear the filters.'
+                : accounts.length > 0
+                  ? 'Drop a bank statement into the chat, or add a booking by hand.'
+                  : 'Drop a bank statement into the chat. Manual rows need an account to book against.'}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <TransactionsTable
           accounts={accounts}

@@ -18,6 +18,10 @@ const badgeVariants = cva(
         ghost:
           "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
+        // Two soft status tints beside the destructive one: a thing that is done (applied,
+        // resident) and a thing that still needs a decision (incomplete, undecided).
+        success: "bg-primary/10 text-primary",
+        warning: "bg-warning/10 text-warning",
       },
     },
     defaultVariants: {

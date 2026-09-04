@@ -216,7 +216,7 @@ function Footer({ output, actions }: { output: ChartToolOutput; actions: ReactNo
 
 function Card({ children }: { children: ReactNode }) {
   return (
-    <div className="w-full overflow-hidden rounded-xl border bg-card" data-slot="chart-card">
+    <div className="w-full overflow-hidden rounded-lg border bg-card" data-slot="chart-card">
       {children}
     </div>
   )

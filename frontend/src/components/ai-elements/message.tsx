@@ -53,7 +53,10 @@ export const MessageContent = ({
     className={cn(
       "is-user:dark flex w-fit min-w-0 max-w-full flex-col gap-2 overflow-hidden text-sm",
       "group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground",
-      "group-[.is-assistant]:text-foreground",
+      // The registry fits the assistant column to its content. Here every assistant turn carries
+      // blocks (tool steps, cards), and a block that is as wide as its widest sibling changes
+      // width when a step is opened or a chart pair appears. The column is the column.
+      "group-[.is-assistant]:w-full group-[.is-assistant]:text-foreground",
       className
     )}
     {...props}

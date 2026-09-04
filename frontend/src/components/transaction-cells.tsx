@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 /** A cell that saved nothing keeps what the user typed and says why, right where they typed it. */
 function CellError({ message }: { message: string }) {
   return (
-    <span className="block px-1.5 pt-0.5 text-[11px] text-destructive leading-tight" role="alert">
+    <span className="block px-1.5 pt-0.5 text-2xs text-destructive leading-tight" role="alert">
       {message}
     </span>
   )
@@ -15,7 +15,9 @@ function CellError({ message }: { message: string }) {
 
 const reason = (failure: unknown) => (failure instanceof Error ? failure.message : 'That edit was refused.')
 
-const READ = 'flex h-7 w-full items-center rounded-md px-1.5 text-left transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none'
+// The hover and focus of the shadcn Button's ghost variant, so a cell you can click looks like
+// every other thing you can click.
+const READ = 'flex h-7 w-full items-center rounded-md px-1.5 text-left transition-colors hover:bg-muted hover:text-foreground focus-ring'
 const WRITE = 'h-7 w-full rounded-md border border-input bg-background px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive'
 
 type Save<T> = (value: T) => Promise<unknown>
@@ -239,17 +241,21 @@ export function PickerCell({
         <SelectTrigger
           aria-invalid={error !== null}
           aria-label={label}
-          className="h-7! w-full min-w-0 rounded-md border-transparent px-1.5 font-normal shadow-none hover:bg-accent dark:bg-transparent dark:hover:bg-accent"
+          className="h-7! w-full min-w-0 rounded-md border-transparent px-1.5 font-normal shadow-none hover:bg-muted dark:bg-transparent dark:hover:bg-muted"
           size="sm"
         >
           {/* An empty cell shows the placeholder, not the label of the item that clears it:
               a `Select` whose value is the clear item would otherwise print that item's words
-              ("None") as if they were a real subcategory. */}
-          {value === null ? (
-            <span className="truncate text-muted-foreground">{placeholder}</span>
-          ) : (
-            <SelectValue placeholder={placeholder} />
-          )}
+              ("None") as if they were a real subcategory. Both are wrapped in a span that
+              truncates: the trigger's own value slot clips a long account name without an
+              ellipsis ("Sparkasse Girok"). */}
+          <span className="min-w-0 flex-1 truncate text-left">
+            {value === null ? (
+              <span className="text-muted-foreground">{placeholder}</span>
+            ) : (
+              <SelectValue placeholder={placeholder} />
+            )}
+          </span>
         </SelectTrigger>
         <SelectContent className="max-h-72">
           {clearable && (

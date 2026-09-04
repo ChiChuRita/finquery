@@ -88,7 +88,7 @@ export function TaxonomyCard() {
   }
 
   return (
-    <section aria-labelledby="taxonomy-heading" className="rounded-xl border bg-card p-4 shadow-sm">
+    <section aria-labelledby="taxonomy-heading" className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-heading font-semibold text-base" id="taxonomy-heading">
@@ -130,7 +130,7 @@ export function TaxonomyCard() {
                   />
                 ) : (
                   <button
-                    className="text-left font-medium text-sm hover:text-primary"
+                    className="rounded-sm text-left font-medium text-sm transition-colors hover:text-primary focus-ring"
                     onClick={() => setRenaming({ category: category.name })}
                     title="Click to rename"
                     type="button"
@@ -158,12 +158,9 @@ export function TaxonomyCard() {
                     ) : (
                       <DropdownMenu key={subcategory.id}>
                         <DropdownMenuTrigger asChild>
-                          <button
-                            className="rounded-full border px-2 py-0.5 text-xs transition-colors hover:bg-accent"
-                            type="button"
-                          >
+                          <Button className="rounded-full" size="xs" variant="outline">
                             {subcategory.name}
-                          </button>
+                          </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start">
                           <DropdownMenuItem
@@ -212,14 +209,15 @@ export function TaxonomyCard() {
                       </DropdownMenu>
                     ),
                   )}
-                  <button
-                    className="rounded-full border border-dashed px-2 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground"
+                  <Button
+                    className="rounded-full border-dashed text-muted-foreground"
                     onClick={() => setAdding({ category: category.name })}
-                    type="button"
+                    size="xs"
+                    variant="outline"
                   >
-                    <PlusIcon aria-hidden="true" className="mr-0.5 inline size-3" />
+                    <PlusIcon aria-hidden="true" data-icon="inline-start" />
                     Subcategory
-                  </button>
+                  </Button>
                 </div>
               </div>
 

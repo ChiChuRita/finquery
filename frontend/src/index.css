@@ -11,6 +11,10 @@
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: 'Geist Variable', sans-serif;
+    /* The caption step: timestamps, provenance lines, hints. One step under text-xs so every
+       small line in the app is the same small. */
+    --text-2xs: 0.6875rem;
+    --text-2xs--line-height: 1rem;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -29,6 +33,7 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-warning: var(--warning);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -68,6 +73,10 @@
     --accent: oklch(0.97 0 0);
     --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
+    /* Something that is neither wrong nor done: undecided duplicates, Needs review counts, a
+       statement that did not reconcile. Text-legible on the light surface. Positive states use
+       the primary teal, negative ones the destructive red, so this is the third and last. */
+    --warning: oklch(0.58 0.16 55);
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
     --ring: oklch(0.70 0.06 165);
@@ -106,6 +115,7 @@
     --accent: oklch(0.269 0 0);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
+    --warning: oklch(0.80 0.15 75);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.55 0.06 165);
@@ -126,34 +136,41 @@
     --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* The focus treatment of the shadcn Button, for the links and plain buttons the app draws
+   itself (sidebar rows, tabs, pills, inline cells). Without it they get the browser's one pixel
+   outline in a half-transparent colour, which reads as no focus at all. */
+@utility focus-ring {
+    @apply outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50;
+}
+
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
+    * {
+        @apply border-border outline-ring/50;
     }
-  /* A table that scrolls sideways keeps its bar visible: an overlay scrollbar that only
-     appears once you are already scrolling is no affordance at all. */
-  [data-streamdown="table-wrapper"] > div:last-child,
-  [data-slot="table-container"] {
-    scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
+    /* A table that scrolls sideways keeps its bar visible: an overlay scrollbar that only
+       appears once you are already scrolling is no affordance at all. */
+    [data-streamdown="table-wrapper"] > div:last-child,
+    [data-slot="table-container"] {
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
     }
-  [data-streamdown="table-wrapper"] > div:last-child::-webkit-scrollbar,
-  [data-slot="table-container"]::-webkit-scrollbar {
-    height: 0.5rem;
-    width: 0.5rem;
+    [data-streamdown="table-wrapper"] > div:last-child::-webkit-scrollbar,
+    [data-slot="table-container"]::-webkit-scrollbar {
+        height: 0.5rem;
+        width: 0.5rem;
     }
-  [data-streamdown="table-wrapper"] > div:last-child::-webkit-scrollbar-thumb,
-  [data-slot="table-container"]::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-border;
+    [data-streamdown="table-wrapper"] > div:last-child::-webkit-scrollbar-thumb,
+    [data-slot="table-container"]::-webkit-scrollbar-thumb {
+        @apply rounded-full bg-border;
     }
-  /* Native date inputs sit next to shadcn selects in the filter bar. */
-  input[type="date"]::-webkit-calendar-picker-indicator {
-    @apply cursor-pointer rounded opacity-50 transition-opacity hover:opacity-100;
+    /* Native date inputs sit next to shadcn selects in the filter bar. */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+        @apply cursor-pointer rounded opacity-50 transition-opacity hover:opacity-100;
     }
-  body {
-    @apply bg-background text-foreground;
+    body {
+        @apply bg-background text-foreground;
     }
-  html {
-    @apply font-sans;
+    html {
+        @apply font-sans;
     }
 }
