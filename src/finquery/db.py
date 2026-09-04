@@ -282,7 +282,8 @@ def _enforce_split_sums(session: Session, _context: object) -> None:
     for parent_id, amount_cents in parents:
         if sums[parent_id] != amount_cents:
             raise SplitSumError(
-                f"split children sum to {sums[parent_id] / 100:.2f} but the parent is {amount_cents / 100:.2f}"
+                f"The legs of the split add up to {sums[parent_id] / 100:.2f} "
+                f"but the transaction is {amount_cents / 100:.2f}."
             )
 
 

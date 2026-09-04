@@ -7,6 +7,7 @@ import {
   PencilIcon,
   PlusIcon,
   SettingsIcon,
+  TableIcon,
   Trash2Icon,
   UploadIcon,
 } from 'lucide-react'
@@ -83,6 +84,14 @@ export function AppSidebar() {
             New chat
           </Link>
         </Button>
+        <Link
+          activeProps={{ className: 'bg-sidebar-accent font-medium' }}
+          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
+          to="/transactions"
+        >
+          <TableIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          Transactions
+        </Link>
         <Link
           activeProps={{ className: 'bg-sidebar-accent font-medium' }}
           className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"

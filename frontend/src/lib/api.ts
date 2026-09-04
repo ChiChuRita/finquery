@@ -1,4 +1,4 @@
-import { queryOptions } from '@tanstack/react-query'
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 import type { ToolUIPart, UIMessage } from 'ai'
 
 export type ModelSlot = 'fast' | 'quality'
@@ -67,25 +67,24 @@ export interface ConversationDetail extends Conversation {
   interrupted: boolean
 }
 
+// The API refuses a write with a readable `detail`; FastAPI's own body validation answers with
+// a list of errors instead. Both become one sentence a cell can show.
+async function problem(response: Response): Promise<string> {
+  const body = (await response.json().catch(() => null)) as { detail?: unknown } | null
+  const detail = body?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) return String((detail[0] as { msg?: string } | undefined)?.msg ?? 'That value is not usable.')
+  return `${response.status} ${response.statusText}`
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
     headers: { 'content-type': 'application/json', ...init?.headers },
   })
-  if (!response.ok) {
-    throw new Error(await detailOf(response))
-  }
+  if (!response.ok) throw new Error(await problem(response))
+  // A delete answers 204 with no body.
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
-}
-
-async function detailOf(response: Response): Promise<string> {
-  try {
-    const body = (await response.json()) as { detail?: unknown }
-    if (typeof body.detail === 'string') return body.detail
-  } catch {
-    // Not JSON, fall through to the status line.
-  }
-  return `${response.status} ${response.statusText}`
 }
 
 export const profilesQuery = queryOptions({
@@ -271,10 +270,7 @@ export interface ImportRecord {
 
 async function postForm<T>(url: string, form: FormData): Promise<T> {
   const response = await fetch(url, { method: 'POST', body: form })
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { detail?: string } | null
-    throw new Error(body?.detail ?? `${response.status} ${response.statusText}`)
-  }
+  if (!response.ok) throw new Error(await problem(response))
   return (await response.json()) as T
 }
 
@@ -302,4 +298,181 @@ export const importsQuery = (profileId: string | undefined) =>
     queryKey: ['imports', { profileId }],
     queryFn: () => request<ImportRecord[]>(`/api/imports?profile_id=${profileId}`),
     enabled: profileId !== undefined,
+  })
+
+// Transactions
+
+export interface Transaction {
+  id: string
+  booked_on: string
+  description: string
+  counterparty: string | null
+  title: string | null
+  amount_cents: number
+  category_id: string | null
+  category: string | null
+  subcategory_id: string | null
+  subcategory: string | null
+  account_id: string
+  account: string
+  source: string
+  parent_id: string | null
+  split_count: number
+}
+
+export interface TransactionPage {
+  total: number
+  rows: Transaction[]
+}
+
+export interface SubcategoryRef {
+  id: string
+  name: string
+}
+
+export interface CategoryRef extends SubcategoryRef {
+  subcategories: SubcategoryRef[]
+}
+
+export interface AccountRef {
+  id: string
+  name: string
+}
+
+export interface Filters {
+  q: string
+  date_from: string
+  date_to: string
+  category_id: string
+  account_id: string
+  needs_review: boolean
+}
+
+export const NO_FILTERS: Filters = {
+  q: '',
+  date_from: '',
+  date_to: '',
+  category_id: '',
+  account_id: '',
+  needs_review: false,
+}
+
+export const hasFilters = (filters: Filters) =>
+  Object.entries(filters).some(([key, value]) => value !== NO_FILTERS[key as keyof Filters])
+
+/** One request's worth of rows. The table virtualizes and asks for the next chunk as it scrolls. */
+export const PAGE_SIZE = 500
+
+function filterParams(profileId: string, filters: Filters): URLSearchParams {
+  const params = new URLSearchParams({ profile_id: profileId })
+  // The page lists split parents with a badge and edits their children in the expanded row.
+  params.set('include_parents', 'true')
+  if (filters.q.trim()) params.set('q', filters.q.trim())
+  if (filters.date_from) params.set('date_from', filters.date_from)
+  if (filters.date_to) params.set('date_to', filters.date_to)
+  if (filters.category_id) params.set('category_id', filters.category_id)
+  if (filters.account_id) params.set('account_id', filters.account_id)
+  if (filters.needs_review) params.set('needs_review', 'true')
+  return params
+}
+
+export const transactionsQuery = (profileId: string | undefined, filters: Filters) =>
+  infiniteQueryOptions({
+    queryKey: ['transactions', 'list', { profileId }, filters] as const,
+    queryFn: ({ pageParam }) => {
+      const params = filterParams(profileId as string, filters)
+      params.set('limit', String(PAGE_SIZE))
+      params.set('offset', String(pageParam))
+      return request<TransactionPage>(`/api/transactions?${params}`)
+    },
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((count, page) => count + page.rows.length, 0)
+      return loaded < last.total ? loaded : undefined
+    },
+    enabled: profileId !== undefined,
+  })
+
+export const accountsQuery = (profileId: string | undefined) =>
+  queryOptions({
+    queryKey: ['accounts', { profileId }],
+    queryFn: () => request<AccountRef[]>(`/api/accounts?profile_id=${profileId}`),
+    enabled: profileId !== undefined,
+  })
+
+export const categoriesQuery = (profileId: string | undefined) =>
+  queryOptions({
+    queryKey: ['categories', { profileId }],
+    queryFn: () => request<CategoryRef[]>(`/api/categories?profile_id=${profileId}`),
+    enabled: profileId !== undefined,
+  })
+
+export interface TransactionEdit {
+  booked_on?: string
+  description?: string
+  amount_cents?: number
+  category_id?: string | null
+  subcategory_id?: string | null
+  account_id?: string
+}
+
+// A write carries the profile in its body: it is who may edit the row, not what to write.
+export const patchTransaction = (profileId: string, id: string, edit: TransactionEdit) =>
+  request<Transaction>(`/api/transactions/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ profile_id: profileId, ...edit }),
+  })
+
+export interface NewTransaction {
+  booked_on: string
+  description: string
+  amount_cents: number
+  account_id: string
+  category_id?: string | null
+  subcategory_id?: string | null
+}
+
+export const createTransaction = (profileId: string, body: NewTransaction) =>
+  request<Transaction>('/api/transactions', {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId, ...body }),
+  })
+
+export interface SplitChild {
+  id?: string
+  description: string
+  amount_cents: number
+  category_id?: string | null
+  subcategory_id?: string | null
+}
+
+export const splitsQuery = (profileId: string | undefined, id: string) =>
+  queryOptions({
+    queryKey: ['transactions', 'splits', { profileId }, id],
+    queryFn: () => request<Transaction[]>(`/api/transactions/${id}/splits?profile_id=${profileId}`),
+    enabled: profileId !== undefined,
+  })
+
+/** The whole set of legs at once: with an id it is edited, without one added, missing ones go. */
+export const saveSplits = (profileId: string, id: string, children: SplitChild[]) =>
+  request<Transaction[]>(`/api/transactions/${id}/splits`, {
+    method: 'PUT',
+    body: JSON.stringify({ profile_id: profileId, children }),
+  })
+
+export const bulkRecategorize = (
+  profileId: string,
+  ids: string[],
+  category_id: string | null,
+  subcategory_id: string | null,
+) =>
+  request<{ updated: number }>('/api/transactions/bulk-recategorize', {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId, ids, category_id, subcategory_id }),
+  })
+
+export const bulkDelete = (profileId: string, ids: string[]) =>
+  request<{ deleted: number }>('/api/transactions/bulk-delete', {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId, ids }),
   })
