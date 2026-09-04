@@ -3,12 +3,13 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from finquery.api import chat, conversations, imports, taxonomy, transactions
-from finquery.db import ensure_default_profile, make_session_factory
+from finquery.api.transactions import TransactionEditError
+from finquery.db import SplitSumError, ensure_default_profile, make_session_factory
 from finquery.providers import MODEL_SLOTS, ModelResolver, build_resolver
 from finquery.settings import Settings
 
@@ -33,6 +34,14 @@ def create_app(settings: Settings, *, resolve_model: ModelResolver | None = None
     @app.get("/api/health")
     async def health() -> dict[str, object]:
         return {"provider": settings.provider, "slots": list(MODEL_SLOTS)}
+
+    # A refused write is a validation error the UI shows where it happened, not a 500. One
+    # handler for both, so no endpoint has to catch what the data model says no to.
+    async def refused(_request: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+
+    app.add_exception_handler(TransactionEditError, refused)
+    app.add_exception_handler(SplitSumError, refused)
 
     app.include_router(conversations.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")

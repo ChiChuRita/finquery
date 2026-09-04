@@ -7,6 +7,7 @@ import { ChatView } from '@/components/chat-view'
 import { Composer } from '@/components/composer'
 import { EmptyState } from '@/components/empty-state'
 import { ImportPage } from '@/components/import-page'
+import { TransactionsPage } from '@/components/transactions-page'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { conversationQuery, conversationsQuery, createConversation, type ModelSlot } from '@/lib/api'
 import { stashPendingPrompt } from '@/lib/pending'
@@ -88,8 +89,14 @@ const conversationRoute = createRoute({
 
 const importRoute = createRoute({ getParentRoute: () => rootRoute, path: '/import', component: ImportPage })
 
+const transactionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/transactions',
+  component: TransactionsPage,
+})
+
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([indexRoute, conversationRoute, importRoute]),
+  routeTree: rootRoute.addChildren([indexRoute, conversationRoute, importRoute, transactionsRoute]),
 })
 
 declare module '@tanstack/react-router' {

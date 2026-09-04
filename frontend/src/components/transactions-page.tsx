@@ -1,0 +1,341 @@
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
+import type { RowSelectionState } from '@tanstack/react-table'
+import { SearchIcon, XIcon } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+
+import { TransactionsTable, type Patch } from '@/components/transactions-table'
+import { AddTransactionDialog, ConfirmDeleteDialog } from '@/components/transaction-dialogs'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Spinner } from '@/components/ui/spinner'
+import {
+  accountsQuery,
+  bulkDelete,
+  bulkRecategorize,
+  categoriesQuery,
+  hasFilters,
+  NO_FILTERS,
+  patchTransaction,
+  transactionsQuery,
+  type AccountRef,
+  type CategoryRef,
+  type Filters,
+  type Transaction,
+  type TransactionPage,
+} from '@/lib/api'
+import { formatEur } from '@/lib/format'
+
+const ALL = '__all__'
+const NO_ROWS: Transaction[] = []
+const NO_CATEGORIES: CategoryRef[] = []
+const NO_ACCOUNTS: AccountRef[] = []
+
+/** Rewrite one row wherever it sits in the loaded pages, for the optimistic edit and its answer. */
+function withRow(
+  data: InfiniteData<TransactionPage> | undefined,
+  id: string,
+  next: (row: Transaction) => Transaction,
+): InfiniteData<TransactionPage> | undefined {
+  if (!data) return data
+  return {
+    ...data,
+    pages: data.pages.map((page) => ({
+      ...page,
+      rows: page.rows.map((row) => (row.id === id ? next(row) : row)),
+    })),
+  }
+}
+
+function FilterBar({
+  filters,
+  categories,
+  accounts,
+  onChange,
+}: {
+  filters: Filters
+  categories: CategoryRef[]
+  accounts: AccountRef[]
+  onChange: (next: Filters) => void
+}) {
+  // The text filter runs on the server, so it waits for a pause in the typing.
+  const [text, setText] = useState(filters.q)
+  useEffect(() => {
+    if (text === filters.q) return
+    const timer = setTimeout(() => onChange({ ...filters, q: text }), 250)
+    return () => clearTimeout(timer)
+  }, [text, filters, onChange])
+
+  const set = (fields: Partial<Filters>) => onChange({ ...filters, ...fields })
+
+  return (
+    <div className="flex flex-wrap items-end gap-3 border-b px-6 py-3">
+      <div className="relative">
+        <SearchIcon aria-hidden="true" className="absolute top-2 left-2 size-4 text-muted-foreground" />
+        <Input
+          aria-label="Search descriptions and counterparties"
+          className="w-64 pl-7"
+          onChange={(event) => setText(event.target.value)}
+          placeholder="Search text"
+          value={text}
+        />
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <Label className="text-muted-foreground text-xs" htmlFor="filter-from">
+          From
+        </Label>
+        <Input
+          className="w-36"
+          id="filter-from"
+          onChange={(event) => set({ date_from: event.target.value })}
+          type="date"
+          value={filters.date_from}
+        />
+        <Label className="text-muted-foreground text-xs" htmlFor="filter-to">
+          to
+        </Label>
+        <Input
+          className="w-36"
+          id="filter-to"
+          onChange={(event) => set({ date_to: event.target.value })}
+          type="date"
+          value={filters.date_to}
+        />
+      </div>
+
+      <Select
+        onValueChange={(value) => set({ category_id: value === ALL ? '' : value })}
+        value={filters.category_id || ALL}
+      >
+        <SelectTrigger aria-label="Category" className="w-40">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="max-h-72">
+          <SelectItem value={ALL}>Every category</SelectItem>
+          <SelectSeparator />
+          {categories.map((category) => (
+            <SelectItem key={category.id} value={category.id}>
+              {category.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        onValueChange={(value) => set({ account_id: value === ALL ? '' : value })}
+        value={filters.account_id || ALL}
+      >
+        <SelectTrigger aria-label="Account" className="w-40">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>Every account</SelectItem>
+          <SelectSeparator />
+          {accounts.map((account) => (
+            <SelectItem key={account.id} value={account.id}>
+              {account.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Label className="flex h-8 cursor-pointer items-center gap-2 rounded-lg border px-2.5 text-sm">
+        <Checkbox
+          checked={filters.needs_review}
+          onCheckedChange={(checked) => set({ needs_review: checked === true })}
+        />
+        Needs review
+      </Label>
+
+      {hasFilters(filters) && (
+        <Button
+          onClick={() => {
+            setText('')
+            onChange(NO_FILTERS)
+          }}
+          size="sm"
+          variant="ghost"
+        >
+          <XIcon /> Clear
+        </Button>
+      )}
+    </div>
+  )
+}
+
+export function TransactionsPage() {
+  const queryClient = useQueryClient()
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
+  const [selection, setSelection] = useState<RowSelectionState>({})
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [target, setTarget] = useState(ALL)
+
+  const list = useInfiniteQuery(transactionsQuery(filters))
+  const { data: categories = NO_CATEGORIES } = useQuery(categoriesQuery)
+  const { data: accounts = NO_ACCOUNTS } = useQuery(accountsQuery)
+
+  const rows = useMemo(() => list.data?.pages.flatMap((page) => page.rows) ?? NO_ROWS, [list.data])
+  const total = list.data?.pages[0]?.total ?? 0
+  const selectedIds = useMemo(() => Object.keys(selection).filter((id) => selection[id]), [selection])
+
+  const refresh = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['transactions'] }),
+    [queryClient],
+  )
+
+  // The row shows the new value at once; a refusal puts the old pages back and the cell says why.
+  // Stable, because the table's columns close over it and rebuilding them on every render would
+  // hand `useTable` new options forever.
+  const patch = useCallback<Patch>(
+    async (row, edit, optimistic) => {
+      const key = transactionsQuery(filters).queryKey
+      const previous = queryClient.getQueryData<InfiniteData<TransactionPage>>(key)
+      queryClient.setQueryData(key, withRow(previous, row.id, (current) => ({ ...current, ...optimistic })))
+      try {
+        const saved = await patchTransaction(row.id, edit)
+        queryClient.setQueryData<InfiniteData<TransactionPage>>(key, (data) => withRow(data, saved.id, () => saved))
+      } catch (failure) {
+        if (previous) queryClient.setQueryData(key, previous)
+        throw failure
+      }
+    },
+    [filters, queryClient],
+  )
+
+  const reload = useCallback(() => void refresh(), [refresh])
+  const { fetchNextPage, hasNextPage, isFetchingNextPage } = list
+  const loadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage()
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage])
+
+  const recategorize = useMutation({
+    // A bulk move sets the category and leaves no subcategory, the same as one cell would.
+    mutationFn: () => bulkRecategorize(selectedIds, target === ALL ? null : target, null),
+    onSuccess: async () => {
+      setSelection({})
+      await refresh()
+    },
+  })
+
+  const remove = useMutation({
+    mutationFn: () => bulkDelete(selectedIds),
+    onSuccess: async () => {
+      setSelection({})
+      setExpandedId(null)
+      await refresh()
+    },
+  })
+
+  const failure = list.error ?? recategorize.error ?? remove.error
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b px-6">
+        <h1 className="font-heading font-semibold text-sm">Transactions</h1>
+        <p className="truncate text-muted-foreground text-xs">
+          {list.isPending
+            ? 'Loading...'
+            : `${total} ${total === 1 ? 'row' : 'rows'}${hasFilters(filters) ? ' match these filters' : ' in this profile'}`}
+          {rows.length < total && ` · ${rows.length} loaded`}
+        </p>
+        <div className="ml-auto flex items-center gap-2">
+          {list.isFetching && !list.isPending && <Spinner className="size-3.5 text-muted-foreground" />}
+          <AddTransactionDialog accounts={accounts} categories={categories} onCreated={reload} />
+        </div>
+      </header>
+
+      <FilterBar accounts={accounts} categories={categories} filters={filters} onChange={setFilters} />
+
+      {failure && (
+        <p className="border-b bg-destructive/5 px-6 py-2 text-destructive text-sm" role="alert">
+          {failure.message}
+        </p>
+      )}
+
+      {total === 0 && !list.isPending ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 text-center">
+          <p className="font-medium text-sm">
+            {hasFilters(filters) ? 'No transaction matches these filters.' : 'This profile has no transactions yet.'}
+          </p>
+          <p className="text-muted-foreground text-xs">
+            {hasFilters(filters)
+              ? 'Widen the date range or clear the filters.'
+              : accounts.length > 0
+                ? 'Import a bank CSV on the Import page, or add one by hand.'
+                : 'Import a bank CSV on the Import page. Manual rows need an account to book against.'}
+          </p>
+        </div>
+      ) : (
+        <TransactionsTable
+          accounts={accounts}
+          categories={categories}
+          expandedId={expandedId}
+          onExpand={setExpandedId}
+          onPatch={patch}
+          onReachEnd={loadMore}
+          onSelectionChange={setSelection}
+          onSplitChanged={reload}
+          rows={rows}
+          selection={selection}
+          total={total}
+        />
+      )}
+
+      {selectedIds.length > 0 && (
+        <div className="flex shrink-0 flex-wrap items-center gap-3 border-t bg-card px-6 py-3">
+          <span className="font-medium text-sm">
+            {selectedIds.length} selected
+            <span className="pl-2 font-normal text-muted-foreground text-xs tabular-nums">
+              {formatEur(
+                rows
+                  .filter((row) => selection[row.id])
+                  .reduce((sum, row) => sum + row.amount_cents, 0),
+              )}
+            </span>
+          </span>
+
+          <div className="flex items-center gap-2">
+            <Select onValueChange={setTarget} value={target}>
+              <SelectTrigger aria-label="Category to move them to" className="w-56" size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              {/* Anchored to the trigger rather than to the chosen item, because the bar it
+                  hangs off sits at the bottom of the window. Categories only: the subcategory
+                  of a row is a detail its own cell edits. */}
+              <SelectContent className="max-h-96" position="popper">
+                <SelectItem value={ALL}>Needs review</SelectItem>
+                <SelectSeparator />
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              disabled={recategorize.isPending}
+              onClick={() => recategorize.mutate()}
+              size="sm"
+              variant="secondary"
+            >
+              {recategorize.isPending ? 'Applying...' : 'Recategorize'}
+            </Button>
+          </div>
+
+          <ConfirmDeleteDialog
+            count={selectedIds.length}
+            onConfirm={() => remove.mutateAsync()}
+            pending={remove.isPending}
+          />
+
+          <Button className="ml-auto" onClick={() => setSelection({})} size="sm" variant="ghost">
+            Clear the selection
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
