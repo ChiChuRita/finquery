@@ -192,6 +192,11 @@ class Attachment(Base):
     data: Mapped[bytes] = mapped_column(LargeBinary)
     mapping_json: Mapped[str | None] = mapped_column(Text, default=None)
     """The column mapping this CSV is read with: proposed and awaiting confirmation, or used."""
+    extraction_json: Mapped[str | None] = mapped_column(Text, default=None)
+    """What the extraction sub-agent read out of this PDF or photo, guards and all
+    (`finquery.extract.statement.Extraction`). Stored for the same reason `mapping_json` is: the
+    review card is answered in a later request, and the rows that are committed then have to be
+    the rows the user was shown, not a second reading of the file."""
     account_name: Mapped[str | None] = mapped_column(String(120), default=None)
     """The account the mapping proposal named, so a confirmed import lands where the card said."""
     import_id: Mapped[str | None] = mapped_column(ForeignKey("import.id", ondelete="SET NULL"), default=None)
@@ -500,6 +505,9 @@ NEW_COLUMNS: dict[str, dict[str, str]] = {
     },
     "profile": {
         "web_lookup_enabled": "BOOLEAN NOT NULL DEFAULT 0",
+    },
+    "attachment": {
+        "extraction_json": "TEXT",
     },
 }
 

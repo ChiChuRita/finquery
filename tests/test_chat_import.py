@@ -437,12 +437,19 @@ async def test_a_typed_transaction_is_previewed_and_confirming_it_creates_the_ro
     assert rows[0]["title"]
 
 
-async def test_a_pdf_is_stored_and_answered_with_the_extraction_message(
+async def test_a_pdf_attachment_is_stored_and_goes_to_the_extraction_path(
     client: httpx.AsyncClient, scripts: Scripts, profile_id: str
 ) -> None:
-    responder = sub_agents()
+    """The PDF is stored and read, not turned away.
+
+    Until ticket 11 this asserted the sentence that said a PDF could not be read yet. What the
+    tool does with one now is `tests/test_extraction.py`; what this pins is the half that is
+    this ticket's: the bytes are stored per conversation, the chip links to them, and the file
+    reaches the reader rather than a refusal.
+    """
     scripts.fast = importing(STATEMENT_PDF.name)
-    scripts.fast_call = responder  # type: ignore[assignment]
+    # The extraction sub-agent answers with nothing at all, so no booking is invented here.
+    scripts.fast_call = _reads_nothing()  # type: ignore[assignment]
     conversation_id = await new_conversation(client, profile_id)
 
     response = await client.post(
@@ -453,21 +460,28 @@ async def test_a_pdf_is_stored_and_answered_with_the_extraction_message(
     chunks = parse_sse(response.text)
 
     output = outputs_of(chunks)[0]
-    assert output["status"] == "extraction_not_ready"
-    assert "cannot read a PDF yet" in output["message"]
-    # A clear sentence, not an error: nothing was retried and nothing was imported.
-    assert "cannot read a PDF yet" in answer(chunks)
+    assert output["status"] == "nothing_found"
     assert await rows_of(client, profile_id) == []
-    assert progress_of(chunks) == []
-    assert responder.calls == []  # type: ignore[attr-defined]
 
-    # The file is stored all the same, which is what ticket 11 will read.
+    # The file is stored all the same, which is what the extraction reads.
     reloaded = await transcript(client, conversation_id)
     chip = reloaded["messages"][0]["parts"][1]
     assert (chip["type"], chip["filename"], chip["mediaType"]) == ("file", STATEMENT_PDF.name, "application/pdf")
     stored = await client.get(chip["url"])
     assert stored.status_code == 200
     assert stored.headers["content-type"] == "application/pdf"
+
+
+def _reads_nothing():
+    """A fast slot whose extraction finds no booking on any page."""
+    categorizer = scripted_categorizer()
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        if [tool.name for tool in info.output_tools] == ["read_statement"]:
+            return ModelResponse(parts=[ToolCallPart("read_statement", json.dumps({"rows": []}))])
+        return categorizer(messages, info)
+
+    return respond
 
 
 async def test_a_file_of_a_kind_we_cannot_read_is_refused_before_the_turn_starts(

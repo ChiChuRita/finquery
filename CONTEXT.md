@@ -40,6 +40,23 @@ Filiale 1234 becomes Edeka, supermarket). Avoid: normalization, cleaning.
 **Import**: a record of one ingestion: file name, kind, mapping used, row counts, duplicates
 found, reconciliation result. Avoid: upload, sync.
 
+**Extraction**: what the extraction sub-agent read out of one PDF or photo, before anything is
+written: the rows with the span each figure was read from, the flags the guards left on them and
+the reconciliation. Stored on the attachment until the review is answered, so the rows that are
+committed are the rows the user was shown. Avoid: parse, OCR (there is no OCR; a page with no
+text layer is looked at by the vision path).
+
+**Verbatim guard**: the rule that an amount, a balance or a date must occur literally in the
+source text of the page it was read from. Avoid: validation.
+
+**Reconciliation**: opening balance plus the bookings equals the closing balance, checked per
+row on the running balance, per page and over the whole statement. Its verdict is one sentence:
+`ok`, `failed` or `not_checkable`. See ADR 0011. Avoid: balance check, audit.
+
+**Flagged row**: an extracted row a guard would not pass. It is never dropped and never
+committed silently: it goes to the review step, where it is accepted, corrected or dropped.
+Avoid: invalid row, error row.
+
 **Column mapping**: which column of an uploaded CSV is the date, the amount (or the debit and
 credit pair), the description and the counterparty, plus its date format and decimal separator.
 Always shown to the user before a commit: in the Import page preview, or on a Question card when

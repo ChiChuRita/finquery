@@ -85,9 +85,10 @@ FINQUERY_PROVIDER=local FINQUERY_SMOKE=1 uv run pytest tests/test_local_smoke.py
 
 ## Data
 
-Import a bank CSV export on `/import`: drop the file, check the mapping, commit. Sparkasse, DKB,
-ING, N26, comdirect and Trade Republic are recognized by their headers; any other bank gets a
-mapping proposed by the fast slot and edited in the preview.
+Import a bank CSV export, a statement PDF or a photo on `/import`: drop the file, check what was
+read, commit. Sparkasse, DKB, ING, N26, comdirect and Trade Republic are recognized by their CSV
+headers; any other bank gets a mapping proposed by the fast slot and edited in the preview. The
+Sparkasse and Trade Republic statement layouts are recognized by their page headers.
 
 The commit is followed by categorization in stages: your own category rules, a dictionary
 of about sixty German merchants, then, if you switched web lookup on, a web lookup of the
@@ -98,12 +99,24 @@ conversation that asks about them in Question cards. Each answer becomes a categ
 recategorizes every booking of that merchant, and telling the assistant "PayPal to Anna is
 always Dining" in chat does the same.
 
+A statement PDF works the same way on the same page. Its pages are read from the text layer
+with pdfplumber, four at a time, and the extraction sub-agent answers with the literal spans it
+read each figure from. Two guards then decide whether the rows can be trusted: every amount,
+balance and date has to occur in the text of the page it was read from, and the statement has to
+reconcile, per row on its running balance, per page and as a whole. A page with no text layer is
+rendered at 150 dpi and looked at by the vision path instead. What passes is imported; what does
+not is shown in a review table with accept, correct and drop per row, and the verdict is one
+sentence that stays on the import record. See `docs/adr/0011-two-guards-on-every-extracted-figure.md`.
+
 A CSV can also go straight into the chat: drop it on the composer, send it, and the assistant
 runs the same pipeline as a tool call, with the rows read, imported and categorized ticking past
 in the tool step and the uncertain merchants asked about right there. An unknown bank layout is
-confirmed on a Question card first. PDFs and photos are accepted and stored, but reading them
-lands in ticket 11. Typing "I paid 12 EUR cash for lunch today" or pasting a few statement lines
-gives a preview card to confirm, and confirming writes the booking and categorizes it.
+confirmed on a Question card first. A statement PDF dropped into a chat is read the same way and
+imported when it reconciles, or asked about on a Question card when it does not. A photo is read
+as a receipt: when its total matches a booking within three days the assistant proposes a split
+of that booking into the receipt's line items, grouped by category, and otherwise it previews a
+new booking. Typing "I paid 12 EUR cash for lunch today" or pasting a few statement lines gives a
+preview card to confirm, and confirming writes the booking and categorizes it.
 
 Then ask in the chat. The query sub-agent writes the SQL on the fast slot, a guard admits only a
 single read-only SELECT over your own transactions, and the tool step in the transcript shows the
@@ -124,7 +137,8 @@ turns that into a DPO dataset and a train script for the two fast-slot adapters.
 training is the phase after this build; see `training/preference/README.md`.
 
 `fixtures/synthetic/` holds the shipped demo dataset, one canonical year of a German household
-as a Sparkasse CSV, a renamed-header CSV, a text PDF statement and four bill images. Regenerate
+as a Sparkasse CSV, a renamed-header CSV, a 15 page text PDF statement that reconciles, and four
+bill images whose line items sum to a booking in the CSV. Regenerate
 it with `uv run python scripts/generate_synthetic.py`.
 
 ## Web lookup
@@ -160,6 +174,8 @@ merchant token leaves at most once per profile: the result is cached. Search nee
   `attachments.py` (files dropped into a chat), `progress.py` (a tool's live progress part),
   `ingest/` (CSV reader, presets, mapping sub-agent, commit, the chat import and typed
   transactions),
+  `extract/` (PDF text and page rendering, statement layouts, the extraction sub-agent, the
+  verbatim and reconciliation guards, the bill flow, the review card),
   `api/` (REST and chat endpoints),
   `local/` (the local provider: catalog, downloads, runtime, model, Gemma wire format, check)
 - `frontend/`: Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router, Query and

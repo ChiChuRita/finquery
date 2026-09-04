@@ -8,7 +8,7 @@ the answer comes back as the tool's output on the next request, where it resumes
 The shape is deliberately generic: a title, an optional note, the rows being asked about with
 their own buttons, question-level buttons for a single choice, and a free text field. Ticket 07
 uses it for categorization, and tickets 08, 10 and 11 reuse it for the CSV mapping
-confirmation, duplicate decisions and extraction review.
+confirmation, duplicate decisions and the review of a flagged extraction.
 
 Wire contract:
 
@@ -59,20 +59,22 @@ class AskRow(BaseModel):
     options: list[AskOption] = Field(default_factory=list, description="Buttons for this row.")
 
 
-ApplyKind = Literal["category_rule", "mapping_confirmation", "transaction_draft"]
+ApplyKind = Literal["category_rule", "mapping_confirmation", "transaction_draft", "extraction_review"]
 """What kind of decision a card collects.
 
-`category_rule` is the only one the server applies itself (`finquery.answers.APPLIERS`). The
-other two name a card whose answers the model acts on with a tool of its own
-(`import_file(confirmed=true)`, `add_transaction(ref)`), so they exist to say "not
-categorization": without them a card that declares nothing would be read as a categorization
-card and its Confirm answers would be offered to `set_rule` as category names. Ticket 10 adds
-its duplicate kind here the same way.
+Two of them the server applies itself (`finquery.answers.APPLIERS`): `category_rule` turns
+every answer into a category rule, and `extraction_review` commits the rows of a statement
+extraction the user accepted. The other two name a card whose answers the model acts on with a
+tool of its own (`import_file(confirmed=true)`, `add_transaction(ref)`), so they exist to say
+"not categorization": without them a card that declares nothing would be read as a
+categorization card and its Confirm answers would be offered to `set_rule` as category names.
+Ticket 10 adds its duplicate kind here the same way.
 """
 
 CATEGORY_RULE: ApplyKind = "category_rule"
 MAPPING_CONFIRMATION: ApplyKind = "mapping_confirmation"
 TRANSACTION_DRAFT: ApplyKind = "transaction_draft"
+EXTRACTION_REVIEW: ApplyKind = "extraction_review"
 
 
 class AskApply(BaseModel):
@@ -81,9 +83,10 @@ class AskApply(BaseModel):
     kind: ApplyKind = Field(
         default=CATEGORY_RULE,
         description=(
-            "`category_rule` means every answer becomes a category rule for that merchant. "
-            "The other kinds are handled by a tool you call yourself, so copy whichever one the "
-            "tool that gave you the rows returned."
+            "`category_rule` means every answer becomes a category rule for that merchant, and "
+            "`extraction_review` that the accepted bookings are imported. The other kinds are "
+            "handled by a tool you call yourself. Copy whichever one the tool that gave you the "
+            "rows returned."
         ),
     )
 

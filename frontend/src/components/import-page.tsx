@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { CheckCircle2Icon, InfoIcon, SparklesIcon, UploadCloudIcon, XIcon } from 'lucide-react'
 import { useRef, useState, type DragEvent } from 'react'
 
+import { ExtractionReview } from '@/components/extraction-review'
 import { ImportsList } from '@/components/imports-list'
 import { MappingEditor } from '@/components/mapping-editor'
 import { Badge } from '@/components/ui/badge'
@@ -13,13 +14,17 @@ import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   categorizeImport,
+  commitExtracted,
   commitImport,
   conversationsQuery,
+  extractUpload,
   importsQuery,
   openReviewConversation,
   previewImport,
   type CategorizeReport,
   type CsvMapping,
+  type ExtractedCommit,
+  type Extraction,
   type ImportPreview,
   type ImportRecord,
 } from '@/lib/api'
@@ -28,6 +33,12 @@ import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 
 const lookedUp = (count: number) => (count === 1 ? '1 merchant was' : `${count} merchants were`)
+
+/** A statement to be read rather than a CSV to be mapped. */
+const isStatement = (file: File) =>
+  file.type === 'application/pdf' ||
+  file.type.startsWith('image/') ||
+  /\.(pdf|png|jpe?g|webp|heic)$/i.test(file.name)
 
 function MappingBadge({ preview }: { preview: ImportPreview }) {
   if (preview.mapping_source === 'model') {
@@ -84,6 +95,7 @@ export function ImportPage() {
   const fileInput = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<ImportPreview | null>(null)
+  const [extraction, setExtraction] = useState<Extraction | null>(null)
   const [accountName, setAccountName] = useState('')
   const [dragging, setDragging] = useState(false)
   const [done, setDone] = useState<ImportRecord | null>(null)
@@ -98,31 +110,66 @@ export function ImportPage() {
     },
   })
 
+  // A PDF or a photo is read once, by the extraction sub-agent, and reviewed before it is
+  // committed: unlike a CSV preview it cannot be recomputed for free, so the rows the page
+  // shows are the rows it posts back.
+  const extractMutation = useMutation({
+    mutationFn: (chosen: File) => extractUpload(chosen),
+    onSuccess: (next) => {
+      setExtraction(next)
+      setAccountName(next.account_name)
+    },
+  })
+
   // Commit, then categorize, then hand the leftovers to a conversation: one flow, because a
   // fresh import is only useful once its rows have categories.
+  const after = async (record: ImportRecord) => {
+    if (!profile) throw new Error('No profile is active yet.')
+    setDone(record)
+    clear()
+    void queryClient.invalidateQueries(importsQuery(profile.id))
+    const categorized = await categorizeImport(record.id, profile.id)
+    setReport(categorized)
+    if (categorized.uncertain.length === 0) return
+    const review = await openReviewConversation(record.id, profile.id)
+    void queryClient.invalidateQueries(conversationsQuery(profile.id))
+    openTab(review.conversation_id)
+    await navigate({ to: '/c/$conversationId', params: { conversationId: review.conversation_id } })
+  }
+
   const commitMutation = useMutation({
     mutationFn: async ({ chosen, mapping }: { chosen: File; mapping: CsvMapping }) => {
       if (!profile) throw new Error('No profile is active yet.')
       // The rows land in the profile the sidebar is showing, which is also the one the list reads.
-      const record = await commitImport(profile.id, chosen, mapping, accountName)
-      setDone(record)
-      clear()
-      void queryClient.invalidateQueries(importsQuery(profile.id))
-      const categorized = await categorizeImport(record.id, profile.id)
-      setReport(categorized)
-      if (categorized.uncertain.length === 0) return
-      const review = await openReviewConversation(record.id, profile.id)
-      void queryClient.invalidateQueries(conversationsQuery(profile.id))
-      openTab(review.conversation_id)
-      await navigate({ to: '/c/$conversationId', params: { conversationId: review.conversation_id } })
+      await after(await commitImport(profile.id, chosen, mapping, accountName))
+    },
+  })
+
+  const commitExtractionMutation = useMutation({
+    mutationFn: async ({ rows, dropped }: { rows: ExtractedCommit['rows']; dropped: number }) => {
+      if (!profile) throw new Error('No profile is active yet.')
+      if (!extraction) throw new Error('There is nothing extracted to import.')
+      await after(
+        await commitExtracted({
+          profile_id: profile.id,
+          file_name: extraction.file_name,
+          kind: extraction.kind,
+          layout: extraction.layout,
+          account_name: accountName,
+          dropped,
+          rows,
+        }),
+      )
     },
   })
 
   const clear = () => {
     setFile(null)
     setPreview(null)
+    setExtraction(null)
     setAccountName('')
     previewMutation.reset()
+    extractMutation.reset()
     if (fileInput.current) fileInput.current.value = ''
   }
 
@@ -131,10 +178,15 @@ export function ImportPage() {
     setDone(null)
     setReport(null)
     setPreview(null)
+    setExtraction(null)
     setAccountName('')
     commitMutation.reset()
+    commitExtractionMutation.reset()
+    extractMutation.reset()
+    previewMutation.reset()
     setFile(chosen)
-    previewMutation.mutate({ chosen })
+    if (isStatement(chosen)) extractMutation.mutate(chosen)
+    else previewMutation.mutate({ chosen })
   }
 
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
@@ -143,15 +195,21 @@ export function ImportPage() {
     take(event.dataTransfer.files[0])
   }
 
-  const error = previewMutation.error ?? commitMutation.error
-  const busy = previewMutation.isPending || commitMutation.isPending
+  const error =
+    previewMutation.error ?? extractMutation.error ?? commitMutation.error ?? commitExtractionMutation.error
+  const busy =
+    previewMutation.isPending ||
+    extractMutation.isPending ||
+    commitMutation.isPending ||
+    commitExtractionMutation.isPending
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       <header className="flex h-14 shrink-0 items-center gap-3 border-b px-6">
         <h1 className="font-heading font-semibold text-sm">Import</h1>
         <p className="truncate text-muted-foreground text-xs">
-          Drop a CSV export, check the mapping, then commit. Nothing is stored until you do.
+          Drop a CSV export, a statement PDF or a photo. Check what was read, then commit. Nothing is stored until
+          you do.
         </p>
       </header>
 
@@ -169,13 +227,14 @@ export function ImportPage() {
           onDrop={onDrop}
         >
           <UploadCloudIcon aria-hidden="true" className="mx-auto size-7 text-muted-foreground" />
-          <p className="mt-3 font-medium text-sm">Drag a bank CSV export here</p>
+          <p className="mt-3 font-medium text-sm">Drag a bank CSV export, a statement PDF or a photo here</p>
           <p className="mt-1 text-muted-foreground text-xs">
             Sparkasse, DKB, ING, N26, comdirect and Trade Republic are recognized by their headers. Any other
-            bank gets a mapping proposed by the fast model.
+            bank gets a mapping proposed by the fast model. A PDF is read page by page, and every amount is checked
+            against the page it was printed on and against the statement's own balances.
           </p>
           <input
-            accept=".csv,text/csv,text/plain"
+            accept=".csv,.pdf,text/csv,text/plain,application/pdf,image/*"
             className="sr-only"
             id="csv-file"
             onChange={(event) => take(event.target.files?.[0])}
@@ -190,9 +249,11 @@ export function ImportPage() {
         {busy && (
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
             <Spinner className="size-4" />
-            {commitMutation.isPending
+            {commitMutation.isPending || commitExtractionMutation.isPending
               ? 'Importing rows, then categorizing by your rules, the merchant dictionary and the fast model...'
-              : 'Reading the file...'}
+              : extractMutation.isPending
+                ? 'Reading the statement page by page and checking every figure against the page it was printed on...'
+                : 'Reading the file...'}
           </div>
         )}
 
@@ -243,6 +304,17 @@ export function ImportPage() {
               <span className="sr-only">Dismiss</span>
             </Button>
           </div>
+        )}
+
+        {file && extraction && (
+          <ExtractionReview
+            accountName={accountName}
+            busy={busy}
+            extraction={extraction}
+            onAccountName={setAccountName}
+            onCancel={clear}
+            onCommit={(rows, dropped) => commitExtractionMutation.mutate({ rows, dropped })}
+          />
         )}
 
         {file && preview && (

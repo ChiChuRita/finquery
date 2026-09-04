@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { FileSpreadsheetIcon } from 'lucide-react'
+import { AlertTriangleIcon, FileSpreadsheetIcon, ScaleIcon } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -46,7 +46,22 @@ export function ImportsList() {
                       give way first: a truncated file name that carries its full name in the
                       title beats a "When" column cut down to a "W". */}
                   <TableCell className="max-w-[9rem] truncate font-medium xl:max-w-[13rem]" title={record.file_name}>
-                    {record.file_name}
+                    <span className="flex items-center gap-1.5">
+                      {/* Only an extraction has a reconciliation verdict, and the icon carries it:
+                          seven columns have no room for the sentence, and the title does. */}
+                      {record.reconciliation &&
+                        (record.reconciliation.startsWith('Reconciled') ? (
+                          <ScaleIcon aria-hidden="true" className="size-3.5 shrink-0 text-primary" />
+                        ) : (
+                          <AlertTriangleIcon
+                            aria-hidden="true"
+                            className="size-3.5 shrink-0 text-amber-600 dark:text-amber-500"
+                          />
+                        ))}
+                      <span className="truncate" title={record.reconciliation ?? record.file_name}>
+                        {record.file_name}
+                      </span>
+                    </span>
                   </TableCell>
                   <TableCell
                     className="max-w-[9rem] truncate text-muted-foreground xl:max-w-[12rem]"

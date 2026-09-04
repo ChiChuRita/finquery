@@ -218,8 +218,13 @@ function CardShell({ changeset, children }: { changeset: Changeset; children?: R
   )
 }
 
-/** One proposal in the transcript, with the buttons that run it. */
-function ChangesetBody({ preview }: { preview: Changeset }) {
+/** One proposal in the transcript, with the buttons that run it.
+ *
+ * Exported because a changeset does not only arrive as its own tool call: a receipt that
+ * matches a booking is proposed inside the `import_file` step, and it has to read and behave
+ * exactly like every other proposal.
+ */
+export function ChangesetProposal({ preview }: { preview: Changeset }) {
   const { profile } = useWorkspace()
   const queryClient = useQueryClient()
   // The tool output is the preview; the server owns the status, so a reload shows it too.
@@ -280,7 +285,7 @@ function ChangesetBody({ preview }: { preview: Changeset }) {
 }
 
 export function ChangesetCard({ part }: { part: ChangesetToolPart }) {
-  if (part.state === 'output-available') return <ChangesetBody preview={part.output} />
+  if (part.state === 'output-available') return <ChangesetProposal preview={part.output} />
   if (part.state === 'output-error') {
     return (
       <div className="not-prose w-full rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">

@@ -4,13 +4,23 @@ import {
   FileSpreadsheetIcon,
   HourglassIcon,
   ReceiptTextIcon,
+  ScaleIcon,
 } from 'lucide-react'
 
 import { Tool, ToolContent, ToolHeader } from '@/components/ai-elements/tool'
+import { ChangesetProposal } from '@/components/changeset-card'
 import { Step } from '@/components/tool-step'
 import { Badge } from '@/components/ui/badge'
-import type { AddTransactionPart, ExtractTransactionPart, ImportFilePart, ImportProgress } from '@/lib/api'
-import { formatEur } from '@/lib/format'
+import type {
+  AddTransactionPart,
+  ExtractTransactionPart,
+  ExtractedBill,
+  ImportFilePart,
+  ImportProgress,
+  StatementRead,
+} from '@/lib/api'
+import { formatDate, formatEur } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
 const bookings = (count: number) => (count === 1 ? '1 booking' : `${count} bookings`)
 
@@ -24,13 +34,60 @@ function title(part: ImportFilePart): string {
       return `Imported ${bookings(output.imported)} from ${output.file}`
     case 'confirm_mapping':
       return `${output.file}: the column mapping needs your confirmation`
-    case 'extraction_not_ready':
-      return `${output.file} was stored, not read`
+    case 'extraction_review':
+      return `${output.flagged} of ${bookings(output.rows_read)} in ${output.file} need your decision`
+    case 'bill_split':
+      return `${output.bill.merchant}: ${output.bill.items.length} line items to split a booking into`
+    case 'bill_draft':
+      return `${output.bill.merchant}: a receipt with no booking to match`
+    case 'bill_matched':
+      return `${output.bill?.merchant ?? output.file} is already booked`
     case 'already_imported':
       return `${output.file} was already imported`
     default:
       return 'Nothing was imported'
   }
+}
+
+/** What the reconciliation guard said, which is the one line that decides whether to trust
+ *  the rows. Amber rather than red: the rows are shown, not thrown away. */
+function Reconciled({ read }: { read: StatementRead }) {
+  return (
+    <p
+      className={cn(
+        'flex items-start gap-1.5 text-xs',
+        read.reconciled === 'ok' ? 'text-muted-foreground' : 'text-amber-600 dark:text-amber-500',
+      )}
+    >
+      <ScaleIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+      {read.reconciliation}
+    </p>
+  )
+}
+
+/** What the vision path read off a receipt, and whether its line items add up. */
+function Bill({ bill }: { bill: ExtractedBill }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-sm">
+        <span className="font-medium">{bill.merchant}</span>, {formatDate(bill.booked_on)},{' '}
+        <span className="tabular-nums">{formatEur(-bill.total_cents)}</span>
+      </p>
+      {bill.items.length > 0 && (
+        <ul className="space-y-0.5 text-xs">
+          {bill.items.map((item, index) => (
+            <li className="flex justify-between gap-3" key={`${item.description}-${index}`}>
+              <span className="truncate text-muted-foreground">{item.description}</span>
+              <span className="shrink-0 tabular-nums">{formatEur(-item.amount_cents)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className={cn('text-xs', bill.verified ? 'text-muted-foreground' : 'text-amber-600 dark:text-amber-500')}>
+        {bill.check}
+      </p>
+    </div>
+  )
 }
 
 function Counts({ label, value, tone }: { label: string; value: number; tone?: 'review' }) {
@@ -95,6 +152,32 @@ export function ImportToolStep({ part, progress }: { part: ImportFilePart; progr
             {part.output.categorized.error && (
               <p className="text-destructive text-xs">{part.output.categorized.error}</p>
             )}
+            {'reconciled' in part.output && <Reconciled read={part.output} />}
+          </div>
+        ) : part.output.status === 'extraction_review' ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Counts label="pages read" value={part.output.pages} />
+              <Counts label="bookings read" value={part.output.rows_read} />
+              <Counts label="need a decision" tone="review" value={part.output.flagged} />
+              <Counts label="read as images" value={part.output.scanned_pages} />
+            </div>
+            <Reconciled read={part.output} />
+            <p className="text-muted-foreground text-xs">
+              {part.output.layout}. Nothing is imported until the question below is answered.
+            </p>
+          </div>
+        ) : part.output.status === 'bill_split' ? (
+          <div className="space-y-3">
+            <Bill bill={part.output.bill} />
+            <ChangesetProposal preview={part.output.changeset} />
+          </div>
+        ) : part.output.status === 'bill_draft' ? (
+          <div className="space-y-3">
+            <Bill bill={part.output.bill} />
+            <p className="text-muted-foreground text-xs">
+              No booking of this profile matches it, so it would be a new one. Confirm it below.
+            </p>
           </div>
         ) : part.output.status === 'confirm_mapping' ? (
           <p className="text-sm">{part.output.note}</p>

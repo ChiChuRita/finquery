@@ -489,7 +489,15 @@ async def chat(request: Request, conversation_id: str) -> Response:
     if answers:
         # What the answers mean happens here, in code, before the model is asked to continue:
         # the rules of a Question card are stored and the result says what was applied.
-        answers = resolve_answers(state.session_factory, profile_id, open_calls, answers)
+        answers = await resolve_answers(
+            state.session_factory,
+            profile_id,
+            conversation_id,
+            open_calls,
+            answers,
+            resolve_model=state.resolve_model,
+            model_settings=state.subagent_settings,
+        )
     results = DeferredToolResults(calls=dict(answers)) if answers else None
     replaces = stored.last_turn_id if answers else None
     # The half of a turn that resumes from an answered card has nothing to work out: the answers

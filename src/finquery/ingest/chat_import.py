@@ -10,12 +10,20 @@ Every figure in what it returns is counted here, so the assistant can only quote
 import really produced. Progress is reported through `report` as it goes; see
 `finquery.progress`.
 
-PDF and image attachments are stored and recognized, but reading them is ticket 11: this
-answers with a clear sentence rather than an error, so the assistant can say what it can and
-cannot do.
+Three readers, one router. The kind of the attachment decides:
+
+- a **CSV** is read here, as it always was.
+- a **PDF** is a bank statement: `finquery.extract.statement` reads its pages and the guards
+  check them. A statement that reconciles with nothing flagged is imported straight away, the
+  same way a preset CSV is; anything else comes back as a review card first (ADR 0011).
+- an **image** is a receipt: `finquery.extract.bill` reads its line items and either proposes a
+  split of the booking it matches or previews a new one. A photo dropped into a chat is a till
+  receipt, which is what makes this the right guess to make here; a photo of a statement page
+  belongs on the Import page, where it is read as a page.
 """
 
 from collections.abc import Awaitable, Callable
+from datetime import date
 from typing import Any, Protocol
 
 from pydantic_ai.settings import ModelSettings
@@ -25,6 +33,10 @@ from finquery import attachments
 from finquery.ask_user import MAPPING_CONFIRMATION, AskApply, AskOption, AskUser
 from finquery.categorize import QUESTIONS_PER_CARD, categorize_import, pending_questions
 from finquery.db import Attachment, Import
+from finquery.extract.bill import bill_outcome, read_bill_image
+from finquery.extract.pdf import PdfUnreadable
+from finquery.extract.review import review_card
+from finquery.extract.statement import Extraction, commit_extraction, extract_statement
 from finquery.ingest.commit import commit_rows, import_summary
 from finquery.ingest.csv_reader import (
     CsvUnreadable,
@@ -43,12 +55,6 @@ CARD_SAMPLE_ROWS = 3
 
 CONFIRM = "confirm"
 REJECT = "reject"
-
-NOT_READY = (
-    "I stored `{name}`, but I cannot read a {kind} yet: pulling bookings out of a statement PDF "
-    "or a photo is the next piece of work (ticket 11). A CSV export of the same account imports "
-    "right away, and the Import page takes one too."
-)
 
 
 class Reporter(Protocol):
@@ -148,12 +154,26 @@ async def import_attachment(
             "message": f"`{record.file_name}` was already imported. Nothing was imported twice.",
             "file": record.file_name,
         }
-    if record.kind != "csv":
-        return {
-            "status": "extraction_not_ready",
-            "message": NOT_READY.format(name=record.file_name, kind="PDF" if record.kind == "pdf" else "photo"),
-            "file": record.file_name,
-        }
+    if record.kind == "pdf":
+        return await _import_statement(
+            session,
+            profile_id,
+            record,
+            account_name=account_name,
+            resolve_model=resolve_model,
+            model_settings=model_settings,
+            report=report,
+        )
+    if record.kind == "image":
+        return await _import_bill(
+            session,
+            profile_id,
+            conversation_id,
+            record,
+            resolve_model=resolve_model,
+            model_settings=model_settings,
+            report=report,
+        )
     return await _import_csv(
         session,
         profile_id,
@@ -294,6 +314,33 @@ async def _import_csv(
     record.mapping_json = mapping.model_dump_json()
     record.account_name = account
     session.commit()
+    return await _imported(
+        session,
+        profile_id,
+        committed,
+        account,
+        resolve_model=resolve_model,
+        model_settings=model_settings,
+        report=report,
+    )
+
+
+async def _imported(
+    session: Session,
+    profile_id: str,
+    committed: Import,
+    account: str,
+    *,
+    resolve_model: ModelResolver,
+    model_settings: ModelSettings | None,
+    report: Reporter | Callable[..., Awaitable[None]],
+) -> dict[str, Any]:
+    """Categorize what an import brought in and say what came of it.
+
+    The tail of every import, whatever reader produced the rows: a CSV, a statement PDF the
+    guards passed, and the accepted rows of a review card all end here, so the assistant is
+    handed the same figures and the same `questions` in every case.
+    """
     await report(
         "imported",
         f"Imported {committed.imported_count} bookings into {account}",
@@ -338,4 +385,156 @@ async def _import_csv(
             "questions": [question.payload() for question in questions],
         }
     )
+    if committed.reconciliation:
+        payload["reconciliation"] = committed.reconciliation
     return payload
+
+
+async def _import_statement(
+    session: Session,
+    profile_id: str,
+    record: Attachment,
+    *,
+    account_name: str | None,
+    resolve_model: ModelResolver,
+    model_settings: ModelSettings | None,
+    report: Reporter | Callable[..., Awaitable[None]],
+) -> dict[str, Any]:
+    """A statement PDF: read it, check it, and import it only if nothing needs a decision.
+
+    The extraction is stored on the attachment before anything else happens, exactly as a
+    proposed CSV mapping is: the review card is answered in a later request, and what gets
+    committed then has to be the rows the user was shown rather than a second, differently
+    hallucinated reading of the same file.
+    """
+    if record.extraction_json:
+        extraction = Extraction.model_validate_json(record.extraction_json)
+    else:
+        try:
+            extraction = await extract_statement(
+                record.data,
+                file_name=record.file_name,
+                kind=record.kind,
+                resolve_model=resolve_model,
+                model_settings=model_settings,
+                report=report,
+            )
+        except PdfUnreadable as exc:
+            return {"status": "unreadable", "file": record.file_name, "error": str(exc)}
+        except ProviderNotAvailable as exc:
+            return {"status": "mapping_failed", "file": record.file_name, "error": str(exc)}
+        except Exception as exc:  # noqa: BLE001 - a failed extraction is a message, not a crash
+            return {
+                "status": "extraction_failed",
+                "file": record.file_name,
+                "error": f"The statement could not be read: {exc}",
+            }
+
+    if not extraction.rows:
+        return {
+            "status": "nothing_found",
+            "file": record.file_name,
+            "error": extraction.note
+            or "No booking could be read out of this file. It may not be a bank statement.",
+            "problems": extraction.errors,
+        }
+
+    extraction.account_name = (account_name or "").strip() or extraction.account_name
+    record.extraction_json = extraction.model_dump_json()
+    session.commit()
+    read = {
+        "file": record.file_name,
+        "layout": extraction.layout_label,
+        "pages": extraction.pages,
+        "scanned_pages": len(extraction.scanned_pages),
+        "rows_read": len(extraction.rows),
+        "flagged": len(extraction.flagged),
+        "reconciliation": extraction.reconciliation.line,
+        "reconciled": extraction.reconciliation.status,
+        "account": extraction.account_name,
+    }
+
+    if extraction.needs_review:
+        return {
+            **read,
+            "status": "extraction_review",
+            "card": review_card(extraction).model_dump(mode="json"),
+            "instruction": (
+                "Nothing has been imported yet. Show this `card` with `ask_user`, unchanged: the "
+                "bookings the user accepts on it are imported by the server, together with the "
+                "ones both guards already passed, and the card comes back with an `applied` line "
+                "saying what happened."
+            ),
+        }
+
+    committed = commit_extraction(
+        session,
+        profile_id,
+        rows=extraction.clean,
+        file_name=extraction.file_name,
+        kind=extraction.kind,
+        layout=extraction.layout,
+        account_name=extraction.account_name,
+        reconciliation=extraction.reconciliation,
+    )
+    record.import_id = committed.id
+    record.account_name = extraction.account_name
+    session.commit()
+    payload = await _imported(
+        session,
+        profile_id,
+        committed,
+        extraction.account_name,
+        resolve_model=resolve_model,
+        model_settings=model_settings,
+        report=report,
+    )
+    return {**read, **payload}
+
+
+async def _import_bill(
+    session: Session,
+    profile_id: str,
+    conversation_id: str,
+    record: Attachment,
+    *,
+    resolve_model: ModelResolver,
+    model_settings: ModelSettings | None,
+    report: Reporter | Callable[..., Awaitable[None]],
+) -> dict[str, Any]:
+    """A photo of a receipt: a split of the booking it matches, or a preview of a new one."""
+    await report("read", f"Reading {record.file_name} as a receipt")
+    try:
+        extraction = await read_bill_image(
+            record.data,
+            today=date.today(),
+            resolve_model=resolve_model,
+            model_settings=model_settings,
+        )
+    except PdfUnreadable as exc:
+        return {"status": "unreadable", "file": record.file_name, "error": str(exc)}
+    except ProviderNotAvailable as exc:
+        return {"status": "mapping_failed", "file": record.file_name, "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001 - a failed extraction is a message, not a crash
+        return {"status": "extraction_failed", "file": record.file_name, "error": f"The photo could not be read: {exc}"}
+    if extraction is None:
+        return {
+            "status": "nothing_found",
+            "file": record.file_name,
+            "error": "No total and no line item could be read from that photo.",
+        }
+    await report(
+        "checking",
+        extraction.line,
+        items=len(extraction.items),
+        total_cents=extraction.total_cents,
+    )
+    return await bill_outcome(
+        session,
+        profile_id,
+        conversation_id,
+        extraction,
+        file_name=record.file_name,
+        resolve_model=resolve_model,
+        model_settings=model_settings,
+    )
