@@ -16,6 +16,7 @@ from finquery.api import (
     conversations,
     imports,
     memories,
+    onboarding,
     preferences,
     profiles,
     taxonomy,
@@ -115,6 +116,7 @@ def create_app(
     app.include_router(charts.router, prefix="/api")
     app.include_router(models_api.router, prefix="/api")
     app.include_router(settings_api.router, prefix="/api")
+    app.include_router(onboarding.router, prefix="/api")
 
     if serve_frontend and FRONTEND_DIST.is_dir():
         app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")

@@ -41,13 +41,14 @@ from finquery.categorize.rules import load_categories, taxonomy_of
 from finquery.changesets import ChangesetError, ChangesetIntent, propose, to_out
 from finquery.changesets import apply as apply_changeset
 from finquery.chart import run_chart
-from finquery.db import SplitSumError
+from finquery.db import Profile, SplitSumError
 from finquery.edits import TransactionEditError
 from finquery.ingest.chat_import import import_attachment
 from finquery.ingest.duplicates import PER_CARD as DUPLICATES_PER_CARD
 from finquery.ingest.duplicates import review as duplicate_review
 from finquery.ingest.typed import add_draft, find_draft, preview_card, propose_transactions, store_drafts
 from finquery.memory import MemoryKind, add_memory
+from finquery.onboarding import language_rule
 from finquery.progress import report as report_progress
 from finquery.providers import ModelResolver, ProviderNotAvailable
 from finquery.query import load_query_context, run_query
@@ -265,6 +266,19 @@ def data_brief(ctx: RunContext[ChatDeps]) -> str:
             "`review_batch` is how you ask about them."
         )
     return "\n".join(lines)
+
+
+@chat_agent.instructions
+def answer_language(ctx: RunContext[ChatDeps]) -> str:
+    """The answer language this profile chose, when it chose one.
+
+    Empty for the default, `follow`, which is the system prompt's own rule. When the user picked
+    German or English in onboarding, that choice has to beat the follow-the-message rule, so the
+    block says so in as many words. See `finquery.onboarding`.
+    """
+    with ctx.deps.session_factory() as session:
+        profile = session.get(Profile, ctx.deps.profile_id)
+        return language_rule(profile.answer_language if profile else "follow")
 
 
 @chat_agent.instructions

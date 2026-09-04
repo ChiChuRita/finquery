@@ -26,7 +26,9 @@ from .conftest import (
 # prompt, the summary and the last six turns), measured at 3389 tokens here. The real default is
 # 32768, far above any floor. Every ticket that adds a prompt block has had to move this: this
 # is the sixth, for ticket 22's prompt rules on top of for ticket 10's duplicates block and ticket 11's two paragraphs about statement
-# PDFs and photos.
+# PDFs and photos. Re-measured for ticket 28: the system prompt is 2560 tokens, unchanged, and
+# the answer-language block that ticket adds is 51 tokens on top of it only for a profile that
+# fixed its language in onboarding, which these tests do not.
 BUDGET = 4000
 SUMMARY = "The user asked about groceries and rent in the spring and cares about subscriptions."
 

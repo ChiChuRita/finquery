@@ -66,6 +66,13 @@ class Profile(Base):
     """Whether a merchant token may leave this machine for a web lookup. Off by default,
     switched in Settings, and the only thing that makes the outbound log grow. See
     finquery.weblookup."""
+    onboarding_state: Mapped[str] = mapped_column(String(16), default="not_started")
+    """not_started, done or skipped. A profile that has not started it opens onboarding
+    instead of an empty chat. See finquery.onboarding."""
+    answer_language: Mapped[str] = mapped_column(String(8), default="follow")
+    """follow (the language of each message), de or en. Read by the chat prompt."""
+    default_model_slot: Mapped[str] = mapped_column(String(16), default="fast")
+    """The slot a new conversation of this profile starts on."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="profile", cascade="all, delete-orphan")
@@ -560,6 +567,9 @@ NEW_COLUMNS: dict[str, dict[str, str]] = {
     },
     "profile": {
         "web_lookup_enabled": "BOOLEAN NOT NULL DEFAULT 0",
+        "onboarding_state": "VARCHAR(16) NOT NULL DEFAULT 'not_started'",
+        "answer_language": "VARCHAR(8) NOT NULL DEFAULT 'follow'",
+        "default_model_slot": "VARCHAR(16) NOT NULL DEFAULT 'fast'",
     },
     "import": {
         "duplicates_kept": "INTEGER NOT NULL DEFAULT 0",
