@@ -113,7 +113,9 @@ export function SplitEditor({
             <li className="flex flex-wrap items-center gap-2" key={leg.key}>
               <Input
                 aria-label="Leg description"
-                className="h-7 w-56 flex-1 min-w-40"
+                // A fixed width, not the width of the table: every field of a leg has to be
+                // reachable without scrolling the table sideways first.
+                className="h-7 w-64 min-w-40"
                 onChange={(event) => patch(leg.key, { description: event.target.value })}
                 placeholder="What was it for"
                 value={leg.description}
@@ -160,7 +162,15 @@ export function SplitEditor({
           <PlusIcon /> Add a leg
         </Button>
         {legs.length > 0 && (
-          <Button disabled={save.isPending} onClick={() => submit(legs.map(toChild))} size="sm">
+          // The server refuses a split whose legs miss the transaction, and it says so in its
+          // own number format. The hint next to this button already has the figure, so the
+          // editor refuses in place instead of asking.
+          <Button
+            disabled={save.isPending || left !== 0}
+            onClick={() => submit(legs.map(toChild))}
+            size="sm"
+            title={left === 0 ? undefined : `${formatEur(left)} is still unaccounted for.`}
+          >
             {save.isPending ? 'Saving...' : 'Save split'}
           </Button>
         )}
@@ -182,7 +192,9 @@ export function SplitEditor({
           </Button>
         )}
         {legs.length > 0 && (
-          <span className="ml-auto text-xs tabular-nums">
+          // Next to the buttons, not at the far right: the row is as wide as the table it sits
+          // in, and at 1024 the right end of it is off screen.
+          <span className="text-xs tabular-nums">
             <span className="text-muted-foreground">Legs add up to </span>
             {formatEur(total)}
             {left !== 0 && (

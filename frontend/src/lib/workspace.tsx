@@ -3,10 +3,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { conversationsQuery, profilesQuery, type Conversation, type Profile } from '@/lib/api'
 
-// What the browser remembers: the profile in use, its open tabs, and per conversation the
-// scroll position and the unsent draft.
+// What the browser remembers: the profile in use, its open tabs and which of them was in
+// front, and per conversation the scroll position and the unsent draft.
 const ACTIVE_PROFILE_KEY = 'finquery-profile'
 const tabsKey = (profileId: string) => `finquery-tabs:${profileId}`
+const activeTabKey = (profileId: string) => `finquery-tab:${profileId}`
 const draftKey = (conversationId: string) => `finquery-draft:${conversationId}`
 const scrollKey = (conversationId: string) => `finquery-scroll:${conversationId}`
 
@@ -41,6 +42,17 @@ export function forgetConversation(conversationId: string) {
   localStorage.removeItem(scrollKey(conversationId))
 }
 
+/** The tab that was in front in this profile, so leaving it and coming back lands there. */
+export function rememberActiveTab(profileId: string, conversationId: string) {
+  localStorage.setItem(activeTabKey(profileId), conversationId)
+}
+
+/** Only a conversation that is still one of the profile's open tabs is worth going back to. */
+export function readActiveTab(profileId: string): string | undefined {
+  const stored = localStorage.getItem(activeTabKey(profileId))
+  return stored !== null && readIds(tabsKey(profileId)).includes(stored) ? stored : undefined
+}
+
 interface Workspace {
   profiles: Profile[]
   profile: Profile | undefined
@@ -61,8 +73,11 @@ export function useWorkspace(): Workspace {
   return workspace
 }
 
-/** Writes the tab list through on its way into state, so state and storage never disagree. */
-function persisted(profileId: string, ids: string[]): string[] {
+/** Local storage is the tab list. Every change reads it, edits it and writes it back, because
+ *  React state is still empty on the render that opens a tab of a freshly loaded page, and
+ *  writing that state through would drop every other tab of the profile. */
+function edited(profileId: string, edit: (ids: string[]) => string[]): string[] {
+  const ids = edit(readIds(tabsKey(profileId)))
   localStorage.setItem(tabsKey(profileId), JSON.stringify(ids))
   return ids
 }
@@ -80,7 +95,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const openTab = useCallback(
     (conversationId: string) => {
       if (!profileId) return
-      setTabIds((prev) => persisted(profileId, prev.includes(conversationId) ? prev : [...prev, conversationId]))
+      rememberActiveTab(profileId, conversationId)
+      setTabIds(edited(profileId, (ids) => (ids.includes(conversationId) ? ids : [...ids, conversationId])))
     },
     [profileId],
   )
@@ -88,7 +104,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const closeTab = useCallback(
     (conversationId: string) => {
       if (!profileId) return
-      setTabIds((prev) => persisted(profileId, prev.filter((id) => id !== conversationId)))
+      setTabIds(edited(profileId, (ids) => ids.filter((id) => id !== conversationId)))
     },
     [profileId],
   )

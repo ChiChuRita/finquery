@@ -38,6 +38,9 @@ export const ModelSelectorContent = ({
   className,
   children,
   title = "Model Selector",
+  // The item the list opens on. Passed to Command rather than to the dialog, so the option
+  // marked selected is the one that is in use instead of whichever comes first.
+  defaultValue,
   ...props
 }: ModelSelectorContentProps) => (
   <DialogContent
@@ -49,7 +52,10 @@ export const ModelSelectorContent = ({
     {...props}
   >
     <DialogTitle className="sr-only">{title}</DialogTitle>
-    <Command className="**:data-[slot=command-input-wrapper]:h-auto">
+    <Command
+      className="**:data-[slot=command-input-wrapper]:h-auto"
+      defaultValue={typeof defaultValue === "string" ? defaultValue : undefined}
+    >
       {children}
     </Command>
   </DialogContent>

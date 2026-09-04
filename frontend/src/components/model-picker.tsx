@@ -37,9 +37,10 @@ export function ModelPicker({
           <ChevronDownIcon className="size-3.5 opacity-60" />
         </PromptInputButton>
       </ModelSelectorTrigger>
-      <ModelSelectorContent className="max-w-sm" title="Choose a model">
+      <ModelSelectorContent className="max-w-sm" defaultValue={value} title="Choose a model">
         <ModelSelectorList>
-          <ModelSelectorGroup heading="Model slots">
+          {/* The same words the dialog answers to, so its heading and its name are one name. */}
+          <ModelSelectorGroup heading="Choose a model">
             {MODEL_SLOTS.map((m) => {
               const Icon = ICONS[m.slot]
               const selected = m.slot === value

@@ -195,10 +195,11 @@ def review_card(questions: list[Question], pending: int) -> AskUser:
     card of a review conversation and every later one look and behave the same.
     """
     more = pending - len(questions)
+    asked = len(questions)
     return AskUser(
         title="Which category do these belong to?",
         note=(
-            f"{len(questions)} merchant(s) I am not sure about"
+            f"{asked} {'merchant' if asked == 1 else 'merchants'} I am not sure about"
             + (f", {more} more after these" if more > 0 else "")
             + ". One answer becomes a rule for every booking of that merchant."
         ),

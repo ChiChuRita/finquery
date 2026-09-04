@@ -25,6 +25,7 @@ import {
   type Changeset,
   type ChangesetField,
   type ChangesetKind,
+  type ChangesetRow,
   type ChangesetToolPart,
 } from '@/lib/api'
 import { formatEur } from '@/lib/format'
@@ -127,8 +128,16 @@ function Cell({
   )
 }
 
+/** An undone change ran and was taken back, so the arrow turns around: the value on the right
+ *  is the one the booking carries again. */
+const reverted = (changeset: Changeset) => changeset.status === 'discarded' && changeset.applied_at !== null
+
+const asShown = (row: ChangesetRow, flip: boolean): ChangesetRow =>
+  flip ? { ...row, before: row.after, after: row.before } : row
+
 /** The exact rows the changeset touches, as they are now and as they would be. */
 export function ChangesetTable({ changeset }: { changeset: Changeset }) {
+  const flip = reverted(changeset)
   return (
     <div className="max-h-80 overflow-auto rounded-md border">
       <Table>
@@ -142,27 +151,30 @@ export function ChangesetTable({ changeset }: { changeset: Changeset }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {changeset.rows.map((row, index) => (
-            // A preview row is a value, not an entity: a new leg of a split has no id yet.
-            // oxlint-disable-next-line eslint(no-array-index-key)
-            <TableRow key={row.id ?? `new-${index}`}>
-              {changeset.fields.map((field) => (
-                <TableCell
-                  className={cn('whitespace-nowrap text-xs', field === 'amount' && 'text-right tabular-nums')}
-                  key={field}
-                >
-                  <Cell
-                    added={row.before === null}
-                    after={row.after?.[field]}
-                    before={row.before?.[field]}
-                    field={field}
-                    gone={row.after === null && row.before !== null}
-                    struck={changeset.kind === 'delete'}
-                  />
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
+          {changeset.rows.map((original, index) => {
+            const row = asShown(original, flip)
+            return (
+              // A preview row is a value, not an entity: a new leg of a split has no id yet.
+              // oxlint-disable-next-line eslint(no-array-index-key)
+              <TableRow key={row.id ?? `new-${index}`}>
+                {changeset.fields.map((field) => (
+                  <TableCell
+                    className={cn('whitespace-nowrap text-xs', field === 'amount' && 'text-right tabular-nums')}
+                    key={field}
+                  >
+                    <Cell
+                      added={row.before === null}
+                      after={row.after?.[field]}
+                      before={row.before?.[field]}
+                      field={field}
+                      gone={row.after === null && row.before !== null}
+                      struck={changeset.kind === 'delete' && !flip}
+                    />
+                  </TableCell>
+                ))}
+              </TableRow>
+            )
+          })}
         </TableBody>
       </Table>
     </div>

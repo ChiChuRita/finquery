@@ -30,6 +30,9 @@ import { formatEur } from '@/lib/format'
 import { useWorkspace } from '@/lib/workspace'
 
 const ALL = '__all__'
+/** The two native date fields, sized and lettered like the shadcn selects beside them. Their
+ *  calendar button is toned down to match the select chevrons in `index.css`. */
+const DATE_FIELD = 'w-36 text-sm tabular-nums'
 const NO_ROWS: Transaction[] = []
 const NO_CATEGORIES: CategoryRef[] = []
 const NO_ACCOUNTS: AccountRef[] = []
@@ -84,12 +87,15 @@ function FilterBar({
         />
       </div>
 
+      {/* A native date field reads out as three unnamed spinbuttons, so the visible label is
+          not enough: each field carries its own name. */}
       <div className="flex items-center gap-1.5">
         <Label className="text-muted-foreground text-xs" htmlFor="filter-from">
           From
         </Label>
         <Input
-          className="w-36"
+          aria-label="Booked from"
+          className={DATE_FIELD}
           id="filter-from"
           onChange={(event) => set({ date_from: event.target.value })}
           type="date"
@@ -99,7 +105,8 @@ function FilterBar({
           to
         </Label>
         <Input
-          className="w-36"
+          aria-label="Booked to"
+          className={DATE_FIELD}
           id="filter-to"
           onChange={(event) => set({ date_to: event.target.value })}
           type="date"
@@ -111,7 +118,7 @@ function FilterBar({
         onValueChange={(value) => set({ category_id: value === ALL ? '' : value })}
         value={filters.category_id || ALL}
       >
-        <SelectTrigger aria-label="Category" className="w-40">
+        <SelectTrigger aria-label="Filter by category" className="w-40">
           <SelectValue />
         </SelectTrigger>
         <SelectContent className="max-h-72">
@@ -129,7 +136,7 @@ function FilterBar({
         onValueChange={(value) => set({ account_id: value === ALL ? '' : value })}
         value={filters.account_id || ALL}
       >
-        <SelectTrigger aria-label="Account" className="w-40">
+        <SelectTrigger aria-label="Filter by account" className="w-40">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

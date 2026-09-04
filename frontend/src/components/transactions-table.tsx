@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronRightIcon, SplitIcon } from 'lucide-react'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { SplitEditor } from '@/components/split-editor'
 import { AmountCell, DateCell, PickerCell, TextCell, type Choice } from '@/components/transaction-cells'
@@ -123,7 +123,7 @@ export function TransactionsTable({
             <div className="flex min-w-0 items-center gap-1.5">
               <div className="min-w-0 flex-1">
                 <TextCell
-                  label="Description"
+                  label={`Description of ${row.original.description}`}
                   onSave={(description) => onPatch(row.original, { description }, { description })}
                   value={row.original.description}
                 />
@@ -168,7 +168,7 @@ export function TransactionsTable({
           cell: ({ row }) => (
             <PickerCell
               choices={categoryChoices}
-              label="Category"
+              label={`Category of ${row.original.description}`}
               onSave={(category_id) =>
                 onPatch(
                   row.original,
@@ -200,7 +200,7 @@ export function TransactionsTable({
             return (
               <PickerCell
                 choices={choices}
-                label="Subcategory"
+                label={`Subcategory of ${row.original.description}`}
                 onSave={(subcategory_id) =>
                   onPatch(
                     row.original,
@@ -225,7 +225,7 @@ export function TransactionsTable({
             <PickerCell
               choices={accountChoices}
               clearable={false}
-              label="Account"
+              label={`Account of ${row.original.description}`}
               onSave={(account_id) =>
                 account_id === null
                   ? Promise.resolve()
@@ -280,9 +280,28 @@ export function TransactionsTable({
     if (lastVisible >= modelRows.length - 1 && modelRows.length < total) onReachEnd()
   }, [lastVisible, modelRows.length, total, onReachEnd])
 
+  // Below about 1024 wide, Account and Source sit past the right edge. The fade says so.
+  const [columnsRight, setColumnsRight] = useState(false)
+  useEffect(() => {
+    const element = scroller.current
+    if (!element) return
+    const measure = () => setColumnsRight(element.scrollWidth - element.clientWidth - element.scrollLeft > 1)
+    measure()
+    element.addEventListener('scroll', measure, { passive: true })
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => {
+      element.removeEventListener('scroll', measure)
+      observer.disconnect()
+    }
+  }, [])
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-auto" ref={scroller}>
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div
+        className="min-h-0 flex-1 overflow-auto [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]"
+        ref={scroller}
+      >
         <div className="min-w-[63rem]" role="table" aria-rowcount={total}>
           <div className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur" role="rowgroup">
             {table.getHeaderGroups().map((group) => (
@@ -346,6 +365,17 @@ export function TransactionsTable({
           </div>
         </div>
       </div>
+      {columnsRight && (
+        <>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-background to-transparent"
+          />
+          <p className="pointer-events-none absolute right-2 bottom-2 rounded-full border bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground">
+            Scroll for more columns
+          </p>
+        </>
+      )}
     </div>
   )
 }

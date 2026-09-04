@@ -130,6 +130,26 @@
   * {
     @apply border-border outline-ring/50;
     }
+  /* A table that scrolls sideways keeps its bar visible: an overlay scrollbar that only
+     appears once you are already scrolling is no affordance at all. */
+  [data-streamdown="table-wrapper"] > div:last-child,
+  [data-slot="table-container"] {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+    }
+  [data-streamdown="table-wrapper"] > div:last-child::-webkit-scrollbar,
+  [data-slot="table-container"]::-webkit-scrollbar {
+    height: 0.5rem;
+    width: 0.5rem;
+    }
+  [data-streamdown="table-wrapper"] > div:last-child::-webkit-scrollbar-thumb,
+  [data-slot="table-container"]::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+    }
+  /* Native date inputs sit next to shadcn selects in the filter bar. */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    @apply cursor-pointer rounded opacity-50 transition-opacity hover:opacity-100;
+    }
   body {
     @apply bg-background text-foreground;
     }
