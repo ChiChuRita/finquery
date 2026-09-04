@@ -1,31 +1,38 @@
 import { useChat } from '@ai-sdk/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { DefaultChatTransport } from 'ai'
-import { CircleStopIcon } from 'lucide-react'
+import { CircleStopIcon, SparklesIcon, ZapIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { StickToBottomContext } from 'use-stick-to-bottom'
 
 import { Conversation, ConversationContent, ConversationScrollButton } from '@/components/ai-elements/conversation'
-import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message'
+import { Message, MessageContent, MessageResponse, MessageToolbar } from '@/components/ai-elements/message'
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
 import { Shimmer } from '@/components/ai-elements/shimmer'
+import { Suggestion } from '@/components/ai-elements/suggestion'
 import { Composer } from '@/components/composer'
 import { EmptyState } from '@/components/empty-state'
-import { MODEL_SLOTS } from '@/lib/api'
 import {
   chatUrl,
   conversationQuery,
   conversationsQuery,
   patchConversation,
+  slotLabel,
   stopConversation,
   type ChatMessage,
   type ConversationDetail,
   type ModelSlot,
 } from '@/lib/api'
 import { takePendingPrompt } from '@/lib/pending'
+import { readScrollTop, useWorkspace, writeScrollTop } from '@/lib/workspace'
+
+const SLOT_ICONS: Record<ModelSlot, typeof ZapIcon> = { fast: ZapIcon, quality: SparklesIcon }
 
 export function ChatView({ conversation }: { conversation: ConversationDetail }) {
   const queryClient = useQueryClient()
+  const { profile } = useWorkspace()
   const [slot, setSlot] = useState<ModelSlot>(conversation.model_slot)
+  const scrollContext = useRememberedScroll(conversation.id)
 
   const transport = useMemo(
     () =>
@@ -44,7 +51,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
     messages: conversation.messages,
     transport,
     onFinish: () => {
-      void queryClient.invalidateQueries(conversationsQuery)
+      void queryClient.invalidateQueries(conversationsQuery(profile?.id))
       void queryClient.invalidateQueries(conversationQuery(conversation.id))
     },
   })
@@ -60,7 +67,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
 
   const changeSlot = async (next: ModelSlot) => {
     setSlot(next)
-    await patchConversation(conversation.id, next)
+    await patchConversation(conversation.id, { model_slot: next })
     void queryClient.invalidateQueries(conversationQuery(conversation.id))
   }
 
@@ -75,14 +82,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
-      <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b px-6">
-        <h1 className="truncate font-medium text-sm">{conversation.title}</h1>
-        <span className="rounded-full border bg-muted/40 px-2.5 py-0.5 text-muted-foreground text-xs">
-          {MODEL_SLOTS.find((m) => m.slot === slot)?.label} model
-        </span>
-      </header>
-
-      <Conversation className="flex-1">
+      <Conversation className="flex-1" contextRef={scrollContext} initial={false}>
         <ConversationContent className="mx-auto w-full max-w-3xl gap-6 px-6 py-8">
           {messages.length === 0 && !streaming ? (
             <EmptyState onPick={(text) => void sendMessage({ text })} />
@@ -92,6 +92,8 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
                 isLast={message === lastMessage}
                 key={message.id}
                 message={message}
+                onPickFollowup={(text) => void sendMessage({ text })}
+                slot={slot}
                 streaming={streaming}
               />
             ))
@@ -114,7 +116,14 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
 
       <div className="shrink-0 px-6 pb-5">
         <div className="mx-auto w-full max-w-3xl">
-          <Composer onSlotChange={changeSlot} onStop={handleStop} onSubmit={(text) => sendMessage({ text })} slot={slot} status={status} />
+          <Composer
+            draftId={conversation.id}
+            onSlotChange={changeSlot}
+            onStop={handleStop}
+            onSubmit={(text) => sendMessage({ text })}
+            slot={slot}
+            status={status}
+          />
           <p className="pt-2 text-center text-[11px] text-muted-foreground">
             Numbers come from executed queries, never from the model.
           </p>
@@ -122,6 +131,50 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
       </div>
     </div>
   )
+}
+
+const SETTLE_MS = 300
+
+/** Every tab comes back where it was left. */
+function useRememberedScroll(conversationId: string) {
+  const context = useRef<StickToBottomContext>(null)
+
+  useEffect(() => {
+    const element = context.current?.scrollRef.current
+    if (!element) return
+    const saved = readScrollTop(conversationId)
+    const restore = () => {
+      element.scrollTop = saved ?? element.scrollHeight
+    }
+
+    let timer: number | undefined
+    const remember = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => writeScrollTop(conversationId, element.scrollTop), 200)
+    }
+
+    // Markdown, fonts and the reasoning panels settle over the first frames, and until they do
+    // the transcript is too short to hold the saved position. So it is set again once the height
+    // is final, and only then does scrolling start being recorded.
+    restore()
+    const frame = requestAnimationFrame(restore)
+    const settled = window.setTimeout(() => {
+      restore()
+      element.addEventListener('scroll', remember, { passive: true })
+    }, SETTLE_MS)
+
+    return () => {
+      cancelAnimationFrame(frame)
+      window.clearTimeout(settled)
+      window.clearTimeout(timer)
+      // React has already detached the node here, and a detached node reports scrollTop 0, which
+      // would overwrite the position this tab was left at.
+      if (element.isConnected) writeScrollTop(conversationId, element.scrollTop)
+      element.removeEventListener('scroll', remember)
+    }
+  }, [conversationId])
+
+  return context
 }
 
 function thinkingMessage(isStreaming: boolean, duration?: number) {
@@ -134,18 +187,30 @@ function TranscriptMessage({
   message,
   isLast,
   streaming,
+  slot,
+  onPickFollowup,
 }: {
   message: ChatMessage
   isLast: boolean
   streaming: boolean
+  slot: ModelSlot
+  onPickFollowup: (text: string) => void
 }) {
   const interrupted = message.metadata?.interrupted === true
+  const live = isLast && streaming
+  // The turn's own slot, or the conversation's while the turn is still streaming and has no metadata.
+  const turnSlot = message.metadata?.model_slot ?? slot
+  const TurnIcon = SLOT_ICONS[turnSlot]
+  // Only the newest answer offers follow-ups: older ones have already been followed up on.
+  const followups =
+    isLast && !live ? message.parts.flatMap((p) => (p.type === 'data-followups' ? p.data.suggestions : [])) : []
+
   return (
     <Message from={message.role}>
       <MessageContent>
         {message.parts.map((part, index) => {
           if (part.type === 'reasoning') {
-            const isStreaming = streaming && isLast && part.state === 'streaming'
+            const isStreaming = live && part.state === 'streaming'
             // The server measures the duration; while streaming the component counts by itself.
             const seconds = message.metadata?.thinking_seconds
             const duration = !isStreaming && seconds !== undefined ? Math.max(1, Math.round(seconds)) : undefined
@@ -162,20 +227,40 @@ function TranscriptMessage({
                 {part.text}
               </p>
             ) : (
-              <MessageResponse isAnimating={streaming && isLast} key={`${message.id}-${index}`}>
+              <MessageResponse isAnimating={live} key={`${message.id}-${index}`}>
                 {part.text}
               </MessageResponse>
             )
           }
           return null
         })}
-        {interrupted && (
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-dashed px-2.5 py-0.5 text-muted-foreground text-xs">
-            <CircleStopIcon className="size-3" />
-            Stopped
-          </span>
-        )}
       </MessageContent>
+
+      {message.role === 'assistant' && !live && (
+        <MessageToolbar className="mt-1 justify-start gap-2 text-muted-foreground text-xs">
+          <span className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-0.5">
+            <TurnIcon className="size-3" />
+            {slotLabel(turnSlot)} model
+          </span>
+          {interrupted && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-2.5 py-0.5">
+              <CircleStopIcon className="size-3" />
+              Stopped
+            </span>
+          )}
+        </MessageToolbar>
+      )}
+
+      {followups.length > 0 && (
+        <div className="mt-1 w-full">
+          <p className="pb-1.5 text-muted-foreground text-xs">Ask next</p>
+          <div className="flex flex-wrap gap-2">
+            {followups.map((suggestion) => (
+              <Suggestion className="h-7 text-xs" key={suggestion} onClick={onPickFollowup} suggestion={suggestion} />
+            ))}
+          </div>
+        </div>
+      )}
     </Message>
   )
 }

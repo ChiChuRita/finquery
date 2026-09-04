@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import Literal, get_args
 
 from pydantic_ai.models import Model
+from pydantic_ai.settings import ModelSettings
 
 from finquery.settings import Settings
 
@@ -55,3 +56,17 @@ def build_resolver(settings: Settings) -> ModelResolver:
     if settings.provider == "openrouter":
         return _openrouter_resolver(settings)
     return _local_resolver(settings)
+
+
+def subagent_settings(settings: Settings) -> ModelSettings:
+    """Overrides for a sub-agent run on the fast slot.
+
+    A sub-agent answers one question behind a tool call and its thinking is never shown, so
+    reasoning is turned off: on OpenRouter that is the difference between three and eleven
+    seconds for a suggestion nobody asked to wait for.
+    """
+    if settings.provider == "openrouter":
+        from pydantic_ai.models.openrouter import OpenRouterModelSettings
+
+        return OpenRouterModelSettings(openrouter_reasoning={"enabled": False})
+    return ModelSettings()

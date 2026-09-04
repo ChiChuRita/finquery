@@ -1,39 +1,45 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createRootRoute, createRoute, createRouter, Outlet, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
+import { Shimmer } from '@/components/ai-elements/shimmer'
 import { AppSidebar } from '@/components/app-sidebar'
 import { ChatView } from '@/components/chat-view'
 import { Composer } from '@/components/composer'
+import { ConversationTabs } from '@/components/conversation-tabs'
 import { EmptyState } from '@/components/empty-state'
-import { Shimmer } from '@/components/ai-elements/shimmer'
 import { conversationQuery, conversationsQuery, createConversation, type ModelSlot } from '@/lib/api'
 import { stashPendingPrompt } from '@/lib/pending'
+import { useWorkspace, WorkspaceProvider } from '@/lib/workspace'
 
 const rootRoute = createRootRoute({
   component: () => (
-    <div className="flex h-dvh w-full overflow-hidden bg-background">
-      <AppSidebar />
-      <main className="flex min-w-0 flex-1 flex-col">
-        <Outlet />
-      </main>
-    </div>
+    <WorkspaceProvider>
+      <div className="flex h-dvh w-full overflow-hidden bg-background">
+        <AppSidebar />
+        <main className="flex min-w-0 flex-1 flex-col">
+          <ConversationTabs />
+          <Outlet />
+        </main>
+      </div>
+    </WorkspaceProvider>
   ),
 })
 
 function NewChatPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { profile } = useWorkspace()
   const [slot, setSlot] = useState<ModelSlot>('fast')
   const [creating, setCreating] = useState(false)
 
   const start = async (text: string) => {
-    if (creating) return
+    if (creating || !profile) return
     setCreating(true)
     try {
-      const conversation = await createConversation(slot)
+      const conversation = await createConversation(profile.id, slot)
       stashPendingPrompt(conversation.id, text)
-      void queryClient.invalidateQueries(conversationsQuery)
+      void queryClient.invalidateQueries(conversationsQuery(profile.id))
       await navigate({ to: '/c/$conversationId', params: { conversationId: conversation.id } })
     } finally {
       setCreating(false)
@@ -60,6 +66,14 @@ const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', com
 function ConversationPage() {
   const { conversationId } = conversationRoute.useParams()
   const { data, error, isPending } = useQuery(conversationQuery(conversationId))
+  const { openTab, profile, switchProfile } = useWorkspace()
+
+  useEffect(() => {
+    if (!data) return
+    // Opening a conversation of another profile (a bookmark, a reload) switches the sidebar to it.
+    if (profile && data.profile_id !== profile.id) switchProfile(data.profile_id)
+    else openTab(data.id)
+  }, [data, openTab, profile, switchProfile])
 
   if (isPending) {
     return (

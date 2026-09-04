@@ -51,7 +51,8 @@ calls OpenRouter. See `docs/adr/0003-single-http-test-seam.md`.
 ## Layout
 
 - `src/finquery/`: `main.py` (CLI), `app.py` (factory), `settings.py`, `providers.py` (slots),
-  `db.py` (SQLAlchemy models), `agent.py` (chat agent), `api/` (REST and chat endpoints)
+  `db.py` (SQLAlchemy models), `agent.py` (chat agent), `followups.py` (post-turn suggestions),
+  `api/` (REST and chat endpoints)
 - `frontend/`: Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router and Query
 - `tests/`: HTTP-seam tests
 - `CONTEXT.md`: domain glossary. `docs/adr/`: architecture decisions
