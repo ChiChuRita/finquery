@@ -17,7 +17,7 @@ from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 
 from finquery.chart.selfcheck import SAMPLE_ROWS
-from finquery.chart.shapes import MAX_SLICES, SHAPE_MENU, SHAPE_NAMES, Shape
+from finquery.chart.shapes import MAX_SERIES, MAX_SLICES, SHAPE_MENU, SHAPE_NAMES, Language, Shape
 from finquery.query import QueryContext, profile_facts
 
 PLAN_INSTRUCTIONS = """\
@@ -28,28 +28,48 @@ answer the request in words: the plan is the answer.
 
 PLAN_RULES = f"""\
 Rules:
+- Decide `language` first, and decide it from the request alone: a request written in English is
+  `en` even though this household's categories, merchants and account are German. It is `de`
+  only when the request itself is German.
 - Pick the shape that makes the comparison the request asks for the most direct one to read.
   When the request names a shape, use it unless it cannot carry the data.
-- The title is a short caption without any figure in it, in the language of the request.
+- The title is a short caption without any figure in it, written in `language`. An English
+  request never gets a German caption.
 - The question is the data question standing on its own: name the period, the topic and the
   grouping, and ask for exactly the columns you list. The SQL writer sees neither the request
   nor this plan.
 - Spending is a positive figure in euros. Name the euro column total_eur unless something else
   reads better.
-- A series over time asks for `month` formatted as 'YYYY-MM', ordered, one row per month.
+- A series over time asks for the period the request named, ordered, one row per period:
+  `month` as 'YYYY-MM' for months and days, a `quarter` column as '2025-Q1' when the request
+  says quarters. A chart captioned by quarter never has months along its axis.
 - bar or bar_horizontal: one row per category or merchant, ordered by the figure, at most twelve.
+  A merchant is named by its enriched `title` (Edeka, Amazon), never by the raw booking text, so
+  ask for `coalesce(title, counterparty, description)`: those names are short enough to sit
+  under an axis and inside a legend.
 - bar_grouped or bar_stacked: three columns, one row per month and group, and never two rows
-  with the same month and group. Name the group column `topic`, never `category`: an alias that
-  reuses a view column name breaks the grouping. The group itself always comes from the
-  household's own `category` column, with the uncategorized bookings as one 'Needs review'
-  bucket; never ask for a grouping derived from the booking text.
+  with the same month and group.
+  The third column holds group names and never a second euro column: two figures in the same
+  row cannot be drawn side by side, so income against spending is one row per month and per
+  name, from a UNION of the two.
+  Name that column `topic`, never `category`: an alias that reuses a view column name breaks
+  the grouping. The group itself always comes from the household's own `category` column, with
+  the uncategorized bookings as one 'Needs review' bucket; never ask for a grouping derived
+  from the booking text.
+  A chart has {MAX_SERIES} colours, so ask for at most {MAX_SERIES} groups. When the request
+  names the categories it wants, ask for those by name and for nothing else. When it asks for
+  all of them and there are more than {MAX_SERIES}, ask for the {MAX_SERIES - 1} largest over
+  the whole period with everything else summed into one 'Other' group, because more groups than
+  colours means two categories in one picture painted the same, which nobody can read.
 - doughnut: at most {MAX_SLICES} rows, so ask for the largest {MAX_SLICES - 1} plus a rest row
   when there are more categories than that. A rest row that would hold most of the money says
   nothing, so ask for the largest {MAX_SLICES} instead when a handful of buckets carry the
   spending.
 - sankey: one row per flow with the columns source, target and amount_eur. Every amount is a
   positive figure and no row may miss a source or a target, so ask for the household's income as
-  one source ('Einkommen') flowing into the spending groups, or for the income streams by name.
+  a single source named in `language` ('Einkommen' or 'Income') flowing into the spending
+  groups, or for the income streams by name. One picture is one flow: never two names for the
+  same thing, and never a second flow beside the first.
 """
 
 CONTRACT = """\
@@ -79,27 +99,53 @@ House rules, all checked before the user sees the chart:
 - `scales` always declares both `x` and `y`. `null` is how you say an axis is unused.
 - The euro axis is `scaleLinear` with `nice: true`, `grid: true` and
   `axis: { ticks: { format: eurShort } }`. The other axis never carries a grid.
-- Month values look like 2025-01, so their axis gets `axis: { ticks: { format: monthShort } }`.
+- `scaleLinear` on its own is the factory and the chart infers its domain from the data.
+  `scaleLinear()` is a configured scale that keeps its own domain, which is 0 to 1 until you
+  give it one, so never write `scaleLinear()` or `scaleLinear().nice(true)` on their own.
+- The euro axis includes zero. Bars and areas rest on it by themselves, so their euro axis is
+  the bare factory `scale: scaleLinear` and never names a domain: a stack's total is taller than
+  any single value in the rows, and the chart works that out for itself.
+- A line has no baseline of its own, so a line, and only a line, gives its euro axis
+  `scale: scaleLinear().domain([Math.min(0, ...amounts), Math.max(0, ...amounts)])` over the
+  figures it draws, otherwise a change of a few percent is drawn as a cliff. Write that
+  configured scale itself, never `() => scaleLinear().domain(...)`: a zero-argument factory has
+  its domain inferred again and yours is thrown away.
+- Month and day values look like 2025-01 and 2025-03-14, so their axis gets
+  `axis: { ticks: { format: monthShort } }`, and they may be thinned:
+  `tickLabels: { thin: { minGap: 6, priority: 'ends' } }`. They are never rotated.
+- A category axis carries names, and a name cannot be guessed from its neighbours, so no label
+  may be dropped: `axis: { tickLabels: { thin: false } }`. Names on the x axis also need
+  `rotate`, about -28 degrees, once there are more than six of them or one of them is long.
+- Bars stay thin: `maxThickness: 32` on `barY` and `barX`.
 - Every chart carries `tooltip: { use: tooltip, format: (point) => ... }` and formats euros
   with `eur`.
 - A legend only when there is more than one series, and then
   `color: { legend: colorLegend({ placement: 'bottom' }) }`.
 - Never set a height, a width, a title or a theme: the card owns all four.
 - Every value is read from `data` through a channel name such as `y: 'total_eur'`. Never type a
-  number into the code.
+  number into the code. A zero baseline is not a value, so `Math.min(0, ...)` is fine.
 - Keep it short: no comments, no helper functions you do not need.
 """
 
 EXAMPLES: dict[Shape, str] = {
     "line": """\
 Columns: month, total_eur
+const amounts = data.map((row) => row.total_eur);
 return defineChart({
   marks: [
     lineY(data, { x: 'month', y: 'total_eur', stroke: palette[0], strokeWidth: 2.25, points: true }),
   ],
   scales: {
-    x: { scale: () => scalePoint().padding(0.06), axis: { ticks: { format: monthShort } } },
-    y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
+    x: {
+      scale: () => scalePoint().padding(0.06),
+      axis: { ticks: { format: monthShort }, tickLabels: { thin: { minGap: 6, priority: 'ends' } } },
+    },
+    y: {
+      scale: scaleLinear().domain([Math.min(0, ...amounts), Math.max(0, ...amounts)]),
+      nice: true,
+      grid: true,
+      axis: { ticks: { format: eurShort } },
+    },
   },
   tooltip: {
     use: tooltip,
@@ -114,7 +160,10 @@ return defineChart({
     lineY(data, { x: 'month', y: 'cumulative_eur', stroke: palette[0], strokeWidth: 2 }),
   ],
   scales: {
-    x: { scale: () => scalePoint().padding(0.02), axis: { ticks: { format: monthShort } } },
+    x: {
+      scale: () => scalePoint().padding(0.02),
+      axis: { ticks: { format: monthShort }, tickLabels: { thin: { minGap: 6, priority: 'ends' } } },
+    },
     y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
   },
   tooltip: {
@@ -124,12 +173,14 @@ return defineChart({
 });""",
     "bar": """\
 Columns: category, total_eur
+const names = data.map((row) => String(row.category));
+const tilt = names.length > 6 || names.some((name) => name.length > 9) ? -28 : 0;
 return defineChart({
   marks: [
-    barY(data, { x: 'category', y: 'total_eur', fill: palette[0], radius: 4 }),
+    barY(data, { x: 'category', y: 'total_eur', fill: palette[0], radius: 4, maxThickness: 32 }),
   ],
   scales: {
-    x: { scale: () => scaleBand().padding(0.26) },
+    x: { scale: () => scaleBand().padding(0.26), axis: { tickLabels: { rotate: tilt, thin: false } } },
     y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
   },
   tooltip: {
@@ -141,11 +192,11 @@ return defineChart({
 Columns: merchant, total_eur
 return defineChart({
   marks: [
-    barX(data, { x: 'total_eur', y: 'merchant', fill: palette[0], radius: 4 }),
+    barX(data, { x: 'total_eur', y: 'merchant', fill: palette[0], radius: 4, maxThickness: 32 }),
   ],
   scales: {
     x: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
-    y: { scale: () => scaleBand().padding(0.22) },
+    y: { scale: () => scaleBand().padding(0.22), axis: { tickLabels: { thin: false } } },
   },
   tooltip: {
     use: tooltip,
@@ -153,37 +204,43 @@ return defineChart({
   },
 });""",
     "bar_grouped": """\
-Columns: month, category, total_eur
+Columns: month, topic, total_eur
 const short = (name) => (name.length > 18 ? name.slice(0, 17) + '.' : name);
 return defineChart({
   marks: [
-    barY(data, { x: 'month', y: 'total_eur', z: 'category', color: (row) => short(row.category), layout: group({ padding: 0.12 }), radius: 2 }),
+    barY(data, { x: 'month', y: 'total_eur', z: 'topic', color: (row) => short(row.topic), layout: group({ padding: 0.12 }), radius: 2, maxThickness: 32 }),
   ],
   scales: {
-    x: { scale: () => scaleBand().padding(0.2), axis: { ticks: { format: monthShort } } },
+    x: {
+      scale: () => scaleBand().padding(0.2),
+      axis: { ticks: { format: monthShort }, tickLabels: { thin: { minGap: 6, priority: 'ends' } } },
+    },
     y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
   },
   color: { legend: colorLegend({ placement: 'bottom', itemWidth: 150 }) },
   tooltip: {
     use: tooltip,
-    format: (point) => point.datum.category + ' ' + monthShort(point.datum.month) + ': ' + eur(point.datum.total_eur),
+    format: (point) => point.datum.topic + ' ' + monthShort(point.datum.month) + ': ' + eur(point.datum.total_eur),
   },
 });""",
     "bar_stacked": """\
-Columns: month, category, total_eur
+Columns: month, topic, total_eur
 const short = (name) => (name.length > 18 ? name.slice(0, 17) + '.' : name);
 return defineChart({
   marks: [
-    barY(data, { x: 'month', y: 'total_eur', z: 'category', color: (row) => short(row.category), radius: 2 }),
+    barY(data, { x: 'month', y: 'total_eur', z: 'topic', color: (row) => short(row.topic), radius: 2, maxThickness: 32 }),
   ],
   scales: {
-    x: { scale: () => scaleBand().padding(0.22), axis: { ticks: { format: monthShort } } },
+    x: {
+      scale: () => scaleBand().padding(0.22),
+      axis: { ticks: { format: monthShort }, tickLabels: { thin: { minGap: 6, priority: 'ends' } } },
+    },
     y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
   },
   color: { legend: colorLegend({ placement: 'bottom', itemWidth: 150 }) },
   tooltip: {
     use: tooltip,
-    format: (point) => point.datum.category + ' ' + monthShort(point.datum.month) + ': ' + eur(point.datum.total_eur),
+    format: (point) => point.datum.topic + ' ' + monthShort(point.datum.month) + ': ' + eur(point.datum.total_eur),
   },
 });""",
     "doughnut": """\
@@ -268,6 +325,8 @@ return defineChart({
 });""",
 }
 
+
+
 CODE_INSTRUCTIONS = """\
 You write TanStack Charts definitions for a personal-finance assistant. Call `chart_code`
 exactly once with the function body. You never explain and never write prose: the code is the
@@ -279,7 +338,13 @@ class ChartPlan(BaseModel):
     """The shape of the chart and the data it needs, decided before any SQL is written."""
 
     shape: Shape = Field(description="One of: " + ", ".join(SHAPE_NAMES))
-    title: str = Field(description="A short caption without figures, in the language of the request.")
+    language: Language = Field(
+        description=(
+            "The language of the request itself, 'de' or 'en', never the language of the "
+            "household's data. The title and the chart's month labels are written in it."
+        )
+    )
+    title: str = Field(description="A short caption without figures, written in `language`.")
     question: str = Field(description="The data question for the SQL writer, standing on its own.")
     columns: list[str] = Field(description="The column names the query must return, in order.")
     reason: str = Field(description="One sentence on why this shape answers the request.")

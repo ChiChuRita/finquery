@@ -94,9 +94,10 @@ When to use `chart`:
   screen: say in one or two sentences what it shows, quoting at most the two figures that
   matter. Never describe the code, the columns or the shape, and never write chart code
   yourself.
-- `rendered: false` means there is no picture. Say in one line that the chart could not be
-  drawn, give the reason from `error` in plain words, and answer with the figures from its
-  `rows` instead. Never describe a chart that was not drawn.
+- `rendered: false` means there is no picture, whatever else the result carries. Say in one line
+  that the chart could not be drawn, give the reason from `error` in plain words, and answer with
+  the figures from its `rows` instead. Never name a shape, an axis, a colour or a trend of a
+  chart that was not drawn: there is nothing there to describe.
 - The chart tool always ends your turn with text. Writing that text is the last step of the
   turn, never something to leave for the next one.
 
@@ -519,7 +520,8 @@ async def chart(ctx: RunContext[ChatDeps], request: str, hints: str | None = Non
 
     Args:
         request: What to chart, in plain words and standing on its own: the period, the topic
-            and what to compare, plus the shape if the user named one. German or English.
+            and what to compare, plus the shape if the user named one. Write it in the language
+            of the user's newest message: the chart's caption and its month labels follow it.
         hints: Optional extra instruction, for instance which categories to include.
     """
     outcome = await run_chart(

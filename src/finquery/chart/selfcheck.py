@@ -18,7 +18,7 @@ from typing import Any
 
 import quickjs
 
-from finquery.chart.shapes import FAMILY_MARKS, MAX_SLICES, SHAPES, Shape
+from finquery.chart.shapes import FAMILY_MARKS, MAX_SERIES, MAX_SLICES, SHAPES, Shape
 
 # The globals the code may use. The browser runtime (frontend/src/chart-runtime/globals.ts)
 # provides the same names for real. Each side pairs its own names with its own values, so only
@@ -72,13 +72,26 @@ FORBIDDEN = (
 # single object with a number in it is configuration (a gradient stop, a tooltip item), not data.
 INLINE_DATA = re.compile(r"\[\s*\{[^\[\]]*?:\s*-?\d[^\[\]]*?\}\s*,\s*\{", re.DOTALL)
 
-# The two findings that are only about polish. A chart with a legend nobody needs still answers
-# the question, so after the last repair round it is shown with a note instead of thrown away.
+# The findings that are not about correctness. A chart with a legend nobody needs, or with one
+# colour too many, still answers the question, so after the last repair round it is shown with a
+# note instead of thrown away. Everything else is refused.
 LEGEND_MISSING = (
     "More than one series needs a legend: `color: { legend: colorLegend({ placement: 'bottom' }) }`."
 )
 LEGEND_EXTRA = "One series needs no legend. Drop the `color.legend` option."
+SERIES_CEILING = f"The palette holds {MAX_SERIES} colours"
+TOO_MANY_SERIES = (
+    f"{SERIES_CEILING} and this chart asks for {{count}}, so two groups would be painted the "
+    f"same. Keep the {MAX_SERIES - 1} largest groups and sum the rest into one 'Other' group "
+    f"before drawing, with one figure per position and group."
+)
 COSMETIC = frozenset({LEGEND_MISSING, LEGEND_EXTRA})
+
+
+def is_cosmetic(finding: str) -> bool:
+    """Whether a finding is about presentation rather than about a chart that cannot be drawn."""
+    return finding in COSMETIC or finding.startswith(SERIES_CEILING)
+
 
 CHECK_SECONDS = 2.0
 MEMORY_LIMIT = 64 * 1024 * 1024
@@ -192,11 +205,41 @@ __finquery.run = function (source, rowsJson) {
     return picked;
   }
 
+  // A stack needs one figure per position and series. The rows the query returned are judged
+  // before any code runs, but code that folds groups together builds its own array, and
+  // TanStack throws on the duplicates it makes ("duplicate 2025-01 / Sonstiges").
+  function duplicatePairs(list, position, group) {
+    if (position === undefined || position === null || group === null) return [];
+    var seen = {};
+    var repeated = [];
+    for (var i = 0; i < list.length; i++) {
+      var row = list[i];
+      if (!row || typeof row !== 'object') continue;
+      var at;
+      var of;
+      // An accessor that throws is the mark's own problem to report, not this rule's.
+      try {
+        at = typeof position === 'function' ? position(row) : row[position];
+        of = typeof group === 'function' ? group(row) : row[group];
+      } catch (error) {
+        return [];
+      }
+      var key = String(at) + ' / ' + String(of);
+      if (seen[key]) {
+        if (repeated.indexOf(key) === -1) repeated.push(key);
+      } else {
+        seen[key] = 1;
+      }
+    }
+    return repeated;
+  }
+
   function record(kind, source, options) {
     var list = arrayOf(source);
     var group = null;
     if (options && options.z !== undefined) group = options.z;
     else if (options && options.color !== undefined) group = options.color;
+    var position = options ? (kind === 'barX' ? options.y : options.x) : undefined;
     var keys = keysOf(list);
     report.marks.push({
       kind: kind,
@@ -206,44 +249,68 @@ __finquery.run = function (source, rowsJson) {
       channels: describeChannels(options, list),
       layout: options && options.layout ? options.layout.__layout : null,
       innerRadius: !!(options && options.innerRadius !== undefined),
-      series: seriesOf(list, group)
+      series: seriesOf(list, group),
+      // The legend reads the `color` channel and nothing else, so its values are recorded
+      // apart from the series: `z` can name the groups while `color` returns their index.
+      colors: seriesOf(list, options ? options.color : null),
+      duplicates: duplicatePairs(list, position, group)
     });
     return { __mark: kind };
   }
 
   function scaleStub(kind) {
-    var stub = { __scale: kind };
-    var methods = ['domain', 'range', 'padding', 'paddingInner', 'paddingOuter', 'align',
+    var stub = { __scale: kind, __domain: null };
+    var methods = ['range', 'padding', 'paddingInner', 'paddingOuter', 'align',
       'round', 'rangeRound', 'clamp', 'nice', 'unknown', 'copy'];
     for (var i = 0; i < methods.length; i++) {
       stub[methods[i]] = function () { return stub; };
     }
+    // The one configured option the rules care about: a domain says where the axis starts.
+    stub.domain = function (values) {
+      if (values !== undefined) stub.__domain = Array.isArray(values) ? values.slice() : values;
+      return stub;
+    };
     return stub;
   }
 
   function describeScale(entry) {
     if (entry === null || entry === undefined) return null;
     var kind = null;
+    var domain = null;
     var scale = entry.scale;
-    if (typeof scale === 'function') {
+    // A zero-argument factory is called again per layout and its domain is inferred from the
+    // channels, so a domain configured inside one is thrown away. That is worth reporting.
+    var factory = typeof scale === 'function';
+    if (factory) {
       try {
         var made = scale();
         kind = made && made.__scale ? made.__scale : null;
+        domain = made && made.__domain ? made.__domain : null;
       } catch (error) {
         kind = null;
       }
     } else if (scale && scale.__scale) {
       kind = scale.__scale;
+      domain = scale.__domain;
     }
     var axis = entry.axis;
     var format = false;
     if (axis && axis !== true && axis.ticks && typeof axis.ticks.format === 'function') format = true;
+    var labels = axis && axis !== true ? axis.tickLabels : undefined;
     return {
       hasScale: scale !== undefined && scale !== null,
       scale: kind,
+      factory: factory,
+      domain: domain,
       grid: entry.grid === true,
       axis: axis !== false,
-      tickFormat: format
+      tickFormat: format,
+      // 'off' keeps every label, 'on' lets the layout drop some, 'none' is the default, which
+      // also drops some.
+      thin: labels === undefined || labels === null || labels.thin === undefined
+        ? 'none'
+        : (labels.thin === false ? 'off' : 'on'),
+      rotate: labels && typeof labels.rotate === 'number' ? labels.rotate : null
     };
   }
 
@@ -510,7 +577,7 @@ class CheckResult:
     @property
     def fatal(self) -> bool:
         """True when a finding is about more than polish, so the chart must not be shown."""
-        return bool(set(self.findings) - COSMETIC)
+        return any(not is_cosmetic(finding) for finding in self.findings)
 
     def instructions(self) -> str:
         return "\n".join(f"- {finding}" for finding in self.findings)
@@ -535,9 +602,17 @@ def _static_findings(code: str) -> list[str]:
     return findings
 
 
-def _looks_like_a_month(rows: list[dict[str, Any]], column: str) -> bool:
+def _looks_like_a_period(rows: list[dict[str, Any]], column: str) -> bool:
+    """Whether a column holds ordered periods (2025-01 or 2025-01-17) rather than names.
+
+    The two rules that follow from it pull in opposite directions: a period axis is formatted
+    with `monthShort` and may drop labels, because a reader reads the missing ones off their
+    neighbours; a name axis may not drop a single one.
+    """
     values = [row.get(column) for row in rows if row.get(column) is not None]
-    return bool(values) and all(re.fullmatch(r"\d{4}-\d{2}", str(value)) for value in values)
+    return bool(values) and all(
+        re.fullmatch(r"\d{4}-\d{2}(-\d{2})?", str(value)) for value in values
+    )
 
 
 def _run_in_quickjs(code: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -601,6 +676,42 @@ def _series_count(report: dict[str, Any]) -> int:
     return max((len(mark["series"]) for mark in report["marks"]), default=0)
 
 
+# A legend label that is a bare number is a colour assigned by rank instead of by name.
+A_NUMBER = re.compile(r"-?\d+(\.\d+)?")
+
+
+def _numeric_colours(report: dict[str, Any]) -> list[str]:
+    """The colour values of a mark that colours by index rather than by the group's name."""
+    for mark in report["marks"]:
+        values = mark["colors"]
+        if len(values) > 1 and all(A_NUMBER.fullmatch(value) for value in values):
+            return values
+    return []
+
+
+def _duplicate_pairs(report: dict[str, Any], kinds: tuple[str, ...]) -> list[str]:
+    """The (position, group) pairs a data mark was handed more than once, over the marks drawn."""
+    repeated: list[str] = []
+    for mark in report["marks"]:
+        if mark["kind"] not in kinds:
+            continue
+        for pair in mark["duplicates"]:
+            if pair not in repeated:
+                repeated.append(pair)
+    return repeated
+
+
+def _value_columns(report: dict[str, Any]) -> list[str]:
+    """The distinct columns the data marks read as their figure, in the order they were drawn."""
+    seen: list[str] = []
+    for mark in report["marks"]:
+        channel = VALUE_CHANNEL.get(mark["kind"])
+        described = mark["channels"].get(channel) if channel else None
+        if described and described["type"] == "string" and described["value"] not in seen:
+            seen.append(described["value"])
+    return seen
+
+
 def _shape_findings(report: dict[str, Any], shape: Shape) -> list[str]:
     rule = SHAPES[shape]
     kinds = {mark["kind"] for mark in report["marks"]}
@@ -629,10 +740,41 @@ def _shape_findings(report: dict[str, Any], shape: Shape) -> list[str]:
                 "`polar` needs both `scales.angle` and `scales.radius`; use `null` for each "
                 "when the arcs carry their own geometry."
             )
-    if rule.series and _series_count(report) < 2:
+    series = _series_count(report)
+    if rule.series and series < 2:
+        channels = "`z` and `color`" if rule.crossed else "`color`"
         findings.append(
-            f"A {shape} chart needs one colour per series: add `z` and `color` pointing at the "
-            f"category column."
+            f"A {shape} chart separates its data by colour, so the mark needs {channels} "
+            f"pointing at the column that names the groups."
+        )
+    if rule.crossed and series > MAX_SERIES:
+        findings.append(TOO_MANY_SERIES.format(count=series))
+    # The rows a query returned are judged before the code pass, but code that folds groups
+    # together builds its own array, and a fold that relabels without summing makes exactly the
+    # duplicates TanStack throws on in the browser (review of 2026-09-05).
+    if rule.crossed and (repeated := _duplicate_pairs(report, rule.required)):
+        shown = ", ".join(repeated[:3])
+        pairs = "one pair" if len(repeated) == 1 else f"{len(repeated)} pairs"
+        findings.append(
+            f"The rows this mark was given carry {pairs} of position and group more than once "
+            f"({shown}), and a stack needs one figure per pair. Folding groups means summing "
+            f"their figures, not relabelling their rows."
+        )
+    # `color: (row) => topics.indexOf(row.topic)` draws the right bars and labels the legend
+    # "0" and "1" (review of 2026-09-05). Colour follows the entity, never its rank.
+    if numbered := _numeric_colours(report):
+        findings.append(
+            f"The legend would read {', '.join(numbered)}, because the `color` channel gives "
+            f"back a number instead of a name. Colour by the group itself, `color: 'topic'` or "
+            f"`color: (row) => short(row.topic)`, so the legend names the categories."
+        )
+    # Two marks over two euro columns and no series between them stack into a total nobody
+    # asked for: income drawn on top of spending was one of them (review of 2026-09-05).
+    if not rule.series and len(drawn := _value_columns(report)) > 1:
+        findings.append(
+            f"Two marks draw different euro columns ({', '.join(drawn)}) with nothing to tell "
+            f"them apart, so they stack into a total nobody asked for. A {shape} chart draws one "
+            f"figure per position: draw the column the request is about, and leave the other out."
         )
     layouts = {mark["layout"] for mark in report["marks"] if mark["kind"] in rule.required}
     if rule.grouped and "group" not in layouts:
@@ -640,6 +782,66 @@ def _shape_findings(report: dict[str, Any], shape: Shape) -> list[str]:
     if shape == "bar_stacked" and "group" in layouts:
         findings.append("Stacked bars must not use `layout: group()`.")
     return findings
+
+
+def _domain_findings(axis: dict[str, Any], name: str, *, owns: str) -> list[str]:
+    """Who owns this axis' domain, and does it still hold zero.
+
+    The library reads one thing off the `scale` entry before anything else: a bare factory
+    (`scaleLinear`) means "infer the domain from the marks", a configured scale
+    (`scaleLinear()`) means "this domain is mine, leave it alone". Both mistakes that follow
+    from that are silent and total. A domain written inside `() => scaleLinear().domain(...)`
+    is inferred over again and thrown away; a `scaleLinear()` with no domain keeps the scale's
+    own default of 0 to 1, so every bar fills the plot and the axis reads "0 EUR ... 1 EUR",
+    which is what the top-merchant chart did on 2026-09-05.
+
+    Then the euro axis has to include zero. A bar and an area rest on it by themselves, because
+    the mark contributes its baseline to the inferred domain; a line does not, which is how a
+    range of 4.401 to 5.522 EUR came to fill a whole card in the review of 2026-09-04.
+    """
+    domain, factory = axis["domain"], axis["factory"]
+    if factory and domain is not None:
+        return [
+            f"`scales.{name}` configures a domain inside a zero-argument factory, and the chart "
+            f"infers the domain again from the data, so yours is thrown away. Pass the scale "
+            f"itself: `scale: scaleLinear().domain([...])`, without the `() =>`."
+        ]
+    if not factory and domain is None:
+        fix = (
+            "give it `.domain([Math.min(0, ...amounts), Math.max(0, ...amounts)])`"
+            if owns == "required"
+            else "pass the factory itself (`scaleLinear`, `scaleBand` or `scalePoint`, without "
+            "the brackets) and let the chart infer it"
+        )
+        return [
+            f"`scales.{name}` is a configured scale with no domain, so it keeps the scale's own "
+            f"default of 0 to 1 and every mark fills the plot. Either {fix}."
+        ]
+    if domain is not None and owns == "refused":
+        return [
+            f"This mark rests on zero by itself and the chart works out how high to go, so "
+            f"`scales.{name}` takes the bare factory `scale: scaleLinear` and names no domain. "
+            f"A domain over the row values caps the axis below a stack's own total."
+        ]
+    if domain is None:
+        if owns != "required":
+            return []
+        return [
+            f"The euro axis has to start at zero, or a change of a few percent is drawn as a "
+            f"cliff. Give `scales.{name}` the domain "
+            f"`scale: scaleLinear().domain([Math.min(0, ...amounts), Math.max(0, ...amounts)])` "
+            f"over the figures the chart draws."
+        ]
+    numbers = [
+        value for value in domain if isinstance(value, (int, float)) and not isinstance(value, bool)
+    ]
+    if len(numbers) == 2 and not numbers[0] <= 0 <= numbers[1]:
+        return [
+            f"`scales.{name}` was given the domain {numbers}, which cuts the zero baseline off. "
+            f"A euro axis includes zero: "
+            f"`.domain([Math.min(0, ...amounts), Math.max(0, ...amounts)])`."
+        ]
+    return []
 
 
 def _house_findings(report: dict[str, Any], shape: Shape, rows: list[dict[str, Any]]) -> list[str]:
@@ -675,6 +877,13 @@ def _house_findings(report: dict[str, Any], shape: Shape, rows: list[dict[str, A
                     f"The euro axis needs `axis: {{ ticks: {{ format: eurShort }} }}` on "
                     f"`scales.{rule.value_axis}`."
                 )
+            findings.extend(
+                _domain_findings(
+                    value,
+                    rule.value_axis,
+                    owns="refused" if rule.zero_from_mark else "required",
+                )
+            )
     if rule.category_axis is not None:
         category = spec[rule.category_axis]
         if category is None or not category["hasScale"]:
@@ -688,16 +897,33 @@ def _house_findings(report: dict[str, Any], shape: Shape, rows: list[dict[str, A
                     f"Only the euro axis carries a grid. Remove `grid` from "
                     f"`scales.{rule.category_axis}`."
                 )
+            findings.extend(_domain_findings(category, rule.category_axis, owns="free"))
             columns = [
                 mark["channels"][rule.category_axis]["value"]
                 for mark in report["marks"]
                 if mark["channels"].get(rule.category_axis, {}).get("type") == "string"
             ]
-            months = any(_looks_like_a_month(rows, column) for column in columns)
-            if months and not category["tickFormat"]:
+            periods = any(_looks_like_a_period(rows, column) for column in columns)
+            if periods and not category["tickFormat"]:
                 findings.append(
-                    f"The months read as 2025-01, so `scales.{rule.category_axis}` needs "
+                    f"The values read as periods (2025-01, 2025-03-14), so "
+                    f"`scales.{rule.category_axis}` needs "
                     f"`axis: {{ ticks: {{ format: monthShort }} }}`."
+                )
+            # A month can be read off its neighbours, a category name cannot: a bar whose label
+            # the layout dropped stands under blank space (review of 2026-09-04, ten bars and
+            # eight labels).
+            if not periods and columns and category["thin"] != "off":
+                turn = (
+                    ""
+                    if rule.category_axis == "y"
+                    else " Add `rotate: -28` beside it once there are more than six names or one "
+                    "of them is long, so they do not overlap."
+                )
+                findings.append(
+                    f"Every bar is named by its own label and none may be dropped, so "
+                    f"`scales.{rule.category_axis}` needs "
+                    f"`axis: {{ tickLabels: {{ thin: false }} }}`.{turn}"
                 )
     # A sankey names its nodes with text marks, so it carries no colour series and no legend.
     if shape != "sankey":
@@ -737,6 +963,29 @@ def _pair_findings(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
     ]
 
 
+def _position_findings(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
+    """One bar, or one point, per name: the first column has to name each position once.
+
+    A CASE that always falls through to its ELSE returns seven rows all called 'Sonstiges', and
+    seven bars stacked on one band is not a bar chart (review of 2026-09-05). The rows decide
+    it, so no repair round could fix it.
+    """
+    if not columns or len(rows) < 2:
+        return []
+    position = columns[0]
+    values = [str(row.get(position)) for row in rows]
+    repeated = [value for value in dict.fromkeys(values) if values.count(value) > 1]
+    if not repeated:
+        return []
+    shown = ", ".join(repeated[:3])
+    names = "one name" if len(repeated) == 1 else f"{len(repeated)} names"
+    return [
+        f"The {len(rows)} rows carry only {len(set(values))} different values in {position}, "
+        f"because {names} come back more than once ({shown}). One bar per name: the query has "
+        f"to group by {position} and return each value once."
+    ]
+
+
 def _flow_findings(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
     """A sankey draws a flow, so its links must go somewhere and must not come back.
 
@@ -744,7 +993,13 @@ def _flow_findings(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
     are properties of the rows, so both are decided here rather than in the browser.
     """
     if len(columns) < 3:
-        return []
+        # A UNION that forgets to select the source is a link with one end, and no definition
+        # can draw that, so it is refused here instead of costing three code passes.
+        return [
+            f"A flow needs three columns, a source name, a target name and a positive euro "
+            f"amount, and the query returned {len(columns)}: {', '.join(columns) or 'none'}. "
+            f"Every row has to name both ends of its link."
+        ]
     source, target, amount = columns[0], columns[1], columns[2]
     findings: list[str] = []
     edges: dict[str, list[str]] = {}
@@ -811,15 +1066,26 @@ def data_findings(shape: Shape, columns: list[str], rows: list[dict[str, Any]]) 
     would be handed, so no repair round could fix them. `run_chart` calls this once the query has
     answered and reports the finding instead of drawing something the browser would throw on.
     """
-    if SHAPES[shape].series:
+    rule = SHAPES[shape]
+    if rule.crossed:
         return _pair_findings(columns, rows)
     if shape == "sankey":
         return _flow_findings(columns, rows)
+    if rule.category_axis is not None:
+        return _position_findings(columns, rows)
     return []
 
 
 def judge(report: dict[str, Any], shape: Shape, rows: list[dict[str, Any]]) -> list[str]:
-    """Turn one recording into findings. Pure, so the rules are testable without QuickJS."""
+    """Turn one recording into findings. Pure, so the rules are testable without QuickJS.
+
+    Every finding appears once, however many marks earned it: eight marks reading the same wrong
+    column is one thing to fix, and the repair prompt is the model's whole instruction.
+    """
+    return list(dict.fromkeys(_judge(report, shape, rows)))
+
+
+def _judge(report: dict[str, Any], shape: Shape, rows: list[dict[str, Any]]) -> list[str]:
     if report["error"]:
         return [report["error"]]
     findings: list[str] = []
@@ -831,7 +1097,12 @@ def judge(report: dict[str, Any], shape: Shape, rows: list[dict[str, Any]]) -> l
     if not report["returned"]:
         findings.append("The function body must `return defineChart({ ... })`.")
     if not report["dataRead"]:
-        findings.append("The code never reads `data`. Every value comes from those rows.")
+        columns = ", ".join(dict.fromkeys(key for row in rows for key in row)) or "none"
+        findings.append(
+            f"The code never reads `data`. Hand those rows to the mark itself, "
+            f"`barY(data, {{ ... }})`, and read every value through a channel name. The columns "
+            f"are: {columns}."
+        )
     if findings:
         return findings
     findings.extend(_mark_findings(report))

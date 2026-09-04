@@ -10,6 +10,12 @@ and, when its geometry has rules of its own the way the doughnut and the sankey 
 from dataclasses import dataclass
 from typing import Literal, get_args
 
+# The two languages a request arrives in. It is a decision of the plan pass rather than of the
+# data: an English question about a German household still gets an English caption, and the
+# frame writes the month labels in it (review of 2026-09-04: "Jan 25 ... Dez 25" under an
+# English title).
+Language = Literal["de", "en"]
+
 Shape = Literal[
     "line",
     "area",
@@ -28,6 +34,11 @@ FAMILY_MARKS = ("lineY", "areaY", "barY", "barX", "radialArc", "sankeyDiagram")
 
 MAX_SLICES = 6
 
+# The palette the theme hands the frame is six colours long, and a seventh series would reuse
+# the first one, so two categories in the same chart would share a colour. That is the ceiling
+# on every shape that separates its data by colour.
+MAX_SERIES = 6
+
 
 @dataclass(frozen=True)
 class ShapeRule:
@@ -44,9 +55,16 @@ class ShapeRule:
     category_axis: Literal["x", "y"] | None = None
     """The axis carrying the category or the month."""
     series: bool = False
-    """True when the shape needs a `z` or `color` channel (one colour per series)."""
+    """True when the shape separates its data by colour, so it needs a `color` (or `z`) channel
+    and a legend. A doughnut does that with its slices, a grouped bar with its groups."""
+    crossed: bool = False
+    """True when the shape needs two dimensions that really cross: one figure per (position,
+    series) pair. Only the grouped and stacked bars do, which is why this is not `series`."""
     grouped: bool = False
     """True when the bars must sit side by side (`layout: group()`)."""
+    zero_from_mark: bool = False
+    """True when the mark itself baselines at zero, so the euro axis needs no domain of its own.
+    Bars and areas do; a line does not, which is how a 25 percent range once read as a cliff."""
 
 
 SHAPES: dict[Shape, ShapeRule] = {
@@ -62,37 +80,45 @@ SHAPES: dict[Shape, ShapeRule] = {
         also_allowed=("lineY",),
         value_axis="y",
         category_axis="x",
+        zero_from_mark=True,
     ),
     "bar": ShapeRule(
         purpose="one figure per named category, up to about twelve of them",
         required=("barY",),
         value_axis="y",
         category_axis="x",
+        zero_from_mark=True,
     ),
     "bar_horizontal": ShapeRule(
         purpose="a ranking with long labels, such as the top merchants",
         required=("barX",),
         value_axis="x",
         category_axis="y",
+        zero_from_mark=True,
     ),
     "bar_grouped": ShapeRule(
-        purpose="two dimensions side by side, such as month by category",
+        purpose=f"two dimensions side by side, month by category, at most {MAX_SERIES} groups",
         required=("barY",),
         value_axis="y",
         category_axis="x",
         series=True,
+        crossed=True,
         grouped=True,
+        zero_from_mark=True,
     ),
     "bar_stacked": ShapeRule(
-        purpose="the same two dimensions when the stacked total matters",
+        purpose=f"the same two dimensions when the total matters, at most {MAX_SERIES} groups",
         required=("barY",),
         value_axis="y",
         category_axis="x",
         series=True,
+        crossed=True,
+        zero_from_mark=True,
     ),
     "doughnut": ShapeRule(
         purpose=f"a share of a whole with at most {MAX_SLICES} slices",
         required=("radialArc",),
+        series=True,
     ),
     "sankey": ShapeRule(
         purpose="a flow from sources to targets, such as income into categories",

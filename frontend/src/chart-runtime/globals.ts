@@ -28,6 +28,8 @@ import { scaleOrdinal } from '@tanstack/charts/scales/ordinal'
 import { scalePoint } from '@tanstack/charts/scales/point'
 import { tooltip } from '@tanstack/charts/tooltip'
 
+import type { ChartLanguage } from '@/lib/chart-frame'
+
 const full = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' })
 const compact = new Intl.NumberFormat('de-DE', {
   style: 'currency',
@@ -35,7 +37,11 @@ const compact = new Intl.NumberFormat('de-DE', {
   notation: 'compact',
   maximumFractionDigits: 1,
 })
-const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
+/** The month names per chart language. Money stays German everywhere; the words follow the ask. */
+const MONTHS: Record<ChartLanguage, string[]> = {
+  de: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
+  en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+}
 
 const numeric = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -52,14 +58,23 @@ export const eurShort = (value: unknown) => {
   return amount === null ? String(value ?? '') : compact.format(amount)
 }
 
-/** "Jan 25" from "2025-01" or "2025-01-17". There is no time scale, so months are categories. */
-export const monthShort = (value: unknown) => {
-  const text = String(value ?? '')
-  const match = /^(\d{4})-(\d{2})/.exec(text)
-  if (!match) return text
-  const month = MONTHS[Number(match[2]) - 1]
-  return month ? `${month} ${match[1].slice(2)}` : text
-}
+/** "Jan 25" from "2025-01", and "17. Jan" or "Jan 17" from "2025-01-17", per the language.
+ *
+ * There is no time scale, so a month and a day are both categories and both arrive as strings.
+ * A day-level axis used to print the month of every point, so nineteen ticks all read
+ * "2025-03" (review of 2026-09-05); the day is what tells them apart.
+ */
+export const monthShortFor =
+  (language: ChartLanguage) =>
+  (value: unknown): string => {
+    const text = String(value ?? '')
+    const match = /^(\d{4})-(\d{2})(?:-(\d{2}))?/.exec(text)
+    if (!match) return text
+    const month = MONTHS[language][Number(match[2]) - 1]
+    if (!month) return text
+    if (match[3] === undefined) return `${month} ${match[1].slice(2)}`
+    return language === 'de' ? `${Number(match[3])}. ${month}` : `${month} ${Number(match[3])}`
+  }
 
 /** The names, in the order `buildChart` passes them into the generated function. */
 export const GLOBAL_NAMES = [
@@ -89,7 +104,7 @@ export const GLOBAL_NAMES = [
   'monthShort',
 ] as const
 
-/** Everything but `palette`, which is the current theme's and arrives with each render. */
+/** Everything but `palette` and `monthShort`, which arrive with each render. */
 const SHARED: Record<string, unknown> = {
   defineChart,
   lineY,
@@ -113,8 +128,11 @@ const SHARED: Record<string, unknown> = {
   tooltip,
   eur,
   eurShort,
-  monthShort,
 }
 
-export const globalValues = (palette: readonly string[]): unknown[] =>
-  GLOBAL_NAMES.map((name) => (name === 'palette' ? palette : SHARED[name]))
+export const globalValues = (palette: readonly string[], language: ChartLanguage): unknown[] => {
+  const monthShort = monthShortFor(language)
+  return GLOBAL_NAMES.map((name) =>
+    name === 'palette' ? palette : name === 'monthShort' ? monthShort : SHARED[name],
+  )
+}

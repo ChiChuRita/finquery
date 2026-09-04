@@ -13,7 +13,7 @@ from pydantic_ai.settings import ModelSettings
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.chart.selfcheck import check_chart_code, data_findings
-from finquery.chart.shapes import SHAPES
+from finquery.chart.shapes import MAX_SERIES, SHAPES
 from finquery.chart.subagent import ChartPlan, write_code, write_plan
 from finquery.providers import ModelResolver, ProviderNotAvailable
 from finquery.query import load_query_context, run_query
@@ -36,6 +36,8 @@ class ChartOutcome:
     request: str
     title: str = ""
     shape: str = ""
+    language: str = "de"
+    """The language the plan wrote the title in. The frame writes its month labels in it too."""
     plan: str = ""
     sql: str | None = None
     columns: list[str] = field(default_factory=list)
@@ -56,6 +58,7 @@ class ChartOutcome:
             "request": self.request,
             "title": self.title,
             "shape": self.shape,
+            "language": self.language,
             "plan": self.plan,
             "sql": self.sql,
             "row_count": len(self.rows),
@@ -72,8 +75,18 @@ class ChartOutcome:
         }
 
 
+# What the chat agent is told when there is no picture. `rendered: false` is the field it reads,
+# and this sentence is the last thing it reads, because the review of 2026-09-04 twice caught an
+# answer describing in full a chart that had never been drawn.
+NO_PICTURE = (
+    "No chart is on screen. Do not describe a picture, a shape, an axis or a colour: say in one "
+    "line that the chart could not be drawn and why, then answer with the figures from `rows`. "
+    "Write your answer as text now."
+)
+
+
 def _failed(request: str, reason: str, **rest: Any) -> ChartOutcome:
-    return ChartOutcome(request=request, summary=reason, error=reason, **rest)
+    return ChartOutcome(request=request, summary=f"{reason} {NO_PICTURE}", error=reason, **rest)
 
 
 def _grouping_columns(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
@@ -90,19 +103,41 @@ def _grouping_columns(columns: list[str], rows: list[dict[str, Any]]) -> list[st
     return grouping
 
 
-def _honest_shape(plan: ChartPlan, columns: list[str], rows: list[dict[str, Any]]) -> ChartPlan:
+# A line or an area between two points draws a trend through everything the query did not
+# return: January and July joined by a stroke says something about the five months between them.
+MIN_TREND_POINTS = 3
+
+
+def _honest_shape(
+    plan: ChartPlan, columns: list[str], rows: list[dict[str, Any]]
+) -> tuple[ChartPlan, str | None]:
     """Downgrade a shape the rows cannot carry, rather than asking for the impossible.
 
-    A grouped or stacked chart needs two dimensions that really cross. The query can come back
-    without them (asking for `category` while nothing is categorized returns NULLs, or grouping
-    by one column only leaves one row per period), and no repair round can invent the missing
-    dimension, so the chart becomes plain bars instead of an error.
+    Two cases, both decided by the rows and neither repairable by writing the code again:
+
+    - a grouped or stacked chart needs two dimensions that really cross, and the query can come
+      back without them (asking for `category` while nothing is categorized returns NULLs, or
+      grouping by one column only leaves one row per period);
+    - a trend needs enough points to be a trend, and two periods being compared are two bars.
+
+    Either way the chart becomes plain bars, and the reason is narrated.
     """
-    if not SHAPES[plan.shape].series:
-        return plan
+    if plan.shape in {"line", "area"} and len(rows) < MIN_TREND_POINTS:
+        return (
+            plan.model_copy(update={"shape": PLAIN_BARS}),
+            f"{len(rows)} points are a comparison and not a trend, so the shape becomes "
+            f"{PLAIN_BARS}.",
+        )
+    if not SHAPES[plan.shape].crossed:
+        return plan, None
     grouping = _grouping_columns(columns, rows)
     crossed = len(grouping) > 1 and len(rows) > len({str(row[grouping[0]]) for row in rows})
-    return plan if crossed else plan.model_copy(update={"shape": PLAIN_BARS})
+    if crossed:
+        return plan, None
+    return (
+        plan.model_copy(update={"shape": PLAIN_BARS}),
+        f"The rows carry only one series, so the shape becomes {PLAIN_BARS}.",
+    )
 
 
 # What a query calls the bucket everything else was folded into. A doughnut whose rest slice
@@ -168,18 +203,37 @@ async def run_chart(
         shaped += (
             f" Every row is one flow: a source name, a target name and a positive euro amount. "
             f"Report spending as `ROUND(-SUM(amount), 2)`, never mix a negative and a positive "
-            f"figure in {plan.columns[-1]}, and leave no row without a source or a target."
+            f"figure in {plan.columns[-1]}, and leave no row without a source or a target. No "
+            f"row may carry the same name in {plan.columns[0]} and {plan.columns[1]}: a total "
+            f"row is a flow from a name into itself, which a sankey refuses."
         )
     elif len(plan.columns) > 2:
         # A grouped chart needs a real second dimension, so the statement has to group by both
         # columns. Selecting a column that is NULL for every booking (`category` before anything
         # is categorized) or grouping by only one of them silently produces a single series.
+        position, group = plan.columns[0], plan.columns[1]
         shaped += (
-            f" `GROUP BY {plan.columns[0]}, {plan.columns[1]}`, so there is one row per "
+            f" `GROUP BY {position}, {group}`, so there is one row per "
             f"combination and never two rows with the same pair: a stacked bar needs one value "
-            f"per position and series. Build {plan.columns[1]} from the `category` column with "
-            f"`coalesce(category, 'Needs review') AS {plan.columns[1]}` so an uncategorized "
+            f"per position and series. Build {group} from the `category` column with "
+            f"`coalesce(category, 'Needs review') AS {group}` so an uncategorized "
             f"booking is an honest bucket, and never from a CASE over the booking text."
+        )
+        # A chart has six colours. More groups than that and two categories are painted the
+        # same, which is what eleven categories over twelve months looked like on 2026-09-04.
+        # It is a ceiling and not an instruction to fold: a question that names two categories
+        # gets those two by name, never one of them relabelled 'Other'.
+        shaped += (
+            f" {group} may hold at most {MAX_SERIES} names, because a chart has that many "
+            f"colours. When the question already names the groups it wants, or when the grouping "
+            f"yields {MAX_SERIES} or fewer, group by them as they are and add no 'Other' row. "
+            f"Only when it would yield more: keep the {MAX_SERIES - 1} with the largest total "
+            f"over the whole period and sum the rest into one 'Other' row per {position}, with "
+            f"`WITH ranked AS (SELECT coalesce(category, 'Needs review') AS name, "
+            f"SUM(-amount) AS total FROM transaction_view WHERE amount_cents < 0 GROUP BY 1 "
+            f"ORDER BY total DESC LIMIT {MAX_SERIES - 1})` and then "
+            f"`CASE WHEN coalesce(category, 'Needs review') IN (SELECT name FROM ranked) "
+            f"THEN coalesce(category, 'Needs review') ELSE 'Other' END AS {group}`."
         )
     outcome = await run_query(
         resolve_model=resolve_model,
@@ -191,7 +245,15 @@ async def run_chart(
     )
     if outcome.error is not None:
         say(f"No chart: {outcome.error}")
-        return _failed(request, outcome.error, title=plan.title, shape=plan.shape, plan=plan.as_text(), sql=outcome.sql)
+        return _failed(
+            request,
+            outcome.error,
+            title=plan.title,
+            shape=plan.shape,
+            language=plan.language,
+            plan=plan.as_text(),
+            sql=outcome.sql,
+        )
     if not outcome.rows:
         reason = "The query behind the chart returned no rows, so there is nothing to draw."
         say(reason)
@@ -200,6 +262,7 @@ async def run_chart(
             reason,
             title=plan.title,
             shape=plan.shape,
+            language=plan.language,
             plan=plan.as_text(),
             sql=outcome.sql,
             columns=outcome.columns,
@@ -217,16 +280,16 @@ async def run_chart(
             reason,
             title=plan.title,
             shape=plan.shape,
+            language=plan.language,
             plan=plan.as_text(),
             sql=outcome.sql,
             columns=outcome.columns,
             rows=outcome.rows,
         )
 
-    honest = _honest_shape(plan, outcome.columns, outcome.rows)
-    if honest.shape != plan.shape:
-        say(f"The rows carry only one series, so the shape becomes {honest.shape}.")
-        plan = honest
+    plan, downgrade = _honest_shape(plan, outcome.columns, outcome.rows)
+    if downgrade is not None:
+        say(downgrade)
 
     if (share := _rest_share(plan.shape, outcome.columns, outcome.rows)) is not None:
         plan = plan.model_copy(update={"title": f"{plan.title} ({share} in the rest slice)"})
@@ -252,6 +315,7 @@ async def run_chart(
                 f"The chart sub-agent did not return code: {exc}",
                 title=plan.title,
                 shape=plan.shape,
+                language=plan.language,
                 plan=plan.as_text(),
                 sql=outcome.sql,
                 columns=outcome.columns,
@@ -274,6 +338,7 @@ async def run_chart(
                 request=request,
                 title=plan.title,
                 shape=plan.shape,
+                language=plan.language,
                 plan=plan.as_text(),
                 sql=outcome.sql,
                 columns=outcome.columns,

@@ -13,6 +13,9 @@ export const FRAME_URL = '/chart-runtime.html'
 /** Every chart is this tall. The card owns the size, never the generated code. */
 export const CHART_HEIGHT = 280
 
+/** The language the chart's words are in. The euro formats stay German whatever it says. */
+export type ChartLanguage = 'de' | 'en'
+
 export type ChartValue = string | number | boolean | null
 export type ChartRow = Record<string, ChartValue>
 
@@ -30,6 +33,7 @@ export interface ChartRenderMessage {
   source: typeof CARD_SOURCE
   kind: 'render'
   title: string
+  language: ChartLanguage
   code: string
   rows: ChartRow[]
   theme: ChartFrameTheme
