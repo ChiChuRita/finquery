@@ -20,8 +20,10 @@ MODEL_SLOTS: tuple[ModelSlot, ...] = get_args(ModelSlot)
 
 OPENROUTER_MODELS: dict[ModelSlot, str] = {
     "fast": "google/gemma-4-26b-a4b-it",
-    "quality": "google/gemma-4-31b-it",
+    "quality": "qwen/qwen3.5-9b",
 }
+"""The hosted half of each slot: the same two models the local provider runs, so a turn does
+not change character with the provider. See docs/adr/0006 for why the quality slot is Qwen."""
 
 ModelResolver = Callable[[ModelSlot], Model]
 

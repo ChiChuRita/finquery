@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import pytest
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.messages import BinaryContent
@@ -29,16 +30,18 @@ from finquery.local.runtime import LocalStack
 from .conftest import NoWeb, chat_body, default_profile_id, make_settings, new_conversation, parse_sse
 
 
-def spec(slot: str, name: str, weights_size: int) -> ModelSpec:
+def spec(slot: str, name: str, weights_size: int, wire: str) -> ModelSpec:
     return ModelSpec(
         slot=slot,  # type: ignore[arg-type]
         name=name,
+        wire=wire,  # type: ignore[arg-type]
         weights=FileSpec(kind="weights", repo_id="acme/tiny", filename=f"{name}.gguf", size=weights_size, sha256="0" * 64),
         projector=FileSpec(kind="projector", repo_id="acme/tiny", filename="mmproj.gguf", size=4, sha256="1" * 64),
     )
 
 
-TINY_MODELS = {"fast": spec("fast", "tiny-fast", 8), "quality": spec("quality", "tiny-quality", 16)}
+#: The two wire formats, on the slots they run on: Gemma 4 on fast, Qwen3.5 on quality.
+TINY_MODELS = {"fast": spec("fast", "tiny-fast", 8, "gemma"), "quality": spec("quality", "tiny-quality", 16, "qwen")}
 
 
 def chunks(*texts: str) -> Iterator[dict[str, Any]]:
@@ -121,7 +124,8 @@ async def turn(client: httpx.AsyncClient, conversation_id: str, text: str) -> li
 
 
 async def test_local_provider_resolves_both_slots_and_reports_them(tmp_path: Path) -> None:
-    slots = {"fast": FakeSlot("tiny-fast"), "quality": FakeSlot("tiny-quality")}
+    # The Qwen prompt ends on an open `<think>`, so the quality slot closes it before answering.
+    slots = {"fast": FakeSlot("tiny-fast"), "quality": FakeSlot("tiny-quality", ("Short one.</think>\n\nHello.",))}
     async with local_client(local_stack(tmp_path, slots)) as client:
         body = (await client.get("/api/models")).json()
         assert body["provider"] == "local"
@@ -136,7 +140,7 @@ async def test_local_provider_resolves_both_slots_and_reports_them(tmp_path: Pat
 
         after = (await client.get("/api/models")).json()["models"]
         assert [m["loaded"] for m in after] == [True, True]
-        assert [m["n_ctx"] for m in after] == [16384, 16384]
+        assert [m["n_ctx"] for m in after] == [32768, 32768]
         # Two turns, plus the two post-turn steps each one runs on the fast slot afterwards
         # (follow-up suggestions and memory distillation).
         assert len(slots["fast"].requests) == 5
@@ -196,6 +200,74 @@ async def test_gemma_tool_call_syntax_becomes_a_tool_part(tmp_path: Path) -> Non
             assert "response_format" not in first
             # The tool result goes back as a tool message the chat template renders as a response.
             assert slots["fast"].requests[1]["messages"][-1]["role"] == "tool"
+
+
+async def test_qwen_thinking_is_split_across_delta_boundaries(tmp_path: Path) -> None:
+    """The quality slot's wire format.
+
+    Qwen's generation prompt already contains `<think>`, so the model starts inside the thought
+    channel and writes the closing tag itself, split over as many tokens as it likes.
+    """
+    reply = ("Adding it ", "up. ", "</th", "ink>", "\n\nYou spent ", "120 EUR.")
+    slots = {"fast": FakeSlot("tiny-fast"), "quality": FakeSlot("tiny-quality", reply)}
+    async with local_client(local_stack(tmp_path, slots)) as client:
+        profile_id = await default_profile_id(client)
+        conversation_id = await new_conversation(client, profile_id, "quality")
+        seen = await turn(client, conversation_id, "How much in May?")
+
+        kinds = [c["type"] for c in seen]
+        assert kinds.index("reasoning-end") < kinds.index("text-start")
+        assert "".join(str(c["delta"]) for c in seen if c["type"] == "reasoning-delta") == "Adding it up. "
+        # The two newlines the template puts after the closing tag are not part of the answer.
+        assert "".join(str(c["delta"]) for c in seen if c["type"] == "text-delta") == "You spent 120 EUR."
+
+        request = slots["quality"].requests[0]
+        assert request["enable_thinking"] is True
+        assert request["stop"] == ["<|im_end|>"]
+        # Qwen3.5's model card, not Gemma's, and no Gemma-only template argument rides along.
+        assert (request["top_k"], request["min_p"]) == (20, 0.0)
+        assert "preserve_thinking" not in request
+
+        detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+        assert [p["type"] for p in detail["messages"][1]["parts"]] == ["reasoning", "text", "data-context"]
+
+
+async def test_qwen_tool_call_syntax_becomes_a_tool_part_and_its_result_goes_back(tmp_path: Path) -> None:
+    def query(question: str, limit: int) -> str:
+        """Answer a question from the transactions."""
+        return f"{question} -> 120.00 EUR (limit {limit})"
+
+    calling = (
+        "I need the data.</think>\n\n",
+        "<tool_call>\n<function=query>\n<parameter=question>\ngroceries",
+        " in May\n</parameter>\n<parameter=limit>\n20\n</parameter>\n</function>\n</tool_call>",
+    )
+    answering = ("That is the total.</think>\n\nYou spent ", "120 EUR.")
+    slots = {"fast": FakeSlot("tiny-fast"), "quality": FakeSlot("tiny-quality", calling, answering)}
+    with chat_agent.override(tools=[query]):
+        async with local_client(local_stack(tmp_path, slots)) as client:
+            profile_id = await default_profile_id(client)
+            conversation_id = await new_conversation(client, profile_id, "quality")
+            seen = await turn(client, conversation_id, "groceries in May?")
+
+            available = [c for c in seen if c["type"] == "tool-input-available"]
+            assert [c["toolName"] for c in available] == ["query"]
+            assert available[0]["input"]["question"] == "groceries in May"
+            # A parameter arrives as text; the tool's own schema is what turns "20" into 20.
+            output = [c for c in seen if c["type"] == "tool-output-available"]
+            assert output[0]["output"] == "groceries in May -> 120.00 EUR (limit 20)"
+            assert "".join(str(c["delta"]) for c in seen if c["type"] == "text-delta") == "You spent 120 EUR."
+
+            first = slots["quality"].requests[0]
+            assert [t["function"]["name"] for t in first["tools"]] == ["query", "ask_user"]
+            assert first["tool_choice"] == "auto"
+            assert "response_format" not in first
+            # The tool result goes back as a tool message the Qwen template renders as a
+            # `<tool_response>` block, under an assistant message that keeps its reasoning.
+            second = slots["quality"].requests[1]["messages"]
+            assert second[-1]["role"] == "tool"
+            assert second[-2]["reasoning_content"] == "I need the data."
+            assert second[-2]["tool_calls"][0]["function"]["arguments"]["question"] == "groceries in May"
 
 
 async def test_stop_ends_the_token_loop_and_keeps_the_partial_turn(tmp_path: Path) -> None:
@@ -299,6 +371,7 @@ async def test_parked_file_is_reused_when_its_hash_matches(tmp_path: Path) -> No
     model = ModelSpec(
         slot="fast",
         name="tiny",
+        wire="gemma",
         weights=parked_spec(weights_payload, "wanted.gguf", "weights"),
         projector=parked_spec(projector_payload, "mmproj.gguf", "projector"),
     )
@@ -366,7 +439,7 @@ async def test_models_endpoint_also_answers_on_openrouter() -> None:
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             body = (await client.get("/api/models")).json()
             assert body["provider"] == "openrouter"
-            assert [m["name"] for m in body["models"]] == ["google/gemma-4-26b-a4b-it", "google/gemma-4-31b-it"]
+            assert [m["name"] for m in body["models"]] == ["google/gemma-4-26b-a4b-it", "qwen/qwen3.5-9b"]
             assert body["adapters"] == []
             assert (await client.post("/api/models/download")).status_code == 409
 
@@ -391,34 +464,39 @@ async def test_an_image_reaches_the_model_as_a_content_part(tmp_path: Path) -> N
     assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")
 
 
-async def test_a_schema_constrained_request_forces_a_single_tool(tmp_path: Path) -> None:
+@pytest.mark.parametrize("slot_name", ["fast", "quality"])
+async def test_a_schema_constrained_request_forces_a_single_tool(tmp_path: Path, slot_name: str) -> None:
     """The sub-agent shape from tickets 05 and 06, driven directly.
 
-    Sub-agents do not exist yet, so no HTTP route produces this request. What matters is the
-    contract they will rely on: one forced tool, thinking off, no response format beside it.
+    Sub-agents always run on the fast slot, but the rule is the model's, not the slot's, so
+    both wire formats are held to it: one forced tool, thinking off, no response format beside
+    it. Forcing is what makes llama.cpp build the grammar and emit OpenAI tool-call deltas,
+    which is the one path where neither splitter is involved.
     """
 
     class Sql(BaseModel):
         sql: str
 
-    slot = FakeSlot("tiny-fast")
+    slot = FakeSlot(f"tiny-{slot_name}")
 
     def stream(**kwargs: Any) -> Iterator[dict[str, Any]]:
+        """llama.cpp's forced-tool stream: one chunk per token, each repeating the whole name."""
         slot.requests.append(kwargs)
         name = kwargs["tool_choice"]["function"]["name"]
-        call = {
-            "index": 0,
-            "id": "call_0",
-            "function": {"name": name, "arguments": '{"sql": "SELECT sum(amount) FROM tx"}'},
-        }
-        yield {"choices": [{"index": 0, "delta": {"tool_calls": [call]}, "finish_reason": None}]}
+        for piece in ('{"sql": "SELECT ', "sum(amount) ", 'FROM tx"}'):
+            call = {"index": 0, "id": "call_0", "function": {"name": name, "arguments": piece}}
+            yield {"choices": [{"index": 0, "delta": {"tool_calls": [call]}, "finish_reason": None}]}
 
     slot.stream = stream  # type: ignore[method-assign]
-    stack = local_stack(tmp_path, {"fast": slot, "quality": FakeSlot("tiny-quality")})
+    others = {"fast": FakeSlot("tiny-fast"), "quality": FakeSlot("tiny-quality")}
+    stack = local_stack(tmp_path, {**others, slot_name: slot})
 
-    result = await Agent(stack.resolve("fast"), output_type=Sql).run("How much did I spend?")
+    result = await Agent(stack.resolve(slot_name), output_type=Sql).run("How much did I spend?")  # type: ignore[arg-type]
 
     assert result.output == Sql(sql="SELECT sum(amount) FROM tx")
+    # The name is not a delta to concatenate, however many chunks repeat it.
+    called = [part.tool_name for message in result.all_messages() for part in getattr(message, "parts", []) if part.part_kind == "tool-call"]
+    assert called == ["final_result"]
     request = slot.requests[0]
     assert len(request["tools"]) == 1
     assert request["tool_choice"] == {"type": "function", "function": {"name": request["tools"][0]["function"]["name"]}}

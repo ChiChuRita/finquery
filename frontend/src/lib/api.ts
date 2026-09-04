@@ -3,9 +3,10 @@ import type { ToolUIPart, UIMessage } from 'ai'
 
 export type ModelSlot = 'fast' | 'quality'
 
+/** The two slots, named after the model each one resolves to on either provider. */
 export const MODEL_SLOTS: { slot: ModelSlot; label: string; description: string }[] = [
-  { slot: 'fast', label: 'Fast', description: 'Quick answers, lighter model' },
-  { slot: 'quality', label: 'Quality', description: 'Slower, more careful reasoning' },
+  { slot: 'fast', label: 'Gemma 4 E4B', description: 'Quick answers, and the model behind every tool' },
+  { slot: 'quality', label: 'Qwen3.5 9B', description: 'Slower, reasons further before it answers' },
 ]
 
 export const slotLabel = (slot: ModelSlot | undefined) => MODEL_SLOTS.find((m) => m.slot === slot)?.label

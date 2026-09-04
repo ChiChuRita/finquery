@@ -1,9 +1,10 @@
-"""The one suite that loads the real Gemma 4 models. Opt in with `FINQUERY_SMOKE=1`.
+"""The one suite that loads the real local models. Opt in with `FINQUERY_SMOKE=1`.
 
     FINQUERY_SMOKE=1 uv run pytest tests/test_local_smoke.py -s
 
 It runs the same sanity check as `uv run finquery-check`, so a green run means both slots
-answer, think, call a tool and read an image on this machine.
+answer, think, call a tool and read an image on this machine, each through its own wire
+format (Gemma 4 on fast, Qwen3.5 on quality).
 """
 
 import os

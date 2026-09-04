@@ -15,7 +15,7 @@ import {
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
-const SLOT_LABEL: Record<string, string> = { fast: 'Fast', quality: 'Quality' }
+const SLOT_LABEL: Record<string, string> = { fast: 'Gemma 4 E4B', quality: 'Qwen3.5 9B' }
 
 const gigabytes = (bytes: number) => `${(bytes / 1e9).toFixed(2)} GB`
 
@@ -72,12 +72,11 @@ function SlotBlock({ model }: { model: SlotModel }) {
             {SLOT_LABEL[model.slot] ?? model.slot}
             <span className="ml-2 font-normal font-mono text-muted-foreground text-xs">{model.name}</span>
           </p>
-          {model.n_ctx && (
-            <p className="text-[11px] text-muted-foreground">
-              {(model.n_ctx / 1024).toFixed(0)}k context
-              {model.loaded ? ` - resident, loaded in ${model.load_seconds}s` : ' - loads on first use'}
-            </p>
-          )}
+          <p className="text-[11px] text-muted-foreground">
+            {model.slot} slot
+            {model.n_ctx ? ` - ${(model.n_ctx / 1024).toFixed(0)}k context` : ''}
+            {model.n_ctx ? (model.loaded ? ` - resident, loaded in ${model.load_seconds}s` : ' - loads on first use') : ''}
+          </p>
         </div>
         <span
           className={cn(
@@ -163,7 +162,9 @@ export function ModelsCard() {
           </h2>
           <p className="text-muted-foreground text-xs">
             Provider <span className="font-mono">{data.provider}</span>
-            {local ? ' - Gemma 4 in this process through llama.cpp' : ' - hosted, nothing to download'}
+            {local
+              ? ' - Gemma 4 E4B and Qwen3.5 9B in this process through llama.cpp'
+              : ' - hosted, nothing to download'}
           </p>
         </div>
         {local && (

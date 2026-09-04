@@ -96,7 +96,7 @@ class Assembly:
 def context_budget(settings: Settings, local: "LocalStack | None") -> int:
     """The working budget for one turn, in tokens.
 
-    Both slots have the same context on both providers today (16k for the two local models, 262k
+    Both slots have the same context on both providers today (32k for the two local models, 262k
     for the two OpenRouter ones), so the budget does not depend on the slot; give this a slot
     parameter when that stops being true. The configured budget is a cap, not a raise: on the
     local provider the resident context is the hard ceiling.

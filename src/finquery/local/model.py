@@ -1,13 +1,15 @@
-"""A Pydantic AI model over llama-cpp-python and Gemma 4.
+"""A Pydantic AI model over llama-cpp-python, for either local model.
 
-The Gemma 4 chat template does the prompt building, so this module's job is the two
+The chat template inside the GGUF does the prompt building, so this module's job is the two
 translations around it: Pydantic AI messages to the OpenAI-shaped dicts the template expects,
-and the model's single text stream back to thinking parts, text parts and tool calls.
+and the model's single text stream back to thinking parts, text parts and tool calls. Which
+template that is decides the details, and those live in `finquery.local.gemma` (fast slot) and
+`finquery.local.qwen` (quality slot), picked per model through `WIRE_FORMATS` below.
 
-Two rules from the spec hold here. Thinking is switched on through the chat template rather
-than a request flag, and schema-constrained output is never combined with free tool calling:
-a request that needs a schema forces a single tool, which makes llama.cpp build a GBNF grammar
-from that tool's parameters.
+Two rules from the spec hold for both. Thinking is switched on through the chat template
+rather than a request flag, and schema-constrained output is never combined with free tool
+calling: a request that needs a schema forces a single tool, which makes llama.cpp build a
+GBNF grammar from that tool's parameters.
 """
 
 from collections.abc import AsyncGenerator, AsyncIterator, Iterator, Sequence
@@ -43,19 +45,40 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.usage import RequestUsage
 
-from finquery.local import gemma
+from finquery.local import gemma, qwen
 from finquery.local.catalog import ModelSpec
 from finquery.local.runtime import LocalStack, Slot, adapter_note
+from finquery.local.wire import Event, Sampling, WireFormat, WireName
 from finquery.providers import ModelSlot
 
 SYSTEM = "llama-cpp"
 
-#: The Gemma 4 model card's sampling settings.
-TEMPERATURE = 1.0
-TOP_P = 0.95
-TOP_K = 64
-
 MAX_TOKENS = 4096
+
+WIRE_FORMATS: dict[WireName, WireFormat] = {
+    "gemma": WireFormat(
+        splitter=gemma.StreamSplitter,
+        stop=gemma.STOP,
+        # The Gemma 4 model card's sampling settings; min_p and the two penalties are what
+        # llama-cpp-python's chat handler defaults to, spelled out so both models say it.
+        sampling=Sampling(temperature=1.0, top_p=0.95, top_k=64, min_p=0.05, presence_penalty=0.0, repeat_penalty=1.1),
+        reasoning_key="reasoning",
+        # This template opens the thought channel only after a tool response.
+        thought_open_at_start=False,
+        # Keep the thinking that led to a tool call, drop the rest of the history's.
+        template_kwargs={"preserve_thinking": True},
+    ),
+    "qwen": WireFormat(
+        splitter=qwen.StreamSplitter,
+        stop=qwen.STOP,
+        # The Qwen3.5 model card's thinking-mode settings for general tasks.
+        sampling=Sampling(temperature=1.0, top_p=0.95, top_k=20, min_p=0.0, presence_penalty=1.5, repeat_penalty=1.0),
+        reasoning_key="reasoning_content",
+        # With thinking on, the generation prompt itself ends on `<think>`.
+        thought_open_at_start=True,
+        # This template drops stale thinking by message index, so it needs no flag for it.
+    ),
+}
 
 LOCAL_PROFILE = ModelProfile(
     supports_tools=True,
@@ -77,15 +100,17 @@ class LocalModelSettings(ModelSettings, total=False):
 
 @dataclass(init=False)
 class LlamaCppModel(Model):
-    """One logical slot backed by a resident Gemma 4 GGUF."""
+    """One logical slot backed by a resident GGUF, speaking that model's wire format."""
 
     _spec: ModelSpec
     _stack: LocalStack
+    _wire: WireFormat
 
     def __init__(self, spec: ModelSpec, stack: LocalStack) -> None:
         super().__init__(profile=LOCAL_PROFILE)
         self._spec = spec
         self._stack = stack
+        self._wire = WIRE_FORMATS[spec.wire]
 
     @property
     def model_name(self) -> str:
@@ -125,16 +150,19 @@ class LlamaCppModel(Model):
             # A grammar-constrained answer has no room for a thought channel, so thinking is on
             # for every free-form request and off exactly when a single tool is forced.
             thinking = forced is None
+            sampling = self._wire.sampling
             request: dict[str, Any] = {
-                "messages": _render_messages(messages, model_request_parameters),
-                "temperature": (model_settings or {}).get("temperature", TEMPERATURE),
-                "top_p": (model_settings or {}).get("top_p", TOP_P),
-                "top_k": TOP_K,
+                "messages": _render_messages(messages, model_request_parameters, self._wire.reasoning_key),
+                "temperature": (model_settings or {}).get("temperature", sampling.temperature),
+                "top_p": (model_settings or {}).get("top_p", sampling.top_p),
+                "top_k": sampling.top_k,
+                "min_p": sampling.min_p,
+                "presence_penalty": sampling.presence_penalty,
+                "repeat_penalty": sampling.repeat_penalty,
                 "max_tokens": (model_settings or {}).get("max_tokens", MAX_TOKENS),
-                "stop": gemma.STOP,
+                "stop": self._wire.stop,
                 "enable_thinking": thinking,
-                # Keep the thinking that led to a tool call, drop the rest of the history's.
-                "preserve_thinking": True,
+                **self._wire.template_kwargs,
             }
             if tools:
                 request["tools"] = tools
@@ -145,9 +173,10 @@ class LlamaCppModel(Model):
                 _stack=self._stack,
                 _slot_name=self._spec.slot,
                 _slot=loaded,
+                _wire=self._wire,
                 _request=request,
                 _forced_tool=forced is not None,
-                _in_thought=thinking and _prompt_opens_thought(messages),
+                _in_thought=thinking and (self._wire.thought_open_at_start or _prompt_opens_thought(messages)),
                 _run_context=run_context,
             )
             if (note := adapter_note()) is not None:
@@ -171,10 +200,11 @@ class LlamaCppModel(Model):
 
 
 def _prompt_opens_thought(messages: Sequence[ModelMessage]) -> bool:
-    """Whether the chat template leaves the thought channel already open.
+    """Whether a Gemma 4 prompt leaves the thought channel already open.
 
     With thinking on it does exactly when the prompt ends on a tool response, so the model
-    starts writing reasoning with no opening marker for the splitter to see.
+    starts writing reasoning with no opening marker for the splitter to see. The Qwen3.5
+    template opens it on every turn instead, which is `thought_open_at_start`.
     """
     last = messages[-1] if messages else None
     if not isinstance(last, ModelRequest):
@@ -206,11 +236,14 @@ def _render_tools(params: ModelRequestParameters) -> tuple[list[dict[str, Any]],
     return tools, None
 
 
-def _render_messages(messages: Sequence[ModelMessage], params: ModelRequestParameters) -> list[dict[str, Any]]:
-    """Pydantic AI messages as the OpenAI-shaped dicts the Gemma 4 chat template expects.
+def _render_messages(
+    messages: Sequence[ModelMessage], params: ModelRequestParameters, reasoning_key: str
+) -> list[dict[str, Any]]:
+    """Pydantic AI messages as the OpenAI-shaped dicts a chat template expects.
 
-    The template only treats `messages[0]` as the system turn, so instructions and every system
-    prompt are folded into one leading message.
+    Both templates only treat `messages[0]` as the system turn, so instructions and every
+    system prompt are folded into one leading message. They differ over what the assistant's
+    past thinking is called, which is `reasoning_key`.
     """
     system = [text for text in [get_instructions(messages, params)] if text]
     rendered: list[dict[str, Any]] = []
@@ -243,13 +276,13 @@ def _render_messages(messages: Sequence[ModelMessage], params: ModelRequestParam
                             }
                         )
         else:
-            rendered.append(_assistant_message(message))
+            rendered.append(_assistant_message(message, reasoning_key))
     if system:
         rendered.insert(0, {"role": "system", "content": "\n\n".join(system)})
     return rendered
 
 
-def _assistant_message(message: ModelResponse) -> dict[str, Any]:
+def _assistant_message(message: ModelResponse, reasoning_key: str) -> dict[str, Any]:
     text = "".join(part.content for part in message.parts if isinstance(part, TextPart))
     thinking = "\n".join(part.content for part in message.parts if isinstance(part, ThinkingPart) and part.content)
     calls = [
@@ -265,7 +298,7 @@ def _assistant_message(message: ModelResponse) -> dict[str, Any]:
     out: dict[str, Any] = {"role": "assistant", "content": text}
     if thinking:
         # The template's own gate decides whether this is rendered or dropped as stale.
-        out["reasoning"] = thinking
+        out[reasoning_key] = thinking
     if calls:
         out["tool_calls"] = calls
     return out
@@ -297,6 +330,7 @@ class LlamaCppStreamedResponse(StreamedResponse):
     _stack: LocalStack
     _slot_name: ModelSlot
     _slot: Slot
+    _wire: WireFormat
     _request: dict[str, Any]
     _forced_tool: bool
     _in_thought: bool
@@ -304,6 +338,7 @@ class LlamaCppStreamedResponse(StreamedResponse):
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     _stopped: bool = False
     _chunks: Iterator[dict[str, Any]] | None = None
+    _named: set[Any] = field(default_factory=set)
 
     @property
     def model_name(self) -> str:
@@ -343,7 +378,7 @@ class LlamaCppStreamedResponse(StreamedResponse):
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         run = self._stack.run
         self._chunks = await run(self._slot_name, lambda: self._slot.stream(**self._request))
-        splitter = gemma.StreamSplitter(in_thought=self._in_thought)
+        splitter = self._wire.splitter(in_thought=self._in_thought)
         generated = 0
         prompt_tokens = 0
         cancelled = False
@@ -380,7 +415,7 @@ class LlamaCppStreamedResponse(StreamedResponse):
             called = any(part.part_kind == "tool-call" for part in self._parts_manager.get_parts())
             self.finish_reason = "tool_call" if called else "stop"
 
-    def _events(self, parsed: Sequence[gemma.Event]) -> Iterator[ModelResponseStreamEvent]:
+    def _events(self, parsed: Sequence[Event]) -> Iterator[ModelResponseStreamEvent]:
         for kind, payload in parsed:
             if kind == "thinking":
                 yield from self._parts_manager.handle_thinking_delta(vendor_part_id=None, content=payload)
@@ -392,13 +427,23 @@ class LlamaCppStreamedResponse(StreamedResponse):
                 )
 
     def _tool_call_deltas(self, calls: Sequence[dict[str, Any]]) -> Iterator[ModelResponseStreamEvent]:
-        """The forced-tool path: llama.cpp already emits OpenAI tool-call deltas."""
+        """The forced-tool path: llama.cpp already emits OpenAI tool-call deltas.
+
+        It repeats the whole tool name on every chunk rather than sending it once
+        (`_convert_completion_to_chat_function`), while Pydantic AI treats a name as a delta
+        and concatenates it, which turns `run_sql` into `run_sqlrun_sqlrun_sql...` and fails
+        the call. So the name goes with the first chunk of a call and only the arguments after
+        that.
+        """
         for call in calls:
+            index = call.get("index", 0)
+            first = index not in self._named
+            self._named.add(index)
             event = self._parts_manager.handle_tool_call_delta(
-                vendor_part_id=call.get("index", 0),
-                tool_name=call["function"].get("name"),
+                vendor_part_id=index,
+                tool_name=call["function"].get("name") if first else None,
                 args=call["function"].get("arguments"),
-                tool_call_id=call.get("id"),
+                tool_call_id=call.get("id") if first else None,
             )
             if event is not None:
                 yield event

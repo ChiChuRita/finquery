@@ -15,7 +15,7 @@ export function ContextBadge({ stats }: { stats: ContextStats }) {
       <ContextContent align="end" className="min-w-64">
         <ContextContentHeader />
         <ContextContentBody className="space-y-1.5">
-          <Row label="Model" value={`${slotLabel(stats.slot)} slot`} />
+          <Row label="Model" value={slotLabel(stats.slot) ?? stats.slot} />
           <Row label="Memories in prompt" value={stats.memories} />
           {stats.summarized_turns > 0 ? (
             <Row label="Turns summarized" value={stats.summarized_turns} />
