@@ -1,6 +1,7 @@
 import {
   AlertTriangleIcon,
   CheckIcon,
+  CopyIcon,
   FileSpreadsheetIcon,
   HourglassIcon,
   ReceiptTextIcon,
@@ -9,7 +10,13 @@ import {
 import { Tool, ToolContent, ToolHeader } from '@/components/ai-elements/tool'
 import { Step } from '@/components/tool-step'
 import { Badge } from '@/components/ui/badge'
-import type { AddTransactionPart, ExtractTransactionPart, ImportFilePart, ImportProgress } from '@/lib/api'
+import type {
+  AddTransactionPart,
+  ExtractTransactionPart,
+  ImportFilePart,
+  ImportProgress,
+  ReviewDuplicatesPart,
+} from '@/lib/api'
 import { formatEur } from '@/lib/format'
 
 const bookings = (count: number) => (count === 1 ? '1 booking' : `${count} bookings`)
@@ -33,7 +40,7 @@ function title(part: ImportFilePart): string {
   }
 }
 
-function Counts({ label, value, tone }: { label: string; value: number; tone?: 'review' }) {
+function Counts({ label, value, tone }: { label: string; value: number; tone?: 'review' | undefined }) {
   return (
     <div className="rounded-md border bg-muted/20 px-3 py-2">
       <p className={tone === 'review' && value > 0 ? 'font-medium text-amber-600 tabular-nums dark:text-amber-500' : 'font-medium tabular-nums'}>
@@ -85,7 +92,7 @@ export function ImportToolStep({ part, progress }: { part: ImportFilePart; progr
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Counts label="rows read" value={part.output.rows_read} />
               <Counts label="imported" value={part.output.imported} />
-              <Counts label="already there" value={part.output.duplicates} />
+              <Counts label="possible duplicates" tone={part.output.duplicates > 0 ? 'review' : undefined} value={part.output.duplicates} />
               <Counts label="unreadable" value={part.output.unreadable_rows} />
               <Counts label="by your rules" value={part.output.categorized.by_rule} />
               <Counts label="by the merchant list" value={part.output.categorized.by_dictionary} />
@@ -105,6 +112,51 @@ export function ImportToolStep({ part, progress }: { part: ImportFilePart; progr
         )}
       </ToolContent>
     </Tool>
+  )
+}
+
+/** `review_duplicates`: the line above a duplicate card, or that nothing is left to decide. */
+export function DuplicatesToolStep({ part }: { part: ReviewDuplicatesPart }) {
+  if (part.state === 'output-error') {
+    return (
+      <Step tone="error">
+        <AlertTriangleIcon className="size-3.5" />
+        {part.errorText}
+      </Step>
+    )
+  }
+  if (part.state !== 'output-available') {
+    return (
+      <Step>
+        <CopyIcon className="size-3.5" />
+        Looking for bookings you may already have
+      </Step>
+    )
+  }
+  const output = part.output
+  if (output.pending === 0) {
+    return (
+      <Step>
+        <CheckIcon className="size-3.5 text-primary" />
+        <span className="text-foreground">Every possible duplicate has been decided</span>
+        {output.kept + output.removed > 0 && (
+          <Badge className="ml-auto" variant="secondary">
+            {output.kept} kept, {output.removed} removed
+          </Badge>
+        )}
+      </Step>
+    )
+  }
+  return (
+    <Step>
+      <CopyIcon className="size-3.5 text-primary" />
+      <span className="text-foreground">
+        {output.pending === 1 ? '1 possible duplicate to decide' : `${output.pending} possible duplicates to decide`}
+      </span>
+      <Badge className="ml-auto" variant="outline">
+        {output.exact} exact, {output.near} near
+      </Badge>
+    </Step>
   )
 }
 

@@ -7,6 +7,11 @@ never depends on an earlier upload still being around.
 After a commit the page calls `categorize`, and if merchants are left over `review-conversation`,
 which seeds a conversation whose first turn summarizes the import and asks the first Question
 card. Every figure in that seeded turn is counted here in code, never written by a model.
+
+A commit inserts nothing it may already have: those rows are held aside as duplicate candidates
+(see `finquery.ingest.duplicates`), and the two `duplicates` endpoints are how the page lists
+them and applies Keep both or Remove. The chat asks the same question on a Question card and
+applies it through the same function.
 """
 
 from datetime import date, datetime
@@ -23,6 +28,7 @@ from finquery.api.profiles import get_profile_or_404
 from finquery.ask_user import ASK_USER
 from finquery.categorize import categorize_import, pending_questions, review_card
 from finquery.db import Account, Conversation, Import
+from finquery.ingest import duplicates
 from finquery.ingest.commit import commit_rows, import_summary
 from finquery.ingest.csv_reader import (
     CsvUnreadable,
@@ -42,6 +48,9 @@ router = APIRouter()
 
 PREVIEW_ROWS = 8
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+DUPLICATE_PAGE = 25
+"""Duplicate candidates the page asks about at once. A re-imported statement can hold hundreds,
+and the shortcut is there for exactly that; this keeps the list readable."""
 
 MappingSource = Literal["preset", "model", "user"]
 
@@ -80,6 +89,8 @@ class ImportOut(BaseModel):
     row_count: int
     imported_count: int
     duplicate_count: int
+    duplicates_kept: int
+    duplicates_removed: int
     skipped_count: int
     reconciliation: str | None
     created_at: datetime
@@ -224,6 +235,8 @@ def _out(record: Import, account_name: str) -> ImportOut:
         row_count=record.row_count,
         imported_count=record.imported_count,
         duplicate_count=record.duplicate_count,
+        duplicates_kept=record.duplicates_kept,
+        duplicates_removed=record.duplicates_removed,
         skipped_count=record.skipped_count,
         reconciliation=record.reconciliation,
         created_at=record.created_at,
@@ -311,6 +324,106 @@ def _import_or_404(session: Session, profile_id: str, import_id: str) -> Import:
     if record is None or record.profile_id != profile_id:
         raise HTTPException(status_code=404, detail="Import not found")
     return record
+
+
+# The duplicate candidates one import held aside, and the user's decision about them.
+
+
+class DuplicateOut(BaseModel):
+    """One booking that was not inserted, next to the one it looks like."""
+
+    ref: str
+    kind: Literal["exact", "near"]
+    booked_on: date
+    amount_cents: int
+    description: str
+    counterparty: str | None
+    existing_id: str | None
+    existing_booked_on: date | None
+    existing_description: str | None
+
+
+class DuplicatesOut(BaseModel):
+    import_id: str
+    file_name: str
+    account_name: str
+    found: int
+    pending: int
+    exact: int
+    near: int
+    kept: int
+    removed: int
+    shortcut: bool
+    """Whether removing every exact duplicate at once is worth offering: a re-imported file."""
+    candidates: list[DuplicateOut]
+
+
+class DuplicateDecision(BaseModel):
+    ref: str
+    decision: Literal["keep", "remove"]
+
+
+class DecideBody(ProfileBody):
+    decisions: list[DuplicateDecision] = []
+    remove_all_exact: bool = False
+    """The card's shortcut: every exact candidate of this import, removed in one answer."""
+
+
+class DecidedOut(BaseModel):
+    kept: int
+    removed: int
+    remaining: int
+    needs_review: int
+    summary: str
+    error: str | None
+
+
+@router.get("/imports/{import_id}/duplicates", response_model=DuplicatesOut)
+async def list_duplicates(request: Request, import_id: str, profile_id: str) -> DuplicatesOut:
+    """The candidates this import is still waiting on, a page at a time, with the counts."""
+    with request.app.state.session_factory() as session:
+        record = _import_or_404(session, profile_id, import_id)
+        counts = duplicates.tally(session, profile_id, import_id=import_id)
+        batch = duplicates.pending(session, profile_id, import_id=import_id, limit=DUPLICATE_PAGE)
+        account = session.get(Account, record.account_id)
+        return DuplicatesOut(
+            import_id=import_id,
+            file_name=record.file_name,
+            account_name=account.name if account else "the account",
+            **counts.payload(),
+            candidates=[DuplicateOut(**duplicates.payload(candidate)) for candidate in batch],
+        )
+
+
+@router.post("/imports/{import_id}/duplicates", response_model=DecidedOut)
+async def decide_duplicates(request: Request, import_id: str, body: DecideBody) -> DecidedOut:
+    """Apply what the user decided: keep both inserts the booking, remove leaves the data alone.
+
+    The same function the chat's Question card answers go through, so a decision means the same
+    thing whichever screen it was made on. A kept booking is inserted from the candidate's own
+    columns and categorized right away.
+    """
+    state = request.app.state
+    with state.session_factory() as session:
+        record = _import_or_404(session, body.profile_id, import_id)
+        decided = await duplicates.apply_decisions(
+            session,
+            body.profile_id,
+            {item.ref: item.decision for item in body.decisions},
+            remove_all_exact=body.remove_all_exact,
+            import_id=import_id,
+            resolve_model=state.resolve_model,
+            model_settings=state.subagent_settings,
+        )
+        account = session.get(Account, record.account_id)
+        return DecidedOut(
+            kept=decided.kept,
+            removed=decided.removed,
+            remaining=duplicates.tally(session, body.profile_id, import_id=import_id).pending,
+            needs_review=decided.needs_review,
+            summary=import_summary(session, record, account.name if account else "the account"),
+            error=decided.error,
+        )
 
 
 @router.post("/imports/{import_id}/categorize", response_model=CategorizeOut)

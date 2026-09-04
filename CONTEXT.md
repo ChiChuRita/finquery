@@ -38,7 +38,14 @@ Avoid: filter, mapping.
 Filiale 1234 becomes Edeka, supermarket). Avoid: normalization, cleaning.
 
 **Import**: a record of one ingestion: file name, kind, mapping used, row counts, duplicates
-found, reconciliation result. Avoid: upload, sync.
+found and what was decided about them, reconciliation result. Avoid: upload, sync.
+
+**Duplicate candidate**: a booking an ingestion did not insert because the profile may already
+have it, either exactly (same account, date, amount and normalized description) or nearly (same
+amount, at most two days apart, a similar description). It is not a transaction and it is not
+lost: the user answers **Keep both** (insert it) or **Remove** (leave the data as it is), on the
+Import page or on a Question card, and the decision stays on the candidate. Avoid: duplicate
+(what is a duplicate is the user's call, not ours), conflict, collision.
 
 **Column mapping**: which column of an uploaded CSV is the date, the amount (or the debit and
 credit pair), the description and the counterparty, plus its date format and decimal separator.

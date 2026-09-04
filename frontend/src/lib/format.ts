@@ -13,5 +13,16 @@ export function parseAmount(text: string): number | null {
   if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return null
   return Math.round(Number(cleaned) * 100)
 }
-export const formatDate = (iso: string) => day.format(new Date(iso))
-export const formatDateTime = (iso: string) => dayTime.format(new Date(iso))
+/** German dates, and never a crash: a transcript carries strings a model wrote.
+ *
+ * `Intl.DateTimeFormat.format` throws a RangeError on an unparseable value, and one such value
+ * inside a Question card took the whole chat page down to the error boundary. Showing the
+ * string as it came is the honest fallback.
+ */
+const formatWith = (formatter: Intl.DateTimeFormat) => (iso: string) => {
+  const value = new Date(iso)
+  return Number.isNaN(value.getTime()) ? iso : formatter.format(value)
+}
+
+export const formatDate = formatWith(day)
+export const formatDateTime = formatWith(dayTime)

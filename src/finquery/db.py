@@ -225,6 +225,48 @@ class TransactionDraft(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class DuplicateCandidate(Base):
+    """A booking an ingestion held aside because the profile may already have it.
+
+    It is not a transaction and it is not lost: the row sits here with the booking it matched
+    until a human says Keep both or Remove. Keeping inserts it from these columns, removing
+    leaves the data as it was, and either way the decision stays on the row. See
+    `finquery.ingest.duplicates`.
+    """
+
+    __tablename__ = "duplicate_candidate"
+    __table_args__ = (UniqueConstraint("profile_id", "ref"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profile.id", ondelete="CASCADE"), index=True)
+    account_id: Mapped[str] = mapped_column(ForeignKey("account.id", ondelete="CASCADE"), index=True)
+    import_id: Mapped[str | None] = mapped_column(ForeignKey("import.id", ondelete="CASCADE"), default=None, index=True)
+    """The ingestion that held it aside. None for a booking the user typed."""
+    draft_id: Mapped[str | None] = mapped_column(
+        ForeignKey("transaction_draft.id", ondelete="CASCADE"), default=None
+    )
+    """The confirmed draft it came from, so confirming the same one twice asks once."""
+    ref: Mapped[str] = mapped_column(String(12))
+    """What the card and the answer call this row: `d1`, `d2`, counted per profile."""
+    kind: Mapped[str] = mapped_column(String(8), default="exact")
+    """`exact` (account, date, amount and normalized text) or `near` (amount within two days)."""
+    booked_on: Mapped[date] = mapped_column(Date)
+    amount_cents: Mapped[int] = mapped_column(Integer)
+    description: Mapped[str] = mapped_column(String(500))
+    counterparty: Mapped[str | None] = mapped_column(String(200), default=None)
+    source: Mapped[str] = mapped_column(String(16), default="import")
+    existing_id: Mapped[str | None] = mapped_column(ForeignKey("transaction.id", ondelete="SET NULL"), default=None)
+    existing_booked_on: Mapped[date | None] = mapped_column(Date, default=None)
+    existing_description: Mapped[str | None] = mapped_column(String(500), default=None)
+    """The booking it matched, as it read when the match was made: what the card shows."""
+    decision: Mapped[str | None] = mapped_column(String(8), default=None)
+    """`keep`, `remove`, or nothing yet."""
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    transaction_id: Mapped[str | None] = mapped_column(ForeignKey("transaction.id", ondelete="SET NULL"), default=None)
+    """The booking a kept candidate became, so a repeated answer inserts nothing twice."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class Account(Base):
     """A bank account or card. Created by an import or by hand, unique by name per profile."""
 
@@ -293,6 +335,10 @@ class Import(Base):
     row_count: Mapped[int] = mapped_column(Integer, default=0)
     imported_count: Mapped[int] = mapped_column(Integer, default=0)
     duplicate_count: Mapped[int] = mapped_column(Integer, default=0)
+    """Duplicate candidates this import held aside, decided or not. See `DuplicateCandidate`."""
+    duplicates_kept: Mapped[int] = mapped_column(Integer, default=0)
+    duplicates_removed: Mapped[int] = mapped_column(Integer, default=0)
+    """What the user decided about them: kept rows were inserted, removed ones never were."""
     skipped_count: Mapped[int] = mapped_column(Integer, default=0)
     reconciliation: Mapped[str | None] = mapped_column(String(200), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -483,9 +529,18 @@ def _enforce_split_sums(session: Session, _context: object) -> None:
 _WHITESPACE = re.compile(r"\s+")
 
 
+def normalize_description(description: str) -> str:
+    """The booking text as duplicate detection compares it: one space, no case.
+
+    One definition, because the exact match hashes it and the near match measures how similar
+    two of them are (`finquery.ingest.duplicates`).
+    """
+    return _WHITESPACE.sub(" ", description).strip().casefold()
+
+
 def fingerprint(account_id: str, booked_on: date, amount_cents: int, description: str) -> str:
     """Identity of a booking for duplicate detection: account, date, amount, normalized text."""
-    normalized = _WHITESPACE.sub(" ", description).strip().casefold()
+    normalized = normalize_description(description)
     return sha256(f"{account_id}|{booked_on.isoformat()}|{amount_cents}|{normalized}".encode()).hexdigest()[:32]
 
 
@@ -500,6 +555,10 @@ NEW_COLUMNS: dict[str, dict[str, str]] = {
     },
     "profile": {
         "web_lookup_enabled": "BOOLEAN NOT NULL DEFAULT 0",
+    },
+    "import": {
+        "duplicates_kept": "INTEGER NOT NULL DEFAULT 0",
+        "duplicates_removed": "INTEGER NOT NULL DEFAULT 0",
     },
 }
 

@@ -89,6 +89,14 @@ Import a bank CSV export on `/import`: drop the file, check the mapping, commit.
 ING, N26, comdirect and Trade Republic are recognized by their headers; any other bank gets a
 mapping proposed by the fast slot and edited in the preview.
 
+A commit never inserts a booking the profile may already have, and never drops one either.
+A row that matches an existing booking exactly (same account, date, amount and normalized
+description) or nearly (same amount, at most two days apart, a similar description) is held
+aside as a duplicate candidate, and the page asks about each one with Keep both or Remove.
+Keeping inserts the booking and categorizes it; removing leaves the data as it was. Re-importing
+the same statement is hundreds of exact matches, so that card offers to remove them all in one
+click. In a chat the same question arrives as a Question card, five candidates at a time.
+
 The commit is followed by categorization in stages: your own category rules, a dictionary
 of about sixty German merchants, then, if you switched web lookup on, a web lookup of the
 merchants nobody recognizes, and finally the categorizer sub-agent on the fast slot with a
@@ -158,8 +166,8 @@ merchant token leaves at most once per profile: the result is cached. Search nee
   `preferences.py` (ratings and picks as training data),
   `context.py` (token budget, per-turn prompt assembly, rolling summary),
   `attachments.py` (files dropped into a chat), `progress.py` (a tool's live progress part),
-  `ingest/` (CSV reader, presets, mapping sub-agent, commit, the chat import and typed
-  transactions),
+  `ingest/` (CSV reader, presets, mapping sub-agent, commit, duplicate candidates, the chat
+  import and typed transactions),
   `api/` (REST and chat endpoints),
   `local/` (the local provider: catalog, downloads, runtime, model, Gemma wire format, check)
 - `frontend/`: Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router, Query and

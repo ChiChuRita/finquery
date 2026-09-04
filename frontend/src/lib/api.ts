@@ -32,7 +32,7 @@ export interface ContextStats {
 
 /** One line of progress from a running tool, streamed transient and never stored. */
 export interface ImportProgress {
-  stage: 'read' | 'mapping' | 'imported' | 'categorizing' | 'categorized'
+  stage: 'read' | 'mapping' | 'imported' | 'duplicates' | 'categorizing' | 'categorized'
   message: string
   counts: Record<string, number>
   /** The tool call this line belongs to, so it renders inside that step. */
@@ -90,6 +90,8 @@ export interface AskUserInput {
   rows?: AskRow[]
   options?: AskOption[]
   allow_free_text?: boolean
+  /** What the server does with the answers before the model continues, when it does anything. */
+  apply?: { kind: string } | null
 }
 
 export interface AskAnswer {
@@ -143,6 +145,38 @@ export interface ReviewQuestion {
 export interface ReviewBatchOutput {
   pending_merchants: number
   questions: ReviewQuestion[]
+}
+
+// A booking an ingestion held aside because the profile may already have it. Nothing was
+// inserted and nothing was dropped: the user answers Keep both or Remove.
+export interface DuplicateCandidate {
+  ref: string
+  kind: 'exact' | 'near'
+  booked_on: string
+  amount_cents: number
+  description: string
+  counterparty: string | null
+  existing_id: string | null
+  existing_booked_on: string | null
+  existing_description: string | null
+}
+
+export interface DuplicateCounts {
+  found: number
+  pending: number
+  exact: number
+  near: number
+  kept: number
+  removed: number
+  /** Whether one answer may remove every exact duplicate: what a re-imported file looks like. */
+  shortcut: boolean
+}
+
+/** `review_duplicates`: the next batch of candidates, ready as a Question card. */
+export type ReviewDuplicatesOutput = DuplicateCounts & {
+  candidates: DuplicateCandidate[]
+  card: AskUserInput | null
+  message: string
 }
 
 // The `chart` tool: the plan, the executed SQL and its rows, and the checked chart code.
@@ -214,13 +248,19 @@ export type ImportFileOutput =
       account: string
       rows_read: number
       imported: number
+      /** Bookings held aside as possible duplicates, none of them inserted or dropped. */
       duplicates: number
+      exact_duplicates: number
+      near_duplicates: number
+      /** The first card to ask about them, when there are any. The merchants wait for it. */
+      duplicate_card: AskUserInput | null
       unreadable_rows: number
       /** The one sentence about this import, counted on the server. */
       summary: string
       categorized: ImportCounts
       pending_merchants: number
       questions: ReviewQuestion[]
+      instruction?: string
     }
   | {
       status: 'confirm_mapping'
@@ -276,6 +316,7 @@ export type ChatTools = {
   set_rule: { input: SetRuleInput; output: SetRuleOutput }
   remember: { input: RememberInput; output: string }
   review_batch: { input: { limit?: number }; output: ReviewBatchOutput }
+  review_duplicates: { input: { limit?: number }; output: ReviewDuplicatesOutput }
   propose_changeset: { input: ChangesetToolInput; output: ChangesetToolOutput }
   apply_simple_edit: { input: ChangesetToolInput; output: ChangesetToolOutput }
   lookup_merchant: { input: { merchant: string }; output: LookupMerchantOutput }
@@ -291,6 +332,7 @@ export type AskUserPart = ToolUIPart<{ ask_user: ChatTools['ask_user'] }>
 export type SetRulePart = ToolUIPart<{ set_rule: ChatTools['set_rule'] }>
 export type RememberPart = ToolUIPart<{ remember: ChatTools['remember'] }>
 export type ReviewBatchPart = ToolUIPart<{ review_batch: ChatTools['review_batch'] }>
+export type ReviewDuplicatesPart = ToolUIPart<{ review_duplicates: ChatTools['review_duplicates'] }>
 // One part type for both writing tools: the card renders the same shape either way.
 export type ChangesetToolPart = ToolUIPart<{
   propose_changeset: ChatTools['propose_changeset']
@@ -605,6 +647,8 @@ export interface ImportRecord {
   row_count: number
   imported_count: number
   duplicate_count: number
+  duplicates_kept: number
+  duplicates_removed: number
   skipped_count: number
   reconciliation: string | null
   created_at: string
@@ -633,6 +677,39 @@ export function commitImport(profileId: string, file: File, mapping: CsvMapping,
   form.set('account_name', accountName)
   return postForm<ImportRecord>('/api/imports', form)
 }
+
+// The duplicate candidates one import held aside, and the decision about them.
+
+export type ImportDuplicates = DuplicateCounts & {
+  import_id: string
+  file_name: string
+  account_name: string
+  candidates: DuplicateCandidate[]
+}
+
+export interface DuplicateDecided {
+  kept: number
+  removed: number
+  remaining: number
+  needs_review: number
+  /** The import summary sentence again, now saying how many were kept and removed. */
+  summary: string
+  error: string | null
+}
+
+export const importDuplicates = (importId: string, profileId: string) =>
+  request<ImportDuplicates>(`/api/imports/${importId}/duplicates?profile_id=${profileId}`)
+
+export const decideDuplicates = (
+  importId: string,
+  profileId: string,
+  decisions: { ref: string; decision: 'keep' | 'remove' }[],
+  removeAllExact = false,
+) =>
+  request<DuplicateDecided>(`/api/imports/${importId}/duplicates`, {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId, decisions, remove_all_exact: removeAllExact }),
+  })
 
 // Categorization of a finished import, and the conversation that asks about what is left.
 

@@ -15,15 +15,59 @@ const OPEN = new Set(['input-available', 'approval-requested'])
 
 type Choice = { value?: string; text?: string }
 
+type WrappedInput = AskUserInput & { card?: WrappedInput }
+
+/** The card's own fields, even when the model passed the whole object under a `card` key.
+ *
+ * A tool that hands the assistant a ready card returns it as `card`, and the assistant is told
+ * to pass its fields as the arguments. The fast model sometimes passes the object instead, one
+ * or two levels deep, which would render a title-less card with no rows. The server unwraps the
+ * same way before it applies the answers (`finquery.ask_user.unwrap_card`).
+ */
+function unwrap(input: WrappedInput | undefined): AskUserInput | undefined {
+  let current = input
+  for (let depth = 0; depth < 3 && current?.card; depth += 1) {
+    current = { ...current.card, apply: current.card.apply ?? current.apply } as WrappedInput
+  }
+  if (!current) return current
+  return {
+    ...current,
+    // `"false"` is a string a model wrote, and a card that asked for no free text should not
+    // grow one because of it.
+    allow_free_text: String(current.allow_free_text ?? true) !== 'false',
+    rows: current.rows?.map(cleanRow),
+  }
+}
+
+const NULLISH = new Set(['null', 'none', 'nil', ''])
+
+/** A model that stringifies its arguments sends `"null"` and `"430"`; read them as what they are. */
+function cleanRow(row: AskRow): AskRow {
+  const value = (raw: unknown) => (typeof raw === 'string' && NULLISH.has(raw.toLowerCase()) ? null : raw)
+  const number = (raw: unknown) => {
+    const clean = value(raw)
+    return typeof clean === 'string' ? Number.parseInt(clean, 10) : (clean as number | null)
+  }
+  return {
+    ...row,
+    description: value(row.description) as string | null,
+    date: value(row.date) as string | null,
+    amount_cents: number(row.amount_cents),
+    bookings: number(row.bookings),
+  }
+}
+
 function optionsFor(row: AskRow, fallback: AskOption[]): AskOption[] {
   return row.options?.length ? row.options : fallback
 }
 
 function chosenLabel(row: AskRow, answers: AskAnswer[], fallback: AskOption[]): string | null {
-  const answer = answers.find((a) => a.ref === row.ref)
+  // An answer with no ref answered the question itself, so it stands for every row of it.
+  const answer = answers.find((a) => a.ref === row.ref) ?? answers.find((a) => a.ref === '')
   if (!answer) return null
   if (answer.value) {
-    return optionsFor(row, fallback).find((o) => o.value === answer.value)?.label ?? answer.value
+    const options = [...optionsFor(row, fallback), ...fallback]
+    return options.find((o) => o.value === answer.value)?.label ?? answer.value
   }
   return answer.text ?? null
 }
@@ -70,7 +114,7 @@ export function QuestionCard({
   if (part.state === 'input-streaming') {
     return <p className="text-muted-foreground text-sm">Preparing a question...</p>
   }
-  const input = part.input as AskUserInput | undefined
+  const input = unwrap(part.input as WrappedInput | undefined)
   if (!input) return null
   const rows = input.rows ?? []
   const fallback = input.options ?? []
@@ -168,7 +212,10 @@ export function QuestionCard({
         </p>
       )}
 
-      {rows.length === 0 && !answered && (
+      {/* Buttons for the question itself. With no rows they are the whole answer (a mapping
+          confirmation); a card that carries both is answered either way rather than having
+          these silently dropped. */}
+      {fallback.length > 0 && !answered && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {fallback.map((option) => (
             <Button

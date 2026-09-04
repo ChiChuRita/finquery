@@ -2,9 +2,9 @@
 
 The model is chosen per run from the conversation's slot. Tools get what they need from
 `ChatDeps`, so the agent itself holds no application state. `query`, `chart`, `remember`,
-`set_rule`, `review_batch`, `propose_changeset`, `apply_simple_edit`, `lookup_merchant`,
-`import_file`, `extract_transaction` and `add_transaction` are the tools, and each one that
-needs a model resolves its own slot through the deps.
+`set_rule`, `review_batch`, `review_duplicates`, `propose_changeset`, `apply_simple_edit`,
+`lookup_merchant`, `import_file`, `extract_transaction` and `add_transaction` are the tools,
+and each one that needs a model resolves its own slot through the deps.
 
 `propose_changeset` and `apply_simple_edit` are the writing tools. Neither one decides anything
 about the data: `finquery.changesets` resolves the intent, refuses what the data model refuses
@@ -44,6 +44,8 @@ from finquery.chart import run_chart
 from finquery.db import SplitSumError
 from finquery.edits import TransactionEditError
 from finquery.ingest.chat_import import import_attachment
+from finquery.ingest.duplicates import PER_CARD as DUPLICATES_PER_CARD
+from finquery.ingest.duplicates import review as duplicate_review
 from finquery.ingest.typed import add_draft, find_draft, preview_card, propose_transactions, store_drafts
 from finquery.memory import MemoryKind, add_memory
 from finquery.progress import report as report_progress
@@ -157,6 +159,16 @@ Files the user attaches:
   straight to `ask_user` as a Question card, exactly as you do after `review_batch`.
 - A PDF or a photo is stored but cannot be read yet. Pass the tool's `message` on as it is; it
   is not an error and there is nothing to retry.
+
+Bookings that may already be there:
+- An import never inserts a booking the profile may already have and never drops one either.
+  When `import_file` reports duplicates it hands you `duplicate_card`: say the summary, show
+  that card with `ask_user` unchanged, and ask nothing else in that turn.
+- The answers are applied before you are called again: Keep both inserts the booking and
+  categorizes it, Remove leaves the data as it was, and the `applied` line says what happened.
+  Say it back, then call `review_duplicates` for the next card, until `pending` is 0.
+- Only then ask about the merchants with `review_batch`. Never guess whether two bookings are
+  the same payment and never call a writing tool to remove one.
 
 Transactions the user types or pastes:
 - When the user says they spent or received money ("I paid 12 EUR cash for lunch today", "Ich
@@ -450,6 +462,24 @@ async def review_batch(ctx: RunContext[ChatDeps], limit: int = QUESTIONS_PER_CAR
 
 
 @chat_agent.tool
+async def review_duplicates(ctx: RunContext[ChatDeps], limit: int = DUPLICATES_PER_CARD) -> dict[str, Any]:
+    """The bookings held aside as possible duplicates, ready to become a Question card.
+
+    An import never inserts a booking the profile may already have and never drops one either:
+    it holds it aside with the booking it matched. This returns the next batch as a ready
+    `card`, which you show with `ask_user` unchanged. The answers are applied in code before
+    you are called again (Keep both inserts the booking and categorizes it, Remove discards
+    it), so call this again after each answered card until `pending` is 0. It writes nothing
+    itself.
+
+    Args:
+        limit: How many candidates to ask about at once, at most five.
+    """
+    with ctx.deps.session_factory() as session:
+        return duplicate_review(session, ctx.deps.profile_id, limit=limit)
+
+
+@chat_agent.tool
 async def chart(ctx: RunContext[ChatDeps], request: str, hints: str | None = None) -> dict[str, Any]:
     """Draw one chart of the user's transactions and show it in the answer.
 
@@ -652,6 +682,9 @@ async def add_transaction(ctx: RunContext[ChatDeps], ref: str) -> dict[str, Any]
 
     The booking is written from the stored draft, not from anything you pass here, so the ref is
     all it takes. Calling it twice for the same ref adds nothing.
+
+    If the booking looks like one the profile already has, nothing is written and it comes back
+    with a `card` instead: show that with `ask_user` unchanged, the same as for an import.
 
     Args:
         ref: The `ref` of the confirmed row, for instance `t1`.

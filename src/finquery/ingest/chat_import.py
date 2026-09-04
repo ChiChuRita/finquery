@@ -10,6 +10,11 @@ Every figure in what it returns is counted here, so the assistant can only quote
 import really produced. Progress is reported through `report` as it goes; see
 `finquery.progress`.
 
+A file may hold bookings the profile already has. `commit_rows` holds those aside as duplicate
+candidates instead of inserting or dropping them, and this returns the first card to ask about
+them (`duplicate_card`); the merchants that need a category wait until the candidates are
+decided, so the transcript never shows two cards at once. See `finquery.ingest.duplicates`.
+
 PDF and image attachments are stored and recognized, but reading them is ticket 11: this
 answers with a clear sentence rather than an error, so the assistant can say what it can and
 cannot do.
@@ -25,6 +30,7 @@ from finquery import attachments
 from finquery.ask_user import MAPPING_CONFIRMATION, AskApply, AskOption, AskUser
 from finquery.categorize import QUESTIONS_PER_CARD, categorize_import, pending_questions
 from finquery.db import Attachment, Import
+from finquery.ingest import duplicates
 from finquery.ingest.commit import commit_rows, import_summary
 from finquery.ingest.csv_reader import (
     CsvUnreadable,
@@ -301,6 +307,14 @@ async def _import_csv(
         duplicates=committed.duplicate_count,
     )
 
+    held = duplicates.tally(session, profile_id, import_id=committed.id)
+    if held.pending:
+        await report(
+            "duplicates",
+            f"{held.pending} bookings look like ones this profile already has",
+            duplicates=held.pending,
+        )
+
     await report("categorizing", f"Categorizing {committed.imported_count} bookings")
     categorized = await categorize_import(
         session, profile_id, committed.id, resolve_model=resolve_model, model_settings=model_settings
@@ -314,12 +328,25 @@ async def _import_csv(
         needs_review=categorized.needs_review,
     )
 
-    questions, merchants_pending = await pending_questions(
-        session,
-        profile_id,
-        resolve_model=resolve_model,
-        model_settings=model_settings,
-        limit=QUESTIONS_PER_CARD,
+    # One card at a time, and the duplicates come first: a booking nobody has decided about is
+    # not in the data yet, so asking which category it belongs to would be asking too early.
+    # The merchants are picked up afterwards with `review_batch`, which costs a model call this
+    # would otherwise spend here.
+    #
+    # The card counts the profile rather than this import, the same as `review_duplicates` and
+    # for the same reason: its group row is answered profile-wide, so a number on it that meant
+    # something narrower would be a lie.
+    review = duplicates.review(session, profile_id) if held.pending else None
+    questions, merchants_pending = (
+        ([], 0)
+        if review
+        else await pending_questions(
+            session,
+            profile_id,
+            resolve_model=resolve_model,
+            model_settings=model_settings,
+            limit=QUESTIONS_PER_CARD,
+        )
     )
     payload = _import_payload(committed, account, import_summary(session, committed, account))
     payload.update(
@@ -332,10 +359,20 @@ async def _import_csv(
                 "needs_review": categorized.needs_review,
                 "error": categorized.error,
             },
+            "exact_duplicates": held.exact,
+            "near_duplicates": held.near,
+            "duplicate_card": review["card"] if review else None,
             # The same shape `review_batch` returns, so the assistant asks about them the way it
             # asks in a review conversation.
             "pending_merchants": merchants_pending,
             "questions": [question.payload() for question in questions],
         }
     )
+    if review:
+        payload["instruction"] = (
+            "Say the `summary`, then show `duplicate_card` with `ask_user`, unchanged. The "
+            "answers are applied for you; after each one call `review_duplicates` for the next "
+            "card until nothing is pending, and only then ask about the merchants with "
+            "`review_batch`."
+        )
     return payload

@@ -25,7 +25,7 @@ import { Composer } from '@/components/composer'
 import { ContextBadge } from '@/components/context-badge'
 import { EmptyState } from '@/components/empty-state'
 import { AnswerCompare, FeedbackError, Thumbs, useAnswerFeedback } from '@/components/feedback'
-import { AddedToolStep, ImportToolStep, PreviewToolStep } from '@/components/import-tool'
+import { AddedToolStep, DuplicatesToolStep, ImportToolStep, PreviewToolStep } from '@/components/import-tool'
 import { LookupToolStep } from '@/components/lookup-tool'
 import { MemoryToolStep } from '@/components/memory-tool'
 import { QueryToolStep } from '@/components/query-tool'
@@ -472,6 +472,9 @@ function TranscriptMessage({
           }
           if (part.type === 'tool-review_batch') {
             return <ReviewToolStep key={`${message.id}-${index}`} part={part} />
+          }
+          if (part.type === 'tool-review_duplicates') {
+            return <DuplicatesToolStep key={`${message.id}-${index}`} part={part} />
           }
           if (part.type === 'tool-remember') {
             return <MemoryToolStep key={`${message.id}-${index}`} part={part} />

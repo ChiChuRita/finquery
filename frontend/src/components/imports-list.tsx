@@ -3,9 +3,23 @@ import { FileSpreadsheetIcon } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { importsQuery } from '@/lib/api'
+import { importsQuery, type ImportRecord } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
+
+const waitingOn = (record: ImportRecord) =>
+  record.duplicate_count - record.duplicates_kept - record.duplicates_removed
+
+/** The column counts candidates; what became of them is the tooltip, and the decisions are it. */
+function duplicateNote(record: ImportRecord): string {
+  if (record.duplicate_count === 0) return 'No booking of this file was already in the profile'
+  const waiting = waitingOn(record)
+  return (
+    `${record.duplicates_kept} kept, ${record.duplicates_removed} removed` +
+    (waiting > 0 ? `, ${waiting} still waiting for your decision` : '')
+  )
+}
 
 export function ImportsList() {
   const { profile } = useWorkspace()
@@ -59,7 +73,15 @@ export function ImportsList() {
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{record.row_count}</TableCell>
                   <TableCell className="text-right tabular-nums">{record.imported_count}</TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                  <TableCell
+                    className={cn(
+                      'text-right tabular-nums',
+                      waitingOn(record) > 0
+                        ? 'font-medium text-amber-600 dark:text-amber-500'
+                        : 'text-muted-foreground',
+                    )}
+                    title={duplicateNote(record)}
+                  >
                     {record.duplicate_count}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-right text-muted-foreground text-xs">

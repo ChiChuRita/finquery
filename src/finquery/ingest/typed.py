@@ -23,7 +23,17 @@ from sqlalchemy.orm import Session
 
 from finquery.ask_user import TRANSACTION_DRAFT, AskApply, AskOption, AskRow, AskUser
 from finquery.categorize import categorize_rows
-from finquery.db import Category, Subcategory, Transaction, TransactionDraft, ensure_account, fingerprint
+from finquery.db import (
+    Account,
+    Category,
+    DuplicateCandidate,
+    Subcategory,
+    Transaction,
+    TransactionDraft,
+    ensure_account,
+    fingerprint,
+)
+from finquery.ingest import duplicates
 from finquery.ingest.csv_reader import parse_amount
 from finquery.providers import ModelResolver
 
@@ -197,6 +207,48 @@ def find_draft(session: Session, conversation_id: str, ref: str) -> TransactionD
     ).one_or_none()
 
 
+def _held_aside(
+    session: Session, candidate: DuplicateCandidate, draft: TransactionDraft, *, asked: bool
+) -> dict[str, Any]:
+    """What `add_transaction` answers for a booking that may already be there.
+
+    Nothing was written. A candidate the user has already decided about says so instead of
+    asking again, which is what makes a repeated call harmless.
+    """
+    if candidate.decision is not None:
+        kept = candidate.decision == duplicates.KEEP
+        return {
+            "status": "already_decided",
+            "ref": draft.ref,
+            "description": draft.description,
+            "message": (
+                f"{draft.description} was already decided: you "
+                + ("kept it, so it is in the data." if kept else "removed it, so nothing was added.")
+            ),
+        }
+    account = session.get(Account, candidate.account_id)
+    return {
+        "status": "duplicate_candidate",
+        "ref": draft.ref,
+        "candidate_ref": candidate.ref,
+        "description": draft.description,
+        "amount_cents": draft.amount_cents,
+        "message": (
+            f"{draft.description} looks like a booking this profile already has"
+            + (f" in {account.name}" if account else "")
+            + ", so nothing was written."
+        ),
+        "card": duplicates.one_card(candidate, account_name=account.name if account else None).model_dump(
+            mode="json"
+        ),
+        "instruction": (
+            "Show this `card` with `ask_user`, unchanged."
+            if not asked
+            else "This booking is already on a card the user has not answered yet."
+        ),
+    }
+
+
 def _placement(session: Session, row: Transaction) -> tuple[str | None, str | None]:
     category = session.get(Category, row.category_id) if row.category_id else None
     subcategory = session.get(Subcategory, row.subcategory_id) if row.subcategory_id else None
@@ -214,6 +266,11 @@ async def add_draft(
     """Write one confirmed draft as a manual transaction and categorize it.
 
     Confirming the same draft twice adds nothing: the draft remembers the booking it became.
+
+    A booking the profile may already have is not written either. It is held aside as a
+    duplicate candidate and comes back as a card of its own, so a payment typed twice by
+    mistake and a genuinely repeated one are told apart by the user rather than by us. See
+    `finquery.ingest.duplicates`.
     """
     if draft.transaction_id is not None:
         return {
@@ -222,7 +279,28 @@ async def add_draft(
             "description": draft.description,
             "message": f"{draft.description} was already added, so nothing was written again.",
         }
+    held = duplicates.for_draft(session, draft.id)
+    if held is not None:
+        return _held_aside(session, held, draft, asked=True)
     account = ensure_account(session, profile_id, draft.account_name or DEFAULT_ACCOUNT)
+    match = duplicates.Matcher(session, profile_id, account.id).take(
+        draft.booked_on, draft.amount_cents, draft.description
+    )
+    if match is not None:
+        candidate = duplicates.hold(
+            session,
+            profile_id,
+            account_id=account.id,
+            booked_on=draft.booked_on,
+            amount_cents=draft.amount_cents,
+            description=draft.description,
+            counterparty=draft.counterparty,
+            match=match,
+            source="manual",
+            draft_id=draft.id,
+        )
+        session.commit()
+        return _held_aside(session, candidate, draft, asked=False)
     row = Transaction(
         profile_id=profile_id,
         account_id=account.id,

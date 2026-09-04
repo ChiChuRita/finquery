@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { CheckCircle2Icon, InfoIcon, SparklesIcon, UploadCloudIcon, XIcon } from 'lucide-react'
 import { useRef, useState, type DragEvent } from 'react'
 
+import { DuplicateCandidates } from '@/components/duplicate-candidates'
 import { ImportsList } from '@/components/imports-list'
 import { MappingEditor } from '@/components/mapping-editor'
 import { Badge } from '@/components/ui/badge'
@@ -15,11 +16,15 @@ import {
   categorizeImport,
   commitImport,
   conversationsQuery,
+  decideDuplicates,
+  importDuplicates,
   importsQuery,
   openReviewConversation,
   previewImport,
   type CategorizeReport,
   type CsvMapping,
+  type DuplicateDecided,
+  type ImportDuplicates,
   type ImportPreview,
   type ImportRecord,
 } from '@/lib/api'
@@ -88,6 +93,10 @@ export function ImportPage() {
   const [dragging, setDragging] = useState(false)
   const [done, setDone] = useState<ImportRecord | null>(null)
   const [report, setReport] = useState<CategorizeReport | null>(null)
+  // The bookings the commit held aside, and what the user has said about them so far.
+  const [duplicates, setDuplicates] = useState<ImportDuplicates | null>(null)
+  const [choices, setChoices] = useState<Record<string, 'keep' | 'remove'>>({})
+  const [decided, setDecided] = useState<DuplicateDecided | null>(null)
 
   const previewMutation = useMutation({
     mutationFn: ({ chosen, mapping }: { chosen: File; mapping?: CsvMapping }) =>
@@ -98,8 +107,17 @@ export function ImportPage() {
     },
   })
 
+  const startReview = async (importId: string, profileId: string) => {
+    const review = await openReviewConversation(importId, profileId)
+    void queryClient.invalidateQueries(conversationsQuery(profileId))
+    openTab(review.conversation_id)
+    await navigate({ to: '/c/$conversationId', params: { conversationId: review.conversation_id } })
+  }
+
   // Commit, then categorize, then hand the leftovers to a conversation: one flow, because a
-  // fresh import is only useful once its rows have categories.
+  // fresh import is only useful once its rows have categories. A commit that held bookings
+  // aside as possible duplicates stops on this page first: a booking nobody has decided about
+  // is not in the data yet, so there is nothing to categorize about it.
   const commitMutation = useMutation({
     mutationFn: async ({ chosen, mapping }: { chosen: File; mapping: CsvMapping }) => {
       if (!profile) throw new Error('No profile is active yet.')
@@ -110,11 +128,34 @@ export function ImportPage() {
       void queryClient.invalidateQueries(importsQuery(profile.id))
       const categorized = await categorizeImport(record.id, profile.id)
       setReport(categorized)
+      if (record.duplicate_count > 0) {
+        setDuplicates(await importDuplicates(record.id, profile.id))
+        return
+      }
       if (categorized.uncertain.length === 0) return
-      const review = await openReviewConversation(record.id, profile.id)
-      void queryClient.invalidateQueries(conversationsQuery(profile.id))
-      openTab(review.conversation_id)
-      await navigate({ to: '/c/$conversationId', params: { conversationId: review.conversation_id } })
+      await startReview(record.id, profile.id)
+    },
+  })
+
+  // Keep both inserts the booking and categorizes it, Remove leaves the data alone. Both
+  // happen on the server; this only asks, then reads the rest of the list back.
+  const decideMutation = useMutation({
+    mutationFn: async ({ removeAllExact }: { removeAllExact?: boolean }) => {
+      if (!profile || !duplicates) throw new Error('No import is waiting for a decision.')
+      const result = await decideDuplicates(
+        duplicates.import_id,
+        profile.id,
+        removeAllExact ? [] : Object.entries(choices).map(([ref, decision]) => ({ ref, decision })),
+        removeAllExact ?? false,
+      )
+      setDecided(result)
+      setChoices({})
+      void queryClient.invalidateQueries(importsQuery(profile.id))
+      const next = await importDuplicates(duplicates.import_id, profile.id)
+      setDuplicates(next.pending > 0 ? next : null)
+      if (next.pending > 0) return
+      if ((report?.uncertain.length ?? 0) === 0 && result.needs_review === 0) return
+      await startReview(duplicates.import_id, profile.id)
     },
   })
 
@@ -130,6 +171,9 @@ export function ImportPage() {
     if (!chosen) return
     setDone(null)
     setReport(null)
+    setDuplicates(null)
+    setChoices({})
+    setDecided(null)
     setPreview(null)
     setAccountName('')
     commitMutation.reset()
@@ -143,7 +187,7 @@ export function ImportPage() {
     take(event.dataTransfer.files[0])
   }
 
-  const error = previewMutation.error ?? commitMutation.error
+  const error = previewMutation.error ?? commitMutation.error ?? decideMutation.error
   const busy = previewMutation.isPending || commitMutation.isPending
 
   return (
@@ -222,7 +266,8 @@ export function ImportPage() {
               </p>
               <p className="text-muted-foreground text-xs">
                 {done.duplicate_count > 0
-                  ? `${done.duplicate_count} rows were already in this profile and were skipped. `
+                  ? `${done.duplicate_count} rows look like bookings you already have, so nothing was ` +
+                    'added for them until you decide below. '
                   : ''}
                 {done.imported_count === 0
                   ? 'Nothing was added, so nothing was categorized.'
@@ -243,6 +288,18 @@ export function ImportPage() {
               <span className="sr-only">Dismiss</span>
             </Button>
           </div>
+        )}
+
+        {duplicates && (
+          <DuplicateCandidates
+            busy={decideMutation.isPending}
+            choices={choices}
+            decided={decided}
+            duplicates={duplicates}
+            onApply={() => decideMutation.mutate({})}
+            onChoose={(ref, choice) => setChoices((previous) => ({ ...previous, [ref]: choice }))}
+            onRemoveAllExact={() => decideMutation.mutate({ removeAllExact: true })}
+          />
         )}
 
         {file && preview && (

@@ -7,8 +7,9 @@ the answer comes back as the tool's output on the next request, where it resumes
 
 The shape is deliberately generic: a title, an optional note, the rows being asked about with
 their own buttons, question-level buttons for a single choice, and a free text field. Ticket 07
-uses it for categorization, and tickets 08, 10 and 11 reuse it for the CSV mapping
-confirmation, duplicate decisions and extraction review.
+uses it for categorization, ticket 08 for the CSV mapping confirmation and the preview of a
+typed booking, ticket 10 for duplicate decisions, and ticket 11 will reuse it for the
+extraction review.
 
 Wire contract:
 
@@ -33,11 +34,22 @@ card whose kind nobody handles is simply handed to the model as it came.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.tools import GenerateToolJsonSchema, ToolDefinition
 from pydantic_ai.toolsets import ExternalToolset
 
 ASK_USER = "ask_user"
+
+NULLISH = {"null", "none", "nil", ""}
+"""What a model writes when it stringifies its own JSON arguments.
+
+`"amount_cents": "null"` reaches us from the fast slot (OpenRouter, 2026-09-04). Read as a
+value it fails validation, and a card that fails validation is a card whose answers apply
+nothing (`finquery.answers`), so the optional fields treat it as the null it meant to be."""
+
+
+def _nullish(value: object) -> object:
+    return None if isinstance(value, str) and value.strip().casefold() in NULLISH else value
 
 
 class AskOption(BaseModel):
@@ -58,19 +70,24 @@ class AskRow(BaseModel):
     bookings: int | None = Field(default=None, description="How many bookings this row stands for.")
     options: list[AskOption] = Field(default_factory=list, description="Buttons for this row.")
 
+    _nulls = field_validator("description", "amount_cents", "date", "bookings", mode="before")(
+        staticmethod(_nullish)
+    )
 
-ApplyKind = Literal["category_rule", "mapping_confirmation", "transaction_draft"]
+
+ApplyKind = Literal["category_rule", "duplicate_decision", "mapping_confirmation", "transaction_draft"]
 """What kind of decision a card collects.
 
-`category_rule` is the only one the server applies itself (`finquery.answers.APPLIERS`). The
-other two name a card whose answers the model acts on with a tool of its own
-(`import_file(confirmed=true)`, `add_transaction(ref)`), so they exist to say "not
-categorization": without them a card that declares nothing would be read as a categorization
-card and its Confirm answers would be offered to `set_rule` as category names. Ticket 10 adds
-its duplicate kind here the same way.
+Two of them the server applies itself (`finquery.answers.APPLIERS`): `category_rule` turns
+every answer into a category rule, and `duplicate_decision` inserts the bookings the user kept
+and discards the ones they removed. The other two name a card whose answers the model acts on
+with a tool of its own (`import_file(confirmed=true)`, `add_transaction(ref)`), so they exist
+to say "not categorization": without them a card that declares nothing would be read as a
+categorization card and its Confirm answers would be offered to `set_rule` as category names.
 """
 
 CATEGORY_RULE: ApplyKind = "category_rule"
+DUPLICATE_DECISION: ApplyKind = "duplicate_decision"
 MAPPING_CONFIRMATION: ApplyKind = "mapping_confirmation"
 TRANSACTION_DRAFT: ApplyKind = "transaction_draft"
 
@@ -81,7 +98,8 @@ class AskApply(BaseModel):
     kind: ApplyKind = Field(
         default=CATEGORY_RULE,
         description=(
-            "`category_rule` means every answer becomes a category rule for that merchant. "
+            "`category_rule` means every answer becomes a category rule for that merchant, "
+            "`duplicate_decision` that a kept booking is inserted and a removed one is not. "
             "The other kinds are handled by a tool you call yourself, so copy whichever one the "
             "tool that gave you the rows returned."
         ),
@@ -95,13 +113,43 @@ class AskUser(BaseModel):
     note: str | None = Field(default=None, description="One more line of context, optional.")
     rows: list[AskRow] = Field(default_factory=list, description="Up to five rows, each answered on its own.")
     options: list[AskOption] = Field(
-        default_factory=list, description="Buttons for the question itself, used when there are no rows."
+        default_factory=list,
+        description="Buttons for the question itself rather than for one row, used when there are no rows.",
     )
     allow_free_text: bool = Field(default=True, description="Whether the card offers a free text field.")
     apply: AskApply | None = Field(
         default=None,
         description="What the answers mean, copied from the tool that handed you the rows.",
     )
+
+    _nulls = field_validator("note", "apply", mode="before")(staticmethod(_nullish))
+
+
+MAX_UNWRAP = 3
+"""How deep a wrapped card is unwrapped. Two levels were seen; three is room to spare."""
+
+
+def unwrap_card(args: dict[str, object]) -> dict[str, object]:
+    """The card's own fields, even when the model handed the object back under a `card` key.
+
+    A tool that builds a ready card returns it as `card`, and the assistant is told to pass its
+    fields as the arguments of `ask_user`. The fast model sometimes passes the object instead
+    (`{"card": {"card": {...}}}` on OpenRouter, 2026-09-04), which would render a card with no
+    title and no rows and, worse, would not validate here, so the answers would apply nothing.
+    Unwrapping it costs one call and keeps a question answerable. The browser does the same
+    before it renders (`question-card.tsx`).
+    """
+    outer = args
+    for _ in range(MAX_UNWRAP):
+        inner = args.get("card")
+        if not isinstance(inner, dict):
+            break
+        args = inner
+    if args is outer:
+        return args
+    # The apply hint sometimes stays on the wrapper, and losing it would send the answers to
+    # the wrong applier, so the innermost card keeps whichever one it has.
+    return {**args, "apply": args.get("apply") or outer.get("apply")}
 
 
 class AskAnswer(BaseModel):
@@ -141,6 +189,9 @@ Rules:
 - Leave `allow_free_text` true so the user can type a category that is not a button.
 - Copy the `apply` object from the tool that gave you the rows (`review_batch` returns one).
   It is what makes the answers take effect in code, without you having to act on them.
+- When a tool hands you a whole `card`, pass its fields as your own arguments, unchanged: the
+  same title, the same `note`, the same rows in the same order. Never leave a field out, never
+  shorten one, and never pass the card as a `card` argument.
 - Say nothing else in the same turn: the card is the message.
 """
 
