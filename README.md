@@ -53,7 +53,7 @@ Prove the setup before a demo:
 uv run finquery-check    # both slots: answer, thinking, tool call, vision
 ```
 
-See `docs/adr/0005-local-gemma-4-through-llama-cpp.md`, including why the context cap is 16k
+See `docs/adr/0006-local-gemma-4-through-llama-cpp.md`, including why the context cap is 16k
 and not 32k on a 24 GB Mac.
 
 ## Develop
@@ -96,7 +96,8 @@ it with `uv run python scripts/generate_synthetic.py`.
 
 - `src/finquery/`: `main.py` (CLI), `app.py` (factory), `settings.py`, `providers.py` (slots),
   `db.py` (SQLAlchemy models and the query view), `taxonomy.py` (default categories),
-  `agent.py` (chat agent), `ingest/` (CSV reader, presets, mapping sub-agent, commit),
+  `agent.py` (chat agent), `followups.py` (post-turn suggestions),
+  `ingest/` (CSV reader, presets, mapping sub-agent, commit),
   `api/` (REST and chat endpoints),
   `local/` (the local provider: catalog, downloads, runtime, model, Gemma wire format, check)
 - `frontend/`: Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router and Query

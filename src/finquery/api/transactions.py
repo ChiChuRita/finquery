@@ -11,6 +11,7 @@ from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import func, select, text
 
+from finquery.api.profiles import get_profile_or_404
 from finquery.db import QUERY_VIEW, Account
 
 router = APIRouter()
@@ -42,11 +43,12 @@ class AccountOut(BaseModel):
 @router.get("/transactions", response_model=TransactionPage)
 async def list_transactions(
     request: Request,
+    profile_id: str,
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
 ) -> TransactionPage:
-    profile_id = request.app.state.profile_id
     with request.app.state.session_factory() as session:
+        get_profile_or_404(session, profile_id)
         total = session.execute(
             text(f"SELECT count(*) FROM {QUERY_VIEW} WHERE profile_id = :profile_id"), {"profile_id": profile_id}
         ).scalar_one()
@@ -67,9 +69,10 @@ async def list_transactions(
 
 
 @router.get("/accounts", response_model=list[AccountOut])
-async def list_accounts(request: Request) -> list[AccountOut]:
+async def list_accounts(request: Request, profile_id: str) -> list[AccountOut]:
     with request.app.state.session_factory() as session:
+        get_profile_or_404(session, profile_id)
         rows = session.scalars(
-            select(Account).where(Account.profile_id == request.app.state.profile_id).order_by(func.lower(Account.name))
+            select(Account).where(Account.profile_id == profile_id).order_by(func.lower(Account.name))
         ).all()
         return [AccountOut(id=row.id, name=row.name) for row in rows]

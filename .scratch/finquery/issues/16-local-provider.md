@@ -18,7 +18,7 @@
 ## Comments
 
 Done 2026-09-04. `FINQUERY_PROVIDER=local` and nothing else moves: the API, the chat agent and
-the UI are unchanged. `docs/adr/0005-local-gemma-4-through-llama-cpp.md` records the design and
+the UI are unchanged. `docs/adr/0006-local-gemma-4-through-llama-cpp.md` records the design and
 the memory measurements.
 
 What ticket 05, 06 and 07 need from this:

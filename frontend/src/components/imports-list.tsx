@@ -5,9 +5,11 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { importsQuery } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
+import { useWorkspace } from '@/lib/workspace'
 
 export function ImportsList() {
-  const { data: imports } = useQuery(importsQuery)
+  const { profile } = useWorkspace()
+  const { data: imports } = useQuery(importsQuery(profile?.id))
 
   return (
     <section className="space-y-3">

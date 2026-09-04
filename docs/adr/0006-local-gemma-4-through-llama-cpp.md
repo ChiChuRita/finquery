@@ -1,4 +1,4 @@
-# ADR 0005: The local provider is a custom Pydantic AI model over llama-cpp-python
+# ADR 0006: The local provider is a custom Pydantic AI model over llama-cpp-python
 
 Date: 2026-09-04
 Status: accepted

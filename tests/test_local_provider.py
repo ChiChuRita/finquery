@@ -26,7 +26,7 @@ from finquery.local.check import solid_png
 from finquery.local.downloads import DownloadManager, Report
 from finquery.local.runtime import LocalStack
 
-from .conftest import chat_body, make_settings, parse_sse
+from .conftest import chat_body, default_profile_id, make_settings, new_conversation, parse_sse
 
 
 def spec(slot: str, name: str, weights_size: int) -> ModelSpec:
@@ -114,10 +114,6 @@ async def local_client(stack: LocalStack) -> AsyncIterator[httpx.AsyncClient]:
             yield client
 
 
-async def new_conversation(client: httpx.AsyncClient, slot: str = "fast") -> str:
-    return (await client.post("/api/conversations", json={"model_slot": slot})).json()["id"]
-
-
 async def turn(client: httpx.AsyncClient, conversation_id: str, text: str) -> list[dict[str, Any]]:
     response = await client.post(f"/api/conversations/{conversation_id}/chat", json=chat_body(text, conversation_id))
     assert response.status_code == 200
@@ -134,20 +130,23 @@ async def test_local_provider_resolves_both_slots_and_reports_them(tmp_path: Pat
         assert all(f["state"] == "ready" for m in body["models"] for f in m["files"])
         assert [(a["name"], a["present"]) for a in body["adapters"]] == [("query", False), ("chart", False)]
 
+        profile_id = await default_profile_id(client)
         for slot in ("fast", "quality"):
-            await turn(client, await new_conversation(client, slot), "hi")
+            await turn(client, await new_conversation(client, profile_id, slot), "hi")
 
         after = (await client.get("/api/models")).json()["models"]
         assert [m["loaded"] for m in after] == [True, True]
         assert [m["n_ctx"] for m in after] == [16384, 16384]
-        assert len(slots["fast"].requests) == len(slots["quality"].requests) == 1
+        # Two turns, plus the follow-up step each one runs on the fast slot afterwards.
+        assert len(slots["fast"].requests) == 3
+        assert len(slots["quality"].requests) == 1
 
 
 async def test_thinking_is_split_out_of_the_text_stream(tmp_path: Path) -> None:
     reply = ("<|channel>", "thought\n", "They asked ", "for a number. ", "<channel|>", "I cannot ", "compute that yet.")
     slots = {"fast": FakeSlot("tiny-fast", reply), "quality": FakeSlot("tiny-quality")}
     async with local_client(local_stack(tmp_path, slots)) as client:
-        conversation_id = await new_conversation(client)
+        conversation_id = await new_conversation(client, await default_profile_id(client))
         seen = await turn(client, conversation_id, "How much in May?")
 
         kinds = [c["type"] for c in seen]
@@ -179,7 +178,7 @@ async def test_gemma_tool_call_syntax_becomes_a_tool_part(tmp_path: Path) -> Non
     slots = {"fast": FakeSlot("tiny-fast", calling, answering), "quality": FakeSlot("tiny-quality")}
     with chat_agent.override(tools=[query]):
         async with local_client(local_stack(tmp_path, slots)) as client:
-            seen = await turn(client, await new_conversation(client), "groceries in May?")
+            seen = await turn(client, await new_conversation(client, await default_profile_id(client)), "groceries in May?")
 
             available = [c for c in seen if c["type"] == "tool-input-available"]
             assert [c["toolName"] for c in available] == ["query"]
@@ -215,7 +214,7 @@ async def test_stop_ends_the_token_loop_and_keeps_the_partial_turn(tmp_path: Pat
 
     slots = {"fast": SlowSlot("tiny-fast"), "quality": FakeSlot("tiny-quality")}
     async with local_client(local_stack(tmp_path, slots)) as client:
-        conversation_id = await new_conversation(client)
+        conversation_id = await new_conversation(client, await default_profile_id(client))
         running = asyncio.create_task(
             client.post(f"/api/conversations/{conversation_id}/chat", json=chat_body("go", conversation_id))
         )
@@ -347,7 +346,7 @@ async def test_the_fallback_note_reaches_the_client_and_the_stored_turn(tmp_path
     # A sub-agent asks for its adapter by naming it in the model settings; there is no file.
     with chat_agent.override(model_settings={"finquery_adapter": "query"}):
         async with local_client(stack) as client:
-            conversation_id = await new_conversation(client)
+            conversation_id = await new_conversation(client, await default_profile_id(client))
             seen = await turn(client, conversation_id, "groceries?")
 
             metadata = [c for c in seen if c["type"] == "message-metadata"]
@@ -374,7 +373,7 @@ async def test_an_image_reaches_the_model_as_a_content_part(tmp_path: Path) -> N
     png = base64.b64encode(solid_png((10, 200, 10), size=8)).decode()
     slots = {"fast": FakeSlot("tiny-fast", ("Green.",)), "quality": FakeSlot("tiny-quality")}
     async with local_client(local_stack(tmp_path, slots)) as client:
-        conversation_id = await new_conversation(client)
+        conversation_id = await new_conversation(client, await default_profile_id(client))
         response = await client.post(
             f"/api/conversations/{conversation_id}/chat",
             json={

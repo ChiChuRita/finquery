@@ -17,17 +17,20 @@ from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.exceptions import RunCancelled
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
-from pydantic_ai.ui.vercel_ai.response_types import BaseChunk, MessageMetadataChunk
+from pydantic_ai.ui.vercel_ai.request_types import DataUIPart
+from pydantic_ai.ui.vercel_ai.response_types import BaseChunk, DataChunk, MessageMetadataChunk
 
 from finquery.agent import chat_agent
 from finquery.api.conversations import get_conversation_or_404
 from finquery.db import Conversation, Turn, utcnow
+from finquery.followups import suggest_followups
 from finquery.providers import ProviderNotAvailable
 
 router = APIRouter()
 
 SDK_VERSION = 7
 TITLE_LENGTH = 60
+FOLLOWUPS_PART = "data-followups"
 
 
 @dataclass
@@ -43,15 +46,32 @@ def _load_history(conversation: Conversation) -> list[ModelMessage]:
     return history
 
 
+def _user_prompts(messages: Sequence[ModelMessage]) -> list[str]:
+    return [
+        part.content
+        for message in messages
+        if message.kind == "request"
+        for part in message.parts
+        if part.part_kind == "user-prompt" and isinstance(part.content, str)
+    ]
+
+
+def _assistant_text(messages: Sequence[ModelMessage]) -> str:
+    return "\n".join(
+        part.content
+        for message in messages
+        if message.kind == "response"
+        for part in message.parts
+        if part.part_kind == "text"
+    )
+
+
 def _title_from(messages: Sequence[ModelMessage]) -> str | None:
-    for message in messages:
-        if message.kind != "request":
-            continue
-        for part in message.parts:
-            if part.part_kind == "user-prompt" and isinstance(part.content, str):
-                text = " ".join(part.content.split())
-                return text[:TITLE_LENGTH].rstrip() + ("..." if len(text) > TITLE_LENGTH else "")
-    return None
+    prompts = _user_prompts(messages)
+    if not prompts:
+        return None
+    text = " ".join(prompts[0].split())
+    return text[:TITLE_LENGTH].rstrip() + ("..." if len(text) > TITLE_LENGTH else "")
 
 
 def _audit_notes(messages: Sequence[ModelMessage]) -> list[dict[str, object]]:
@@ -70,7 +90,12 @@ def _audit_notes(messages: Sequence[ModelMessage]) -> list[dict[str, object]]:
 
 
 def _persist_turn(
-    request: Request, conversation_id: str, new_messages: list[ModelMessage], slot: str, metadata: dict[str, object]
+    request: Request,
+    conversation_id: str,
+    new_messages: list[ModelMessage],
+    slot: str,
+    metadata: dict[str, object],
+    followups: list[str],
 ) -> None:
     if notes := _audit_notes(new_messages):
         metadata["audit_notes"] = notes
@@ -78,6 +103,8 @@ def _persist_turn(
     ui_messages = VercelAIAdapter.dump_messages(new_messages, sdk_version=SDK_VERSION)
     if ui_messages and ui_messages[-1].role == "assistant":
         ui_messages[-1].metadata = {**(ui_messages[-1].metadata or {}), **metadata}
+        if followups:
+            ui_messages[-1].parts.append(DataUIPart(type=FOLLOWUPS_PART, data={"suggestions": followups}))
     with request.app.state.session_factory() as session:
         conversation = session.get(Conversation, conversation_id)
         if conversation is None:
@@ -124,20 +151,34 @@ async def chat(request: Request, conversation_id: str) -> Response:
     turn = RunningTurn()
     running[conversation_id] = turn
     # Stored on the assistant UI message and echoed to the client at the end of the turn.
-    metadata: dict[str, object] = {}
+    metadata: dict[str, object] = {"model_slot": slot}
     thinking_started: float | None = None
 
     # The adapter feeds the client's message in through message_history, so new_messages() would
     # miss it. Everything after the server-side history is this turn.
     async def on_complete(result: AgentRunResult) -> AsyncIterator[BaseChunk]:
-        _persist_turn(request, conversation_id, result.all_messages()[len(history) :], slot, metadata)
+        turn_messages = result.all_messages()[len(history) :]
+        followups = await _followups(turn_messages)
+        _persist_turn(request, conversation_id, turn_messages, slot, metadata, followups)
+        if followups:
+            yield DataChunk(type=FOLLOWUPS_PART, data={"suggestions": followups})
         yield MessageMetadataChunk(message_metadata=metadata)
 
     async def on_cancel(cancelled: RunCancelled) -> AsyncIterator[BaseChunk]:
         metadata["interrupted"] = True
         close_thinking()
-        _persist_turn(request, conversation_id, cancelled.all_messages()[len(history) :], slot, metadata)
+        # A turn that was cut off gets no follow-ups: the answer it would build on does not exist.
+        _persist_turn(request, conversation_id, cancelled.all_messages()[len(history) :], slot, metadata, [])
         yield MessageMetadataChunk(message_metadata=metadata)
+
+    async def _followups(turn_messages: Sequence[ModelMessage]) -> list[str]:
+        prompts = _user_prompts(turn_messages)
+        if not prompts:
+            return []
+        # Sub-agents are pinned to the fast slot whatever the conversation runs on.
+        return await suggest_followups(
+            state.resolve_model("fast"), state.subagent_settings, prompts[-1], _assistant_text(turn_messages)
+        )
 
     def close_thinking() -> None:
         nonlocal thinking_started

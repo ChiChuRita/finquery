@@ -42,7 +42,9 @@ def scripted_mapping(mapping: dict[str, object], account_name: str = "Volksbank 
     return respond
 
 
-async def test_preset_import_of_the_synthetic_csv(client: httpx.AsyncClient, scripts: Scripts) -> None:
+async def test_preset_import_of_the_synthetic_csv(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
     preview = await client.post("/api/imports/preview", files=upload(SPARKASSE))
     assert preview.status_code == 200, preview.text
     body = preview.json()
@@ -68,7 +70,7 @@ async def test_preset_import_of_the_synthetic_csv(client: httpx.AsyncClient, scr
     committed = await client.post(
         "/api/imports",
         files=upload(SPARKASSE),
-        data={"mapping": json.dumps(body["mapping"]), "account_name": body["account_name"]},
+        data={"profile_id": profile_id, "mapping": json.dumps(body["mapping"]), "account_name": body["account_name"]},
     )
     assert committed.status_code == 201, committed.text
     record = committed.json()
@@ -76,7 +78,7 @@ async def test_preset_import_of_the_synthetic_csv(client: httpx.AsyncClient, scr
     assert record["preset"] == "sparkasse"
     assert record["account_name"] == "Sparkasse Girokonto"
 
-    page = (await client.get("/api/transactions", params={"limit": 5})).json()
+    page = (await client.get("/api/transactions", params={"profile_id": profile_id, "limit": 5})).json()
     assert page["total"] == 433
     assert page["rows"][0]["booked_on"] == "2025-12-28"
     assert page["rows"][0]["source"] == "import"
@@ -84,25 +86,27 @@ async def test_preset_import_of_the_synthetic_csv(client: httpx.AsyncClient, scr
     assert all(row["category"] is None for row in page["rows"])
     assert page["rows"][0]["account"] == "Sparkasse Girokonto"
 
-    assert [record["id"] for record in (await client.get("/api/imports")).json()] == [record["id"]]
-    assert [account["name"] for account in (await client.get("/api/accounts")).json()] == ["Sparkasse Girokonto"]
+    scoped = {"profile_id": profile_id}
+    assert [row["id"] for row in (await client.get("/api/imports", params=scoped)).json()] == [record["id"]]
+    assert [row["name"] for row in (await client.get("/api/accounts", params=scoped)).json()] == ["Sparkasse Girokonto"]
 
 
-async def test_importing_the_same_file_twice_counts_duplicates(client: httpx.AsyncClient) -> None:
+async def test_importing_the_same_file_twice_counts_duplicates(client: httpx.AsyncClient, profile_id: str) -> None:
     mapping = (await client.post("/api/imports/preview", files=upload(SPARKASSE))).json()["mapping"]
-    form = {"mapping": json.dumps(mapping), "account_name": "Sparkasse Girokonto"}
+    form = {"profile_id": profile_id, "mapping": json.dumps(mapping), "account_name": "Sparkasse Girokonto"}
 
     first = (await client.post("/api/imports", files=upload(SPARKASSE), data=form)).json()
     second = (await client.post("/api/imports", files=upload(SPARKASSE), data=form)).json()
 
     assert (first["imported_count"], first["duplicate_count"]) == (433, 0)
     assert (second["imported_count"], second["duplicate_count"]) == (0, 433)
-    assert (await client.get("/api/transactions")).json()["total"] == 433
-    assert len((await client.get("/api/imports")).json()) == 2
+    scoped = {"profile_id": profile_id}
+    assert (await client.get("/api/transactions", params=scoped)).json()["total"] == 433
+    assert len((await client.get("/api/imports", params=scoped)).json()) == 2
 
 
 async def test_unknown_bank_mapping_is_proposed_by_the_fast_slot_and_editable(
-    client: httpx.AsyncClient, scripts: Scripts
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
 ) -> None:
     respond = scripted_mapping(UNKNOWN_BANK_MAPPING)
     scripts.fast_call = respond  # type: ignore[assignment]
@@ -142,12 +146,12 @@ async def test_unknown_bank_mapping_is_proposed_by_the_fast_slot_and_editable(
     committed = await client.post(
         "/api/imports",
         files=upload(UNKNOWN_BANK),
-        data={"mapping": json.dumps(edited), "account_name": "Volksbank Giro"},
+        data={"profile_id": profile_id, "mapping": json.dumps(edited), "account_name": "Volksbank Giro"},
     )
     assert committed.status_code == 201
     assert committed.json()["imported_count"] == 433
     assert committed.json()["preset"] is None
-    newest = (await client.get("/api/transactions", params={"limit": 20})).json()["rows"]
+    newest = (await client.get("/api/transactions", params={"profile_id": profile_id, "limit": 20})).json()["rows"]
     assert {row["account"] for row in newest} == {"Volksbank Giro"}
     salary = next(row for row in newest if row["amount_cents"] > 0)
     assert (salary["booked_on"], salary["amount_cents"]) == ("2025-12-28", 285000)
@@ -177,7 +181,9 @@ async def test_malformed_uploads_are_rejected(client: httpx.AsyncClient, tmp_pat
 
 
 @pytest.mark.skipif(not TRADE_REPUBLIC.exists(), reason="the private Trade Republic export is not in this checkout")
-async def test_trade_republic_preset_reads_the_real_export(client: httpx.AsyncClient, scripts: Scripts) -> None:
+async def test_trade_republic_preset_reads_the_real_export(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
     body = (await client.post("/api/imports/preview", files=upload(TRADE_REPUBLIC))).json()
 
     assert body["preset"] == "traderepublic"
@@ -195,7 +201,7 @@ async def test_trade_republic_preset_reads_the_real_export(client: httpx.AsyncCl
     committed = await client.post(
         "/api/imports",
         files=upload(TRADE_REPUBLIC),
-        data={"mapping": json.dumps(body["mapping"]), "account_name": "Trade Republic"},
+        data={"profile_id": profile_id, "mapping": json.dumps(body["mapping"]), "account_name": "Trade Republic"},
     )
     assert committed.status_code == 201
     assert committed.json()["imported_count"] == body["row_count"]

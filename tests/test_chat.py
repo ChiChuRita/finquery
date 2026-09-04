@@ -10,21 +10,21 @@ from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart
 from finquery.app import create_app
 from finquery.local.runtime import LocalStack
 
-from .conftest import Chat, Scripts, chat_body, make_settings, parse_sse
-
-
-def think_then_answer(thought: str, answer: str):
-    async def fn(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
-        yield {0: DeltaThinkingPart(content=thought[: len(thought) // 2])}
-        yield {0: DeltaThinkingPart(content=thought[len(thought) // 2 :])}
-        for word in answer.split(" "):
-            yield word + " "
-
-    return fn
+from .conftest import (
+    Chat,
+    Scripts,
+    chat_body,
+    default_profile_id,
+    is_followup_request,
+    make_settings,
+    new_conversation,
+    parse_sse,
+    script,
+)
 
 
 def kinds(chunks: list[dict[str, object]]) -> list[str]:
-    # message-metadata is bookkeeping (timestamps, interrupted flag), not part of the visible order.
+    # message-metadata is bookkeeping (model slot, interrupted flag), not part of the visible order.
     return [str(c["type"]) for c in chunks if c["type"] != "message-metadata"]
 
 
@@ -36,20 +36,14 @@ def collapse(types: list[str]) -> list[str]:
     return out
 
 
-async def new_conversation(client: httpx.AsyncClient, slot: str = "fast") -> str:
-    response = await client.post("/api/conversations", json={"model_slot": slot})
-    assert response.status_code == 201
-    return response.json()["id"]
-
-
 async def test_health(client: httpx.AsyncClient) -> None:
     response = await client.get("/api/health")
     assert response.json() == {"provider": "openrouter", "slots": ["fast", "quality"]}
 
 
 async def test_stream_order_reasoning_text_finish(client: httpx.AsyncClient, scripts: Scripts, chat: Chat) -> None:
-    scripts.fast = think_then_answer("Let me think about that.", "I cannot compute numbers yet.")
-    conversation_id = await new_conversation(client)
+    scripts.fast = script("I cannot compute numbers yet.", thought="Let me think about that.")
+    conversation_id = await new_conversation(client, await default_profile_id(client))
 
     response, chunks = await chat(conversation_id, "How much did I spend in May?")
 
@@ -78,12 +72,15 @@ async def test_turn_is_persisted_and_history_is_server_owned(
     seen: list[list[ModelMessage]] = []
 
     async def recording(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        if is_followup_request(messages):
+            yield "No follow-ups."
+            return
         seen.append(messages)
         yield {0: DeltaThinkingPart(content="thinking")}
         yield f"answer {len(seen)}"
 
     scripts.fast = recording
-    conversation_id = await new_conversation(client)
+    conversation_id = await new_conversation(client, await default_profile_id(client))
 
     await chat(conversation_id, "first question")
     detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
@@ -104,9 +101,6 @@ async def test_turn_is_persisted_and_history_is_server_owned(
     assert user_prompts == ["first question", "second question"]
     assert len((await client.get(f"/api/conversations/{conversation_id}")).json()["messages"]) == 4
 
-    listing = (await client.get("/api/conversations")).json()
-    assert [c["id"] for c in listing] == [conversation_id]
-
 
 async def test_stop_persists_partial_turn_as_interrupted(client: httpx.AsyncClient, scripts: Scripts) -> None:
     started = asyncio.Event()
@@ -119,7 +113,7 @@ async def test_stop_persists_partial_turn_as_interrupted(client: httpx.AsyncClie
         yield "never sent"
 
     scripts.fast = slow
-    conversation_id = await new_conversation(client)
+    conversation_id = await new_conversation(client, await default_profile_id(client))
 
     turn = asyncio.create_task(
         client.post(f"/api/conversations/{conversation_id}/chat", json=chat_body("go", conversation_id))
@@ -148,20 +142,6 @@ async def test_stop_persists_partial_turn_as_interrupted(client: httpx.AsyncClie
     assert (await client.post(f"/api/conversations/{conversation_id}/stop")).json() == {"stopped": False}
 
 
-async def test_model_slot_is_stored_per_conversation(client: httpx.AsyncClient, scripts: Scripts, chat: Chat) -> None:
-    scripts.fast = think_then_answer("f", "fast answer")
-    scripts.quality = think_then_answer("q", "quality answer")
-    conversation_id = await new_conversation(client)
-
-    patched = await client.patch(f"/api/conversations/{conversation_id}", json={"model_slot": "quality"})
-    assert patched.json()["model_slot"] == "quality"
-    _, chunks = await chat(conversation_id, "hello")
-
-    assert scripts.resolved == ["quality"]
-    assert "".join(str(c["delta"]) for c in chunks if c["type"] == "text-delta").strip() == "quality answer"
-    assert (await client.patch(f"/api/conversations/{conversation_id}", json={"model_slot": "turbo"})).status_code == 422
-
-
 async def test_local_provider_refuses_to_chat_until_the_models_are_downloaded(tmp_path: Path) -> None:
     settings = make_settings(provider="local", models_dir=tmp_path / "empty")
     stack = LocalStack(settings, load=lambda *_: pytest.fail("nothing should be loaded"))
@@ -169,8 +149,10 @@ async def test_local_provider_refuses_to_chat_until_the_models_are_downloaded(tm
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             assert (await client.get("/api/health")).json()["provider"] == "local"
-            conversation_id = await new_conversation(client)
-            response = await client.post(f"/api/conversations/{conversation_id}/chat", json=chat_body("hi", conversation_id))
+            conversation_id = await new_conversation(client, await default_profile_id(client))
+            response = await client.post(
+                f"/api/conversations/{conversation_id}/chat", json=chat_body("hi", conversation_id)
+            )
             assert response.status_code == 503
             assert "not downloaded yet" in response.json()["detail"]
 

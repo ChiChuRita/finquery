@@ -1,17 +1,18 @@
 """One test seam: the FastAPI app over HTTP, both model slots scripted per test."""
 
 import json
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from pathlib import Path
 
 import httpx
 import pytest
 from fastapi import FastAPI
-from pydantic_ai.messages import ModelMessage, ModelResponse
-from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart, FunctionModel
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.app import create_app
+from finquery.followups import FOLLOWUP_MARKER
 from finquery.settings import Settings
 
 StreamFn = Callable[[list[ModelMessage], AgentInfo], AsyncIterator[object]]
@@ -21,6 +22,16 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 SYNTHETIC = FIXTURES / "synthetic"
 # The user's own bank export. Gitignored, so tests that need it skip when it is not there.
 PRIVATE = FIXTURES / "private"
+
+
+def _collected(fn: StreamFn) -> Callable[[list[ModelMessage], AgentInfo], Awaitable[ModelResponse]]:
+    """The same script as one response, for the steps that do not stream (follow-up suggestions)."""
+
+    async def function(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        text = "".join([item async for item in fn(messages, info) if isinstance(item, str)])
+        return ModelResponse(parts=[TextPart(content=text)])
+
+    return function
 
 
 class Scripts:
@@ -42,7 +53,32 @@ class Scripts:
         stream = getattr(self, slot)
         call = getattr(self, f"{slot}_call")
         assert stream is not None or call is not None, f"test did not script the {slot} slot"
-        return FunctionModel(call, stream_function=stream, model_name=f"scripted-{slot}")
+        # A streamed script also answers the non-streamed requests sub-agents make, unless the
+        # test scripted that side itself.
+        return FunctionModel(call or _collected(stream), stream_function=stream, model_name=f"scripted-{slot}")
+
+
+def is_followup_request(messages: Sequence[ModelMessage]) -> bool:
+    """True for the post-turn step that asks the fast slot for follow-up questions."""
+    last = messages[-1]
+    return last.kind == "request" and any(
+        part.part_kind == "user-prompt" and isinstance(part.content, str) and FOLLOWUP_MARKER in part.content
+        for part in last.parts
+    )
+
+
+def script(answer: str, *, thought: str | None = None, followups: Sequence[str] = ()) -> StreamFn:
+    """A model that thinks, answers, and offers these follow-ups when the post-turn step asks."""
+
+    async def fn(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        if is_followup_request(messages):
+            yield "\n".join(followups) if followups else "No follow-ups."
+            return
+        if thought is not None:
+            yield {0: DeltaThinkingPart(content=thought)}
+        yield answer
+
+    return fn
 
 
 def make_settings(**overrides: object) -> Settings:
@@ -72,9 +108,22 @@ def session_factory(app: FastAPI, client: httpx.AsyncClient) -> sessionmaker[Ses
     return app.state.session_factory
 
 
+async def default_profile_id(client: httpx.AsyncClient) -> str:
+    """The profile the app seeds at startup."""
+    profiles = (await client.get("/api/profiles")).json()
+    return str(profiles[0]["id"])
+
+
 @pytest.fixture
-def profile_id(app: FastAPI, client: httpx.AsyncClient) -> str:
-    return app.state.profile_id
+async def profile_id(client: httpx.AsyncClient) -> str:
+    """The seeded profile's id. Every profile-scoped endpoint takes it explicitly."""
+    return await default_profile_id(client)
+
+
+async def new_conversation(client: httpx.AsyncClient, profile_id: str, slot: str = "fast") -> str:
+    response = await client.post("/api/conversations", json={"profile_id": profile_id, "model_slot": slot})
+    assert response.status_code == 201, response.text
+    return str(response.json()["id"])
 
 
 def ui_message(text: str, message_id: str = "u1") -> dict[str, object]:

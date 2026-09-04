@@ -12,6 +12,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 
+from finquery.api.profiles import get_profile_or_404
 from finquery.db import Account, Import
 from finquery.ingest.commit import commit_rows
 from finquery.ingest.csv_reader import (
@@ -180,6 +181,7 @@ async def preview_import(
 @router.post("/imports", response_model=ImportOut, status_code=201)
 async def create_import(
     request: Request,
+    profile_id: str = Form(...),
     file: UploadFile = File(...),
     mapping: str = Form(...),
     account_name: str = Form(...),
@@ -196,9 +198,10 @@ async def create_import(
     preset = detected if detected and mapping_for(detected, sniffed.header) == active else None
     account = account_name.strip() or "Imported account"
     with request.app.state.session_factory() as session:
+        get_profile_or_404(session, profile_id)
         record = commit_rows(
             session,
-            request.app.state.profile_id,
+            profile_id,
             rows=parsed.rows,
             mapping=active,
             account_name=account,
@@ -226,12 +229,13 @@ def _out(record: Import, account_name: str) -> ImportOut:
 
 
 @router.get("/imports", response_model=list[ImportOut])
-async def list_imports(request: Request) -> list[ImportOut]:
+async def list_imports(request: Request, profile_id: str) -> list[ImportOut]:
     with request.app.state.session_factory() as session:
+        get_profile_or_404(session, profile_id)
         rows = session.execute(
             select(Import, Account.name)
             .join(Account, Account.id == Import.account_id)
-            .where(Import.profile_id == request.app.state.profile_id)
+            .where(Import.profile_id == profile_id)
             .order_by(Import.created_at.desc())
         ).all()
         return [_out(record, account_name) for record, account_name in rows]

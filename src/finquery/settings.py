@@ -27,6 +27,6 @@ class Settings(BaseSettings):
 
     16k is the largest that keeps both Gemma 4 models resident inside the 18.2 GB Metal
     working set of a 24 GB Mac, with flash attention and a q8_0 KV cache. Raise it on a
-    machine with more memory. See docs/adr/0005-local-gemma-4-through-llama-cpp.md."""
+    machine with more memory. See docs/adr/0006-local-gemma-4-through-llama-cpp.md."""
     # OpenRouter's own tooling expects this exact name, so it is read without the prefix.
     openrouter_api_key: str | None = Field(default=None, validation_alias="OPENROUTER_API_KEY")

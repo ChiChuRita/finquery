@@ -102,7 +102,7 @@ class LlamaSlot:
             n_gpu_layers=-1,
             # Flash attention plus a q8_0 KV cache is what makes both models fit: it takes the
             # 12B's KV cache at 16k from 5.8 GB to 2.9 GB and its compute buffer from 1.2 GB to
-            # 0.5 GB. Measured numbers are in docs/adr/0005-local-gemma-4-through-llama-cpp.md.
+            # 0.5 GB. Measured numbers are in docs/adr/0006-local-gemma-4-through-llama-cpp.md.
             flash_attn=True,
             type_k=llama_cpp.GGML_TYPE_Q8_0,
             type_v=llama_cpp.GGML_TYPE_Q8_0,

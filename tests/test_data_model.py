@@ -31,8 +31,8 @@ def add_transaction(session: Session, profile_id: str, account_id: str, **fields
     return row
 
 
-async def test_default_taxonomy_is_seeded_for_the_profile(client: httpx.AsyncClient) -> None:
-    categories = (await client.get("/api/categories")).json()
+async def test_default_taxonomy_is_seeded_for_the_profile(client: httpx.AsyncClient, profile_id: str) -> None:
+    categories = (await client.get("/api/categories", params={"profile_id": profile_id})).json()
 
     assert [c["name"] for c in categories] == list(DEFAULT_TAXONOMY)
     assert len(categories) >= 15
@@ -54,7 +54,7 @@ async def test_split_children_replace_their_parent_in_the_query_view(
         add_transaction(session, profile_id, account.id, amount_cents=-399, description="Household", parent_id=parent.id)
         session.commit()
 
-    page = (await client.get("/api/transactions")).json()
+    page = (await client.get("/api/transactions", params={"profile_id": profile_id})).json()
 
     assert page["total"] == 2
     assert sorted(row["description"] for row in page["rows"]) == ["Groceries", "Household"]
@@ -72,4 +72,4 @@ async def test_split_children_must_sum_to_their_parent(
         with pytest.raises(SplitSumError):
             session.commit()
 
-    assert (await client.get("/api/transactions")).json()["total"] == 0
+    assert (await client.get("/api/transactions", params={"profile_id": profile_id})).json()["total"] == 0

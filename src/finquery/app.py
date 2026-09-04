@@ -8,10 +8,10 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from finquery.api import chat, conversations, imports, taxonomy, transactions
+from finquery.api import chat, conversations, imports, profiles, taxonomy, transactions
 from finquery.api import models as models_api
 from finquery.db import ensure_default_profile, make_session_factory
-from finquery.providers import MODEL_SLOTS, ModelResolver, build_local_stack, build_resolver
+from finquery.providers import MODEL_SLOTS, ModelResolver, build_local_stack, build_resolver, subagent_settings
 from finquery.settings import Settings
 
 if TYPE_CHECKING:
@@ -38,9 +38,10 @@ def create_app(
         app.state.settings = settings
         app.state.session_factory = make_session_factory(settings.db_path)
         with app.state.session_factory() as session:
-            app.state.profile_id = ensure_default_profile(session).id
+            ensure_default_profile(session)
         app.state.local = local if local is not None else (build_local_stack(settings) if settings.provider == "local" else None)
         app.state.resolve_model = resolve_model or build_resolver(settings, local=app.state.local)
+        app.state.subagent_settings = subagent_settings(settings)
         app.state.running_turns = {}
         yield
 
@@ -50,6 +51,7 @@ def create_app(
     async def health() -> dict[str, object]:
         return {"provider": settings.provider, "slots": list(MODEL_SLOTS)}
 
+    app.include_router(profiles.router, prefix="/api")
     app.include_router(conversations.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")
     app.include_router(imports.router, prefix="/api")

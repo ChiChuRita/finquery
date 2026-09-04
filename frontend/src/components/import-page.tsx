@@ -20,6 +20,7 @@ import {
 } from '@/lib/api'
 import { formatDate, formatEur } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { useWorkspace } from '@/lib/workspace'
 
 function MappingBadge({ preview }: { preview: ImportPreview }) {
   if (preview.mapping_source === 'model') {
@@ -71,6 +72,7 @@ function PreviewTable({ rows }: { rows: ImportPreview['rows'] }) {
 
 export function ImportPage() {
   const queryClient = useQueryClient()
+  const { profile } = useWorkspace()
   const fileInput = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<ImportPreview | null>(null)
@@ -88,12 +90,15 @@ export function ImportPage() {
   })
 
   const commitMutation = useMutation({
-    mutationFn: ({ chosen, mapping }: { chosen: File; mapping: CsvMapping }) =>
-      commitImport(chosen, mapping, accountName),
+    // The rows land in the profile the sidebar is showing, which is also the one the list reads.
+    mutationFn: ({ chosen, mapping }: { chosen: File; mapping: CsvMapping }) => {
+      if (!profile) throw new Error('No profile is active yet.')
+      return commitImport(profile.id, chosen, mapping, accountName)
+    },
     onSuccess: (record) => {
       setDone(record)
       clear()
-      void queryClient.invalidateQueries(importsQuery)
+      void queryClient.invalidateQueries(importsQuery(profile?.id))
     },
   })
 
