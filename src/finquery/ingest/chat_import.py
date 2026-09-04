@@ -1,10 +1,10 @@
 """Importing a file the user dropped into the chat, as one call the `import_file` tool makes.
 
-Same pipeline as the Import page, same functions: sniff the CSV, take the preset or ask the
+Same pipeline as the REST commit, same functions: sniff the CSV, take the preset or ask the
 mapping sub-agent, commit the rows, categorize them. The two differences are where the file
 comes from (a stored attachment instead of a multipart upload) and how the user confirms a
-mapping nobody has a preset for: the Import page shows a preview, a chat shows a Question card,
-so this returns the card and is called a second time with `confirmed=True`.
+mapping nobody has a preset for: a chat shows a Question card, so this returns the card and is
+called a second time with `confirmed=True`.
 
 Every figure in what it returns is counted here, so the assistant can only quote numbers the
 import really produced. Progress is reported through `report` as it goes; see
@@ -18,8 +18,8 @@ Three readers, one router. The kind of the attachment decides:
   same way a preset CSV is; anything else comes back as a review card first (ADR 0011).
 - an **image** is a receipt: `finquery.extract.bill` reads its line items and either proposes a
   split of the booking it matches or previews a new one. A photo dropped into a chat is a till
-  receipt, which is what makes this the right guess to make here; a photo of a statement page
-  belongs on the Import page, where it is read as a page.
+  receipt, which is what makes this the right guess to make here; a photo of a statement page is
+  read as a page only by `POST /api/imports/extract`, which no screen calls.
 
 Whichever reader produced them, the rows are committed by `ingest.commit.commit_rows`, so a
 file may hold bookings the profile already has and none of them is inserted or dropped in
@@ -259,8 +259,8 @@ async def _mapping_for_file(
             "instruction": (
                 "Show this `card` with `ask_user`, unchanged. If the user answers "
                 f"{CONFIRM!r}, call `import_file` again for this file with confirmed=true. "
-                "If they answer anything else, import nothing and say the mapping can be "
-                "corrected on the Import page."
+                "If they answer anything else, import nothing and offer to read the file again with "
+                "the columns they name."
             ),
         },
     )

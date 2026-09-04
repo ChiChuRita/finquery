@@ -4,7 +4,7 @@ German exports are the hard case. Semicolons, cp1252, `1.234,56`, `DD.MM.YYYY`, 
 preamble above the header and sometimes separate debit and credit columns instead of one signed
 amount. The six named banks are recognized by their headers so the common case never asks the
 model; anything else gets a mapping proposed by the fast slot (see `mapping_agent.py`) and
-corrected by the user in the Import page preview.
+corrected by the user on the Question card that confirms a mapping.
 """
 
 import csv

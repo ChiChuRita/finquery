@@ -244,8 +244,8 @@ def data_brief(ctx: RunContext[ChatDeps]) -> str:
     if context.transaction_count == 0:
         return (
             "This profile has no transactions yet. Do not call `query` or `chart`, and do not state any number: "
-            "tell the user the profile is empty and that a bank statement can be dropped into this "
-            "chat or imported on the Import page."
+            "tell the user the profile is empty and that a bank statement, a CSV export or a photo can "
+            "be dropped into this chat and you will import it."
         )
     # The subcategories are here because a changeset names them, and a name it invents is refused.
     taxonomy = "; ".join(f"{name} ({', '.join(subs)})" if subs else name for name, subs in context.taxonomy)
@@ -610,7 +610,7 @@ async def import_file(
 ) -> dict[str, Any]:
     """Import a file the user attached to this conversation.
 
-    Runs the same pipeline as the Import page: it reads the CSV, takes the preset of a bank we
+    Runs the pipeline behind `/api/imports`: it reads the CSV, takes the preset of a bank we
     recognize or asks for a proposed mapping to be confirmed, commits the bookings the profile
     does not have yet, and categorizes them. Every figure it returns was counted while it ran.
     Progress appears in the transcript while it works, so nothing has to be reported in prose.

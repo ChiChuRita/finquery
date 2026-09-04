@@ -9,10 +9,11 @@ payment is real data and a re-imported statement is not, and only the user knows
 
 The question is one card, `ask_user` with `apply.kind = duplicate_decision`, so
 `finquery.answers` applies the answers in code before the model runs again: Keep both inserts
-the booking from these columns and categorizes it, Remove leaves the data as it was. The Import
-page asks the same question through `/api/imports/{id}/duplicates`, applying through the same
-function. A re-import of an identical file would otherwise be hundreds of identical questions,
-so a card with more exact candidates than it can hold also offers to remove them all at once.
+the booking from these columns and categorizes it, Remove leaves the data as it was. The same
+question is answerable over REST through `/api/imports/{id}/duplicates`, applying through the
+same function. A re-import of an identical file would otherwise be hundreds of identical
+questions, so a card with more exact candidates than it can hold also offers to remove them all
+at once.
 
 Every existing booking is matched at most once, so a genuinely repeated payment (two coffees
 of the same amount in the same week) still lands: the second one finds nothing left to match.
@@ -470,8 +471,8 @@ async def apply_decisions(
     followed by categorization of exactly those rows.
 
     `remove_all_exact` is the group answer: every pending exact candidate, of one import when
-    `import_id` names one (the Import page asks per import) and of the profile otherwise (the
-    card's group row counts the profile, which is what `review` shows).
+    `import_id` names one (a review conversation asks per import) and of the profile otherwise
+    (the card's group row counts the profile, which is what `review` shows).
     """
     found = by_ref(session, profile_id, list(decisions))
     chosen: list[tuple[DuplicateCandidate, str]] = []

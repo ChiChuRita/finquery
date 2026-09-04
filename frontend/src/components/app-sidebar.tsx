@@ -96,10 +96,11 @@ export function AppSidebar() {
         <Link
           activeProps={{ className: 'bg-sidebar-accent font-medium' }}
           className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
+          title="What every file you dropped into a chat brought in"
           to="/import"
         >
           <UploadIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          Import
+          Imports
         </Link>
         <Link
           activeProps={{ className: 'bg-sidebar-accent font-medium' }}

@@ -287,8 +287,8 @@ export function TransactionsPage() {
             {hasFilters(filters)
               ? 'Widen the date range or clear the filters.'
               : accounts.length > 0
-                ? 'Import a bank CSV on the Import page, or add one by hand.'
-                : 'Import a bank CSV on the Import page. Manual rows need an account to book against.'}
+                ? 'Drop a bank statement into the chat, or add a booking by hand.'
+                : 'Drop a bank statement into the chat. Manual rows need an account to book against.'}
           </p>
         </div>
       ) : (

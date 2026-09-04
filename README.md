@@ -85,46 +85,52 @@ FINQUERY_PROVIDER=local FINQUERY_SMOKE=1 uv run pytest tests/test_local_smoke.py
 
 ## Data
 
-Import a bank CSV export, a statement PDF or a photo on `/import`: drop the file, check what was
-read, commit. Sparkasse, DKB, ING, N26, comdirect and Trade Republic are recognized by their CSV
-headers; any other bank gets a mapping proposed by the fast slot and edited in the preview. The
-Sparkasse and Trade Republic statement layouts are recognized by their page headers.
+Import a bank CSV export by dropping it on the chat composer and sending it: the assistant runs
+the import as a tool call, with the rows read, imported and categorized ticking past in the tool
+step. Sparkasse, DKB, ING, N26, comdirect and Trade Republic are recognized by their CSV headers;
+any other bank gets a mapping proposed by the fast slot and confirmed on a Question card before
+anything is written. Statement PDFs and photos are dropped on the composer the same way, and the
+Sparkasse and Trade Republic statement layouts are recognized by their page headers. Typing "I
+paid 12 EUR cash for lunch today" or pasting a few statement lines gives a preview card to
+confirm, and confirming writes the booking and categorizes it.
 
 A commit never inserts a booking the profile may already have, and never drops one either.
 A row that matches an existing booking exactly (same account, date, amount and normalized
 description) or nearly (same amount, at most two days apart, a similar description) is held
-aside as a duplicate candidate, and the page asks about each one with Keep both or Remove.
-Keeping inserts the booking and categorizes it; removing leaves the data as it was. Re-importing
-the same statement is hundreds of exact matches, so that card offers to remove them all in one
-click. In a chat the same question arrives as a Question card, five candidates at a time.
+aside as a duplicate candidate, and a Question card asks about each one with Keep both or Remove,
+five candidates at a time. Keeping inserts the booking and categorizes it; removing leaves the
+data as it was. Re-importing the same statement is hundreds of exact matches, so that card offers
+to remove them all in one click.
 
 The commit is followed by categorization in stages: your own category rules, a dictionary
 of about sixty German merchants, then, if you switched web lookup on, a web lookup of the
 merchants nobody recognizes, and finally the categorizer sub-agent on the fast slot with a
 confidence per merchant. Every row gets a friendly title and a short description. What stays
-below the confidence threshold is Needs review, and the page hands those merchants to a new
-conversation that asks about them in Question cards. Each answer becomes a category rule and
-recategorizes every booking of that merchant, and telling the assistant "PayPal to Anna is
-always Dining" in chat does the same.
+below the confidence threshold is Needs review, and the assistant asks about those merchants in
+Question cards right there. Each answer becomes a category rule and recategorizes every booking
+of that merchant, and telling the assistant "PayPal to Anna is always Dining" in chat does the
+same.
 
-A statement PDF works the same way on the same page. Its pages are read from the text layer
-with pdfplumber, four at a time, and the extraction sub-agent answers with the literal spans it
-read each figure from. Two guards then decide whether the rows can be trusted: every amount,
-balance and date has to occur in the text of the page it was read from, and the statement has to
-reconcile, per row on its running balance, per page and as a whole. A page with no text layer is
-rendered at 150 dpi and looked at by the vision path instead. What passes is imported; what does
-not is shown in a review table with accept, correct and drop per row, and the verdict is one
-sentence that stays on the import record. See `docs/adr/0011-two-guards-on-every-extracted-figure.md`.
+A statement PDF is read from the text layer with pdfplumber, four pages at a time, and the
+extraction sub-agent answers with the literal spans it read each figure from. Two guards then
+decide whether the rows can be trusted: every amount, balance and date has to occur in the text of
+the page it was read from, and the statement has to reconcile, per row on its running balance, per
+page and as a whole. A page with no text layer is rendered at 150 dpi and looked at by the vision
+path instead. What passes is imported; what does not is asked about on a Question card with
+Accept and Drop per flagged row, and the verdict is one sentence that stays on the import record.
+See `docs/adr/0011-two-guards-on-every-extracted-figure.md`.
 
-A CSV can also go straight into the chat: drop it on the composer, send it, and the assistant
-runs the same pipeline as a tool call, with the rows read, imported and categorized ticking past
-in the tool step and the uncertain merchants asked about right there. An unknown bank layout is
-confirmed on a Question card first. A statement PDF dropped into a chat is read the same way and
-imported when it reconciles, or asked about on a Question card when it does not. A photo is read
-as a receipt: when its total matches a booking within three days the assistant proposes a split
-of that booking into the receipt's line items, grouped by category, and otherwise it previews a
-new booking. Typing "I paid 12 EUR cash for lunch today" or pasting a few statement lines gives a
-preview card to confirm, and confirming writes the booking and categorizes it.
+A photo is read as a receipt: when its total matches a booking within three days the assistant
+proposes a split of that booking into the receipt's line items, grouped by category, and otherwise
+it previews a new booking.
+
+`/import` is the overview of what all of this produced, and imports nothing itself: per past
+import the file, its kind, the account, when it ran, how many rows were read and how many landed,
+how many duplicates it found and how many of them are still undecided, the reconciliation verdict
+and how many of its bookings are still Needs review. An import with something open carries a
+"Continue in chat" link into the conversation it came from, and every import has a Delete that
+takes its bookings, its candidates and the decisions on them with it, which is the way back from
+an import into the wrong profile.
 
 Then ask in the chat. The query sub-agent writes the SQL on the fast slot, a guard admits only a
 single read-only SELECT over your own transactions, and the tool step in the transcript shows the

@@ -2,8 +2,8 @@
 
 A statement whose guards all passed is imported without asking (`finquery.extract.statement`).
 Anything else stops here, because a figure nobody can vouch for must not become a booking
-behind the user's back. On the Import page the review is a table with accept, edit and drop per
-row; in a chat it is a Question card, and this module is that card plus its applier.
+behind the user's back. The review is a Question card with Accept and Drop per flagged row,
+and this module is that card plus its applier.
 
 The applier is the point. The answers are acted on in code before the model runs again (ADR
 0008): the rows the user accepted, plus every row the guards passed, are committed through

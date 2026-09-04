@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 from finquery.db import Attachment
 
 MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
-"""Per file, the same ceiling the Import page puts on an upload."""
+"""Per file, the same ceiling the REST upload endpoint puts on a file."""
 
 MAX_FILES_PER_MESSAGE = 5
 

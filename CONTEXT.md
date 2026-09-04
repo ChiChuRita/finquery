@@ -43,8 +43,8 @@ found and what was decided about them, reconciliation result. Avoid: upload, syn
 **Duplicate candidate**: a booking an ingestion did not insert because the profile may already
 have it, either exactly (same account, date, amount and normalized description) or nearly (same
 amount, at most two days apart, a similar description). It is not a transaction and it is not
-lost: the user answers **Keep both** (insert it) or **Remove** (leave the data as it is), on the
-Import page or on a Question card, and the decision stays on the candidate. Avoid: duplicate
+lost: the user answers **Keep both** (insert it) or **Remove** (leave the data as it is), on a
+Question card in the chat, and the decision stays on the candidate. Avoid: duplicate
 (what is a duplicate is the user's call, not ours), conflict, collision.
 
 **Extraction**: what the extraction sub-agent read out of one PDF or photo, before anything is
@@ -66,13 +66,13 @@ Avoid: invalid row, error row.
 
 **Column mapping**: which column of an uploaded CSV is the date, the amount (or the debit and
 credit pair), the description and the counterparty, plus its date format and decimal separator.
-Always shown to the user before a commit: in the Import page preview, or on a Question card when
-the file was dropped into a chat. Not to be confused with a Category rule, which the glossary
+Always shown to the user before a commit, on the Question card the chat asks it with. Not to be
+confused with a Category rule, which the glossary
 keeps clear of the word mapping. Avoid: schema, layout.
 
 **Attachment**: a file dropped into the chat composer, stored per conversation and identified by
 its file name, which is also the handle the `import_file` tool takes. The bytes never enter the
-prompt. Avoid: upload (an upload is what the Import page takes), file part.
+prompt. Avoid: upload (an upload is what the REST import endpoints take), file part.
 
 **Transaction draft**: one booking extracted from what the user typed or pasted, stored with a
 short ref and inert until they confirm it on the preview card. Confirming writes the booking

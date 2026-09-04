@@ -252,7 +252,7 @@ async def extract(client: httpx.AsyncClient, path: Path, media_type: str = "appl
 
 
 def commit_body(profile_id: str, extraction: dict[str, Any], rows: list[dict[str, Any]], dropped: int = 0) -> dict[str, Any]:
-    """What the Import page posts after the review: the rows as they stood on screen."""
+    """What a caller posts after the review: the rows as they stood when they were accepted."""
     return {
         "profile_id": profile_id,
         "file_name": extraction["file_name"],
