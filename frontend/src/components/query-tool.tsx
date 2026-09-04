@@ -45,12 +45,13 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-function Result({ output }: { output: QueryToolOutput }) {
+function Result({ output, hints }: { output: QueryToolOutput; hints?: string | null }) {
   const fractional = fractionalColumns(output)
   return (
     <>
       <Section label="Request">
         <p className="text-sm">{output.request}</p>
+        {hints && <p className="text-muted-foreground text-sm">Hints: {hints}</p>}
       </Section>
       {output.sql && (
         <Section label="SQL that ran">
@@ -106,7 +107,7 @@ export function QueryToolStep({ part }: { part: QueryToolPart }) {
       <ToolHeader state={part.state} title={title(part)} type="tool-query" />
       <ToolContent>
         {part.state === 'output-available' ? (
-          <Result output={part.output} />
+          <Result hints={part.input?.hints} output={part.output} />
         ) : (
           <>
             <Section label="Request">
