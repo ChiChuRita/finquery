@@ -97,7 +97,8 @@ export function QuestionCard({
         <HelpCircleIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
         <div className="min-w-0">
           <p className="font-medium text-sm">{input.title}</p>
-          {input.note && <p className="mt-0.5 text-muted-foreground text-xs">{input.note}</p>}
+          {/* A mapping card writes its columns and sample rows over several lines. */}
+          {input.note && <p className="mt-0.5 whitespace-pre-line text-muted-foreground text-xs">{input.note}</p>}
         </div>
       </div>
 
@@ -141,7 +142,7 @@ export function QuestionCard({
                         className="h-7 text-xs"
                         disabled={!open}
                         onChange={(event) => type(row.ref, event.target.value)}
-                        placeholder="or type a category"
+                        placeholder="or type an answer"
                         value={choice?.text ?? ''}
                       />
                     )}

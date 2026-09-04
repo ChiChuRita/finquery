@@ -19,12 +19,14 @@ from pydantic_ai.exceptions import RunCancelled
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, ModelResponse, ToolReturnPart
 from pydantic_ai.tools import DeferredToolResults
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
-from pydantic_ai.ui.vercel_ai.request_types import DataUIPart, ToolOutputAvailablePart, UIMessage
+from pydantic_ai.ui.vercel_ai.request_types import DataUIPart, FileUIPart, ToolOutputAvailablePart, UIMessage
 from pydantic_ai.ui.vercel_ai.response_types import BaseChunk, DataChunk, MessageMetadataChunk
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.agent import ChatDeps, chat_agent
+from finquery.api.attachments import store_uploads, take_uploads, turn_chips
 from finquery.api.conversations import get_conversation_or_404
+from finquery.attachments import AttachmentRejected
 from finquery.context import (
     Assembly,
     TurnMessages,
@@ -226,13 +228,16 @@ def persist_turn(
     slot: str,
     metadata: dict[str, object] | None = None,
     data_parts: Sequence[DataUIPart] = (),
+    attachments: Sequence[FileUIPart] = (),
     replaces: str | None = None,
 ) -> None:
     """Store one turn as both message families: what the model sees and what the UI renders.
 
     The data parts the client saw streamed are appended to the turn's assistant message, so
     streaming a part and storing it is one code path and a reloaded transcript renders exactly
-    what the live one did.
+    what the live one did. `attachments` are the same idea on the user's side: the file parts
+    were taken out of the request so the bytes would stay out of the prompt, and these chips put
+    them back into the transcript.
 
     `replaces` rewrites an existing turn instead of appending one. That is how a turn which
     ended on a pending `ask_user` call becomes whole once the answer arrives: the messages of
@@ -251,6 +256,8 @@ def persist_turn(
     if ui_messages and ui_messages[-1].role == "assistant":
         ui_messages[-1].metadata = {**(ui_messages[-1].metadata or {}), **metadata}
         ui_messages[-1].parts.extend(data_parts)
+    if attachments and (user := next((m for m in ui_messages if m.role == "user"), None)) is not None:
+        user.parts.extend(attachments)
     with session_factory() as session:
         conversation = session.get(Conversation, conversation_id)
         if conversation is None:
@@ -352,6 +359,20 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # The server owns the history: only the newest client message is appended to it.
     adapter.run_input.messages = [] if answers else adapter.run_input.messages[-1:]
 
+    # Attachments are taken out of the message before the agent is given it: the bytes are
+    # stored per conversation and read by `import_file`, and only chips travel into the
+    # transcript. The position they are stored under is the turn being written, which a
+    # rewritten turn keeps, so answering a card does not lose the chip.
+    turn_position = max(0, len(stored.turns) - 1) if answers else len(stored.turns)
+    try:
+        uploads = take_uploads(adapter.run_input.messages)
+        with state.session_factory() as session:
+            if uploads:
+                store_uploads(session, profile_id, conversation_id, turn_position, uploads)
+            chips = turn_chips(session, conversation_id, turn_position)
+    except AttachmentRejected as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     deps = ChatDeps(
         session_factory=state.session_factory,
         profile_id=profile_id,
@@ -425,6 +446,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
             slot=slot,
             metadata=metadata,
             data_parts=data_parts,
+            attachments=chips,
             replaces=replaces,
         )
 

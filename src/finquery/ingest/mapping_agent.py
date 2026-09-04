@@ -1,13 +1,19 @@
 """The mapping sub-agent: it proposes a column mapping for a bank we do not have a preset for.
 
-Fast slot, one forced tool call, no free-form text. The user always sees the proposal in the
-Import page preview and can correct every field before anything is committed, so a wrong guess
-costs a click. Files from a recognized bank never reach this module.
+Fast slot, one forced tool call, no free-form text. The user always sees the proposal before
+anything is committed and can correct every field, in the Import page preview or, when the file
+was dropped into a chat, on the Question card `import_file` asks with. So a wrong guess costs a
+click. Files from a recognized bank never reach this module.
+
+`propose` is the whole call: it runs the sub-agent and snaps the column names it answered with
+onto the real header, so a caller only ever sees a mapping the file can be parsed with.
 """
 
 from pydantic_ai import Agent, ToolOutput
+from pydantic_ai.models import Model
+from pydantic_ai.settings import ModelSettings
 
-from finquery.ingest.csv_reader import ProposedMapping, Sniffed
+from finquery.ingest.csv_reader import ProposedMapping, Sniffed, normalize
 
 INSTRUCTIONS = """\
 You map the columns of a bank CSV export onto a fixed set of fields. You are given the header
@@ -28,11 +34,46 @@ Rules:
 
 SAMPLE_ROWS = 5
 
+
+class MappingUnusable(ValueError):
+    """The model answered, but not with a mapping this file can be read by."""
+
+
 mapping_agent = Agent(
     instructions=INSTRUCTIONS,
     output_type=ToolOutput(ProposedMapping, name="propose_mapping"),
     name="finquery-csv-mapping",
 )
+
+
+async def propose(
+    sniffed: Sniffed,
+    file_name: str,
+    *,
+    model: Model,
+    model_settings: ModelSettings | None = None,
+) -> ProposedMapping:
+    """One mapping proposal for a header no preset recognized.
+
+    Raises `MappingUnusable` when the model names a column the file does not have, which is the
+    one failure a caller cannot repair. A name that only differs in case or punctuation from the
+    real header is repaired here instead of refused.
+    """
+    result = await mapping_agent.run(
+        mapping_prompt(sniffed, file_name), model=model, model_settings=model_settings
+    )
+    proposal = result.output
+    known = {normalize(name): name for name in sniffed.header}
+    columns = {
+        name: value
+        for name, value in proposal.mapping.model_dump().items()
+        if name.endswith("_column") and value is not None
+    }
+    unknown = [value for value in columns.values() if normalize(value) not in known]
+    if unknown:
+        raise MappingUnusable(f"The model proposed columns the file does not have: {', '.join(unknown)}.")
+    mapping = proposal.mapping.model_copy(update={name: known[normalize(value)] for name, value in columns.items()})
+    return proposal.model_copy(update={"mapping": mapping})
 
 
 def mapping_prompt(sniffed: Sniffed, file_name: str) -> str:

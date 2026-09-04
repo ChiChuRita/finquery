@@ -1,9 +1,10 @@
 """The chat agent: its system prompt, the deps one turn hands it, and its tools.
 
 The model is chosen per run from the conversation's slot. Tools get what they need from
-`ChatDeps`, so the agent itself holds no application state. `query`, `remember`, `set_rule` and
-`review_batch` are the tools; later tickets add chart, import_file and propose_changeset the
-same way, and each one that needs a model resolves its own slot through the deps.
+`ChatDeps`, so the agent itself holds no application state. `query`, `remember`, `set_rule`,
+`review_batch`, `import_file`, `extract_transaction` and `add_transaction` are the tools; later
+tickets add chart and propose_changeset the same way, and each one that needs a model resolves
+its own slot through the deps.
 
 `ask_user` is the odd one out: it has no function, because a human answers it in the browser.
 See `finquery.ask_user` and ADR 0008.
@@ -13,6 +14,7 @@ Selected memories and the rolling summary arrive as run instructions assembled b
 """
 
 from dataclasses import dataclass
+from functools import partial
 from typing import Any
 
 from pydantic_ai import Agent, RunContext
@@ -20,12 +22,16 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.orm import Session, sessionmaker
 
+from finquery import attachments
 from finquery.ask_user import ask_user_toolset
 from finquery.categorize import QUESTIONS_PER_CARD, pending_questions
 from finquery.categorize import set_rule as store_category_rule
 from finquery.categorize import split_choice
+from finquery.ingest.chat_import import import_attachment
+from finquery.ingest.typed import add_draft, find_draft, preview_card, propose_transactions, store_drafts
 from finquery.memory import MemoryKind, add_memory
-from finquery.providers import ModelResolver
+from finquery.progress import report as report_progress
+from finquery.providers import ModelResolver, ProviderNotAvailable
 from finquery.query import load_query_context, run_query
 
 SYSTEM_PROMPT = """\
@@ -78,6 +84,31 @@ Categories and rules:
 - After the rules are stored, call `review_batch` again and ask the next card, until nothing is
   pending or the user asks you to stop. When nothing is pending, say so in one line.
 
+Files the user attaches:
+- `import_file` is what turns an attached file into transactions. Call it once per file, with
+  the file name exactly as the list of attached files spells it, and pass `account_name` only
+  when the user named an account.
+- A CSV from a bank we recognize is imported straight away. For an unknown layout the tool comes
+  back asking for the column mapping to be confirmed: show its `card` with `ask_user`
+  unchanged, and when the user confirms, call `import_file` again for the same file with
+  `confirmed=true`.
+- When a file is imported the tool returns a `summary` counted in code and the merchants it
+  could not place. Say the summary in one line, quoting its figures, and hand the `questions`
+  straight to `ask_user` as a Question card, exactly as you do after `review_batch`.
+- A PDF or a photo is stored but cannot be read yet. Pass the tool's `message` on as it is; it
+  is not an error and there is nothing to retry.
+
+Transactions the user types or pastes:
+- When the user says they spent or received money ("I paid 12 EUR cash for lunch today", "Ich
+  habe 20 Euro fuer Blumen bezahlt") or pastes lines out of a statement, call
+  `extract_transaction` with their words as they wrote them. Never write such a booking from
+  your own reading of the sentence.
+- It answers with a `card`: show that with `ask_user` unchanged. For every row the user
+  confirms, call `add_transaction` with that row's `ref`. Never call it for a row they
+  discarded, and never retype the date or the amount: the `ref` is the whole instruction.
+- Then say in one line what was added and where it landed, from what `add_transaction`
+  returned.
+
 After a tool returns, always write the answer as text. Never finish a turn with your thinking
 alone, and never mention the internal feedback you may receive between steps.
 
@@ -122,8 +153,8 @@ def data_brief(ctx: RunContext[ChatDeps]) -> str:
     if context.transaction_count == 0:
         return (
             "This profile has no transactions yet. Do not call `query` and do not state any number: "
-            "tell the user the profile is empty and that a bank statement can be imported on the "
-            "Import page."
+            "tell the user the profile is empty and that a bank statement can be dropped into this "
+            "chat or imported on the Import page."
         )
     lines = [
         f"Today is {context.today.isoformat()}. The profile holds {context.transaction_count} bookings from "
@@ -141,6 +172,18 @@ def data_brief(ctx: RunContext[ChatDeps]) -> str:
             "`review_batch` is how you ask about them."
         )
     return "\n".join(lines)
+
+
+@chat_agent.instructions
+def attached_files(ctx: RunContext[ChatDeps]) -> str:
+    """The files dropped into this conversation, by name, with what has happened to them.
+
+    The bytes never enter the prompt (a bank CSV would be tens of thousands of tokens): the file
+    name is the handle, and `import_file` reads the stored file. It is an instruction rather than
+    part of the user's message so that a later turn still knows the file is there.
+    """
+    with ctx.deps.session_factory() as session:
+        return attachments.brief(attachments.of_conversation(session, ctx.deps.conversation_id))
 
 
 @chat_agent.tool
@@ -243,3 +286,120 @@ async def review_batch(ctx: RunContext[ChatDeps], limit: int = QUESTIONS_PER_CAR
         "pending_merchants": pending,
         "questions": [question.payload() for question in questions],
     }
+
+
+@chat_agent.tool
+async def import_file(
+    ctx: RunContext[ChatDeps],
+    file_name: str,
+    account_name: str | None = None,
+    confirmed: bool = False,
+) -> dict[str, Any]:
+    """Import a file the user attached to this conversation.
+
+    Runs the same pipeline as the Import page: it reads the CSV, takes the preset of a bank we
+    recognize or asks for a proposed mapping to be confirmed, commits the bookings the profile
+    does not have yet, and categorizes them. Every figure it returns was counted while it ran.
+    Progress appears in the transcript while it works, so nothing has to be reported in prose.
+
+    Args:
+        file_name: The attached file, spelled as the list of attached files spells it.
+        account_name: The account the bookings belong to, only when the user named one.
+            Otherwise the bank of the export decides.
+        confirmed: True only when you are calling again after the user confirmed the column
+            mapping on the card this tool asked with.
+    """
+    with ctx.deps.session_factory() as session:
+        return await import_attachment(
+            session,
+            ctx.deps.profile_id,
+            ctx.deps.conversation_id,
+            file_name=file_name,
+            account_name=account_name,
+            confirmed=confirmed,
+            resolve_model=ctx.deps.resolve_model,
+            model_settings=ctx.deps.subagent_settings,
+            report=partial(report_progress, ctx),
+        )
+
+
+@chat_agent.tool
+async def extract_transaction(ctx: RunContext[ChatDeps], text: str) -> dict[str, Any]:
+    """Read the bookings out of what the user typed or pasted, as a preview they confirm.
+
+    Writes nothing. It stores a draft per booking and returns the card to show: the user
+    confirms or discards each row, and `add_transaction` writes the confirmed ones from the
+    stored draft, so the amount that lands is the amount that was shown.
+
+    Args:
+        text: What the user wrote, as they wrote it: the sentence about the payment or the
+            statement lines they pasted. German or English.
+    """
+    with ctx.deps.session_factory() as session:
+        context = load_query_context(session, ctx.deps.profile_id)
+        try:
+            model = ctx.deps.resolve_model("fast")
+            proposals = await propose_transactions(
+                text,
+                today=context.today,
+                accounts=list(context.accounts),
+                model=model,
+                model_settings=ctx.deps.subagent_settings,
+            )
+        except ProviderNotAvailable as exc:
+            return {"status": "unavailable", "error": str(exc)}
+        except Exception as exc:  # noqa: BLE001 - a failed extraction is a message, not a crash
+            return {"status": "failed", "error": f"The booking could not be read: {exc}"}
+        drafts, problems = store_drafts(session, ctx.deps.profile_id, ctx.deps.conversation_id, proposals)
+        if not drafts:
+            return {
+                "status": "nothing_found",
+                "error": "No booking with a date and an amount could be read from that text.",
+                "problems": problems,
+            }
+        card = preview_card(drafts)
+        return {
+            "status": "preview",
+            "drafts": [
+                {
+                    "ref": draft.ref,
+                    "booked_on": draft.booked_on.isoformat(),
+                    "amount_cents": draft.amount_cents,
+                    "description": draft.description,
+                    "counterparty": draft.counterparty,
+                    "account": draft.account_name,
+                }
+                for draft in drafts
+            ],
+            "problems": problems,
+            "card": card.model_dump(mode="json"),
+            "instruction": (
+                "Show this `card` with `ask_user`, unchanged. Then call `add_transaction` once "
+                "per row the user confirmed, with that row's `ref`."
+            ),
+        }
+
+
+# One confirmed card can hold several rows, so the model emits several calls in one response.
+# They write, and SQLite serializes writers, so they run one after another.
+@chat_agent.tool(sequential=True)
+async def add_transaction(ctx: RunContext[ChatDeps], ref: str) -> dict[str, Any]:
+    """Write one transaction the user confirmed on a preview card, and categorize it.
+
+    The booking is written from the stored draft, not from anything you pass here, so the ref is
+    all it takes. Calling it twice for the same ref adds nothing.
+
+    Args:
+        ref: The `ref` of the confirmed row, for instance `t1`.
+    """
+    with ctx.deps.session_factory() as session:
+        draft = find_draft(session, ctx.deps.conversation_id, ref)
+        if draft is None:
+            return {"status": "no_such_draft", "ref": ref, "error": f"No preview row called {ref!r}."}
+        return await add_draft(
+            session,
+            ctx.deps.profile_id,
+            draft,
+            resolve_model=ctx.deps.resolve_model,
+            model_settings=ctx.deps.subagent_settings,
+        )

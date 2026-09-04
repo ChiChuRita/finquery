@@ -1,20 +1,30 @@
-import type { ChatStatus } from 'ai'
-import { useEffect } from 'react'
+import type { ChatStatus, FileUIPart } from 'ai'
+import { FileTextIcon, ImageIcon, PaperclipIcon, XIcon } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 
 import {
   PromptInput,
   PromptInputBody,
+  PromptInputButton,
   PromptInputFooter,
   PromptInputProvider,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
+  usePromptInputAttachments,
   usePromptInputController,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
 import { ModelPicker } from '@/components/model-picker'
 import type { ModelSlot } from '@/lib/api'
 import { readDraft, writeDraft } from '@/lib/workspace'
+
+/** What the server stores (see `finquery.attachments`): a bank CSV, a statement PDF, a bill photo.
+ *  The extensions are for the file dialog, the media types are what the drop is checked against. */
+const ACCEPT =
+  '.csv,.tsv,.txt,.pdf,text/csv,text/plain,text/tab-separated-values,application/csv,application/vnd.ms-excel,application/pdf,image/*'
+const MAX_FILES = 5
+const MAX_FILE_BYTES = 20 * 1024 * 1024
 
 export function Composer({
   status,
@@ -26,7 +36,7 @@ export function Composer({
   draftId,
 }: {
   status: ChatStatus
-  onSubmit: (text: string) => void | Promise<void>
+  onSubmit: (text: string, files: FileUIPart[]) => void | Promise<void>
   onStop?: () => void
   slot: ModelSlot
   onSlotChange: (slot: ModelSlot) => void
@@ -35,25 +45,41 @@ export function Composer({
   draftId?: string
 }) {
   const busy = status === 'submitted' || status === 'streaming'
+  const [rejected, setRejected] = useState<string>()
+  // Stable, so the chips do not re-run their effect on every render of the composer.
+  const clearRejected = useCallback(() => setRejected(undefined), [])
 
   // Not awaited: the composer clears as soon as the message is on its way, not when the turn ends.
   const handleSubmit = (message: PromptInputMessage) => {
     const text = message.text.trim()
-    if (!text || busy) return
-    void onSubmit(text)
+    // A file dropped in and sent without a word is a message: the server gives that turn its
+    // one sentence, so an empty box with an attachment still sends.
+    if ((!text && message.files.length === 0) || busy) return
+    setRejected(undefined)
+    void onSubmit(text, message.files)
   }
 
   const input = (
-    <PromptInput className="rounded-2xl shadow-xs" maxFiles={0} onSubmit={handleSubmit}>
+    <PromptInput
+      accept={ACCEPT}
+      className="rounded-2xl shadow-xs"
+      maxFileSize={MAX_FILE_BYTES}
+      maxFiles={MAX_FILES}
+      multiple
+      onError={(error) => setRejected(error.message)}
+      onSubmit={handleSubmit}
+    >
       <PromptInputBody>
+        <Attachments onClear={clearRejected} rejected={rejected} />
         <PromptInputTextarea
           autoFocus={autoFocus}
           className="min-h-14 text-base md:text-sm"
-          placeholder="Ask about your spending..."
+          placeholder="Ask about your spending, or drop a statement..."
         />
       </PromptInputBody>
       <PromptInputFooter>
         <PromptInputTools>
+          <AttachButton />
           <ModelPicker onChange={onSlotChange} value={slot} />
         </PromptInputTools>
         <PromptInputSubmit className="rounded-full" onStop={onStop} status={status} />
@@ -67,6 +93,62 @@ export function Composer({
       <DraftKeeper conversationId={draftId} />
       {input}
     </PromptInputProvider>
+  )
+}
+
+function AttachButton() {
+  const attachments = usePromptInputAttachments()
+  return (
+    <PromptInputButton
+      aria-label="Attach a CSV, PDF or photo"
+      onClick={() => attachments.openFileDialog()}
+      tooltip="Attach a CSV, a statement PDF or a photo"
+      type="button"
+      variant="ghost"
+    >
+      <PaperclipIcon className="size-4" />
+    </PromptInputButton>
+  )
+}
+
+/** The chips above the textarea: what will be sent with this message, each removable. */
+function Attachments({ rejected, onClear }: { rejected?: string; onClear: () => void }) {
+  const attachments = usePromptInputAttachments()
+
+  useEffect(() => {
+    if (attachments.files.length > 0) onClear()
+  }, [attachments.files.length, onClear])
+
+  if (attachments.files.length === 0 && !rejected) return null
+  return (
+    <div className="flex w-full flex-wrap items-center justify-start gap-2 px-3 pt-3">
+      {attachments.files.map((file) => (
+        <span
+          className="inline-flex max-w-full items-center gap-1.5 rounded-full border bg-muted/40 py-1 pl-2.5 pr-1 text-xs"
+          key={file.id}
+        >
+          {file.mediaType?.startsWith('image/') ? (
+            <ImageIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          ) : (
+            <FileTextIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          )}
+          <span className="truncate">{file.filename ?? 'attachment'}</span>
+          <button
+            aria-label={`Remove ${file.filename ?? 'attachment'}`}
+            className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            onClick={() => attachments.remove(file.id)}
+            type="button"
+          >
+            <XIcon className="size-3" />
+          </button>
+        </span>
+      ))}
+      {rejected && (
+        <span className="text-destructive text-xs" role="alert">
+          {rejected}
+        </span>
+      )}
+    </div>
   )
 }
 

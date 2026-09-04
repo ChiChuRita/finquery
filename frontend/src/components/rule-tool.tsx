@@ -1,24 +1,11 @@
 import { AlertTriangleIcon, ListChecksIcon, TagIcon } from 'lucide-react'
 
+import { Step } from '@/components/tool-step'
 import { Badge } from '@/components/ui/badge'
 import type { ReviewBatchPart, SetRulePart } from '@/lib/api'
 
 const bookings = (count: number | undefined) =>
   count === 1 ? '1 booking' : `${count ?? 0} bookings`
-
-function Step({ children, tone = 'muted' }: { children: React.ReactNode; tone?: 'muted' | 'error' }) {
-  return (
-    <div
-      className={
-        tone === 'error'
-          ? 'not-prose mb-0 flex w-full items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-xs'
-          : 'not-prose mb-0 flex w-full items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-muted-foreground text-xs'
-      }
-    >
-      {children}
-    </div>
-  )
-}
 
 /** One stored category rule: what it matches, where it points, how many rows it moved. */
 export function RuleToolStep({ part }: { part: SetRulePart }) {

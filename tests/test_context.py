@@ -18,11 +18,12 @@ from .conftest import (
     new_conversation,
 )
 
-# 60 percent of this is 1200 tokens, which the system prompt (about 550) plus seven of the turns
-# below pass, so compression fires on the eighth turn. Room above the floor a compressed prompt
-# cannot go below (the system prompt, the summary and the last six turns) is what the budget of a
-# test like this has to leave; the real default is 32768.
-BUDGET = 2000
+# 60 percent of this is 1800 tokens, which the system prompt (about 800 since ticket 08 added the
+# attachment and typed-transaction paragraphs) plus seven of the turns below pass, so compression
+# fires on the eighth turn. Room above the floor a compressed prompt cannot go below (the system
+# prompt, the summary and the last six turns) is what the budget of a test like this has to
+# leave; the real default is 32768.
+BUDGET = 3000
 SUMMARY = "The user asked about groceries and rent in the spring and cares about subscriptions."
 
 # Long enough that a turn is worth about a hundred tokens on either side.

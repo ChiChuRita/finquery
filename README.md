@@ -97,6 +97,13 @@ conversation that asks about them in Question cards. Each answer becomes a categ
 recategorizes every booking of that merchant, and telling the assistant "PayPal to Anna is
 always Dining" in chat does the same.
 
+A CSV can also go straight into the chat: drop it on the composer, send it, and the assistant
+runs the same pipeline as a tool call, with the rows read, imported and categorized ticking past
+in the tool step and the uncertain merchants asked about right there. An unknown bank layout is
+confirmed on a Question card first. PDFs and photos are accepted and stored, but reading them
+lands in ticket 11. Typing "I paid 12 EUR cash for lunch today" or pasting a few statement lines
+gives a preview card to confirm, and confirming writes the booking and categorizes it.
+
 Then ask in the chat. The query sub-agent writes the SQL on the fast slot, a guard admits only a
 single read-only SELECT over your own transactions, and the tool step in the transcript shows the
 statement and the rows behind every number.
@@ -114,7 +121,9 @@ it with `uv run python scripts/generate_synthetic.py`.
   `ask_user.py` (the Question card tool), `followups.py` (post-turn suggestions),
   `memory.py` (durable facts: the `remember` tool, the distillation pass, prompt selection),
   `context.py` (token budget, per-turn prompt assembly, rolling summary),
-  `ingest/` (CSV reader, presets, mapping sub-agent, commit),
+  `attachments.py` (files dropped into a chat), `progress.py` (a tool's live progress part),
+  `ingest/` (CSV reader, presets, mapping sub-agent, commit, the chat import and typed
+  transactions),
   `api/` (REST and chat endpoints),
   `local/` (the local provider: catalog, downloads, runtime, model, Gemma wire format, check)
 - `frontend/`: Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router and Query
