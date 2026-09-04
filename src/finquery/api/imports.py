@@ -15,15 +15,15 @@ from typing import Literal
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, ValidationError
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, ToolCallPart, UserPromptPart
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from finquery.api.chat import persist_turn
 from finquery.api.profiles import get_profile_or_404
 from finquery.ask_user import ASK_USER
 from finquery.categorize import categorize_import, pending_questions, review_card
-from finquery.db import Account, Conversation, Import, Transaction
-from finquery.ingest.commit import commit_rows
+from finquery.db import Account, Conversation, Import
+from finquery.ingest.commit import commit_rows, import_summary
 from finquery.ingest.csv_reader import (
     CsvUnreadable,
     Mapping,
@@ -31,11 +31,10 @@ from finquery.ingest.csv_reader import (
     Sniffed,
     detect_preset,
     mapping_for,
-    normalize,
     parse,
     sniff,
 )
-from finquery.ingest.mapping_agent import mapping_agent, mapping_prompt
+from finquery.ingest.mapping_agent import MappingUnusable, propose
 from finquery.providers import ModelSlot, ProviderNotAvailable
 from finquery.weblookup import Lookups, lookups_for
 
@@ -117,32 +116,23 @@ def _mapping_or_422(raw: str) -> Mapping:
 
 
 async def _propose_mapping(request: Request, sniffed: Sniffed, file_name: str) -> tuple[Mapping, str, str]:
-    """Ask the fast slot for a mapping. Only reached when no preset recognizes the header."""
+    """Ask the fast slot for a mapping. Only reached when no preset recognizes the header.
+
+    The proposal itself is `mapping_agent.propose`, which the `import_file` chat tool calls too;
+    this is only its HTTP shape.
+    """
+    state = request.app.state
     try:
-        model = request.app.state.resolve_model("fast")
+        model = state.resolve_model("fast")
     except ProviderNotAvailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     try:
-        result = await mapping_agent.run(mapping_prompt(sniffed, file_name), model=model)
+        proposal = await propose(sniffed, file_name, model=model, model_settings=state.subagent_settings)
+    except MappingUnusable as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001 - any model or transport failure is one message here
         raise HTTPException(status_code=502, detail=f"The model could not propose a mapping: {exc}") from exc
-
-    proposal = result.output
-    known = {normalize(name): name for name in sniffed.header}
-    columns = {
-        name: value
-        for name, value in proposal.mapping.model_dump().items()
-        if name.endswith("_column") and value is not None
-    }
-    unknown = [value for value in columns.values() if normalize(value) not in known]
-    if unknown:
-        raise HTTPException(
-            status_code=502,
-            detail=f"The model proposed columns the file does not have: {', '.join(unknown)}.",
-        )
-    # Accept a mapping that only differs in case or punctuation from the real header.
-    mapping = proposal.mapping.model_copy(update={name: known[normalize(value)] for name, value in columns.items()})
-    return mapping, proposal.account_name, proposal.note
+    return proposal.mapping, proposal.account_name, proposal.note
 
 
 @router.post("/imports/preview", response_model=PreviewOut)
@@ -360,25 +350,6 @@ async def categorize(request: Request, import_id: str, body: ProfileBody) -> Cat
     )
 
 
-def _import_summary(session: Session, record: Import, account_name: str) -> str:
-    """The first thing the assistant says in a review conversation, counted here in code."""
-    rows, categorized = session.execute(
-        select(func.count(Transaction.id), func.count(Transaction.category_id)).where(
-            Transaction.import_id == record.id
-        )
-    ).one()
-    lines = [
-        f"I imported **{record.imported_count} of {record.row_count} bookings** from "
-        f"`{record.file_name}` into {account_name}."
-    ]
-    if record.duplicate_count:
-        lines.append(f"{record.duplicate_count} were already in this profile and were skipped.")
-    lines.append(
-        f"{categorized} of {rows} are categorized, {rows - categorized} are still Needs review."
-    )
-    return " ".join(lines)
-
-
 @router.post("/imports/{import_id}/review-conversation", response_model=ReviewConversationOut, status_code=201)
 async def review_conversation(request: Request, import_id: str, body: ReviewBody) -> ReviewConversationOut:
     """Open the conversation that asks about the rows categorization was unsure about.
@@ -404,7 +375,7 @@ async def review_conversation(request: Request, import_id: str, body: ReviewBody
         title = f"Review {record.file_name}"[:120]
         conversation = Conversation(profile_id=body.profile_id, model_slot=body.model_slot, title=title)
         session.add(conversation)
-        summary = _import_summary(session, record, account_name)
+        summary = import_summary(session, record, account_name)
         session.commit()
         conversation_id = conversation.id
 

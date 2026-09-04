@@ -42,8 +42,17 @@ found, reconciliation result. Avoid: upload, sync.
 
 **Column mapping**: which column of an uploaded CSV is the date, the amount (or the debit and
 credit pair), the description and the counterparty, plus its date format and decimal separator.
-Always shown to the user before a commit. Not to be confused with a Category rule, which the
-glossary keeps clear of the word mapping. Avoid: schema, layout.
+Always shown to the user before a commit: in the Import page preview, or on a Question card when
+the file was dropped into a chat. Not to be confused with a Category rule, which the glossary
+keeps clear of the word mapping. Avoid: schema, layout.
+
+**Attachment**: a file dropped into the chat composer, stored per conversation and identified by
+its file name, which is also the handle the `import_file` tool takes. The bytes never enter the
+prompt. Avoid: upload (an upload is what the Import page takes), file part.
+
+**Transaction draft**: one booking extracted from what the user typed or pasted, stored with a
+short ref and inert until they confirm it on the preview card. Confirming writes the booking
+from the draft, never from figures the model retyped. Avoid: proposal, pending transaction.
 
 **Preset**: a column mapping recognized from the header of a known bank (Sparkasse, DKB, ING,
 N26, comdirect, Trade Republic). A preset never calls a model. Avoid: template, profile.

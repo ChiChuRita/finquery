@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createRootRoute, createRoute, createRouter, Outlet, useNavigate } from '@tanstack/react-router'
+import type { FileUIPart } from 'ai'
 import { useEffect, useState } from 'react'
 
 import { Shimmer } from '@/components/ai-elements/shimmer'
@@ -39,12 +40,12 @@ function NewChatPage() {
   const [slot, setSlot] = useState<ModelSlot>('fast')
   const [creating, setCreating] = useState(false)
 
-  const start = async (text: string) => {
+  const start = async (text: string, files: FileUIPart[] = []) => {
     if (creating || !profile) return
     setCreating(true)
     try {
       const conversation = await createConversation(profile.id, slot)
-      stashPendingPrompt(conversation.id, text)
+      stashPendingPrompt(conversation.id, { text: text || undefined, files })
       void queryClient.invalidateQueries(conversationsQuery(profile.id))
       await navigate({ to: '/c/$conversationId', params: { conversationId: conversation.id } })
     } finally {
@@ -56,7 +57,7 @@ function NewChatPage() {
     <div className="flex h-full flex-col">
       <div className="flex flex-1 flex-col items-center justify-center px-6">
         <div className="w-full max-w-3xl">
-          <EmptyState onPick={start} />
+          <EmptyState onPick={(text) => void start(text)} />
           <Composer autoFocus onSlotChange={setSlot} onSubmit={start} slot={slot} status={creating ? 'submitted' : 'ready'} />
         </div>
       </div>

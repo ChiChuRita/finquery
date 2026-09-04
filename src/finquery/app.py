@@ -8,7 +8,17 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from finquery.api import changesets, chat, conversations, imports, memories, profiles, taxonomy, transactions
+from finquery.api import (
+    attachments,
+    changesets,
+    chat,
+    conversations,
+    imports,
+    memories,
+    profiles,
+    taxonomy,
+    transactions,
+)
 from finquery.api import models as models_api
 from finquery.api import settings as settings_api
 from finquery.changesets import ChangesetError, ChangesetStale
@@ -95,6 +105,7 @@ def create_app(
     app.include_router(chat.router, prefix="/api")
     app.include_router(memories.router, prefix="/api")
     app.include_router(imports.router, prefix="/api")
+    app.include_router(attachments.router, prefix="/api")
     app.include_router(transactions.router, prefix="/api")
     app.include_router(taxonomy.router, prefix="/api")
     app.include_router(changesets.router, prefix="/api")

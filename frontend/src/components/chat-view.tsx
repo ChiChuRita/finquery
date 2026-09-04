@@ -1,8 +1,8 @@
 import { useChat } from '@ai-sdk/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from 'ai'
-import { BrainIcon, CircleStopIcon, SparklesIcon, ZapIcon } from 'lucide-react'
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls, type FileUIPart } from 'ai'
+import { BrainIcon, CircleStopIcon, FileTextIcon, ImageIcon, SparklesIcon, ZapIcon } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { StickToBottomContext } from 'use-stick-to-bottom'
 
@@ -16,6 +16,7 @@ import { ChartToolStep } from '@/components/chart-tool'
 import { Composer } from '@/components/composer'
 import { ContextBadge } from '@/components/context-badge'
 import { EmptyState } from '@/components/empty-state'
+import { AddedToolStep, ImportToolStep, PreviewToolStep } from '@/components/import-tool'
 import { LookupToolStep } from '@/components/lookup-tool'
 import { QueryToolStep } from '@/components/query-tool'
 import { QuestionCard } from '@/components/question-card'
@@ -32,6 +33,7 @@ import {
   type ChatMessage,
   type ContextStats,
   type ConversationDetail,
+  type ImportProgress,
   type ModelSlot,
 } from '@/lib/api'
 import { takePendingPrompt } from '@/lib/pending'
@@ -57,6 +59,10 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
     [conversation.id],
   )
 
+  // Progress of a running tool, by tool call. Transient parts never reach `messages`, which is
+  // the point: the transcript keeps the tool's result, not the counting that led to it.
+  const [progress, setProgress] = useState<Record<string, ImportProgress[]>>({})
+
   const { messages, sendMessage, status, stop, error, addToolOutput } = useChat<ChatMessage>({
     id: conversation.id,
     messages: conversation.messages,
@@ -64,6 +70,15 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
     // A Question card answers a tool call the server left open. Once the output is in, the next
     // request goes out by itself and the run picks up where it parked.
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    onData: (part) => {
+      if (part.type !== 'data-import_progress') return
+      const line = part.data
+      const key = line.tool_call_id ?? 'running'
+      setProgress((previous) => ({
+        ...previous,
+        [key]: [...(previous[key] ?? []).filter((seen) => seen.stage !== line.stage), line],
+      }))
+    },
     onFinish: () => {
       void queryClient.invalidateQueries(conversationsQuery(profile?.id))
       void queryClient.invalidateQueries(conversationQuery(conversation.id))
@@ -75,8 +90,9 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
   useEffect(() => {
     if (sentPending.current) return
     sentPending.current = true
-    const text = takePendingPrompt(conversation.id)
-    if (text) void sendMessage({ text })
+    const pending = takePendingPrompt(conversation.id)
+    if (pending?.text) void sendMessage({ text: pending.text, files: pending.files })
+    else if (pending?.files?.length) void sendMessage({ files: pending.files })
   }, [conversation.id, sendMessage])
 
   const changeSlot = async (next: ModelSlot) => {
@@ -127,6 +143,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
                   message={message}
                   onAnswer={(toolCallId, output) => void addToolOutput({ tool: 'ask_user', toolCallId, output })}
                   onPickFollowup={(text) => void sendMessage({ text })}
+                  progress={progress}
                   slot={slot}
                   streaming={streaming}
                 />
@@ -155,7 +172,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
             draftId={conversation.id}
             onSlotChange={changeSlot}
             onStop={handleStop}
-            onSubmit={(text) => sendMessage({ text })}
+            onSubmit={(text, files) => sendMessage(text ? { text, files } : { files })}
             slot={slot}
             status={status}
           />
@@ -222,6 +239,22 @@ function useRememberedScroll(conversationId: string) {
   return context
 }
 
+/** A file the user sent with this message. It links to the stored copy the server kept. */
+function AttachmentChip({ part }: { part: FileUIPart }) {
+  const Icon = part.mediaType?.startsWith('image/') ? ImageIcon : FileTextIcon
+  return (
+    <a
+      className="not-prose mb-0 inline-flex max-w-full items-center gap-1.5 rounded-full border bg-background/60 px-2.5 py-1 text-xs transition-colors hover:bg-muted"
+      href={part.url}
+      rel="noreferrer"
+      target="_blank"
+    >
+      <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="truncate">{part.filename ?? 'attachment'}</span>
+    </a>
+  )
+}
+
 function thinkingMessage(isStreaming: boolean, duration?: number) {
   if (isStreaming) return <Shimmer duration={1}>Thinking...</Shimmer>
   if (duration === undefined) return <p>Thought for a moment</p>
@@ -256,6 +289,7 @@ function TranscriptMessage({
   slot,
   onPickFollowup,
   onAnswer,
+  progress,
 }: {
   message: ChatMessage
   isLast: boolean
@@ -263,6 +297,7 @@ function TranscriptMessage({
   slot: ModelSlot
   onPickFollowup: (text: string) => void
   onAnswer: (toolCallId: string, output: AskUserOutput) => void
+  progress: Record<string, ImportProgress[]>
 }) {
   const interrupted = message.metadata?.interrupted === true
   const live = isLast && streaming
@@ -303,6 +338,20 @@ function TranscriptMessage({
                 part={part}
               />
             )
+          }
+          if (part.type === 'tool-import_file') {
+            return (
+              <ImportToolStep key={part.toolCallId} part={part} progress={progress[part.toolCallId] ?? []} />
+            )
+          }
+          if (part.type === 'tool-extract_transaction') {
+            return <PreviewToolStep key={part.toolCallId} part={part} />
+          }
+          if (part.type === 'tool-add_transaction') {
+            return <AddedToolStep key={part.toolCallId} part={part} />
+          }
+          if (part.type === 'file') {
+            return <AttachmentChip key={`${message.id}-${index}`} part={part} />
           }
           if (part.type === 'tool-set_rule') {
             return <RuleToolStep key={`${message.id}-${index}`} part={part} />

@@ -24,6 +24,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -159,6 +160,65 @@ class WebLookup(Base):
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     searches: Mapped[int] = mapped_column(Integer, default=0)
     fetches: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Attachment(Base):
+    """A file the user dropped into the chat composer. See finquery.attachments.
+
+    The bytes live here rather than in a folder: one store, one profile boundary, and a deleted
+    conversation takes its uploads with it. The chat prompt never carries them, so a 20 MB CSV
+    costs the model nothing; `import_file` reads them from here by file name.
+    """
+
+    __tablename__ = "attachment"
+    __table_args__ = (UniqueConstraint("conversation_id", "sha256"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profile.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversation.id", ondelete="CASCADE"), index=True)
+    turn_position: Mapped[int] = mapped_column(Integer, default=0)
+    """The turn this file was sent with, so the transcript shows its chip on that message again
+    after a reload. It survives a rewritten turn, which keeps its position."""
+    file_name: Mapped[str] = mapped_column(String(260))
+    media_type: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str] = mapped_column(String(16))
+    """csv, pdf, image or other: which reader of the ingestion pipeline can take it."""
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    mapping_json: Mapped[str | None] = mapped_column(Text, default=None)
+    """The column mapping this CSV is read with: proposed and awaiting confirmation, or used."""
+    account_name: Mapped[str | None] = mapped_column(String(120), default=None)
+    """The account the mapping proposal named, so a confirmed import lands where the card said."""
+    import_id: Mapped[str | None] = mapped_column(ForeignKey("import.id", ondelete="SET NULL"), default=None)
+    """Set once the file was committed, so the same attachment is not imported twice."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TransactionDraft(Base):
+    """One transaction extracted from what the user typed or pasted, awaiting confirmation.
+
+    The preview card the user confirms carries the draft's `ref`, and the answer comes back with
+    that same ref, so the booking is written from these columns rather than from figures the
+    model retyped. See finquery.ingest.typed.
+    """
+
+    __tablename__ = "transaction_draft"
+    __table_args__ = (UniqueConstraint("conversation_id", "ref"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profile.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversation.id", ondelete="CASCADE"), index=True)
+    ref: Mapped[str] = mapped_column(String(12))
+    """What the card and the answer call this row: `t1`, `t2`, counted per conversation."""
+    booked_on: Mapped[date] = mapped_column(Date)
+    amount_cents: Mapped[int] = mapped_column(Integer)
+    description: Mapped[str] = mapped_column(String(500))
+    counterparty: Mapped[str | None] = mapped_column(String(200), default=None)
+    account_name: Mapped[str] = mapped_column(String(120), default="Cash")
+    transaction_id: Mapped[str | None] = mapped_column(ForeignKey("transaction.id", ondelete="SET NULL"), default=None)
+    """The booking this draft became, so confirming it twice adds nothing."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

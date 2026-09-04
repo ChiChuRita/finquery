@@ -7,7 +7,6 @@ returns.
 """
 
 import asyncio
-import base64
 import hashlib
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
@@ -17,6 +16,7 @@ from typing import Any
 import httpx
 from pydantic import BaseModel
 from pydantic_ai import Agent
+from pydantic_ai.messages import BinaryContent
 
 from finquery.agent import chat_agent
 from finquery.app import create_app
@@ -372,31 +372,23 @@ async def test_models_endpoint_also_answers_on_openrouter() -> None:
 
 
 async def test_an_image_reaches_the_model_as_a_content_part(tmp_path: Path) -> None:
-    png = base64.b64encode(solid_png((10, 200, 10), size=8)).decode()
-    slots = {"fast": FakeSlot("tiny-fast", ("Green.",)), "quality": FakeSlot("tiny-quality")}
-    async with local_client(local_stack(tmp_path, slots)) as client:
-        conversation_id = await new_conversation(client, await default_profile_id(client))
-        response = await client.post(
-            f"/api/conversations/{conversation_id}/chat",
-            json={
-                "id": conversation_id,
-                "trigger": "submit-message",
-                "messages": [
-                    {
-                        "id": "u1",
-                        "role": "user",
-                        "parts": [
-                            {"type": "text", "text": "What colour is this?"},
-                            {"type": "file", "mediaType": "image/png", "url": f"data:image/png;base64,{png}"},
-                        ],
-                    }
-                ],
-            },
-        )
-        assert response.status_code == 200
-        content = slots["fast"].requests[0]["messages"][-1]["content"]
-        assert [part["type"] for part in content] == ["text", "image_url"]
-        assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+    """The vision path, driven directly.
+
+    It used to be driven through the chat endpoint. Since ticket 08 an attachment is taken out
+    of the message and stored instead, so no route sends bytes to the chat model any more: a
+    photo goes to the extraction sub-agent of ticket 11, which is the shape asserted here.
+    """
+    slot = FakeSlot("tiny-fast", ("Green.",))
+    stack = local_stack(tmp_path, {"fast": slot, "quality": FakeSlot("tiny-quality")})
+
+    result = await Agent(stack.resolve("fast")).run(
+        ["What colour is this?", BinaryContent(data=solid_png((10, 200, 10), size=8), media_type="image/png")]
+    )
+
+    assert result.output == "Green."
+    content = slot.requests[0]["messages"][-1]["content"]
+    assert [part["type"] for part in content] == ["text", "image_url"]
+    assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")
 
 
 async def test_a_schema_constrained_request_forces_a_single_tool(tmp_path: Path) -> None:

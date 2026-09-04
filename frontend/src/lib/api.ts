@@ -28,11 +28,22 @@ export interface ContextStats {
   summarized_turns: number
 }
 
+/** One line of progress from a running tool, streamed transient and never stored. */
+export interface ImportProgress {
+  stage: 'read' | 'mapping' | 'imported' | 'categorizing' | 'categorized'
+  message: string
+  counts: Record<string, number>
+  /** The tool call this line belongs to, so it renders inside that step. */
+  tool_call_id: string | null
+}
+
 /** Custom data parts the agent emits. The keys become `data-*` part types. */
 export type ChatDataParts = {
   followups: { suggestions: string[] }
   /** What the turn used of the model's context: tokens, budget, memories, summary. */
   context: ContextStats
+  /** Progress of an `import_file` call. Transient: live only, never in the transcript. */
+  import_progress: ImportProgress
 }
 
 // The `query` tool: the request the sub-agent received, the SQL that ran and its rows.
@@ -176,6 +187,77 @@ export interface LookupMerchantOutput {
   error: string | null
 }
 
+// `import_file`: one attached file through the ingestion pipeline. The status says what came of
+// it, which is also what the tool step in the transcript renders.
+export interface ImportCounts {
+  by_rule: number
+  by_dictionary: number
+  by_model: number
+  needs_review: number
+  error: string | null
+}
+
+export type ImportFileOutput =
+  | {
+      status: 'imported'
+      file: string
+      account: string
+      rows_read: number
+      imported: number
+      duplicates: number
+      unreadable_rows: number
+      /** The one sentence about this import, counted on the server. */
+      summary: string
+      categorized: ImportCounts
+      pending_merchants: number
+      questions: ReviewQuestion[]
+    }
+  | {
+      status: 'confirm_mapping'
+      file: string
+      note: string
+      mapping: CsvMapping
+      card: AskUserInput
+      instruction: string
+    }
+  | { status: 'extraction_not_ready' | 'already_imported'; file: string; message: string }
+  | { status: 'no_such_file'; error: string; attached_files: string[] }
+  | { status: 'unreadable' | 'mapping_failed'; file?: string; error: string }
+
+// `extract_transaction`: what the user typed or pasted, as drafts to confirm.
+export interface TransactionDraft {
+  ref: string
+  booked_on: string
+  amount_cents: number
+  description: string
+  counterparty: string | null
+  account: string
+}
+
+export type ExtractTransactionOutput =
+  | { status: 'preview'; drafts: TransactionDraft[]; problems: string[]; card: AskUserInput; instruction: string }
+  | { status: 'nothing_found'; error: string; problems: string[] }
+  | { status: 'unavailable' | 'failed'; error: string }
+
+// `add_transaction`: one confirmed draft, written and categorized.
+export type AddTransactionOutput =
+  | {
+      status: 'added'
+      ref: string
+      transaction_id: string
+      booked_on: string
+      amount_cents: number
+      description: string
+      account: string
+      title: string | null
+      category: string | null
+      subcategory: string | null
+      needs_review: boolean
+      error: string | null
+    }
+  | { status: 'already_added'; ref: string; description: string; message: string }
+  | { status: 'no_such_draft'; ref: string; error: string }
+
 /** The tools the agent may call. The keys become `tool-*` part types. */
 export type ChatTools = {
   query: { input: QueryToolInput; output: QueryToolOutput }
@@ -186,6 +268,12 @@ export type ChatTools = {
   propose_changeset: { input: ChangesetToolInput; output: ChangesetToolOutput }
   apply_simple_edit: { input: ChangesetToolInput; output: ChangesetToolOutput }
   lookup_merchant: { input: { merchant: string }; output: LookupMerchantOutput }
+  import_file: {
+    input: { file_name: string; account_name?: string | null; confirmed?: boolean }
+    output: ImportFileOutput
+  }
+  extract_transaction: { input: { text: string }; output: ExtractTransactionOutput }
+  add_transaction: { input: { ref: string }; output: AddTransactionOutput }
 }
 export type QueryToolPart = ToolUIPart<{ query: ChatTools['query'] }>
 export type AskUserPart = ToolUIPart<{ ask_user: ChatTools['ask_user'] }>
@@ -198,6 +286,9 @@ export type ChangesetToolPart = ToolUIPart<{
 }>
 export type ChartToolPart = ToolUIPart<{ chart: ChatTools['chart'] }>
 export type LookupMerchantPart = ToolUIPart<{ lookup_merchant: ChatTools['lookup_merchant'] }>
+export type ImportFilePart = ToolUIPart<{ import_file: ChatTools['import_file'] }>
+export type ExtractTransactionPart = ToolUIPart<{ extract_transaction: ChatTools['extract_transaction'] }>
+export type AddTransactionPart = ToolUIPart<{ add_transaction: ChatTools['add_transaction'] }>
 
 export type ChatMessage = UIMessage<ChatMetadata, ChatDataParts, ChatTools>
 

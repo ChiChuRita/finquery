@@ -2,6 +2,7 @@
 
 from collections import Counter
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from finquery.db import Import, Transaction, ensure_account, fingerprint
@@ -69,3 +70,25 @@ def commit_rows(
     record.duplicate_count = duplicates
     session.commit()
     return record
+
+
+def import_summary(session: Session, record: Import, account_name: str) -> str:
+    """What one import came to, in one sentence counted here rather than written by a model.
+
+    Both places that report an import use it: the seeded first turn of a review conversation
+    and the `import_file` tool, so the same import reads the same either way. Call it after
+    categorization, so the categorized count is the final one.
+    """
+    rows, categorized = session.execute(
+        select(func.count(Transaction.id), func.count(Transaction.category_id)).where(
+            Transaction.import_id == record.id
+        )
+    ).one()
+    lines = [
+        f"I imported **{record.imported_count} of {record.row_count} bookings** from "
+        f"`{record.file_name}` into {account_name}."
+    ]
+    if record.duplicate_count:
+        lines.append(f"{record.duplicate_count} were already in this profile and were skipped.")
+    lines.append(f"{categorized} of {rows} are categorized, {rows - categorized} are still Needs review.")
+    return " ".join(lines)

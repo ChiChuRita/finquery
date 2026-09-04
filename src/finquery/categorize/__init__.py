@@ -9,6 +9,7 @@ from finquery.categorize.pipeline import (
     Question,
     Report,
     categorize_import,
+    categorize_rows,
     pending_questions,
     review_card,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "Report",
     "RuleOutcome",
     "categorize_import",
+    "categorize_rows",
     "pending_questions",
     "review_card",
     "set_rule",
