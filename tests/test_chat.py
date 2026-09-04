@@ -1,11 +1,14 @@
 import asyncio
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import httpx
+import pytest
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart
 
 from finquery.app import create_app
+from finquery.local.runtime import LocalStack
 
 from .conftest import Chat, Scripts, chat_body, make_settings, parse_sse
 
@@ -159,15 +162,17 @@ async def test_model_slot_is_stored_per_conversation(client: httpx.AsyncClient, 
     assert (await client.patch(f"/api/conversations/{conversation_id}", json={"model_slot": "turbo"})).status_code == 422
 
 
-async def test_local_provider_starts_but_refuses_to_chat() -> None:
-    app = create_app(make_settings(provider="local"), serve_frontend=False)
+async def test_local_provider_refuses_to_chat_until_the_models_are_downloaded(tmp_path: Path) -> None:
+    settings = make_settings(provider="local", models_dir=tmp_path / "empty")
+    stack = LocalStack(settings, load=lambda *_: pytest.fail("nothing should be loaded"))
+    app = create_app(settings, local=stack, serve_frontend=False)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             assert (await client.get("/api/health")).json()["provider"] == "local"
             conversation_id = await new_conversation(client)
             response = await client.post(f"/api/conversations/{conversation_id}/chat", json=chat_body("hi", conversation_id))
             assert response.status_code == 503
-            assert "ticket 16" in response.json()["detail"]
+            assert "not downloaded yet" in response.json()["detail"]
 
 
 async def test_unknown_conversation_is_404(client: httpx.AsyncClient) -> None:

@@ -6,6 +6,7 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { ChatView } from '@/components/chat-view'
 import { Composer } from '@/components/composer'
 import { EmptyState } from '@/components/empty-state'
+import { ModelsCard } from '@/components/models-card'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { conversationQuery, conversationsQuery, createConversation, type ModelSlot } from '@/lib/api'
 import { stashPendingPrompt } from '@/lib/pending'
@@ -85,7 +86,25 @@ const conversationRoute = createRoute({
   component: ConversationPage,
 })
 
-export const router = createRouter({ routeTree: rootRoute.addChildren([indexRoute, conversationRoute]) })
+function SettingsPage() {
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto w-full max-w-3xl px-6 py-10">
+        <h1 className="font-heading font-semibold text-2xl tracking-tight">Settings</h1>
+        <p className="mt-1 text-muted-foreground text-sm">How FinQuery runs on this machine.</p>
+        <div className="mt-6">
+          <ModelsCard />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', component: SettingsPage })
+
+export const router = createRouter({
+  routeTree: rootRoute.addChildren([indexRoute, conversationRoute, settingsRoute]),
+})
 
 declare module '@tanstack/react-router' {
   interface Register {

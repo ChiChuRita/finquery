@@ -5,11 +5,14 @@ See docs/adr/0002-provider-switch-with-two-slots.md.
 """
 
 from collections.abc import Callable
-from typing import Literal, get_args
+from typing import TYPE_CHECKING, Literal, get_args
 
 from pydantic_ai.models import Model
 
 from finquery.settings import Settings
+
+if TYPE_CHECKING:
+    from finquery.local.runtime import LocalStack
 
 ModelSlot = Literal["fast", "quality"]
 MODEL_SLOTS: tuple[ModelSlot, ...] = get_args(ModelSlot)
@@ -40,18 +43,25 @@ def _openrouter_resolver(settings: Settings) -> ModelResolver:
     return models.__getitem__
 
 
-def _local_resolver(_settings: Settings) -> ModelResolver:
-    def resolve(slot: ModelSlot) -> Model:
-        raise ProviderNotAvailable(
-            f"The local provider is not available yet (slot {slot!r}), see ticket 16. "
-            "Set FINQUERY_PROVIDER=openrouter to chat."
-        )
+def build_local_stack(settings: Settings) -> "LocalStack":
+    """The local provider's state: the model files, the resident slots and the adapters.
 
-    return resolve
+    Anything missing starts downloading right away, so a fresh checkout only needs
+    `uv run finquery` and the Settings page to watch.
+    """
+    from finquery.local.runtime import LocalStack
+
+    stack = LocalStack(settings)
+    stack.downloads.start()
+    return stack
 
 
-def build_resolver(settings: Settings) -> ModelResolver:
-    """Return a callable mapping a slot to a model. Construction never touches the network."""
+def build_resolver(settings: Settings, *, local: "LocalStack | None" = None) -> ModelResolver:
+    """Return a callable mapping a slot to a model. Construction never touches the network.
+
+    On the local provider nothing is downloaded or loaded here either: the first chat on a slot
+    does that, so the app starts (and can show download progress) with no weights on disk.
+    """
     if settings.provider == "openrouter":
         return _openrouter_resolver(settings)
-    return _local_resolver(settings)
+    return (local or build_local_stack(settings)).resolve

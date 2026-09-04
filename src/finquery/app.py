@@ -2,21 +2,36 @@
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from finquery.api import chat, conversations
+from finquery.api import models as models_api
 from finquery.db import ensure_default_profile, make_session_factory
-from finquery.providers import MODEL_SLOTS, ModelResolver, build_resolver
+from finquery.providers import MODEL_SLOTS, ModelResolver, build_local_stack, build_resolver
 from finquery.settings import Settings
+
+if TYPE_CHECKING:
+    from finquery.local.runtime import LocalStack
 
 FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
 
-def create_app(settings: Settings, *, resolve_model: ModelResolver | None = None, serve_frontend: bool = True) -> FastAPI:
-    """Build the app. Tests pass `resolve_model` to replace both slots with scripted models."""
+def create_app(
+    settings: Settings,
+    *,
+    resolve_model: ModelResolver | None = None,
+    local: "LocalStack | None" = None,
+    serve_frontend: bool = True,
+) -> FastAPI:
+    """Build the app.
+
+    Tests pass `resolve_model` to replace both slots with scripted models, and `local` to
+    replace the local provider's downloader and loaded models with stubs.
+    """
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -24,7 +39,8 @@ def create_app(settings: Settings, *, resolve_model: ModelResolver | None = None
         app.state.session_factory = make_session_factory(settings.db_path)
         with app.state.session_factory() as session:
             app.state.profile_id = ensure_default_profile(session).id
-        app.state.resolve_model = resolve_model or build_resolver(settings)
+        app.state.local = local if local is not None else (build_local_stack(settings) if settings.provider == "local" else None)
+        app.state.resolve_model = resolve_model or build_resolver(settings, local=app.state.local)
         app.state.running_turns = {}
         yield
 
@@ -36,6 +52,7 @@ def create_app(settings: Settings, *, resolve_model: ModelResolver | None = None
 
     app.include_router(conversations.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")
+    app.include_router(models_api.router, prefix="/api")
 
     if serve_frontend and FRONTEND_DIST.is_dir():
         app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")

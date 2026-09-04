@@ -8,6 +8,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.141.1",
+    "llama-cpp-python>=0.3.35",
     "pydantic-ai-slim[openrouter,ui]>=2.39.0",
     "pydantic-settings>=2.15.0",
     "python-dotenv>=1.2.3",
@@ -17,6 +18,7 @@ dependencies = [
 
 [project.scripts]
 finquery = "finquery.main:main"
+finquery-check = "finquery.local.check:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

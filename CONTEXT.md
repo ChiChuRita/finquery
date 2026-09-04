@@ -87,3 +87,8 @@ what the chat agent calls; the sub-agent is what runs behind it), worker.
 **Adapter**: a LoRA adapter attached to the fast slot for one sub-agent (query, chart) on the
 local provider. Not to be confused with the Vercel stream adapter, which the code calls the
 "stream adapter" or "Vercel adapter". Avoid: fine-tune, checkpoint.
+
+**Audit note**: a short statement attached to a turn about how the answer was produced rather
+than about the data, such as a sub-agent having run on the base weights because its adapter file
+was missing. It rides the turn metadata, so the transcript keeps it after a reload. Avoid:
+warning, disclaimer.

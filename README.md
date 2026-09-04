@@ -20,13 +20,41 @@ SQLite database lives in `data/finquery.db` (override with `FINQUERY_DB_PATH`).
 
 Settings (environment or `.env`):
 
-| Variable             | Default            | Meaning                                        |
-| -------------------- | ------------------ | ---------------------------------------------- |
-| `FINQUERY_PROVIDER`  | `openrouter`       | `openrouter` or `local` (local: ticket 16)     |
-| `OPENROUTER_API_KEY` |                    | Required for `openrouter`                      |
-| `FINQUERY_DB_PATH`   | `data/finquery.db` | SQLite file                                    |
-| `FINQUERY_HOST`      | `127.0.0.1`        | Bind address                                   |
-| `FINQUERY_PORT`      | `8000`             | Port                                           |
+| Variable                     | Default            | Meaning                                       |
+| ---------------------------- | ------------------ | --------------------------------------------- |
+| `FINQUERY_PROVIDER`          | `openrouter`       | `openrouter` or `local`                       |
+| `OPENROUTER_API_KEY`         |                    | Required for `openrouter`                     |
+| `FINQUERY_DB_PATH`           | `data/finquery.db` | SQLite file                                   |
+| `FINQUERY_HOST`              | `127.0.0.1`        | Bind address                                  |
+| `FINQUERY_PORT`              | `8000`             | Port                                          |
+| `FINQUERY_MODELS_DIR`        | `models`           | Where the local GGUF files live               |
+| `FINQUERY_PARKED_MODELS_DIR` |                    | Folder of GGUFs to reuse instead of download  |
+| `FINQUERY_LOCAL_N_CTX`       | `16384`            | Context cap per resident local model          |
+
+## Run on the local models
+
+`llama-cpp-python` ships as a source distribution, so the first install compiles it. On macOS
+build it with Metal:
+
+```sh
+CMAKE_ARGS="-DGGML_METAL=on" uv sync
+FINQUERY_PROVIDER=local uv run finquery
+```
+
+The two slots become Gemma 4 E4B (fast) and Gemma 4 12B (quality), running in this process
+through llama-cpp-python with Metal. Startup begins downloading the four GGUF files (13.3 GB)
+into `models/`; watch it on the Settings page, which also has a sanity check button. A file
+already sitting in `FINQUERY_PARKED_MODELS_DIR` whose sha256 matches is linked in instead of
+downloaded. Each model loads on its first use and then stays resident.
+
+Prove the setup before a demo:
+
+```sh
+uv run finquery-check    # both slots: answer, thinking, tool call, vision
+```
+
+See `docs/adr/0005-local-gemma-4-through-llama-cpp.md`, including why the context cap is 16k
+and not 32k on a 24 GB Mac.
 
 ## Develop
 
@@ -46,12 +74,19 @@ uv run pytest
 ```
 
 Tests drive the FastAPI app over HTTP with both model slots replaced by scripted models. No test
-calls OpenRouter. See `docs/adr/0003-single-http-test-seam.md`.
+calls OpenRouter and none loads a real model. See `docs/adr/0003-single-http-test-seam.md`.
+
+One suite is opt-in because it does load the real local models:
+
+```sh
+FINQUERY_PROVIDER=local FINQUERY_SMOKE=1 uv run pytest tests/test_local_smoke.py -s
+```
 
 ## Layout
 
 - `src/finquery/`: `main.py` (CLI), `app.py` (factory), `settings.py`, `providers.py` (slots),
-  `db.py` (SQLAlchemy models), `agent.py` (chat agent), `api/` (REST and chat endpoints)
+  `db.py` (SQLAlchemy models), `agent.py` (chat agent), `api/` (REST and chat endpoints),
+  `local/` (the local provider: catalog, downloads, runtime, model, Gemma wire format, check)
 - `frontend/`: Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router and Query
 - `tests/`: HTTP-seam tests
 - `CONTEXT.md`: domain glossary. `docs/adr/`: architecture decisions
