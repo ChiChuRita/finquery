@@ -1,0 +1,327 @@
+"""Answering questions with SQL: the query tool, the guard and the profile scope.
+
+Every test drives the chat endpoint. The chat model is scripted to call the `query` tool and
+then to answer from the rows it got back, and the sub-agent behind the tool is scripted to
+return one statement, which is how the fast slot answers a forced single tool.
+"""
+
+import json
+from collections.abc import AsyncIterator
+from datetime import date
+
+import httpx
+from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart, ToolReturnPart
+from pydantic_ai.models.function import AgentInfo, DeltaToolCall
+from sqlalchemy.orm import Session, sessionmaker
+
+from finquery.db import create_profile, ensure_account
+
+from .conftest import SYNTHETIC, Chat, Scripts
+from .test_data_model import add_transaction
+from .test_import import upload
+
+SPARKASSE = SYNTHETIC / "sparkasse-2025.csv"
+
+
+async def new_conversation(client: httpx.AsyncClient, slot: str = "fast") -> str:
+    response = await client.post("/api/conversations", json={"model_slot": slot})
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+async def import_synthetic(client: httpx.AsyncClient) -> None:
+    """The shipped dataset, committed through the Import endpoints like a user would."""
+    preview = (await client.post("/api/imports/preview", files=upload(SPARKASSE))).json()
+    committed = await client.post(
+        "/api/imports",
+        files=upload(SPARKASSE),
+        data={"mapping": json.dumps(preview["mapping"]), "account_name": preview["account_name"]},
+    )
+    assert committed.status_code == 201, committed.text
+
+
+def ask_query_then_report(request: str, hints: str | None = None):
+    """A chat turn that calls `query` and then reports whatever the tool returned.
+
+    The second step reads the tool result out of the message history, so any figure in the
+    answer provably comes from the executed query and not from the script.
+    """
+
+    async def fn(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        result = _last_tool_return(messages)
+        if result is None:
+            args = {"request": request} | ({"hints": hints} if hints else {})
+            yield {0: DeltaToolCall(name="query", json_args=json.dumps(args))}
+            return
+        if result["error"]:
+            yield f"I could not answer that: {result['error']}"
+        elif result["rows"]:
+            first = result["rows"][0]
+            yield "Result: " + ", ".join(f"{key}={value}" for key, value in first.items())
+        else:
+            yield "The data holds no answer for that."
+
+    return fn
+
+
+def scripted_sql(*statements: str):
+    """The sub-agent's forced single tool call, one statement per attempt."""
+    prompts: list[str] = []
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        prompts.append(_last_user_prompt(messages))
+        assert [tool.name for tool in info.output_tools] == ["run_sql"]
+        assert info.allow_text_output is False
+        assert info.function_tools == []
+        sql = statements[min(len(prompts), len(statements)) - 1]
+        return ModelResponse(parts=[ToolCallPart("run_sql", json.dumps({"sql": sql}))])
+
+    respond.prompts = prompts  # type: ignore[attr-defined]
+    return respond
+
+
+def _last_tool_return(messages: list[ModelMessage]) -> dict | None:
+    """The query result of the turn being answered, ignoring earlier turns."""
+    for message in reversed(messages):
+        for part in message.parts:
+            if isinstance(part, ToolReturnPart) and part.tool_name == "query":
+                assert isinstance(part.content, dict)
+                return part.content
+            if part.part_kind == "user-prompt":
+                return None
+    return None
+
+
+def _last_user_prompt(messages: list[ModelMessage]) -> str:
+    prompts = [
+        part.content
+        for message in messages
+        for part in message.parts
+        if part.part_kind == "user-prompt" and isinstance(part.content, str)
+    ]
+    return prompts[-1]
+
+
+def tool_parts(chunks: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [c for c in chunks if str(c["type"]).startswith("tool-")]
+
+
+def tool_output(chunks: list[dict[str, object]]) -> dict:
+    outputs = [c["output"] for c in chunks if c["type"] == "tool-output-available"]
+    assert len(outputs) == 1, chunks
+    assert isinstance(outputs[0], dict)
+    return outputs[0]
+
+
+def answer(chunks: list[dict[str, object]]) -> str:
+    return "".join(str(c["delta"]) for c in chunks if c["type"] == "text-delta").strip()
+
+
+async def test_scripted_sql_executes_and_its_rows_reach_the_transcript(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    await import_synthetic(client)
+    sql = (
+        "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view "
+        "WHERE amount_cents < 0 AND booked_on BETWEEN '2025-05-01' AND '2025-05-31' "
+        "AND lower(coalesce(counterparty, description)) LIKE '%rewe%'"
+    )
+    respond = scripted_sql(sql)
+    # The conversation runs on quality; the sub-agent is pinned to fast either way.
+    scripts.quality = ask_query_then_report("groceries at REWE in May 2025")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, slot="quality")
+
+    _, chunks = await chat(conversation_id, "Wie viel habe ich im Mai bei REWE ausgegeben?")
+
+    assert scripts.resolved == ["quality", "fast"]
+    # The tool step is announced, resolved, and only then does the answer start.
+    types = [str(c["type"]) for c in chunks]
+    assert types.index("tool-input-available") < types.index("tool-output-available") < types.index("text-start")
+    assert [c["input"] for c in tool_parts(chunks) if c["type"] == "tool-input-available"] == [
+        {"request": "groceries at REWE in May 2025"}
+    ]
+
+    output = tool_output(chunks)
+    assert output["error"] is None
+    assert output["request"] == "groceries at REWE in May 2025"
+    # The guard re-renders the statement it admitted and appends the automatic limit.
+    assert output["sql"].startswith("SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view")
+    assert "'%rewe%'" in output["sql"]
+    assert output["sql"].endswith("LIMIT 200")
+    assert output["row_count"] == 1
+    assert output["columns"] == ["total_eur"]
+    total = output["rows"][0]["total_eur"]
+    assert total > 0, "spending is reported as a positive figure"
+    assert output["summary"] == f"One row: total_eur = {total}"
+    # The number in the prose is the number the query returned.
+    assert answer(chunks) == f"Result: total_eur={total}"
+
+    # The sub-agent saw the schema, the profile's date range and the taxonomy.
+    prompt = respond.prompts[0]  # type: ignore[attr-defined]
+    assert "transaction_view" in prompt
+    assert "2025-01-01 to 2025-12-28" in prompt
+    assert "Groceries (Supermarket, Bakery, Drugstore)" in prompt
+    assert "no booking is categorized yet" in prompt
+    assert "REWE Markt GmbH" in prompt
+    assert "Question: groceries at REWE in May 2025" in prompt
+
+    # A reload shows one assistant message with the same tool step, its SQL and its rows.
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
+    assert [p["type"] for p in detail["messages"][-1]["parts"]] == ["tool-query", "text"]
+    part = detail["messages"][-1]["parts"][0]
+    assert part["state"] == "output-available"
+    assert part["input"] == {"request": "groceries at REWE in May 2025"}
+    assert part["output"]["sql"] == output["sql"]
+    assert part["output"]["rows"] == [{"total_eur": total}]
+
+
+async def test_a_follow_up_question_is_a_second_query_in_the_same_conversation(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    await import_synthetic(client)
+    months = (
+        "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur "
+        "FROM transaction_view WHERE amount_cents < 0 "
+        "AND strftime('%Y-%m', booked_on) IN ('2025-04', '2025-05') GROUP BY month ORDER BY month"
+    )
+    scripts.fast = ask_query_then_report("total spending in April 2025 compared with May 2025")
+    scripts.fast_call = scripted_sql(months)  # type: ignore[assignment]
+    conversation_id = await new_conversation(client)
+
+    await chat(conversation_id, "Wie viel habe ich im Mai insgesamt ausgegeben?")
+    _, chunks = await chat(conversation_id, "und im Vergleich zum April?")
+
+    output = tool_output(chunks)
+    assert output["columns"] == ["month", "total_eur"]
+    assert [row["month"] for row in output["rows"]] == ["2025-04", "2025-05"]
+    assert output["summary"] == "2 rows with columns month, total_eur."
+    # Two turns, each with its own executed statement in the transcript.
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    steps = [p for m in detail["messages"] for p in m["parts"] if p["type"] == "tool-query"]
+    assert len(steps) == 2
+
+
+async def test_a_write_attempt_is_refused_and_the_sub_agent_retries(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    await import_synthetic(client)
+    good = "SELECT COUNT(*) AS bookings FROM transaction_view"
+    respond = scripted_sql("DELETE FROM transaction_view WHERE amount_cents < 0", good)
+    scripts.fast = ask_query_then_report("how many bookings are there")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client)
+
+    _, chunks = await chat(conversation_id, "How many bookings do I have?")
+
+    output = tool_output(chunks)
+    assert output["error"] is None
+    assert output["sql"] == "SELECT\n  COUNT(*) AS bookings\nFROM transaction_view\nLIMIT 200"
+    assert output["rows"] == [{"bookings": 433}]
+    # The refusal went back to the sub-agent with the reason, and only then came the retry.
+    prompts = respond.prompts  # type: ignore[attr-defined]
+    assert len(prompts) == 2
+    assert "Only a SELECT may run, not DELETE." in prompts[1]
+    assert "Refused SQL:\nDELETE FROM transaction_view" in prompts[1]
+    # Nothing was written.
+    assert (await client.get("/api/transactions")).json()["total"] == 433
+
+
+async def test_sql_that_stays_invalid_is_reported_without_a_number(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    await import_synthetic(client)
+    respond = scripted_sql('SELECT COUNT(*) FROM "transaction"', "SELECT nope FROM transaction_view")
+    scripts.fast = ask_query_then_report("how many bookings are there")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client)
+
+    _, chunks = await chat(conversation_id, "How many bookings do I have?")
+
+    output = tool_output(chunks)
+    assert output["row_count"] == 0
+    assert output["rows"] == []
+    assert "refused 2 times" in output["error"]
+    assert "no such column: nope" in output["error"]
+    # The statement that was refused is still visible in the step.
+    assert output["sql"] == "SELECT nope FROM transaction_view"
+    assert answer(chunks) == f"I could not answer that: {output['error']}"
+    prompts = respond.prompts  # type: ignore[attr-defined]
+    assert "transaction may not be read" in prompts[1]
+    assert (await client.get("/api/transactions")).json()["total"] == 433
+
+
+async def test_an_empty_profile_is_answered_without_calling_the_sub_agent(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    def never(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        raise AssertionError("the query sub-agent must not run without data")
+
+    scripts.fast = ask_query_then_report("total spending in May 2025")
+    scripts.fast_call = never  # type: ignore[assignment]
+    conversation_id = await new_conversation(client)
+
+    _, chunks = await chat(conversation_id, "How much did I spend in May?")
+
+    # Only the chat model was resolved: the tool answered before any model was involved.
+    assert scripts.resolved == ["fast"]
+    output = tool_output(chunks)
+    assert output["sql"] is None
+    assert output["row_count"] == 0
+    assert "no transactions yet" in output["error"]
+    assert not any(character.isdigit() for character in answer(chunks))
+
+
+async def test_the_profile_scope_cannot_be_widened(
+    client: httpx.AsyncClient,
+    scripts: Scripts,
+    chat: Chat,
+    session_factory: sessionmaker[Session],
+    profile_id: str,
+) -> None:
+    await import_synthetic(client)
+    with session_factory() as session:
+        other = create_profile(session, "Housemate")
+        account = ensure_account(session, other.id, "Other bank")
+        add_transaction(
+            session, other.id, account.id, booked_on=date(2025, 5, 4), amount_cents=-999999, description="NOT MINE"
+        )
+        session.commit()
+    assert other.id != profile_id
+
+    # First a schema prefix, then a predicate that tries to reach past the profile filter.
+    respond = scripted_sql(
+        "SELECT COUNT(*) AS bookings FROM main.transaction_view",
+        "SELECT COUNT(*) AS bookings, ROUND(SUM(amount_cents)) AS cents FROM transaction_view "
+        "WHERE profile_id IS NOT NULL OR 1 = 1",
+    )
+    scripts.fast = ask_query_then_report("count every booking")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client)
+
+    _, chunks = await chat(conversation_id, "How many bookings are stored?")
+
+    output = tool_output(chunks)
+    assert "Do not prefix a relation with a schema" in respond.prompts[1]  # type: ignore[attr-defined]
+    own = (await client.get("/api/transactions", params={"limit": 1000})).json()
+    assert output["rows"] == [
+        {"bookings": own["total"], "cents": sum(row["amount_cents"] for row in own["rows"])}
+    ]
+    assert output["rows"][0]["bookings"] == 433, "the other profile's booking is not visible"
+
+
+async def test_a_row_dump_is_capped_at_two_hundred_rows(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    await import_synthetic(client)
+    scripts.fast = ask_query_then_report("list every booking")
+    scripts.fast_call = scripted_sql("SELECT booked_on, amount, description FROM transaction_view")  # type: ignore[assignment]
+    conversation_id = await new_conversation(client)
+
+    _, chunks = await chat(conversation_id, "Show me everything.")
+
+    output = tool_output(chunks)
+    assert output["sql"].endswith("LIMIT 200")
+    assert output["row_count"] == 200
+    assert "200 row limit was reached" in output["summary"]

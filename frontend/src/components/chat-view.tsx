@@ -10,6 +10,7 @@ import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-e
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Composer } from '@/components/composer'
 import { EmptyState } from '@/components/empty-state'
+import { QueryToolStep } from '@/components/query-tool'
 import { MODEL_SLOTS } from '@/lib/api'
 import {
   chatUrl,
@@ -130,6 +131,22 @@ function thinkingMessage(isStreaming: boolean, duration?: number) {
   return <p>Thought for {duration === 1 ? '1 second' : `${duration} seconds`}</p>
 }
 
+type MessagePart = ChatMessage['parts'][number]
+
+/** One turn can think several times in a row (a tool call ends a model response). One panel. */
+function foldReasoning(parts: MessagePart[]): MessagePart[] {
+  const folded: MessagePart[] = []
+  for (const part of parts) {
+    const previous = folded.at(-1)
+    if (part.type === 'reasoning' && previous?.type === 'reasoning') {
+      folded[folded.length - 1] = { ...previous, state: part.state, text: `${previous.text}\n\n${part.text}` }
+      continue
+    }
+    folded.push(part)
+  }
+  return folded
+}
+
 function TranscriptMessage({
   message,
   isLast,
@@ -143,7 +160,7 @@ function TranscriptMessage({
   return (
     <Message from={message.role}>
       <MessageContent>
-        {message.parts.map((part, index) => {
+        {foldReasoning(message.parts).map((part, index) => {
           if (part.type === 'reasoning') {
             const isStreaming = streaming && isLast && part.state === 'streaming'
             // The server measures the duration; while streaming the component counts by itself.
@@ -155,6 +172,9 @@ function TranscriptMessage({
                 <ReasoningContent>{part.text}</ReasoningContent>
               </Reasoning>
             )
+          }
+          if (part.type === 'tool-query') {
+            return <QueryToolStep key={`${message.id}-${index}`} part={part} />
           }
           if (part.type === 'text') {
             return message.role === 'user' ? (

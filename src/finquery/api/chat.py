@@ -17,9 +17,10 @@ from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.exceptions import RunCancelled
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
+from pydantic_ai.ui.vercel_ai.request_types import UIMessage
 from pydantic_ai.ui.vercel_ai.response_types import BaseChunk, MessageMetadataChunk
 
-from finquery.agent import chat_agent
+from finquery.agent import ChatDeps, chat_agent
 from finquery.api.conversations import get_conversation_or_404
 from finquery.db import Conversation, Turn, utcnow
 from finquery.providers import ProviderNotAvailable
@@ -54,11 +55,28 @@ def _title_from(messages: Sequence[ModelMessage]) -> str | None:
     return None
 
 
+def _one_assistant_message(ui_messages: list[UIMessage]) -> list[UIMessage]:
+    """Fold a turn's model responses into one assistant message, the way the stream shows it.
+
+    A tool call ends a model response, so a turn with tools dumps as several assistant
+    messages. The live transcript renders the whole turn as one message (thinking, tool steps,
+    answer), and turn metadata such as the thinking duration belongs to that one message, so a
+    reload has to see the same shape.
+    """
+    folded: list[UIMessage] = []
+    for message in ui_messages:
+        if folded and message.role == "assistant" and folded[-1].role == "assistant":
+            folded[-1].parts.extend(message.parts)
+            continue
+        folded.append(message)
+    return folded
+
+
 def _persist_turn(
     request: Request, conversation_id: str, new_messages: list[ModelMessage], slot: str, metadata: dict[str, object]
 ) -> None:
     interrupted = bool(metadata.get("interrupted"))
-    ui_messages = VercelAIAdapter.dump_messages(new_messages, sdk_version=SDK_VERSION)
+    ui_messages = _one_assistant_message(VercelAIAdapter.dump_messages(new_messages, sdk_version=SDK_VERSION))
     if ui_messages and ui_messages[-1].role == "assistant":
         ui_messages[-1].metadata = {**(ui_messages[-1].metadata or {}), **metadata}
     with request.app.state.session_factory() as session:
@@ -104,6 +122,9 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # The server owns the history: only the newest client message is appended to it.
     adapter.run_input.messages = adapter.run_input.messages[-1:]
 
+    deps = ChatDeps(
+        session_factory=state.session_factory, profile_id=state.profile_id, resolve_model=state.resolve_model
+    )
     turn = RunningTurn()
     running[conversation_id] = turn
     # Stored on the assistant UI message and echoed to the client at the end of the turn.
@@ -134,6 +155,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
             async for chunk in adapter.run_stream(
                 message_history=history,
                 model=model,
+                deps=deps,
                 cancellation_token=turn.token,
                 on_complete=on_complete,
                 on_cancel=on_cancel,

@@ -54,6 +54,10 @@ Import a bank CSV export on `/import`: drop the file, check the mapping, commit.
 ING, N26, comdirect and Trade Republic are recognized by their headers; any other bank gets a
 mapping proposed by the fast slot and edited in the preview.
 
+Then ask in the chat. The query sub-agent writes the SQL on the fast slot, a guard admits only a
+single read-only SELECT over your own transactions, and the tool step in the transcript shows the
+statement and the rows behind every number.
+
 `fixtures/synthetic/` holds the shipped demo dataset, one canonical year of a German household
 as a Sparkasse CSV, a renamed-header CSV, a text PDF statement and four bill images. Regenerate
 it with `uv run python scripts/generate_synthetic.py`.
@@ -62,8 +66,8 @@ it with `uv run python scripts/generate_synthetic.py`.
 
 - `src/finquery/`: `main.py` (CLI), `app.py` (factory), `settings.py`, `providers.py` (slots),
   `db.py` (SQLAlchemy models and the query view), `taxonomy.py` (default categories),
-  `agent.py` (chat agent), `ingest/` (CSV reader, presets, mapping sub-agent, commit),
-  `api/` (REST and chat endpoints)
+  `agent.py` (chat agent and its tools), `query/` (query sub-agent, SQL guard, execution),
+  `ingest/` (CSV reader, presets, mapping sub-agent, commit), `api/` (REST and chat endpoints)
 - `frontend/`: Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router and Query
 - `tests/`: HTTP-seam tests
 - `fixtures/synthetic/`: shipped demo dataset. `scripts/`: its generator
