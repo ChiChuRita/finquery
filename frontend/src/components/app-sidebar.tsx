@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import {
+  BrainIcon,
   MessageSquareIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -89,6 +90,14 @@ export function AppSidebar() {
         >
           <UploadIcon className="size-3.5 shrink-0 text-muted-foreground" />
           Import
+        </Link>
+        <Link
+          activeProps={{ className: 'bg-sidebar-accent font-medium' }}
+          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
+          to="/memory"
+        >
+          <BrainIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          Memory
         </Link>
       </div>
 

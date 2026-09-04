@@ -137,8 +137,9 @@ async def test_local_provider_resolves_both_slots_and_reports_them(tmp_path: Pat
         after = (await client.get("/api/models")).json()["models"]
         assert [m["loaded"] for m in after] == [True, True]
         assert [m["n_ctx"] for m in after] == [16384, 16384]
-        # Two turns, plus the follow-up step each one runs on the fast slot afterwards.
-        assert len(slots["fast"].requests) == 3
+        # Two turns, plus the two post-turn steps each one runs on the fast slot afterwards
+        # (follow-up suggestions and memory distillation).
+        assert len(slots["fast"].requests) == 5
         assert len(slots["quality"].requests) == 1
 
 
@@ -159,7 +160,7 @@ async def test_thinking_is_split_out_of_the_text_stream(tmp_path: Path) -> None:
         assert slots["fast"].requests[0]["top_k"] == 64
 
         detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
-        assert [p["type"] for p in detail["messages"][1]["parts"]] == ["reasoning", "text"]
+        assert [p["type"] for p in detail["messages"][1]["parts"]] == ["reasoning", "text", "data-context"]
 
 
 async def test_gemma_tool_call_syntax_becomes_a_tool_part(tmp_path: Path) -> None:

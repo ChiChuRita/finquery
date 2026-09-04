@@ -5,6 +5,7 @@ See docs/adr/0001-pydantic-ai-with-vercel-adapter.md.
 
 import asyncio
 import json
+import logging
 import time
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
@@ -17,20 +18,27 @@ from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.exceptions import RunCancelled
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
-from pydantic_ai.ui.vercel_ai.request_types import DataUIPart
+from pydantic_ai.ui.vercel_ai.request_types import DataUIPart, UIMessage
 from pydantic_ai.ui.vercel_ai.response_types import BaseChunk, DataChunk, MessageMetadataChunk
 
-from finquery.agent import chat_agent
+from finquery.agent import ChatDeps, chat_agent
 from finquery.api.conversations import get_conversation_or_404
 from finquery.db import Conversation, Turn, utcnow
 from finquery.followups import suggest_followups
+from finquery.memory import add_memory, build_memory_block, distill_memories, list_memories
 from finquery.providers import ProviderNotAvailable
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 SDK_VERSION = 7
 TITLE_LENGTH = 60
 FOLLOWUPS_PART = "data-followups"
+CONTEXT_PART = "data-context"
+"""What the turn used of the model's context. Ticket 12 adds the token counts to it."""
+POST_TURN_TIMEOUT = 30
+"""Seconds the follow-up and distillation steps together may take after an answer."""
 
 
 @dataclass
@@ -44,6 +52,14 @@ def _load_history(conversation: Conversation) -> list[ModelMessage]:
     for turn in conversation.turns:
         history.extend(ModelMessagesTypeAdapter.validate_json(turn.model_messages_json))
     return history
+
+
+def _latest_user_text(messages: Sequence[UIMessage]) -> str:
+    """The message this turn is answering, as the keyword source for memory selection."""
+    for message in reversed(messages):
+        if message.role == "user":
+            return " ".join(part.text for part in message.parts if part.type == "text")
+    return ""
 
 
 def _user_prompts(messages: Sequence[ModelMessage]) -> list[str]:
@@ -95,7 +111,7 @@ def _persist_turn(
     new_messages: list[ModelMessage],
     slot: str,
     metadata: dict[str, object],
-    followups: list[str],
+    data_parts: Sequence[DataUIPart],
 ) -> None:
     if notes := _audit_notes(new_messages):
         metadata["audit_notes"] = notes
@@ -103,8 +119,8 @@ def _persist_turn(
     ui_messages = VercelAIAdapter.dump_messages(new_messages, sdk_version=SDK_VERSION)
     if ui_messages and ui_messages[-1].role == "assistant":
         ui_messages[-1].metadata = {**(ui_messages[-1].metadata or {}), **metadata}
-        if followups:
-            ui_messages[-1].parts.append(DataUIPart(type=FOLLOWUPS_PART, data={"suggestions": followups}))
+        # The same parts the client saw streamed, so live and reloaded transcripts render alike.
+        ui_messages[-1].parts.extend(data_parts)
     with request.app.state.session_factory() as session:
         conversation = session.get(Conversation, conversation_id)
         if conversation is None:
@@ -130,6 +146,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
     with state.session_factory() as session:
         conversation = get_conversation_or_404(session, conversation_id)
         slot = conversation.model_slot
+        profile_id = conversation.profile_id
         history = _load_history(conversation)
 
     running: dict[str, RunningTurn] = state.running_turns
@@ -148,6 +165,12 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # The server owns the history: only the newest client message is appended to it.
     adapter.run_input.messages = adapter.run_input.messages[-1:]
 
+    # The one place memory enters the prompt: the block rides along as run instructions, so it
+    # sits at system level above the conversation.
+    with state.session_factory() as session:
+        memory_block = build_memory_block(session, profile_id, _latest_user_text(adapter.run_input.messages))
+    context_part = DataUIPart(type=CONTEXT_PART, data={"memories_used": memory_block.used})
+
     turn = RunningTurn()
     running[conversation_id] = turn
     # Stored on the assistant UI message and echoed to the client at the end of the turn.
@@ -158,17 +181,31 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # miss it. Everything after the server-side history is this turn.
     async def on_complete(result: AgentRunResult) -> AsyncIterator[BaseChunk]:
         turn_messages = result.all_messages()[len(history) :]
-        followups = await _followups(turn_messages)
-        _persist_turn(request, conversation_id, turn_messages, slot, metadata, followups)
+        # Two post-turn steps on the fast slot, side by side: neither is worth waiting for twice.
+        # Nobody is waiting on either, and a model that loops on one of them would otherwise
+        # hold the finished answer hostage, so the whole pair is on a clock.
+        try:
+            followups, _ = await asyncio.wait_for(
+                asyncio.gather(_followups(turn_messages), _distill(turn_messages)), POST_TURN_TIMEOUT
+            )
+        except TimeoutError:
+            logger.warning("post-turn steps timed out after %s s", POST_TURN_TIMEOUT)
+            followups = []
+        data_parts = [context_part]
         if followups:
-            yield DataChunk(type=FOLLOWUPS_PART, data={"suggestions": followups})
+            data_parts.append(DataUIPart(type=FOLLOWUPS_PART, data={"suggestions": followups}))
+        _persist_turn(request, conversation_id, turn_messages, slot, metadata, data_parts)
+        for part in data_parts:
+            yield DataChunk(type=part.type, data=part.data)
         yield MessageMetadataChunk(message_metadata=metadata)
 
     async def on_cancel(cancelled: RunCancelled) -> AsyncIterator[BaseChunk]:
         metadata["interrupted"] = True
         close_thinking()
-        # A turn that was cut off gets no follow-ups: the answer it would build on does not exist.
-        _persist_turn(request, conversation_id, cancelled.all_messages()[len(history) :], slot, metadata, [])
+        # A turn that was cut off gets no follow-ups and nothing distilled: the answer they
+        # would build on does not exist. What it was given is still reported.
+        _persist_turn(request, conversation_id, cancelled.all_messages()[len(history) :], slot, metadata, [context_part])
+        yield DataChunk(type=context_part.type, data=context_part.data)
         yield MessageMetadataChunk(message_metadata=metadata)
 
     async def _followups(turn_messages: Sequence[ModelMessage]) -> list[str]:
@@ -179,6 +216,33 @@ async def chat(request: Request, conversation_id: str) -> Response:
         return await suggest_followups(
             state.resolve_model("fast"), state.subagent_settings, prompts[-1], _assistant_text(turn_messages)
         )
+
+    async def _distill(turn_messages: Sequence[ModelMessage]) -> None:
+        """Keep what this exchange established, so the next conversation starts knowing it."""
+        prompts = _user_prompts(turn_messages)
+        answer = _assistant_text(turn_messages)
+        if not prompts or not answer.strip():
+            return
+        with state.session_factory() as session:
+            known = [memory.text for memory in list_memories(session, profile_id)]
+        facts = await distill_memories(
+            state.resolve_model("fast"), state.subagent_settings, prompts[-1], answer, known
+        )
+        if not facts:
+            return
+        with state.session_factory() as session:
+            for fact in facts:
+                # add_memory drops anything the profile already knows, so a repeated exchange
+                # does not grow the list.
+                add_memory(
+                    session,
+                    profile_id,
+                    fact.text,
+                    kind=fact.kind,
+                    source="distilled",
+                    created_from=conversation_id,
+                )
+            session.commit()
 
     def close_thinking() -> None:
         nonlocal thinking_started
@@ -192,6 +256,12 @@ async def chat(request: Request, conversation_id: str) -> Response:
             async for chunk in adapter.run_stream(
                 message_history=history,
                 model=model,
+                instructions=memory_block.text or None,
+                deps=ChatDeps(
+                    session_factory=state.session_factory,
+                    profile_id=profile_id,
+                    conversation_id=conversation_id,
+                ),
                 cancellation_token=turn.token,
                 on_complete=on_complete,
                 on_cancel=on_cancel,

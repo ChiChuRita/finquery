@@ -19,6 +19,8 @@ export interface ChatMetadata {
 /** Custom data parts the agent emits. The keys become `data-*` part types. */
 export type ChatDataParts = {
   followups: { suggestions: string[] }
+  /** What the turn used of the model's context. Ticket 12 adds the token counts here. */
+  context: { memories_used: number }
 }
 
 export type ChatMessage = UIMessage<ChatMetadata, ChatDataParts>
@@ -100,6 +102,35 @@ export const deleteConversation = (id: string) => request<void>(`/api/conversati
 
 export const stopConversation = (id: string) =>
   request<{ stopped: boolean }>(`/api/conversations/${id}/stop`, { method: 'POST' })
+
+// Memory: durable facts shared by every conversation of the profile.
+
+export type MemoryKind = 'rule' | 'preference' | 'fact'
+export type MemorySource = 'explicit' | 'distilled'
+
+export interface Memory {
+  id: string
+  profile_id: string
+  text: string
+  kind: MemoryKind
+  source: MemorySource
+  /** The conversation it was established in, null once that conversation is deleted. */
+  created_from: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const memoriesQuery = (profileId: string | undefined) =>
+  queryOptions({
+    queryKey: ['memories', { profileId }],
+    queryFn: () => request<Memory[]>(`/api/memories?profile_id=${profileId}`),
+    enabled: profileId !== undefined,
+  })
+
+export const patchMemory = (id: string, patch: { text?: string; kind?: MemoryKind }) =>
+  request<Memory>(`/api/memories/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
+
+export const deleteMemory = (id: string) => request<void>(`/api/memories/${id}`, { method: 'DELETE' })
 
 export type FileState = 'missing' | 'verifying' | 'downloading' | 'ready' | 'error'
 

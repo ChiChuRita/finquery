@@ -97,6 +97,7 @@ it with `uv run python scripts/generate_synthetic.py`.
 - `src/finquery/`: `main.py` (CLI), `app.py` (factory), `settings.py`, `providers.py` (slots),
   `db.py` (SQLAlchemy models and the query view), `taxonomy.py` (default categories),
   `agent.py` (chat agent), `followups.py` (post-turn suggestions),
+  `memory.py` (durable facts: the `remember` tool, the distillation pass, prompt selection),
   `ingest/` (CSV reader, presets, mapping sub-agent, commit),
   `api/` (REST and chat endpoints),
   `local/` (the local provider: catalog, downloads, runtime, model, Gemma wire format, check)
