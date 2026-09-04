@@ -17,12 +17,21 @@ Wire contract:
                        "amount_cents": int | null, "date": "YYYY-MM-DD" | null,
                        "bookings": int | null, "options": [{"label": str, "value": str}]}],
              "options": [{"label": str, "value": str}],
-             "allow_free_text": bool}
-    output  {"answers": [{"ref": str, "value": str | null, "text": str | null}]}
+             "allow_free_text": bool,
+             "apply": {"kind": str} | null}
+    output  {"answers": [{"ref": str, "value": str | null, "text": str | null}],
+             "applied": str | null}
 
 An answer whose `ref` is empty answers the question itself rather than one of its rows. A row
 the user skipped simply has no answer.
+
+`apply` says what the answers mean, so the server can act on them in code before the run
+continues: `finquery.answers` applies them and writes what it did into `applied`, which is
+part of the tool result the model reads. Nothing about that is the model's arithmetic, and a
+card whose kind nobody handles is simply handed to the model as it came.
 """
+
+from typing import Literal
 
 from pydantic import BaseModel, Field
 from pydantic_ai.tools import GenerateToolJsonSchema, ToolDefinition
@@ -50,6 +59,35 @@ class AskRow(BaseModel):
     options: list[AskOption] = Field(default_factory=list, description="Buttons for this row.")
 
 
+ApplyKind = Literal["category_rule", "mapping_confirmation", "transaction_draft"]
+"""What kind of decision a card collects.
+
+`category_rule` is the only one the server applies itself (`finquery.answers.APPLIERS`). The
+other two name a card whose answers the model acts on with a tool of its own
+(`import_file(confirmed=true)`, `add_transaction(ref)`), so they exist to say "not
+categorization": without them a card that declares nothing would be read as a categorization
+card and its Confirm answers would be offered to `set_rule` as category names. Ticket 10 adds
+its duplicate kind here the same way.
+"""
+
+CATEGORY_RULE: ApplyKind = "category_rule"
+MAPPING_CONFIRMATION: ApplyKind = "mapping_confirmation"
+TRANSACTION_DRAFT: ApplyKind = "transaction_draft"
+
+
+class AskApply(BaseModel):
+    """What the server does with the answers before the model is asked to continue."""
+
+    kind: ApplyKind = Field(
+        default=CATEGORY_RULE,
+        description=(
+            "`category_rule` means every answer becomes a category rule for that merchant. "
+            "The other kinds are handled by a tool you call yourself, so copy whichever one the "
+            "tool that gave you the rows returned."
+        ),
+    )
+
+
 class AskUser(BaseModel):
     """One card in the transcript."""
 
@@ -60,6 +98,10 @@ class AskUser(BaseModel):
         default_factory=list, description="Buttons for the question itself, used when there are no rows."
     )
     allow_free_text: bool = Field(default=True, description="Whether the card offers a free text field.")
+    apply: AskApply | None = Field(
+        default=None,
+        description="What the answers mean, copied from the tool that handed you the rows.",
+    )
 
 
 class AskAnswer(BaseModel):
@@ -71,9 +113,14 @@ class AskAnswer(BaseModel):
 
 
 class AskAnswers(BaseModel):
-    """The output the browser sends back as the tool result."""
+    """The output the browser sends back as the tool result.
+
+    `applied` is added by the server, not by the browser: it is the one line saying what the
+    answers already changed, so the model summarizes instead of repeating the work.
+    """
 
     answers: list[AskAnswer] = Field(default_factory=list)
+    applied: str | None = None
 
 
 DESCRIPTION = """\
@@ -92,6 +139,8 @@ Rules:
   "Groceries > Supermarket" is a category and its subcategory.
 - `title` says what you want to know; the row labels carry the merchants.
 - Leave `allow_free_text` true so the user can type a category that is not a button.
+- Copy the `apply` object from the tool that gave you the rows (`review_batch` returns one).
+  It is what makes the answers take effect in code, without you having to act on them.
 - Say nothing else in the same turn: the card is the message.
 """
 

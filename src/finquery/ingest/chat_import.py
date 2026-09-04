@@ -22,7 +22,7 @@ from pydantic_ai.settings import ModelSettings
 from sqlalchemy.orm import Session
 
 from finquery import attachments
-from finquery.ask_user import AskOption, AskUser
+from finquery.ask_user import MAPPING_CONFIRMATION, AskApply, AskOption, AskUser
 from finquery.categorize import QUESTIONS_PER_CARD, categorize_import, pending_questions
 from finquery.db import Attachment, Import
 from finquery.ingest.commit import commit_rows, import_summary
@@ -80,6 +80,9 @@ def mapping_card(file_name: str, proposal: Mapping, note: str, samples: list[str
             AskOption(label="No, the mapping is wrong", value=REJECT),
         ],
         allow_free_text=False,
+        # Nothing for the server to apply: the confirmation is acted on by calling `import_file`
+        # again. The kind is here so the answers are not mistaken for a categorization card.
+        apply=AskApply(kind=MAPPING_CONFIRMATION),
     )
 
 

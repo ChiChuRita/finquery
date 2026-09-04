@@ -400,9 +400,14 @@ async def test_a_typed_transaction_is_previewed_and_confirming_it_creates_the_ro
             "account": "Cash",
         }
     ]
-    row = cards_in(chunks)[0]["input"]["rows"][0]
+    card = cards_in(chunks)[0]["input"]
+    row = card["rows"][0]
     assert (row["ref"], row["label"], row["amount_cents"]) == ("t1", "Lunch", -1200)
     assert [option["value"] for option in row["options"]] == ["add", "discard"]
+    # The card says which kind of decision it collects, and this one is not categorization:
+    # `add_transaction` acts on it, so `finquery.answers` must pass the answers through
+    # untouched instead of offering "add" to `set_rule` as a category name.
+    assert card["apply"] == {"kind": "transaction_draft"}
     # A preview writes nothing.
     assert await rows_of(client, profile_id) == []
 
@@ -414,6 +419,10 @@ async def test_a_typed_transaction_is_previewed_and_confirming_it_creates_the_ro
     )
     assert second.status_code == 200, second.text
     resumed = parse_sse(second.text)
+
+    answered = [part for part in (await transcript(client, conversation_id))["messages"][1]["parts"]
+                if part["type"] == "tool-ask_user"][0]
+    assert answered["output"].get("applied") is None, "nothing was applied in code for a draft card"
 
     added = [out for out in outputs_of(resumed) if out.get("status") == "added"][0]
     assert (added["amount_cents"], added["description"], added["account"]) == (-1200, "Lunch", "Cash")

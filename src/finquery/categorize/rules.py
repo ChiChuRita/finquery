@@ -9,11 +9,13 @@ written `PayPal to Anna` never matches, a rule written `Anna Weber` matches
 `PP.4711.PP . ANNA WEBER, Ihre Zahlung`. The tools tell the model to use the merchant token.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from finquery.ask_user import AskAnswer, AskRow
 from finquery.categorize.merchants import contains, fold, merchant_of
 from finquery.db import Category, CategoryRule, Subcategory, Transaction
 
@@ -129,6 +131,38 @@ class RuleOutcome:
 
 SAMPLE_ROWS = 3
 
+BULK_WORDS = frozenset(
+    {
+        "all",
+        "alle",
+        "allen",
+        "every",
+        "jede",
+        "jeden",
+        "row",
+        "rows",
+        "booking",
+        "bookings",
+        "buchung",
+        "buchungen",
+        "transaction",
+        "transactions",
+        "transaktion",
+        "transaktionen",
+    }
+)
+"""Words that make a pattern the request rather than a merchant.
+
+"all Netflix rows" is a bulk change: it belongs in a changeset the user sees before it moves,
+not in a rule that rewrites the rows at once (review of 2026-09-04). A single word is never
+refused, so a merchant that happens to be one of these still works.
+"""
+
+
+def bulk_phrase(pattern: str) -> bool:
+    words = fold(pattern).split()
+    return len(words) > 1 and any(word in BULK_WORDS for word in words)
+
 
 def set_rule(
     session: Session,
@@ -147,6 +181,15 @@ def set_rule(
     pattern = " ".join(pattern.split())
     if len(fold(pattern)) < 2:
         return RuleOutcome(pattern=pattern, error="A rule needs a merchant pattern of at least two characters.")
+    if bulk_phrase(pattern):
+        return RuleOutcome(
+            pattern=pattern,
+            error=(
+                f"'{pattern}' is a request, not a merchant. Moving bookings that already exist is a "
+                "bulk change: propose it with `propose_changeset` so the user sees the rows first. "
+                "A rule takes the merchant on its own, for instance 'Netflix'."
+            ),
+        )
     categories = load_categories(session, profile_id)
     placement = resolve(categories, category, subcategory)
     if placement is None:
@@ -192,3 +235,46 @@ def set_rule(
             enrich_row(row, merchant.title, None)
     session.commit()
     return outcome
+
+
+def apply_answers(
+    session: Session, profile_id: str, rows: Sequence[AskRow], answers: Sequence[AskAnswer]
+) -> str | None:
+    """Turn every answered row of a Question card into a category rule, here in code.
+
+    This is the whole point of the card: the user's decision is applied by `set_rule` before
+    the model runs again, so the rows move even if the model then says nothing useful. Asking
+    the fast model to make one tool call per answer is what looped for minutes and stored
+    nothing (review of 2026-09-04).
+
+    The line it returns goes back as part of the tool result, so the model summarizes what
+    happened instead of working it out. `None` means nothing was decided (every row skipped).
+    """
+    labels = {row.ref: row.label for row in rows}
+    answered: set[str] = set()
+    applied: list[str] = []
+    failed: list[str] = []
+    for answer in answers:
+        choice = (answer.value or answer.text or "").strip()
+        if not choice:
+            continue
+        answered.add(answer.ref)
+        label = labels.get(answer.ref, answer.ref)
+        head, tail = split_choice(choice)
+        outcome = set_rule(session, profile_id, pattern=answer.ref, category=head, subcategory=tail)
+        if outcome.error is not None:
+            failed.append(f"{label}: {outcome.error}")
+            continue
+        assert outcome.placement is not None
+        applied.append(f"{label} -> {outcome.placement.label} ({outcome.updated} bookings recategorized)")
+    if not applied and not failed:
+        return None
+    skipped = [label for ref, label in labels.items() if ref not in answered]
+    said: list[str] = []
+    if applied:
+        said.append("Applied: " + ", ".join(applied))
+    if failed:
+        said.append("Could not apply: " + "; ".join(failed))
+    if skipped:
+        said.append("Left for later: " + ", ".join(skipped))
+    return ". ".join(said) + "."

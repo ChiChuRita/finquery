@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -17,7 +17,13 @@ from pydantic import ValidationError
 from pydantic_ai import CancellationToken
 from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.exceptions import RunCancelled
-from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, ModelResponse, ToolReturnPart
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelMessagesTypeAdapter,
+    ModelResponse,
+    ToolCallPart,
+    ToolReturnPart,
+)
 from pydantic_ai.tools import DeferredToolResults
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 from pydantic_ai.ui.vercel_ai.request_types import (
@@ -34,10 +40,12 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     ReasoningDeltaChunk,
     ReasoningEndChunk,
     ReasoningStartChunk,
+    TextDeltaChunk,
 )
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.agent import ChatDeps, chat_agent
+from finquery.answers import resolve_answers
 from finquery.api.attachments import store_uploads, take_uploads, turn_chips
 from finquery.api.conversations import get_conversation_or_404
 from finquery.attachments import AttachmentRejected
@@ -52,6 +60,7 @@ from finquery.context import (
 )
 from finquery.db import Conversation, Turn, new_id, utcnow
 from finquery.followups import suggest_followups
+from finquery.local.gemma import MarkerFilter, strip_markers
 from finquery.memory import MemoryBlock, add_memory, build_memory_block, distill_memories, list_memories
 from finquery.providers import ProviderNotAvailable
 
@@ -99,8 +108,12 @@ class History:
         return [message for turn in self.turns for message in turn.messages]
 
     @property
-    def open_tool_calls(self) -> dict[str, str]:
-        """Tool calls of the last response that never got a result, id to tool name."""
+    def open_tool_calls(self) -> dict[str, ToolCallPart]:
+        """Tool calls of the last response that never got a result, by call id.
+
+        The call itself, not just its name: what the answers to a Question card mean is in the
+        call's own arguments (`AskUser.apply`), and that is what `finquery.answers` acts on.
+        """
         messages = self.messages
         answered = {
             part.tool_call_id
@@ -112,7 +125,7 @@ class History:
         last = next((m for m in reversed(messages) if isinstance(m, ModelResponse)), None)
         if last is None:
             return {}
-        return {call.tool_call_id: call.tool_name for call in last.tool_calls if call.tool_call_id not in answered}
+        return {call.tool_call_id: call for call in last.tool_calls if call.tool_call_id not in answered}
 
 
 @dataclass
@@ -190,7 +203,7 @@ def load_history(conversation: Conversation) -> History:
     return History(turns=turns, last_turn_id=last_id, last_turn_length=last_length)
 
 
-def _tool_outputs(messages: Sequence[UIMessage], wanted: dict[str, str]) -> dict[str, object]:
+def _tool_outputs(messages: Sequence[UIMessage], wanted: Mapping[str, ToolCallPart]) -> dict[str, object]:
     """The results the browser sent for tool calls the server left open.
 
     A client-side tool answers on the next request: `useChat` puts the output on the assistant
@@ -294,6 +307,20 @@ def _renderable(messages: list[ModelMessage]) -> list[ModelMessage]:
     ]
 
 
+def _clean_text(messages: Sequence[ModelMessage]) -> None:
+    """Take the chat template's own tokens out of the text a response carries.
+
+    The stream is filtered on its way to the browser (`MarkerFilter`); this is the same
+    vocabulary applied to what gets stored, so a reload does not bring `<turn|>` back.
+    """
+    for message in messages:
+        if message.kind != "response":
+            continue
+        for part in message.parts:
+            if part.part_kind == "text":
+                part.content = strip_markers(part.content)
+
+
 def _insert_narration(parts: list[Any], narration: list[tuple[int, str]]) -> None:
     """Put each tool's narration back where the live stream showed it: after that tool's step.
 
@@ -344,9 +371,15 @@ def persist_turn(
     if notes := _audit_notes(messages):
         metadata["audit_notes"] = notes
     interrupted = bool(metadata.get("interrupted"))
+    _clean_text(messages)
     ui_messages = _one_assistant_message(
         VercelAIAdapter.dump_messages(_renderable(messages), sdk_version=SDK_VERSION)
     )
+    # Every fragment says which slot produced it, so switching the conversation to the other
+    # model never relabels a turn that is already on screen (story 10).
+    for message in ui_messages:
+        if message.role == "assistant":
+            message.metadata = {**(message.metadata or {}), "model_slot": slot}
     if ui_messages and ui_messages[-1].role == "assistant":
         ui_messages[-1].metadata = {**(ui_messages[-1].metadata or {}), **metadata}
         if narration:
@@ -451,9 +484,19 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # A client-side tool answering an open call resumes the run that asked, so the request
     # carries a tool result rather than a new prompt: nothing of the client's is appended to
     # the history, and the pending turn is rewritten with both halves.
-    answers = _tool_outputs(adapter.run_input.messages, stored.open_tool_calls)
+    open_calls = stored.open_tool_calls
+    answers = _tool_outputs(adapter.run_input.messages, open_calls)
+    if answers:
+        # What the answers mean happens here, in code, before the model is asked to continue:
+        # the rules of a Question card are stored and the result says what was applied.
+        answers = resolve_answers(state.session_factory, profile_id, open_calls, answers)
     results = DeferredToolResults(calls=dict(answers)) if answers else None
     replaces = stored.last_turn_id if answers else None
+    # The half of a turn that resumes from an answered card has nothing to work out: the answers
+    # are applied, so it says what happened and asks the next question. It runs with reasoning
+    # off for that reason, and because the fast model collapsed into a repetition loop when it
+    # was left to think at this boundary (review of 2026-09-04).
+    turn_settings = state.subagent_settings if answers else None
     # The server owns the history: only the newest client message is appended to it.
     adapter.run_input.messages = [] if answers else adapter.run_input.messages[-1:]
 
@@ -512,11 +555,15 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # Stored on the assistant UI message and echoed to the client at the end of the turn.
     metadata: dict[str, object] = {"model_slot": slot}
     thinking_started: float | None = None
+    thinking_total = 0.0
 
     # The adapter feeds the client's message in through message_history, so new_messages() would
     # miss it. Everything after the server-side history is what this request produced; the turn
     # being persisted can start earlier when a pending call is being answered.
     async def on_complete(result: AgentRunResult) -> AsyncIterator[BaseChunk]:
+        # A model that ends its last thinking block by simply finishing leaves it open, and an
+        # unclosed block would be a turn with no duration at all after a reload.
+        close_thinking()
         messages = result.all_messages()
         turn_messages, produced = messages[turn_start:], messages[len(history) :]
         # Two post-turn steps on the fast slot, side by side: neither is worth waiting for twice.
@@ -616,13 +663,24 @@ async def chat(request: Request, conversation_id: str) -> Response:
             session.commit()
 
     def close_thinking() -> None:
-        nonlocal thinking_started
-        if thinking_started is not None:
-            metadata["thinking_seconds"] = round(time.monotonic() - thinking_started, 1)
-            thinking_started = None
+        """End the open thinking block and add it to the turn's total.
+
+        A turn thinks once per model response, so a turn with a tool call thinks several
+        times. What the panel showed live is the whole time the model spent thinking, so the
+        blocks are summed rather than the last one winning.
+        """
+        nonlocal thinking_started, thinking_total
+        if thinking_started is None:
+            return
+        thinking_total += time.monotonic() - thinking_started
+        thinking_started = None
+        metadata["thinking_seconds"] = round(thinking_total, 1)
 
     async def stream() -> AsyncIterator[BaseChunk]:
         nonlocal thinking_started
+        # Gemma's own template tokens are text on OpenRouter, and the answer is what the user
+        # reads, so they are taken out here for both providers.
+        markers = MarkerFilter()
         source = adapter.run_stream(
             message_history=history,
             # The summary and the memories ride in as one system-level note after the
@@ -630,6 +688,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
             instructions=prompt.instructions,
             deferred_tool_results=results,
             model=model,
+            model_settings=turn_settings,
             deps=deps,
             cancellation_token=turn.token,
             on_complete=on_complete,
@@ -658,6 +717,16 @@ async def chat(request: Request, conversation_id: str) -> Response:
                 elif item.type == "tool-input-available":
                     # Which tool step a narration block belongs to, for the reload.
                     narration.tools += 1
+                elif item.type == "text-delta":
+                    delta = markers.feed(item.delta)
+                    if not delta:
+                        # The whole delta was a marker, or the start of one still being held.
+                        continue
+                    # A copy rather than a new chunk: whatever else the provider put on it stays.
+                    item = item.model_copy(update={"delta": delta})
+                elif item.type == "text-end" and (tail := markers.flush()):
+                    # Text held back for a marker that never completed is still text.
+                    yield TextDeltaChunk(id=item.id, delta=tail)
                 yield item
         finally:
             pump.cancel()

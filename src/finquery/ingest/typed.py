@@ -21,7 +21,7 @@ from pydantic_ai.settings import ModelSettings
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from finquery.ask_user import AskOption, AskRow, AskUser
+from finquery.ask_user import TRANSACTION_DRAFT, AskApply, AskOption, AskRow, AskUser
 from finquery.categorize import categorize_rows
 from finquery.db import Category, Subcategory, Transaction, TransactionDraft, ensure_account, fingerprint
 from finquery.ingest.csv_reader import parse_amount
@@ -181,6 +181,9 @@ def preview_card(drafts: list[TransactionDraft]) -> AskUser:
             for draft in drafts
         ],
         allow_free_text=False,
+        # Nothing for the server to apply: a confirmed row is written by `add_transaction`. The
+        # kind is here so Confirm and Discard are not read as category names.
+        apply=AskApply(kind=TRANSACTION_DRAFT),
     )
 
 

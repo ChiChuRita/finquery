@@ -147,6 +147,23 @@ def call_tools(*calls: tuple[str, dict[str, Any]]):
     return fn
 
 
+def echo_applied():
+    """A chat turn that only summarizes an answered card, quoting what the server applied.
+
+    It calls no tool, so anything that moves in the database was moved by code. `settings`
+    records what the resumed half was run with.
+    """
+    settings: list[object] = []
+
+    async def fn(messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[object]:
+        settings.append(info.model_settings)
+        card = next((result for name, result in _tool_returns(messages) if name == "ask_user"), None)
+        yield f"Summarized: {card['applied']}" if card else "Nothing to summarize."
+
+    fn.settings = settings  # type: ignore[attr-defined]
+    return fn
+
+
 def _tool_returns(messages: list[ModelMessage]) -> list[tuple[str, dict[str, Any]]]:
     """The tool results of the turn being answered, ignoring everything before the last prompt."""
     found: list[tuple[str, dict[str, Any]]] = []
@@ -347,9 +364,15 @@ async def test_the_import_hands_the_uncertain_rows_to_a_question_card(
     assert card["input"]["allow_free_text"] is True
 
 
-async def test_answering_a_question_card_creates_rules_and_recategorizes(
+async def test_answering_a_question_card_applies_the_answers_in_code(
     client: httpx.AsyncClient, scripts: Scripts, profile_id: str
 ) -> None:
+    """The rules are stored before the model runs again, and it is told what was applied.
+
+    The fast model is never asked to sequence one `set_rule` call per answer: it looped for
+    minutes on that and stored nothing (review of 2026-09-04). Here the script makes no tool
+    call at all and the rows still move.
+    """
     await import_synthetic(client, profile_id)
     scripts.fast_call = scripted_categorizer()  # type: ignore[assignment]
     import_id = await last_import(client, profile_id)
@@ -362,33 +385,34 @@ async def test_answering_a_question_card_creates_rules_and_recategorizes(
     card = detail["messages"][1]["parts"][1]
 
     # The browser answers two of the four rows and leaves the rest alone.
-    answers = {
-        "answers": [
-            {"ref": "anna weber", "value": "Dining > Restaurant", "text": None},
-            {"ref": "jonas keller", "value": None, "text": "Leisure"},
-        ]
-    }
-    scripts.fast = call_tools(
-        ("set_rule", {"pattern": "Anna Weber", "category": "Dining", "subcategory": "Restaurant"}),
-        ("set_rule", {"pattern": "Jonas Keller", "category": "Leisure"}),
-    )
+    answers = [
+        {"ref": "anna weber", "value": "Dining > Restaurant", "text": None},
+        {"ref": "jonas keller", "value": None, "text": "Leisure"},
+    ]
+    summarize = echo_applied()
+    scripts.fast = summarize
     response = await client.post(
         f"/api/conversations/{conversation_id}/chat",
-        json=answer_card(conversation_id, detail["messages"][1]["id"], card, answers),
+        json=answer_card(conversation_id, detail["messages"][1]["id"], card, {"answers": answers}),
     )
     assert response.status_code == 200, response.text
     chunks = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: {")]
 
-    # The run continued from the pending call: the answer became the tool's result, and two
-    # rules were stored from it.
+    # The run continued from the pending call. The tool result is the user's answers plus the
+    # line stating what the server already did with them.
     resolved = [c for c in chunks if c["type"] == "tool-output-available"]
+    assert len(resolved) == 1, "the model called no tool of its own"
     assert resolved[0]["toolCallId"] == card["toolCallId"]
-    assert resolved[0]["output"] == answers
-    # Two calls in one response, so they resolve in whatever order they finish.
-    stored = {rule["pattern"]: rule for rule in (c["output"] for c in resolved[1:])}
-    assert set(stored) == {"Anna Weber", "Jonas Keller"}
-    assert (stored["Anna Weber"]["matched"], stored["Anna Weber"]["updated"]) == (6, 6)
-    assert (stored["Jonas Keller"]["matched"], stored["Jonas Keller"]["updated"]) == (7, 7)
+    assert resolved[0]["output"]["answers"] == answers
+    applied = resolved[0]["output"]["applied"]
+    assert "Anna Weber" in applied and "Dining > Restaurant" in applied and "6 bookings" in applied
+    assert "Jonas Keller" in applied and "Leisure" in applied and "7 bookings" in applied
+    assert "Max Schulz" in applied, "the rows nobody answered are named as skipped"
+    # The model's own answer quotes the line, which is how we know it was told rather than asked.
+    assert answer(chunks) == f"Summarized: {applied}"
+    # Nothing is left to reason about on this half of the turn, so it runs with reasoning off:
+    # the fast model collapsed into a repetition loop when it was left to think here.
+    assert summarize.settings[0] == {"openrouter_reasoning": {"enabled": False}}  # type: ignore[attr-defined]
 
     anna = await rows_of(client, profile_id, "ANNA WEBER")
     assert {(row["category"], row["subcategory"]) for row in anna} == {("Dining", "Restaurant")}
@@ -397,23 +421,14 @@ async def test_answering_a_question_card_creates_rules_and_recategorizes(
     # The rows nobody answered are still Needs review.
     assert {row["category"] for row in await rows_of(client, profile_id, "MAX SCHULZ")} == {None}
 
-    # One turn, one assistant message: the card now carries its answer, then the rules, then
-    # the text, then the stats of the request that finished the turn. A reload shows what the
-    # stream showed.
+    # One turn, one assistant message: the card now carries its answer, then the text, then the
+    # stats of the request that finished the turn. A reload shows what the stream showed.
     reloaded = (await client.get(f"/api/conversations/{conversation_id}")).json()
     assert [m["role"] for m in reloaded["messages"]] == ["user", "assistant"]
     parts = reloaded["messages"][1]["parts"]
-    assert [part["type"] for part in parts] == [
-        "text",
-        "tool-ask_user",
-        "tool-set_rule",
-        "tool-set_rule",
-        "text",
-        "data-context",
-    ]
+    assert [part["type"] for part in parts] == ["text", "tool-ask_user", "text", "data-context"]
     assert parts[1]["state"] == "output-available"
-    assert parts[1]["output"] == answers
-    assert parts[2]["output"]["category"] == "Dining"
+    assert parts[1]["output"]["applied"] == applied
 
 
 async def test_a_card_the_user_skips_leaves_the_rows_alone(
@@ -443,7 +458,30 @@ async def test_a_card_the_user_skips_leaves_the_rows_alone(
     reloaded = (await client.get(f"/api/conversations/{conversation_id}")).json()
     parts = reloaded["messages"][1]["parts"]
     assert [part["type"] for part in parts] == ["text", "tool-ask_user", "text", "data-context"]
+    # Nothing was applied, so the output is the answers as they came in.
     assert parts[1]["output"] == {"answers": []}
+
+
+async def test_a_bulk_edit_phrase_is_not_a_rule_pattern(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """`set_rule` is for teaching a merchant, not for changing rows in bulk.
+
+    A bulk change belongs in a changeset with a preview the user applies, so a pattern that
+    reads like the request itself is refused with the tool to use instead.
+    """
+    await import_synthetic(client, profile_id)
+    scripts.fast = call_tools(("set_rule", {"pattern": "all Netflix rows", "category": "Subscriptions"}))
+    scripts.fast_call = scripted_categorizer()  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Recategorize all Netflix rows as Subscriptions.")
+
+    output = outputs_of(chunks)[0]
+    assert "propose_changeset" in output["error"]
+    assert output.get("matched") is None, "nothing was touched"
+    # The bookings are untouched: this import was never categorized, so they are Needs review.
+    assert {row["category"] for row in await rows_of(client, profile_id, "NETFLIX")} == {None}
 
 
 async def test_a_categorized_import_changes_what_the_query_sub_agent_is_told(

@@ -27,6 +27,7 @@ import { EmptyState } from '@/components/empty-state'
 import { AnswerCompare, FeedbackError, Thumbs, useAnswerFeedback } from '@/components/feedback'
 import { AddedToolStep, ImportToolStep, PreviewToolStep } from '@/components/import-tool'
 import { LookupToolStep } from '@/components/lookup-tool'
+import { MemoryToolStep } from '@/components/memory-tool'
 import { QueryToolStep } from '@/components/query-tool'
 import { QuestionCard } from '@/components/question-card'
 import { ReviewToolStep, RuleToolStep } from '@/components/rule-tool'
@@ -154,7 +155,13 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
         <p className="min-w-0 flex-1 truncate font-medium text-sm" title={conversation.title}>
           {conversation.title}
         </p>
-        {context && <ContextBadge stats={context} />}
+        {context ? (
+          <ContextBadge stats={context} />
+        ) : (
+          <span className="text-muted-foreground text-xs" title="No context reading for this conversation yet">
+            &ndash;
+          </span>
+        )}
       </div>
 
       <Conversation className="flex-1" contextRef={scrollContext} initial={false}>
@@ -219,11 +226,18 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
   )
 }
 
-/** The stats of the newest turn that reported any, which is what the header badge shows. */
+/** The stats of the newest turn that reported any, which is what the header badge shows.
+ *
+ * A conversation from before the part carried token counts, and a turn nobody streamed (the
+ * seeded review conversation), have no usable reading. The header shows a dash for those
+ * rather than a percentage computed from undefined.
+ */
 function latestContext(messages: ChatMessage[]): ContextStats | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     for (const part of messages[i].parts) {
-      if (part.type === 'data-context') return part.data
+      if (part.type !== 'data-context') continue
+      const stats = part.data
+      if (Number.isFinite(stats?.used) && Number.isFinite(stats?.budget) && stats.budget > 0) return stats
     }
   }
   return undefined
@@ -404,6 +418,9 @@ function TranscriptMessage({
           }
           if (part.type === 'tool-review_batch') {
             return <ReviewToolStep key={`${message.id}-${index}`} part={part} />
+          }
+          if (part.type === 'tool-remember') {
+            return <MemoryToolStep key={`${message.id}-${index}`} part={part} />
           }
           if (part.type === 'tool-propose_changeset' || part.type === 'tool-apply_simple_edit') {
             return <ChangesetCard key={`${message.id}-${index}`} part={part} />

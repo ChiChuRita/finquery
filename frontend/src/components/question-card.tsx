@@ -70,6 +70,8 @@ export function QuestionCard({
   const rows = input.rows ?? []
   const fallback = input.options ?? []
   const answered = part.state === 'output-available' ? (part.output?.answers ?? []) : null
+  // What the answers already did, written by the server, not by the model.
+  const applied = part.state === 'output-available' ? part.output?.applied : null
   const open = OPEN.has(part.state) && !sent
 
   const answers = (): AskAnswer[] =>
@@ -152,6 +154,13 @@ export function QuestionCard({
             )
           })}
         </ul>
+      )}
+
+      {applied && (
+        <p className="mt-3 flex items-start gap-1.5 text-muted-foreground text-xs">
+          <CheckIcon aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-primary" />
+          {applied}
+        </p>
       )}
 
       {rows.length === 0 && !answered && (

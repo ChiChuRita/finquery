@@ -46,7 +46,7 @@ from finquery.categorize.subagent import (
     batched,
     categorize_merchants,
 )
-from finquery.ask_user import AskOption, AskRow, AskUser
+from finquery.ask_user import AskApply, AskOption, AskRow, AskUser
 from finquery.db import Category, Transaction
 from finquery.providers import ModelResolver, ProviderNotAvailable
 
@@ -215,6 +215,8 @@ def review_card(questions: list[Question], pending: int) -> AskUser:
             for question in questions
         ],
         allow_free_text=True,
+        # The answers become category rules in code, before the model is asked to continue.
+        apply=AskApply(),
     )
 
 

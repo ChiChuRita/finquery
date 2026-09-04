@@ -100,6 +100,8 @@ export interface AskAnswer {
 
 export interface AskUserOutput {
   answers: AskAnswer[]
+  /** What the server applied for these answers before the model saw them, one line. */
+  applied?: string | null
 }
 
 // `set_rule`: a category rule stored and applied to the whole profile.
@@ -118,6 +120,12 @@ export interface SetRuleOutput {
   rule?: 'created' | 'updated'
   sample?: string[]
   error: string | null
+}
+
+// `remember`: one durable fact, stored for every conversation of the profile.
+export interface RememberInput {
+  text: string
+  kind?: 'rule' | 'preference' | 'fact'
 }
 
 export interface ReviewQuestion {
@@ -266,6 +274,7 @@ export type ChatTools = {
   chart: { input: ChartToolInput; output: ChartToolOutput }
   ask_user: { input: AskUserInput; output: AskUserOutput }
   set_rule: { input: SetRuleInput; output: SetRuleOutput }
+  remember: { input: RememberInput; output: string }
   review_batch: { input: { limit?: number }; output: ReviewBatchOutput }
   propose_changeset: { input: ChangesetToolInput; output: ChangesetToolOutput }
   apply_simple_edit: { input: ChangesetToolInput; output: ChangesetToolOutput }
@@ -280,6 +289,7 @@ export type ChatTools = {
 export type QueryToolPart = ToolUIPart<{ query: ChatTools['query'] }>
 export type AskUserPart = ToolUIPart<{ ask_user: ChatTools['ask_user'] }>
 export type SetRulePart = ToolUIPart<{ set_rule: ChatTools['set_rule'] }>
+export type RememberPart = ToolUIPart<{ remember: ChatTools['remember'] }>
 export type ReviewBatchPart = ToolUIPart<{ review_batch: ChatTools['review_batch'] }>
 // One part type for both writing tools: the card renders the same shape either way.
 export type ChangesetToolPart = ToolUIPart<{

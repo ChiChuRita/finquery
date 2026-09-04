@@ -152,7 +152,8 @@ merchant token leaves at most once per profile: the result is cached. Search nee
   `categorize/` (rules, merchant dictionary, categorizer sub-agent, review queue),
   `weblookup/` (the merchant token scrubber, the keyless search client, the self-directed
   lookup loop, the outbound log and the lookup cache),
-  `ask_user.py` (the Question card tool), `followups.py` (post-turn suggestions),
+  `ask_user.py` (the Question card tool) and `answers.py` (what its answers do, in code),
+  `followups.py` (post-turn suggestions),
   `memory.py` (durable facts: the `remember` tool, the distillation pass, prompt selection),
   `preferences.py` (ratings and picks as training data),
   `context.py` (token budget, per-turn prompt assembly, rolling summary),
