@@ -53,9 +53,88 @@ export interface QueryToolOutput {
   error: string | null
 }
 
+// `ask_user`: the client-side tool. The input arrives as a tool part the browser renders as a
+// Question card; the answer goes back with `addToolOutput` and resumes the run. Tickets 08, 10
+// and 11 reuse the same contract for mapping confirmation, duplicates and review.
+export interface AskOption {
+  label: string
+  value: string
+}
+
+export interface AskRow {
+  ref: string
+  label: string
+  description?: string | null
+  amount_cents?: number | null
+  date?: string | null
+  bookings?: number | null
+  options?: AskOption[]
+}
+
+export interface AskUserInput {
+  title: string
+  note?: string | null
+  rows?: AskRow[]
+  options?: AskOption[]
+  allow_free_text?: boolean
+}
+
+export interface AskAnswer {
+  ref: string
+  value: string | null
+  text: string | null
+}
+
+export interface AskUserOutput {
+  answers: AskAnswer[]
+}
+
+// `set_rule`: a category rule stored and applied to the whole profile.
+export interface SetRuleInput {
+  pattern: string
+  category: string
+  subcategory?: string | null
+}
+
+export interface SetRuleOutput {
+  pattern: string
+  category?: string
+  subcategory?: string | null
+  matched?: number
+  updated?: number
+  rule?: 'created' | 'updated'
+  sample?: string[]
+  error: string | null
+}
+
+export interface ReviewQuestion {
+  pattern: string
+  label: string
+  description: string
+  date: string
+  amount_cents: number
+  bookings: number
+  options: string[]
+  guess: string | null
+  confidence: number | null
+}
+
+export interface ReviewBatchOutput {
+  pending_merchants: number
+  questions: ReviewQuestion[]
+}
+
 /** The tools the agent may call. The keys become `tool-*` part types. */
-export type ChatTools = { query: { input: QueryToolInput; output: QueryToolOutput } }
-export type QueryToolPart = ToolUIPart<ChatTools>
+export type ChatTools = {
+  query: { input: QueryToolInput; output: QueryToolOutput }
+  ask_user: { input: AskUserInput; output: AskUserOutput }
+  set_rule: { input: SetRuleInput; output: SetRuleOutput }
+  review_batch: { input: { limit?: number }; output: ReviewBatchOutput }
+}
+export type QueryToolPart = ToolUIPart<{ query: ChatTools['query'] }>
+export type AskUserPart = ToolUIPart<{ ask_user: ChatTools['ask_user'] }>
+export type SetRulePart = ToolUIPart<{ set_rule: ChatTools['set_rule'] }>
+export type ReviewBatchPart = ToolUIPart<{ review_batch: ChatTools['review_batch'] }>
 
 export type ChatMessage = UIMessage<ChatMetadata, ChatDataParts, ChatTools>
 
@@ -308,6 +387,40 @@ export function commitImport(profileId: string, file: File, mapping: CsvMapping,
   form.set('account_name', accountName)
   return postForm<ImportRecord>('/api/imports', form)
 }
+
+// Categorization of a finished import, and the conversation that asks about what is left.
+
+export interface CategorizeReport {
+  import_id: string
+  rows: number
+  by_rule: number
+  by_dictionary: number
+  by_model: number
+  needs_review: number
+  merchants: number
+  model_calls: number
+  uncertain: ReviewQuestion[]
+  error: string | null
+}
+
+export interface ReviewConversation {
+  conversation_id: string
+  title: string
+  questions: number
+  pending_merchants: number
+}
+
+export const categorizeImport = (importId: string, profileId: string) =>
+  request<CategorizeReport>(`/api/imports/${importId}/categorize`, {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId }),
+  })
+
+export const openReviewConversation = (importId: string, profileId: string, model_slot: ModelSlot = 'fast') =>
+  request<ReviewConversation>(`/api/imports/${importId}/review-conversation`, {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId, model_slot }),
+  })
 
 // Everything below the profile boundary is asked for by id, the same as conversations.
 export const importsQuery = (profileId: string | undefined) =>

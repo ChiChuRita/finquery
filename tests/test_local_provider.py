@@ -188,9 +188,10 @@ async def test_gemma_tool_call_syntax_becomes_a_tool_part(tmp_path: Path) -> Non
             assert output[0]["output"] == "groceries in May -> 120.00 EUR (limit 20)"
             assert "".join(str(c["delta"]) for c in seen if c["type"] == "text-delta") == "You spent 120 EUR."
 
-            # Free tool calling: the tool is declared, nothing is forced, no response format.
+            # Free tool calling: the tools are declared, nothing is forced, no response format.
+            # `ask_user` rides along because the chat agent always carries the deferred toolset.
             first = slots["fast"].requests[0]
-            assert [t["function"]["name"] for t in first["tools"]] == ["query"]
+            assert [t["function"]["name"] for t in first["tools"]] == ["query", "ask_user"]
             assert first["tool_choice"] == "auto"
             assert "response_format" not in first
             # The tool result goes back as a tool message the chat template renders as a response.

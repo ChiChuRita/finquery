@@ -16,10 +16,12 @@ from pydantic import ValidationError
 from pydantic_ai import CancellationToken
 from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.exceptions import RunCancelled
-from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
+from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, ModelResponse, ToolReturnPart
+from pydantic_ai.tools import DeferredToolResults
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
-from pydantic_ai.ui.vercel_ai.request_types import DataUIPart, UIMessage
+from pydantic_ai.ui.vercel_ai.request_types import DataUIPart, ToolOutputAvailablePart, UIMessage
 from pydantic_ai.ui.vercel_ai.response_types import BaseChunk, DataChunk, MessageMetadataChunk
+from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.agent import ChatDeps, chat_agent
 from finquery.api.conversations import get_conversation_or_404
@@ -57,15 +59,75 @@ class RunningTurn:
     finished: asyncio.Event = field(default_factory=asyncio.Event)
 
 
-def _stored_turns(conversation: Conversation) -> list[TurnMessages]:
-    return [
-        TurnMessages(
-            position=turn.position,
-            messages=list(ModelMessagesTypeAdapter.validate_json(turn.model_messages_json)),
-            ui_count=len(json.loads(turn.ui_messages_json)),
+@dataclass(frozen=True)
+class History:
+    """The conversation as it is stored: turn by turn, plus what the last turn was made of.
+
+    The turns stay separate because the prompt is assembled from them rather than from one flat
+    list: past the threshold the older ones are replaced by the rolling summary.
+
+    The last turn matters because a deferred tool call (`ask_user`) ends a turn with the call
+    still open. When the answer arrives, the same turn continues, so it is rewritten with both
+    halves instead of a second turn being appended.
+    """
+
+    turns: list[TurnMessages]
+    last_turn_id: str | None = None
+    last_turn_length: int = 0
+
+    @property
+    def messages(self) -> list[ModelMessage]:
+        """Every stored message, whether or not this turn's prompt still carries it."""
+        return [message for turn in self.turns for message in turn.messages]
+
+    @property
+    def open_tool_calls(self) -> dict[str, str]:
+        """Tool calls of the last response that never got a result, id to tool name."""
+        messages = self.messages
+        answered = {
+            part.tool_call_id
+            for message in messages
+            if message.kind == "request"
+            for part in message.parts
+            if isinstance(part, ToolReturnPart)
+        }
+        last = next((m for m in reversed(messages) if isinstance(m, ModelResponse)), None)
+        if last is None:
+            return {}
+        return {call.tool_call_id: call.tool_name for call in last.tool_calls if call.tool_call_id not in answered}
+
+
+def _load_history(conversation: Conversation) -> History:
+    turns: list[TurnMessages] = []
+    last_id: str | None = None
+    last_length = 0
+    for turn in conversation.turns:
+        messages = list(ModelMessagesTypeAdapter.validate_json(turn.model_messages_json))
+        turns.append(
+            TurnMessages(
+                position=turn.position,
+                messages=messages,
+                ui_count=len(json.loads(turn.ui_messages_json)),
+            )
         )
-        for turn in conversation.turns
-    ]
+        last_id, last_length = turn.id, len(messages)
+    return History(turns=turns, last_turn_id=last_id, last_turn_length=last_length)
+
+
+def _tool_outputs(messages: Sequence[UIMessage], wanted: dict[str, str]) -> dict[str, object]:
+    """The results the browser sent for tool calls the server left open.
+
+    A client-side tool answers on the next request: `useChat` puts the output on the assistant
+    message it belongs to and sends that message. Anything that does not match an open call of
+    this conversation is ignored, so a stale or invented output cannot resolve anything.
+    """
+    return {
+        part.tool_call_id: part.output
+        for message in messages
+        if message.role == "assistant"
+        for part in message.parts
+        if isinstance(part, ToolOutputAvailablePart) and part.tool_call_id in wanted
+    }
 
 
 def _latest_user_text(messages: Sequence[UIMessage]) -> str:
@@ -136,41 +198,75 @@ def _one_assistant_message(ui_messages: list[UIMessage]) -> list[UIMessage]:
     return folded
 
 
-def _persist_turn(
-    request: Request,
-    conversation_id: str,
-    new_messages: list[ModelMessage],
-    slot: str,
-    metadata: dict[str, object],
-    data_parts: Sequence[DataUIPart],
-) -> None:
-    """Store the turn, with the data parts the client saw appended to its assistant message.
+def _renderable(messages: list[ModelMessage]) -> list[ModelMessage]:
+    """Drop the requests that only exist to make the model try again.
 
-    Streaming a part and storing it is one code path, so a reloaded transcript renders exactly
-    what the live one did.
+    A response with nothing but thinking earns a retry prompt, which is a `ModelRequest` the
+    dump turns into a user text part: the transcript would show "Validation feedback: Please
+    return text or call a tool" as if the user had typed it. The model history keeps it, the
+    UI messages do not. A retry that belongs to a tool call keeps its `tool_name` and stays,
+    because that one renders as the tool step's error.
     """
-    if notes := _audit_notes(new_messages):
+    return [
+        message
+        for message in messages
+        if not (
+            message.kind == "request"
+            and message.parts
+            and all(part.part_kind == "retry-prompt" and part.tool_name is None for part in message.parts)
+        )
+    ]
+
+
+def persist_turn(
+    session_factory: sessionmaker[Session],
+    conversation_id: str,
+    messages: list[ModelMessage],
+    *,
+    slot: str,
+    metadata: dict[str, object] | None = None,
+    data_parts: Sequence[DataUIPart] = (),
+    replaces: str | None = None,
+) -> None:
+    """Store one turn as both message families: what the model sees and what the UI renders.
+
+    The data parts the client saw streamed are appended to the turn's assistant message, so
+    streaming a part and storing it is one code path and a reloaded transcript renders exactly
+    what the live one did.
+
+    `replaces` rewrites an existing turn instead of appending one. That is how a turn which
+    ended on a pending `ask_user` call becomes whole once the answer arrives: the messages of
+    both halves are dumped together, so the tool part carries its output and the reload shows
+    the answered card.
+
+    Also used by the Import page's review conversation, which seeds a turn nobody streamed.
+    """
+    metadata = dict(metadata or {})
+    if notes := _audit_notes(messages):
         metadata["audit_notes"] = notes
     interrupted = bool(metadata.get("interrupted"))
-    ui_messages = _one_assistant_message(VercelAIAdapter.dump_messages(new_messages, sdk_version=SDK_VERSION))
+    ui_messages = _one_assistant_message(
+        VercelAIAdapter.dump_messages(_renderable(messages), sdk_version=SDK_VERSION)
+    )
     if ui_messages and ui_messages[-1].role == "assistant":
         ui_messages[-1].metadata = {**(ui_messages[-1].metadata or {}), **metadata}
-        # The same parts the client saw streamed, so live and reloaded transcripts render alike.
         ui_messages[-1].parts.extend(data_parts)
-    with request.app.state.session_factory() as session:
+    with session_factory() as session:
         conversation = session.get(Conversation, conversation_id)
         if conversation is None:
             return
+        if replaces is not None and (previous := session.get(Turn, replaces)) is not None:
+            conversation.turns.remove(previous)
         conversation.turns.append(
             Turn(
                 position=len(conversation.turns),
                 model_slot=slot,
                 interrupted=interrupted,
-                model_messages_json=ModelMessagesTypeAdapter.dump_json(new_messages).decode(),
+                model_messages_json=ModelMessagesTypeAdapter.dump_json(messages).decode(),
                 ui_messages_json=json.dumps([m.model_dump(by_alias=True, mode="json") for m in ui_messages]),
             )
         )
-        if conversation.title == "New chat" and (title := _title_from(new_messages)):
+        if conversation.title == "New chat" and (title := _title_from(messages)):
             conversation.title = title
         conversation.updated_at = utcnow()
         session.commit()
@@ -200,7 +296,9 @@ async def _prompt_for(
     threshold is already the one that runs small. It costs one fast-slot call on that turn.
 
     The selected memories go through `assemble` with everything else, so they are inside the
-    number the compression decision and the badge are both read from.
+    number the compression decision and the badge are both read from. A turn resumed from a
+    Question card comes through here too, so a pending card is answered with the same prompt
+    shape as a typed message.
     """
     state = request.app.state
     assembly = assemble(turns, summary, through, memory)
@@ -228,7 +326,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
         slot = conversation.model_slot
         # The conversation owns the profile: every tool in this turn stays inside it.
         profile_id = conversation.profile_id
-        turns = _stored_turns(conversation)
+        stored = _load_history(conversation)
         summary, summary_through = conversation.summary, conversation.summary_through
 
     running: dict[str, RunningTurn] = state.running_turns
@@ -244,8 +342,15 @@ async def chat(request: Request, conversation_id: str) -> Response:
         adapter = await VercelAIAdapter.from_request(request, agent=chat_agent, sdk_version=SDK_VERSION)
     except ValidationError as exc:
         return Response(content=exc.json(), media_type="application/json", status_code=422)
+
+    # A client-side tool answering an open call resumes the run that asked, so the request
+    # carries a tool result rather than a new prompt: nothing of the client's is appended to
+    # the history, and the pending turn is rewritten with both halves.
+    answers = _tool_outputs(adapter.run_input.messages, stored.open_tool_calls)
+    results = DeferredToolResults(calls=dict(answers)) if answers else None
+    replaces = stored.last_turn_id if answers else None
     # The server owns the history: only the newest client message is appended to it.
-    adapter.run_input.messages = adapter.run_input.messages[-1:]
+    adapter.run_input.messages = [] if answers else adapter.run_input.messages[-1:]
 
     deps = ChatDeps(
         session_factory=state.session_factory,
@@ -256,11 +361,20 @@ async def chat(request: Request, conversation_id: str) -> Response:
     )
 
     # The one place memory enters the prompt: the block is handed to the assembly, which joins
-    # it to the rolling summary and hands both back as this turn's run instructions.
+    # it to the rolling summary and hands both back as this turn's run instructions. A turn
+    # resumed from a Question card brings no new message, so its memories are selected for the
+    # prompt the pending turn started with.
+    question = _latest_user_text(adapter.run_input.messages)
+    if not question:
+        question = next(reversed(_user_prompts(stored.messages)), "")
     with state.session_factory() as session:
-        memory_block = build_memory_block(session, profile_id, _latest_user_text(adapter.run_input.messages))
-    prompt = await _prompt_for(request, conversation_id, turns, summary, summary_through, memory_block)
+        memory_block = build_memory_block(session, profile_id, question)
+    prompt = await _prompt_for(request, conversation_id, stored.turns, summary, summary_through, memory_block)
     history = prompt.history
+    # Where the turn being written starts in the run's messages. Answering a deferred call
+    # continues the pending turn, so it starts where that turn started, not at the end of the
+    # prompt. Compression never folds the pending turn away: it is the newest one.
+    turn_start = max(0, len(history) - stored.last_turn_length) if answers else len(history)
 
     turn = RunningTurn()
     running[conversation_id] = turn
@@ -269,23 +383,25 @@ async def chat(request: Request, conversation_id: str) -> Response:
     thinking_started: float | None = None
 
     # The adapter feeds the client's message in through message_history, so new_messages() would
-    # miss it. Everything after the server-side history is this turn.
+    # miss it. Everything after the server-side history is what this request produced; the turn
+    # being persisted can start earlier when a pending call is being answered.
     async def on_complete(result: AgentRunResult) -> AsyncIterator[BaseChunk]:
-        turn_messages = result.all_messages()[len(history) :]
+        messages = result.all_messages()
+        turn_messages, produced = messages[turn_start:], messages[len(history) :]
         # Two post-turn steps on the fast slot, side by side: neither is worth waiting for twice.
         # Nobody is waiting on either, and a model that loops on one of them would otherwise
         # hold the finished answer hostage, so the whole pair is on a clock.
         try:
             followups, _ = await asyncio.wait_for(
-                asyncio.gather(_followups(turn_messages), _distill(turn_messages)), POST_TURN_TIMEOUT
+                asyncio.gather(_followups(produced), _distill(produced)), POST_TURN_TIMEOUT
             )
         except TimeoutError:
             logger.warning("post-turn steps timed out after %s s", POST_TURN_TIMEOUT)
             followups = []
-        data_parts = [DataUIPart(type=CONTEXT_PART, data=_context_stats(turn_messages))]
+        data_parts = [DataUIPart(type=CONTEXT_PART, data=_context_stats(produced))]
         if followups:
             data_parts.append(DataUIPart(type=FOLLOWUPS_PART, data={"suggestions": followups}))
-        _persist_turn(request, conversation_id, turn_messages, slot, metadata, data_parts)
+        store(turn_messages, data_parts)
         for part in data_parts:
             yield DataChunk(type=part.type, data=part.data)
         yield MessageMetadataChunk(message_metadata=metadata)
@@ -293,22 +409,33 @@ async def chat(request: Request, conversation_id: str) -> Response:
     async def on_cancel(cancelled: RunCancelled) -> AsyncIterator[BaseChunk]:
         metadata["interrupted"] = True
         close_thinking()
-        turn_messages = cancelled.all_messages()[len(history) :]
+        messages = cancelled.all_messages()
         # A turn that was cut off gets no follow-ups and nothing distilled: the answer they
         # would build on does not exist. What it was given is still reported.
-        part = DataUIPart(type=CONTEXT_PART, data=_context_stats(turn_messages))
-        _persist_turn(request, conversation_id, turn_messages, slot, metadata, [part])
+        part = DataUIPart(type=CONTEXT_PART, data=_context_stats(messages[len(history) :]))
+        store(messages[turn_start:], [part])
         yield DataChunk(type=part.type, data=part.data)
         yield MessageMetadataChunk(message_metadata=metadata)
 
-    def _context_stats(turn_messages: Sequence[ModelMessage]) -> dict[str, object]:
+    def store(turn_messages: list[ModelMessage], data_parts: Sequence[DataUIPart]) -> None:
+        persist_turn(
+            state.session_factory,
+            conversation_id,
+            turn_messages,
+            slot=slot,
+            metadata=metadata,
+            data_parts=data_parts,
+            replaces=replaces,
+        )
+
+    def _context_stats(produced: Sequence[ModelMessage]) -> dict[str, object]:
         """What the header badge shows: this turn's footprint against the slot's budget.
 
-        `used` is the prompt that was sent plus what the turn produced, which is where the next
-        turn's history starts and therefore the number compression is decided on.
+        `used` is the prompt that was sent plus what the request produced, which is where the
+        next turn's history starts and therefore the number compression is decided on.
         """
         return {
-            "used": prompt.tokens + estimate_tokens(turn_messages),
+            "used": prompt.tokens + estimate_tokens(produced),
             "budget": state.context_budget,
             "slot": slot,
             # The memories the assembly put in the prompt, which the badge and the chip on the
@@ -367,6 +494,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
                 # The summary and the memories ride in as one system-level note after the
                 # agent's own system prompt.
                 instructions=prompt.instructions,
+                deferred_tool_results=results,
                 model=model,
                 deps=deps,
                 cancellation_token=turn.token,

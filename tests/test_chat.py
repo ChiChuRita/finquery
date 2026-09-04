@@ -194,6 +194,43 @@ async def test_a_hanging_post_turn_step_does_not_hold_the_finished_answer(
     assert detail["messages"][-1]["parts"][-1]["type"] == "data-context"
 
 
+async def test_a_thinking_only_response_is_retried_without_a_user_bubble(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    """A model that answers with nothing but thinking gets a retry prompt from the agent.
+
+    That prompt is a request message, so the dump would render it as if the user had typed
+    "Validation feedback: ...". The model history keeps it; the transcript must not show it.
+    """
+    attempts = 0
+
+    async def thinks_then_answers(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        nonlocal attempts
+        if is_followup_request(messages):
+            yield "No follow-ups."
+            return
+        if is_distillation_request(messages):
+            yield distilled()
+            return
+        attempts += 1
+        if attempts == 1:
+            yield {0: DeltaThinkingPart(content="Only thinking, no answer.")}
+            return
+        yield "Groceries are the biggest share."
+
+    scripts.fast = thinks_then_answers
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+
+    await chat(conversation_id, "What do I spend most on?")
+
+    assert attempts == 2
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
+    assert detail["messages"][0]["parts"][0]["text"] == "What do I spend most on?"
+    texts = [part.get("text", "") for message in detail["messages"] for part in message["parts"]]
+    assert not any("Validation feedback" in text for text in texts)
+
+
 async def test_unknown_conversation_is_404(client: httpx.AsyncClient) -> None:
     assert (await client.get("/api/conversations/nope")).status_code == 404
     assert (await client.post("/api/conversations/nope/chat", json=chat_body("hi", "nope"))).status_code == 404

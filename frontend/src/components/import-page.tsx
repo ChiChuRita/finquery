@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { CheckCircle2Icon, SparklesIcon, UploadCloudIcon, XIcon } from 'lucide-react'
 import { useRef, useState, type DragEvent } from 'react'
 
@@ -11,9 +12,13 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
+  categorizeImport,
   commitImport,
+  conversationsQuery,
   importsQuery,
+  openReviewConversation,
   previewImport,
+  type CategorizeReport,
   type CsvMapping,
   type ImportPreview,
   type ImportRecord,
@@ -72,13 +77,15 @@ function PreviewTable({ rows }: { rows: ImportPreview['rows'] }) {
 
 export function ImportPage() {
   const queryClient = useQueryClient()
-  const { profile } = useWorkspace()
+  const navigate = useNavigate()
+  const { profile, openTab } = useWorkspace()
   const fileInput = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [accountName, setAccountName] = useState('')
   const [dragging, setDragging] = useState(false)
   const [done, setDone] = useState<ImportRecord | null>(null)
+  const [report, setReport] = useState<CategorizeReport | null>(null)
 
   const previewMutation = useMutation({
     mutationFn: ({ chosen, mapping }: { chosen: File; mapping?: CsvMapping }) =>
@@ -89,16 +96,23 @@ export function ImportPage() {
     },
   })
 
+  // Commit, then categorize, then hand the leftovers to a conversation: one flow, because a
+  // fresh import is only useful once its rows have categories.
   const commitMutation = useMutation({
-    // The rows land in the profile the sidebar is showing, which is also the one the list reads.
-    mutationFn: ({ chosen, mapping }: { chosen: File; mapping: CsvMapping }) => {
+    mutationFn: async ({ chosen, mapping }: { chosen: File; mapping: CsvMapping }) => {
       if (!profile) throw new Error('No profile is active yet.')
-      return commitImport(profile.id, chosen, mapping, accountName)
-    },
-    onSuccess: (record) => {
+      // The rows land in the profile the sidebar is showing, which is also the one the list reads.
+      const record = await commitImport(profile.id, chosen, mapping, accountName)
       setDone(record)
       clear()
-      void queryClient.invalidateQueries(importsQuery(profile?.id))
+      void queryClient.invalidateQueries(importsQuery(profile.id))
+      const categorized = await categorizeImport(record.id, profile.id)
+      setReport(categorized)
+      if (categorized.uncertain.length === 0) return
+      const review = await openReviewConversation(record.id, profile.id)
+      void queryClient.invalidateQueries(conversationsQuery(profile.id))
+      openTab(review.conversation_id)
+      await navigate({ to: '/c/$conversationId', params: { conversationId: review.conversation_id } })
     },
   })
 
@@ -113,6 +127,7 @@ export function ImportPage() {
   const take = (chosen: File | undefined) => {
     if (!chosen) return
     setDone(null)
+    setReport(null)
     setPreview(null)
     setAccountName('')
     commitMutation.reset()
@@ -173,7 +188,9 @@ export function ImportPage() {
         {busy && (
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
             <Spinner className="size-4" />
-            {commitMutation.isPending ? 'Importing rows...' : 'Reading the file...'}
+            {commitMutation.isPending
+              ? 'Importing rows, then categorizing by your rules, the merchant dictionary and the fast model...'
+              : 'Reading the file...'}
           </div>
         )}
 
@@ -197,7 +214,11 @@ export function ImportPage() {
                 {done.duplicate_count > 0
                   ? `${done.duplicate_count} rows were already in this profile and were skipped. `
                   : ''}
-                Every new row is Needs review until it is categorized.
+                {report
+                  ? `${report.by_rule} categorized by your rules, ${report.by_dictionary} by the merchant ` +
+                    `dictionary and ${report.by_model} by the categorizer. ${report.needs_review} rows across ` +
+                    `${report.uncertain.length} merchants are Needs review.`
+                  : 'Every new row is Needs review until it is categorized.'}
               </p>
             </div>
             <Button className="ml-auto" onClick={() => setDone(null)} size="icon-sm" variant="ghost">

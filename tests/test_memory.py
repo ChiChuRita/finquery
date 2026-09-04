@@ -96,7 +96,8 @@ async def test_a_distilled_fact_reaches_a_new_conversation_and_stays_in_its_prof
 async def test_a_deleted_memory_is_not_sent_to_the_model_again(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat
 ) -> None:
-    scripts.fast = script("Got it.", memories=["Rewe is where the groceries come from"])
+    fact = "Rewe is where the groceries come from"
+    scripts.fast = script("Got it.", memories=[fact])
     profile_id = await default_profile_id(client)
     await chat(await new_conversation(client, profile_id), "I buy my groceries at Rewe")
 
@@ -109,7 +110,9 @@ async def test_a_deleted_memory_is_not_sent_to_the_model_again(
     forgetful = Recorder("I have nothing on that.")
     scripts.fast = forgetful
     _, chunks = await chat(await new_conversation(client, profile_id), "Where do I buy groceries?")
-    assert "Rewe" not in forgetful.prompt
+    # The whole sentence, because the system prompt names Rewe itself in a rule example.
+    assert fact not in forgetful.prompt
+    assert "\n- [" not in forgetful.prompt
     assert memories_in_prompt(chunks) == 0
 
 
