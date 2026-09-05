@@ -217,6 +217,10 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 
 ## If something goes wrong
 
+- Answer a Question card before you type the next question. A card answered after a newer
+  message has gone out does not resume its run (the browser only re-sends for the newest
+  assistant message), so its buttons then do nothing. Found on the clean-checkout run, left
+  for a ticket; it never happens when the card is answered first.
 - A turn is slow but the thinking panel moves: wait. The first token of a late turn in a long
   conversation can be 20 seconds behind Send, because the whole prompt is re-read. Nothing is
   stuck until Stop stops moving too.
