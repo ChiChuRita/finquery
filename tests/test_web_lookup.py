@@ -24,7 +24,7 @@ from pydantic_ai.models.function import AgentInfo, DeltaToolCall
 from finquery.weblookup import Hit, Page, SearchUnavailable
 
 from .conftest import Chat, Scripts, distilled, is_distillation_request, is_followup_request, new_conversation
-from .test_categorization import categorize, keys_in, last_import, rows_of
+from .test_categorization import READING, categorize, keys_in, last_import, rows_of
 from .test_query import import_synthetic
 
 TOKEN = re.compile(r"^The merchant token: (?P<token>.+)$", re.MULTILINE)
@@ -39,6 +39,7 @@ def urls_in(prompt: str) -> list[str]:
     search over the whole text would hand the script a URL nobody was shown."""
     heading = "What your steps returned so far:"
     return URL.findall(prompt.rsplit(heading, 1)[-1]) if heading in prompt else []
+
 
 KARLS = "KARTENZAHLUNG KARLS DANKT 12,50 EUR 03.05.2025"
 KARLS_HITS = [
@@ -151,7 +152,9 @@ def fast_slot(decide: Decider, guesses: dict[str, tuple[str, str | None, float]]
             }
             for key in keys_in(prompt)
         ]
-        return ModelResponse(parts=[ToolCallPart("categorize", json.dumps({"reasoning": "read each merchant off its text", "merchants": merchants}))])
+        return ModelResponse(
+            parts=[ToolCallPart("categorize", json.dumps({"reasoning": READING, "merchants": merchants}))]
+        )
 
     respond.prompts = prompts  # type: ignore[attr-defined]
     respond.categorizer = categorizer  # type: ignore[attr-defined]

@@ -22,6 +22,7 @@ from pydantic_ai.models.function import AgentInfo, DeltaToolCall
 
 from .conftest import PRIVATE, SYNTHETIC, Scripts, new_conversation, parse_sse
 from .test_categorization import (
+    READING,
     _tool_returns,
     answer_card,
     distilled,
@@ -206,7 +207,9 @@ def bill_reader(
                 if f"i{index}" in prompt
             ]
             if merchants:
-                return ModelResponse(parts=[ToolCallPart("categorize", json.dumps({"reasoning": "read each merchant off its text", "merchants": merchants}))])
+                return ModelResponse(
+                    parts=[ToolCallPart("categorize", json.dumps({"reasoning": READING, "merchants": merchants}))]
+                )
         return categorizer(messages, info)
 
     respond.images = images  # type: ignore[attr-defined]

@@ -51,6 +51,9 @@ GUESSES: dict[str, tuple[str, str | None, float]] = {
 
 _KEY = re.compile(r"^  key: (?P<key>.+?) \|", re.MULTILINE)
 
+# What the categorizer fills its `reasoning` field with before it files a merchant.
+READING = "read each merchant off its text"
+
 
 def scripted_categorizer(guesses: dict[str, tuple[str, str | None, float]] = GUESSES):
     """The fast slot answering the categorizer's forced single tool, one entry per merchant.
@@ -88,7 +91,9 @@ def scripted_categorizer(guesses: dict[str, tuple[str, str | None, float]] = GUE
             for key in keys_in(prompt)
             if key in guesses
         ]
-        return ModelResponse(parts=[ToolCallPart("categorize", json.dumps({"reasoning": "read each merchant off its text", "merchants": merchants}))])
+        return ModelResponse(
+            parts=[ToolCallPart("categorize", json.dumps({"reasoning": READING, "merchants": merchants}))]
+        )
 
     respond.prompts = prompts  # type: ignore[attr-defined]
     respond.queries = queries  # type: ignore[attr-defined]
