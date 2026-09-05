@@ -806,6 +806,8 @@ def apply(session: Session, profile_id: str, changeset: Changeset) -> Changeset:
             if row.parent_id not in selected:
                 session.delete(row)
     elif payload.kind == "split":
+        if not rows:
+            raise ChangesetError("The booking this split is about is no longer in this profile.")
         replace_split_legs(
             session,
             profile_id,
@@ -823,9 +825,65 @@ def apply(session: Session, profile_id: str, changeset: Changeset) -> Changeset:
     else:
         _write_taxonomy(session, profile_id, payload, rows)
 
+    if (missed := _not_written(session, payload, rows)) is not None:
+        raise ChangesetError(missed)
     changeset.status = "applied"
     changeset.applied_at = utcnow()
     return changeset
+
+
+def _not_written(session: Session, payload: Payload, rows: Sequence[Transaction]) -> str | None:
+    """Why this apply did not do what it said, read back from the database, or None.
+
+    Deterministic code that writes through a session is still code that can write nothing, and a
+    card that says Applied over an unchanged database is worse than a card that fails: a bill
+    split flipped to Applied over a parent that never grew a leg (e2e of 2026-09-05, B3). So the
+    write is flushed and read again here, in the same transaction and before the status is
+    flipped, through column selects that go to the connection rather than to the identity map.
+    A refusal leaves the changeset `proposed` and rolls the write back with the request.
+
+    A taxonomy change is not checked here: its effect is on the category rows, which
+    `_write_taxonomy` resolves and writes by id, and none of the three failures this guards
+    against can leave it half done.
+    """
+    session.flush()
+    ids = [row.id for row in rows]
+    if payload.kind == "split":
+        parent = rows[0]
+        legs, total = session.execute(
+            select(func.count(Transaction.id), func.coalesce(func.sum(Transaction.amount_cents), 0)).where(
+                Transaction.parent_id == parent.id
+            )
+        ).one()
+        if legs != len(payload.legs):
+            return f"The split was not written: {parent.description} has {legs} legs, not {len(payload.legs)}."
+        if total != parent.amount_cents:
+            return f"The legs written add up to {eur(total)} EUR, not {eur(parent.amount_cents)} EUR."
+        return None
+    if payload.kind == "delete":
+        left = session.scalar(select(func.count(Transaction.id)).where(Transaction.id.in_(ids))) or 0
+        return f"{left} of the {len(ids)} bookings are still there." if left else None
+    if payload.kind in ("recategorize", "edit"):
+        # `is_distinct_from` rather than `!=`: a row left at Needs review compares NULL against
+        # the target and would drop out of a `!=` count, which is the row most worth catching.
+        written = {
+            "category": (Transaction.category_id, payload.category_id) if payload.set_category else None,
+            "description": (Transaction.description, payload.description),
+            "amount": (Transaction.amount_cents, payload.amount_cents),
+            "date": (Transaction.booked_on, payload.booked_on),
+        }
+        for name, pair in written.items():
+            if pair is None or (name != "category" and pair[1] is None):
+                continue
+            column, value = pair
+            wrong = session.scalar(
+                select(func.count(Transaction.id)).where(
+                    Transaction.id.in_(ids), column.is_distinct_from(value)
+                )
+            ) or 0
+            if wrong:
+                return f"The {name} of {wrong} of the {len(ids)} bookings did not change."
+    return None
 
 
 def _why_not(changeset: Changeset, verb: str) -> str:
