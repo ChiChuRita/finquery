@@ -371,14 +371,81 @@ a datapoint is added elsewhere. No test calls a model.
 ## Check and retry
 
 Ticket 40 put two judgements between a statement and its answer, and ticket 42's prompt work
-went into the same sub-agent: nine worked examples drawn from this set's train split, a
+went into the same sub-agent: nine worked examples drawn from this set's train split, a required
 `reasoning` field the model fills before its SQL, and a retry that shows it its own reading
-instead of starting over. `--no-check` turns the first half off, so a run measures the check
-against the prompt it runs with.
+instead of asking for a fresh start. `--no-check` turns ticket 40 off (the degenerate rewrite and
+the check pass both), so a run measures the check against the prompt it runs with.
 
-Three runs per model, then, and the third is the baseline above:
+```sh
+uv run finquery-bench --set sql   --model qwen/qwen3.5-9b --no-check   # the prompt alone
+uv run finquery-bench --set sql   --model qwen/qwen3.5-9b              # and with the check
+```
 
-- **baseline**: the prompt before ticket 40 and no check. The `--set all` runs of 2026-09-05.
-- **no check**: the new prompt, nothing else. What the examples and the reasoning field are worth.
-- **check**: the new prompt with the degenerate rewrite and the check pass. What the ticket is worth.
+Three runs per model, then, and the first is the baseline above:
 
+| | the prompt | the check |
+| --- | --- | --- |
+| **baseline** | before ticket 40 | off |
+| **no check** | after | off |
+| **check** | after | on |
+
+### What the prompt is worth
+
+One complete run, `qwen/qwen3.5-9b` on the SQL set, `--no-check`, against the same 152
+datapoints as the baseline
+(`results/20260905T182106Z-qwen-qwen3.5-9b-nocheck-sql.json`, written at commit `687f3f5`, so
+with the examples and the reasoning field but before the field was made required):
+
+| | n | figure match | heldout | SQL valid | first attempt | median s | p90 s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline | 152 | 57 % | 48 % | 92 % | 79 % | 1.7 | 4.8 |
+| the new prompt, no check | 152 | **69 %** | **64 %** | 99 % | 85 % | 2.8 | 7.3 |
+
+Twelve points, and sixteen on the held-out third, which is the half the examples were not drawn
+from. Per kind, the two rows above:
+
+| kind | baseline | new prompt |
+| --- | ---: | ---: |
+| total | 62 % | 88 % |
+| entity | 54 % | 75 % |
+| follow-up | 19 % | 44 % |
+| trend | 43 % | 57 % |
+| breakdown | 67 % | 72 % |
+| comparison | 56 % | 62 % |
+| period | 83 % | 89 % |
+| ranking | 67 % | **50 %** |
+
+Every kind gains except ranking, which loses seventeen points: the one worked example of a
+ranking is a top five with a `LIMIT 5`, and a model that copies it puts a limit on rankings that
+did not ask for one. That example is the first thing to change when this is picked up again.
+
+`google/gemini-3.8-flash` on the same run went from 93 % to **95 %** figure match (100 % on the
+held-out third, 100 % SQL valid, 99 % first attempt, median 2.1 s). Its result file is not in
+`results/`: it was deleted before the key ran out, see below.
+
+### What the check is worth: not measured
+
+The OpenRouter key hit its total limit part-way through the runs
+(`403 Key limit exceeded (total limit)`), so the four runs that would have measured the check on
+the final code all failed at the first request and were thrown away. What is missing is the
+`check` row of the table above for both models and both sets, and with it the median latency the
+check costs. Everything needed to produce it is in place; with a key that has credit it is four
+commands and about half an hour:
+
+```sh
+uv run finquery-bench --set sql   --model qwen/qwen3.5-9b
+uv run finquery-bench --set chart --model qwen/qwen3.5-9b
+uv run finquery-bench --set sql   --model google/gemini-3.8-flash
+uv run finquery-bench --set chart --model google/gemini-3.8-flash
+```
+
+Two things are worth knowing before reading those numbers, both seen in the browser on Qwen:
+
+- **The check pays for a second model call on every query it judges**, and the runner records
+  what it did: every result carries the narration lines, so `Checking the result` and
+  `Rewriting: ...` in a result's `notes` count the pass and the rewrites it asked for.
+- **A 9B model judging a 9B model asks for rewrites it should not.** It read "letztes Quartal"
+  from today rather than from the newest booking until the check prompt was told where those
+  dates are written, and it still invents reasons ("the raw sum is divided by 2"). A rewrite
+  whose result is degenerate while the one it replaced was not is thrown away in code, which is
+  the floor under that; the benchmark is what says whether the rest of it nets positive.
