@@ -107,6 +107,14 @@ class Turn(Base):
     position: Mapped[int] = mapped_column(Integer)
     model_slot: Mapped[str] = mapped_column(String(16))
     interrupted: Mapped[bool] = mapped_column(Boolean, default=False)
+    finished: Mapped[bool] = mapped_column(Boolean, default=True)
+    """The turn's end marker: false from the moment the run starts until it is written out.
+
+    A turn is opened before the model is asked anything, so a reload during the answer still
+    finds the question, and rewritten when the run ends. A process that dies mid-turn leaves the
+    marker off, which is what `close_open_turns` reads on the next startup. Existing rows
+    predate the marker and are finished by definition, which is what the default says.
+    """
     model_messages_json: Mapped[str] = mapped_column(Text)
     ui_messages_json: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -565,6 +573,9 @@ NEW_COLUMNS: dict[str, dict[str, str]] = {
     "conversation": {
         "summary": "TEXT",
         "summary_through": "INTEGER NOT NULL DEFAULT -1",
+    },
+    "turn": {
+        "finished": "BOOLEAN NOT NULL DEFAULT 1",
     },
     "profile": {
         "web_lookup_enabled": "BOOLEAN NOT NULL DEFAULT 0",

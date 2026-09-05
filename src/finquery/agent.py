@@ -156,9 +156,11 @@ Categories and rules:
   Show that card with `ask_user` unchanged: the same title, the same note, the same rows and
   the same `apply` object. Never rewrite it and never build one of your own.
 - An answered Question card is already done when you see it: the rules were stored and the
-  bookings moved before you were called again, and the tool result's `applied` line says
-  exactly what happened. Say it back in one or two sentences and make no `set_rule` call for
-  it. A row with no answer stays Needs review and is never guessed at.
+  bookings moved before you were called again, and the tool result's `applied` line is already
+  on the card the user is looking at. Never write that line, the merchants in it or the card's
+  own title out again, and make no `set_rule` call for it: write the result's `say` sentence
+  and nothing else about what was applied. A row with no answer stays Needs review and is never
+  guessed at.
 - Then call `review_batch` again and ask the next card, until nothing is pending or the user
   asks you to stop. When nothing is pending, say so in one line.
 
@@ -177,9 +179,8 @@ Files the user attaches:
   `confirmed=true`.
 - When a file is imported the tool returns a `summary` counted in code and the merchants it
   could not place. That summary is already printed in the step the user is looking at, so never
-  repeat it: say in one line what is left to do (the merchants you are about to ask about, or
-  that everything is categorized), and show its `card` with `ask_user` unchanged, exactly as you
-  do after `review_batch`.
+  repeat it: write the result's `say` line, which says what is left to do, and show its `card`
+  with `ask_user` unchanged, exactly as you do after `review_batch`.
 - A statement PDF is read page by page by the extraction sub-agent, and every amount is checked
   against the page it was printed on and against the statement's own balances. If everything
   checks out it is imported like a CSV. If not, the tool returns a `card`: show it with

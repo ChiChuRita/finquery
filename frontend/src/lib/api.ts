@@ -525,6 +525,24 @@ async function problem(response: Response): Promise<string> {
   return `${response.status} ${response.statusText}`
 }
 
+/** The one sentence behind an error the chat transport threw.
+ *
+ * `DefaultChatTransport` turns a refused request into `new Error(await response.text())`, so an
+ * `Error` from a chat request carries the whole JSON body: the transcript printed
+ * `{"detail":"..."}` where a sentence belongs. This is `problem` for that one caller, which
+ * cannot use `problem` because it never sees the `Response`.
+ */
+export function refusalSentence(error: Error): string {
+  try {
+    const detail = (JSON.parse(error.message) as { detail?: unknown }).detail
+    if (typeof detail === 'string') return detail
+    if (Array.isArray(detail)) return String((detail[0] as { msg?: string } | undefined)?.msg ?? error.message)
+  } catch {
+    // Not a JSON body: a network failure or a plain string, which reads as itself.
+  }
+  return error.message
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,

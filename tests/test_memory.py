@@ -258,3 +258,54 @@ async def test_memories_in_another_language_do_not_decide_the_answer_language(
 
     assert f"- [fact] {german}" in asking.prompt
     assert "answer in the language of the newest user message" in asking.prompt
+
+
+async def test_a_profile_with_two_hundred_memories_still_sends_five_and_lists_them_all(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    """The cap is what keeps the prompt small, and the page is what makes the rest reachable.
+
+    Selection scores every memory of the profile in Python, so this is also the check that it
+    stays a matter of milliseconds at the size a household actually reaches.
+    """
+    profile_id = await default_profile_id(client)
+    facts = [f"Merchant number {n} is a supermarket in Kreuzberg" for n in range(200)]
+    # Twenty turns of ten, because one distillation pass returning two hundred facts is not a
+    # thing that happens; what is being set up is the profile, not the pass.
+    for batch in range(0, 200, 10):
+        scripts.fast = script("Got it.", memories=facts[batch : batch + 10])
+        await chat(await new_conversation(client, profile_id), f"batch {batch}")
+    assert len(await memories_of(client, profile_id)) == 200
+
+    asking = Recorder("Kreuzberg.")
+    scripts.fast = asking
+    _, chunks = await chat(await new_conversation(client, profile_id), "Which supermarkets are in Kreuzberg?")
+
+    assert asking.prompt.count("\n- [") == 5
+    assert memories_in_prompt(chunks) == 5
+
+
+async def test_a_fact_that_contradicts_an_older_one_is_kept_and_offered_first(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    """Nothing overwrites a memory, so the newer of two contradicting facts leads the block.
+
+    Deduplication compares the text, so "Anna is my flatmate" and "Anna is my sister" are two
+    memories and both go to the model. The order is what says which one is current: selection
+    ranks by overlap and breaks ties by recency, and the block tells the model the most relevant
+    comes first. The Memory page is where a wrong one is deleted.
+    """
+    profile_id = await default_profile_id(client)
+    older, newer = "Anna Weber is the user's flatmate", "Anna Weber is the user's sister"
+    for fact in (older, newer):
+        scripts.fast = script("Noted.", memories=[fact])
+        await chat(await new_conversation(client, profile_id), f"About Anna: {fact}")
+
+    asking = Recorder("Your sister.")
+    scripts.fast = asking
+    await chat(await new_conversation(client, profile_id), "Who is Anna Weber?")
+
+    assert asking.prompt.index(newer) < asking.prompt.index(older), "the newer fact leads"
+    assert "most relevant first" in asking.prompt
+    # Both are on the page, which is the only place either is removed.
+    assert {m["text"] for m in await memories_of(client, profile_id)} == {older, newer}

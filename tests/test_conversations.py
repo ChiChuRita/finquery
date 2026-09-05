@@ -7,6 +7,7 @@ import httpx
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart
 
+from finquery.api.conversations import TITLE_LENGTH
 from finquery.app import create_app
 
 from .conftest import (
@@ -45,6 +46,11 @@ async def test_conversation_can_be_renamed_and_deleted(client: httpx.AsyncClient
     assert renamed.status_code == 200
     assert renamed.json()["title"] == "Grocery spending"
     assert (await client.patch(f"/api/conversations/{conversation_id}", json={"title": " "})).status_code == 422
+    # A pasted paragraph is a title too long for the sidebar and for the column, so it is cut
+    # rather than refused: nothing about it is a mistake the user has to correct.
+    long = await client.patch(f"/api/conversations/{conversation_id}", json={"title": "Groceries " * 50})
+    assert long.status_code == 200, long.text
+    assert len(long.json()["title"]) == TITLE_LENGTH
 
     assert (await client.delete(f"/api/conversations/{conversation_id}")).status_code == 204
     assert (await client.get(f"/api/conversations/{conversation_id}")).status_code == 404

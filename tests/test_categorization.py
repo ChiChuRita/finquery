@@ -15,6 +15,8 @@ import httpx
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall
 
+from finquery.api.chat import ALREADY_ANSWERED
+
 from .conftest import (
     Chat,
     Scripts,
@@ -22,6 +24,7 @@ from .conftest import (
     is_distillation_request,
     is_followup_request,
     new_conversation,
+    parse_sse,
     script,
 )
 from .test_query import import_synthetic
@@ -416,6 +419,9 @@ async def test_answering_a_question_card_applies_the_answers_in_code(
     assert "Anna Weber" in applied and "Dining > Restaurant" in applied and "6 bookings" in applied
     assert "Jonas Keller" in applied and "Leisure" in applied and "7 bookings" in applied
     assert "Max Schulz" in applied, "the rows nobody answered are named as skipped"
+    # And the one sentence the model is asked to write instead of the line above, counted in
+    # code: the resumed half used to list every merchant the card below already named.
+    assert resolved[0]["output"]["say"] == "2 merchants now have rules and 2 are still to decide."
     # The model's own answer quotes the line, which is how we know it was told rather than asked.
     assert answer(chunks) == f"Summarized: {applied}"
     # Nothing is left to reason about on this half of the turn, so it runs with reasoning off:
@@ -605,3 +611,111 @@ async def test_a_review_queue_the_model_only_narrates_still_reaches_the_user_as_
     assert resumed.status_code == 200, resumed.text
     rows = await rows_of(client, profile_id, "ANNA WEBER")
     assert {(row["category"], row["subcategory"]) for row in rows} == {("Dining", "Restaurant")}
+
+
+async def _review_conversation(
+    client: httpx.AsyncClient, profile_id: str, scripts: Scripts
+) -> tuple[str, dict[str, Any]]:
+    """A conversation whose first turn is parked on a four-merchant Question card."""
+    await import_synthetic(client, profile_id)
+    scripts.fast_call = scripted_categorizer()  # type: ignore[assignment]
+    import_id = await last_import(client, profile_id)
+    await categorize(client, profile_id, import_id)
+    opened = (
+        await client.post(f"/api/imports/{import_id}/review-conversation", json={"profile_id": profile_id})
+    ).json()
+    detail = (await client.get(f"/api/conversations/{opened['conversation_id']}")).json()
+    return str(opened["conversation_id"]), detail
+
+
+async def test_a_card_answered_after_a_newer_message_still_resumes_its_own_turn(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """Ticket 29: the run a card parked is the run that resumes, whatever came after it.
+
+    The user typed something else before coming back to the card, so the card's call is a turn
+    back. The turn it belongs to is looked up rather than assumed to be the last one, the
+    prompt for the resumed run ends where that turn ended (which is where the framework looks
+    for a pending call), and the rewritten turn keeps its place in the transcript.
+    """
+    conversation_id, detail = await _review_conversation(client, profile_id, scripts)
+    card = detail["messages"][1]["parts"][1]
+
+    # A whole turn in between: a typed question, asked and answered.
+    scripts.fast = script("You spent 403,60 EUR on groceries in May 2025.")
+    scripts.fast_call = None
+    _, chunks = await chat(conversation_id, "How much did I spend on groceries in May?")
+    assert "403,60" in answer(chunks)
+
+    prompts: list[list[ModelMessage]] = []
+    summarize = echo_applied(followups=["Which merchants are left?"])
+
+    async def record(messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[object]:
+        if not is_followup_request(messages) and not is_distillation_request(messages):
+            prompts.append(messages)
+        async for item in summarize(messages, info):
+            yield item
+
+    scripts.fast = record
+    answers = [{"ref": "anna weber", "value": "Dining > Restaurant", "text": None}]
+    resumed = await client.post(
+        f"/api/conversations/{conversation_id}/chat",
+        json=answer_card(conversation_id, detail["messages"][1]["id"], card, {"answers": answers}),
+    )
+    assert resumed.status_code == 200, resumed.text
+    # The browser streams a resumed answer into its newest message, and this card is not on it,
+    # so the output chunk for the call is left out rather than sent somewhere it cannot land.
+    assert outputs_of(parse_sse(resumed.text)) == []
+    assert "Summarized: Applied: Anna Weber" in resumed.text
+
+    # The answers were applied in code, exactly as they are for a card nothing came after.
+    rows = await rows_of(client, profile_id, "ANNA WEBER")
+    assert {(row["category"], row["subcategory"]) for row in rows} == {("Dining", "Restaurant")}
+
+    # The resumed run was given the card's own turn as the end of its history, because that is
+    # where the pending call is. The question asked in between is in the transcript, not here.
+    text = " ".join(
+        str(part.content)
+        for message in prompts[0]
+        for part in message.parts
+        if part.part_kind in {"user-prompt", "text"}
+    )
+    assert "Categorize the import I just did." in text
+    assert "groceries" not in text
+
+    # The rewritten turn kept its place: the card and what it applied are still the first turn,
+    # the question asked in between is still the second.
+    reloaded = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert [m["role"] for m in reloaded["messages"]] == ["user", "assistant", "user", "assistant"]
+    first = reloaded["messages"][1]["parts"]
+    assert [part["type"] for part in first] == ["text", "tool-ask_user", "text", "data-context", "data-followups"]
+    assert first[1]["state"] == "output-available"
+    # The `applied` line reaches the card with the stored turn, which is what the browser reads
+    # back once the resumed turn is over.
+    assert "Anna Weber" in first[1]["output"]["applied"]
+    assert reloaded["messages"][2]["parts"][0]["text"] == "How much did I spend on groceries in May?"
+
+
+async def test_a_card_answered_twice_is_refused_rather_than_applied_again(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """The second answer is another browser tab, and replaying it would apply everything twice."""
+    conversation_id, detail = await _review_conversation(client, profile_id, scripts)
+    card = detail["messages"][1]["parts"][1]
+    body = answer_card(
+        conversation_id,
+        detail["messages"][1]["id"],
+        card,
+        {"answers": [{"ref": "anna weber", "value": "Dining > Restaurant", "text": None}]},
+    )
+
+    scripts.fast = echo_applied()
+    scripts.fast_call = None
+    assert (await client.post(f"/api/conversations/{conversation_id}/chat", json=body)).status_code == 200
+
+    again = await client.post(f"/api/conversations/{conversation_id}/chat", json=body)
+    assert again.status_code == 409
+    assert again.json()["detail"] == ALREADY_ANSWERED
+    # One turn, not two, and one rule: nothing was applied a second time.
+    reloaded = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert [m["role"] for m in reloaded["messages"]] == ["user", "assistant"]

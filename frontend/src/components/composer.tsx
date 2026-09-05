@@ -1,6 +1,6 @@
 import type { ChatStatus, FileUIPart } from 'ai'
 import { FileTextIcon, ImageIcon, PaperclipIcon, XIcon } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   PromptInput,
@@ -34,6 +34,7 @@ export function Composer({
   onSlotChange,
   autoFocus,
   draftId,
+  focusToken = 0,
 }: {
   status: ChatStatus
   onSubmit: (text: string, files: FileUIPart[]) => void | Promise<void>
@@ -43,9 +44,17 @@ export function Composer({
   autoFocus?: boolean
   /** Conversation id whose unsent draft is kept in local storage. */
   draftId?: string
+  /** Bumped when the box should take the caret back: after a Question card was answered, the
+   *  focus is on a button that has just disabled itself and the next thing to do is type. */
+  focusToken?: number
 }) {
   const busy = status === 'submitted' || status === 'streaming'
   const [rejected, setRejected] = useState<string>()
+  const box = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (focusToken > 0) box.current?.focus()
+  }, [focusToken])
   // Stable, so the chips do not re-run their effect on every render of the composer.
   const clearRejected = useCallback(() => setRejected(undefined), [])
 
@@ -75,6 +84,7 @@ export function Composer({
           autoFocus={autoFocus}
           className="min-h-14 text-base md:text-sm"
           placeholder="Ask about your spending, or drop a statement..."
+          ref={box}
         />
       </PromptInputBody>
       <PromptInputFooter>
