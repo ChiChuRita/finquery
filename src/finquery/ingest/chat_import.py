@@ -512,7 +512,10 @@ async def _import_statement(
         return {
             "status": "nothing_found",
             "file": record.file_name,
+            # A page that failed says why (a refused request, a transport error): that is a
+            # different problem from a file that is not a statement, and the user is told which.
             "error": extraction.note
+            or (extraction.errors[0] if extraction.errors else None)
             or "No booking could be read out of this file. It may not be a bank statement.",
             "problems": extraction.errors,
         }

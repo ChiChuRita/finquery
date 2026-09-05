@@ -5,9 +5,12 @@ See docs/adr/0002-provider-switch-with-two-slots.md.
 """
 
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Literal, get_args
 
+from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models import Model
+from pydantic_ai.models.wrapper import WrapperModel
 from pydantic_ai.settings import ModelSettings
 
 from finquery.settings import Settings
@@ -53,6 +56,60 @@ class ProviderNotAvailable(RuntimeError):
     """The configured provider cannot serve a chat yet."""
 
 
+REASONING_MANDATORY = "Reasoning is mandatory"
+"""The start of OpenRouter's 400 for a model that cannot run with reasoning switched off
+(Gemini 3.x Flash, for one). Sub-agents ask for it off; on such a model they get the lowest
+effort instead, which is the same intent."""
+
+
+class HostedModel(WrapperModel):
+    """An OpenRouter model that falls back to low reasoning effort where off is refused.
+
+    The first refused request costs one round trip; after that the model remembers and sends
+    the fallback straight away, so a 100 page statement does not pay it 100 times.
+    """
+
+    def __init__(self, wrapped: Model) -> None:
+        super().__init__(wrapped)
+        self.reasoning_required = False
+
+    def _adjusted(self, model_settings: ModelSettings | None) -> ModelSettings | None:
+        reasoning = (model_settings or {}).get("openrouter_reasoning")
+        if not self.reasoning_required or not isinstance(reasoning, dict) or reasoning.get("enabled") is not False:
+            return model_settings
+        return {**model_settings, "openrouter_reasoning": {"effort": "low"}}  # type: ignore[return-value]
+
+    @staticmethod
+    def _refused_off(exc: Exception) -> bool:
+        return isinstance(exc, ModelHTTPError) and exc.status_code == 400 and REASONING_MANDATORY in str(exc.body)
+
+    async def request(self, messages, model_settings, model_request_parameters):  # type: ignore[override]
+        try:
+            return await super().request(messages, self._adjusted(model_settings), model_request_parameters)
+        except ModelHTTPError as exc:
+            if self.reasoning_required or not self._refused_off(exc):
+                raise
+            self.reasoning_required = True
+            return await super().request(messages, self._adjusted(model_settings), model_request_parameters)
+
+    @asynccontextmanager
+    async def request_stream(self, messages, model_settings, model_request_parameters, run_context=None):  # type: ignore[override]
+        try:
+            async with super().request_stream(
+                messages, self._adjusted(model_settings), model_request_parameters, run_context
+            ) as stream:
+                yield stream
+                return
+        except ModelHTTPError as exc:
+            if self.reasoning_required or not self._refused_off(exc):
+                raise
+            self.reasoning_required = True
+        async with super().request_stream(
+            messages, self._adjusted(model_settings), model_request_parameters, run_context
+        ) as stream:
+            yield stream
+
+
 def _openrouter_resolver(settings: Settings) -> ModelResolver:
     from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
     from pydantic_ai.providers.openrouter import OpenRouterProvider
@@ -62,7 +119,7 @@ def _openrouter_resolver(settings: Settings) -> ModelResolver:
     provider = OpenRouterProvider(api_key=settings.openrouter_api_key)
     reasoning = OpenRouterModelSettings(openrouter_reasoning={"enabled": True})
     models = {
-        slot: OpenRouterModel(name, provider=provider, settings=reasoning)
+        slot: HostedModel(OpenRouterModel(name, provider=provider, settings=reasoning))
         for slot, name in openrouter_models(settings).items()
     }
     return models.__getitem__
