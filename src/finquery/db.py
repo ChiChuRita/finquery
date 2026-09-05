@@ -74,6 +74,12 @@ class Profile(Base):
     """follow (the language of each message), de or en. Read by the chat prompt."""
     default_model_slot: Mapped[str] = mapped_column(String(16), default="fast")
     """The slot a new conversation of this profile starts on."""
+    dashboard_seeded: Mapped[bool] = mapped_column(Boolean, default=False)
+    """Whether the four default cards have been put on this profile's dashboard.
+
+    The flag rather than "it has no cards": a profile that removed all four asked for an empty
+    dashboard, and seeding it again on the next visit would undo the removal. See
+    finquery.dashboard."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="profile", cascade="all, delete-orphan")
@@ -487,6 +493,49 @@ class PreferenceRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
+class DashboardChart(Base):
+    """One card on a profile's dashboard: a fixed definition over numbers that are never fixed.
+
+    What is stored is the drawing, not the figures: the title, the shape, the executed SQL and
+    the checked JavaScript the chart sub-agent wrote (or one of the four defaults). The rows are
+    not stored at all. Every load runs `sql` through the same guard and the same profile-scoped
+    view as a question in the chat (ADR 0004), so a card is as current as the data and no number
+    on it was ever cached.
+
+    `source_turn_id` and `source_call_id` are the chat chart this card was pinned from, which is
+    what lets that card in the transcript say it is on the dashboard, and what makes a second
+    click on Add to dashboard find the card it already made instead of a second one.
+    """
+
+    __tablename__ = "dashboard_chart"
+    __table_args__ = (UniqueConstraint("source_turn_id", "source_call_id"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profile.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    """Where the card sits, left to right and top to bottom. Dense from zero within a profile."""
+    title: Mapped[str] = mapped_column(String(200))
+    shape: Mapped[str] = mapped_column(String(20))
+    language: Mapped[str] = mapped_column(String(8), default="en")
+    """The language the caption is written in; the frame writes the month labels in it too."""
+    request: Mapped[str] = mapped_column(Text, default="")
+    """The words the chart was made from. Empty for a default, which nobody asked for."""
+    plan: Mapped[str] = mapped_column(Text, default="")
+    sql: Mapped[str] = mapped_column(Text)
+    code: Mapped[str] = mapped_column(Text)
+    notes_json: Mapped[str] = mapped_column(Text, default="[]")
+    """The sub-agent's own notes (repair rounds, folds), so the card's details read like chat."""
+    created_from: Mapped[str] = mapped_column(String(16), default="dashboard")
+    """default, chat or dashboard: whether it was seeded, pinned from a turn or asked for here."""
+    source_turn_id: Mapped[str | None] = mapped_column(
+        ForeignKey("turn.id", ondelete="SET NULL"), default=None, index=True
+    )
+    source_call_id: Mapped[str | None] = mapped_column(String(64), default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    """When the user last asked for the numbers again. A load refreshes them anyway."""
+
+
 class SplitSumError(ValueError):
     """The children of a split do not sum to their parent's amount."""
 
@@ -582,6 +631,7 @@ NEW_COLUMNS: dict[str, dict[str, str]] = {
         "onboarding_state": "VARCHAR(16) NOT NULL DEFAULT 'not_started'",
         "answer_language": "VARCHAR(8) NOT NULL DEFAULT 'follow'",
         "default_model_slot": "VARCHAR(16) NOT NULL DEFAULT 'fast'",
+        "dashboard_seeded": "BOOLEAN NOT NULL DEFAULT 0",
     },
     "import": {
         "duplicates_kept": "INTEGER NOT NULL DEFAULT 0",

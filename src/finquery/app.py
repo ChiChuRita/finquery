@@ -14,6 +14,7 @@ from finquery.api import (
     charts,
     chat,
     conversations,
+    dashboard,
     imports,
     memories,
     onboarding,
@@ -124,6 +125,7 @@ def create_app(
     app.include_router(changesets.router, prefix="/api")
     app.include_router(preferences.router, prefix="/api")
     app.include_router(charts.router, prefix="/api")
+    app.include_router(dashboard.router, prefix="/api")
     app.include_router(models_api.router, prefix="/api")
     app.include_router(settings_api.router, prefix="/api")
     app.include_router(onboarding.router, prefix="/api")
