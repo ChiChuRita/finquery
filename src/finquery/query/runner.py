@@ -71,7 +71,8 @@ def figures(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
             if is_euro_column(column) and isinstance(value, (int, float)) and not isinstance(value, bool):
                 parts.append(f"{column} {eur(round(value * 100))} EUR")
             else:
-                parts.append(f"{column} {value}")
+                # A SUM over no rows is NULL: say so, rather than hand the model the word None.
+                parts.append(f"{column} {'no value' if value is None else value}")
         lines.append(", ".join(parts))
     return lines
 

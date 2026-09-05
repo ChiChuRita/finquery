@@ -16,7 +16,14 @@ uv run finquery                 # http://127.0.0.1:8000
 ```
 
 One process serves the API under `/api` and the built frontend from `frontend/dist`. The
-SQLite database lives in `data/finquery.db` (override with `FINQUERY_DB_PATH`).
+SQLite database lives in `data/finquery.db` (override with `FINQUERY_DB_PATH`). A fresh
+database opens with onboarding; "Load the sample year" in its last step imports the shipped
+synthetic dataset, which is also where the demo starts (`docs/demo-script.md`).
+
+The provider is one switch. `FINQUERY_PROVIDER=openrouter` runs both slots on OpenRouter
+(Gemma 4 26B fast, Qwen3.5 9B quality); `FINQUERY_PROVIDER=local` runs the same two slots in
+this process (Gemma 4 E4B fast, Qwen3.5 9B quality, see below). Nothing else changes, and the
+selector in the composer names the model the running provider really resolves each slot to.
 
 Settings (environment or `.env`):
 
@@ -42,17 +49,24 @@ CMAKE_ARGS="-DGGML_METAL=on" uv sync
 FINQUERY_PROVIDER=local uv run finquery
 ```
 
-The two slots become Gemma 4 E4B (fast) and Qwen3.5 9B (quality), running in this process
-through llama-cpp-python with Metal. Startup begins downloading the four GGUF files (12.6 GB)
-into `models/`; watch it on the Settings page, which also has a sanity check button. A file
-already sitting in `FINQUERY_PARKED_MODELS_DIR` whose sha256 matches is linked in instead of
-downloaded. Each model loads on its first use and then stays resident.
+The two slots become Gemma 4 E4B (fast, also the slot every sub-agent runs on) and Qwen3.5 9B
+(quality), running in this process through llama-cpp-python with Metal. Startup begins
+downloading the four GGUF files (12.6 GB) into `models/`; watch it on the Settings page, which
+also has a sanity check button. A file already sitting in `FINQUERY_PARKED_MODELS_DIR` whose
+sha256 matches is linked in instead of downloaded, and the Settings card says which of the two
+happened per file. Each model loads on its first use and then stays resident: both together
+take 13.5 GB at the 32k context cap, so run nothing else heavy beside them.
 
 Prove the setup before a demo:
 
 ```sh
 uv run finquery-check    # both slots: answer, thinking, tool call, vision
 ```
+
+What to expect locally on a 24 GB M4 Pro: a question with one query is about a minute on the
+fast slot and two to three on the quality slot, most of it thinking and prompt evaluation
+(llama.cpp's multimodal handler re-reads the whole prompt every request). The demo script has
+a measured time per step: `docs/demo-script.md`.
 
 The two models speak different chat formats, which is why `src/finquery/local/` has one wire
 module each. See `docs/adr/0006-local-gemma-4-through-llama-cpp.md`, including what the two
@@ -65,14 +79,16 @@ uv run finquery --dev           # API only on :8000 with auto reload
 cd frontend && npm run dev      # Vite on :5173, proxies /api to :8000
 ```
 
-Type-check the frontend with `npx tsc -b` in `frontend/`. AI Elements components live in
+Type-check the frontend with `npx tsc --noEmit` in `frontend/`. AI Elements components live in
 `frontend/src/components/ai-elements` and are added with
-`npx shadcn@latest add https://elements.ai-sdk.dev/api/registry/<name>.json`.
+`npx shadcn@latest add https://elements.ai-sdk.dev/api/registry/<name>.json`. Rebuild with
+`npm run build` before `uv run finquery` serves a change.
 
 ## Test
 
 ```sh
-uv run pytest
+uv run pytest                    # the HTTP-seam suite
+cd frontend && npx tsc --noEmit && npm run build
 ```
 
 Tests drive the FastAPI app over HTTP with both model slots replaced by scripted models. No test

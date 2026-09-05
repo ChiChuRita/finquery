@@ -1,7 +1,8 @@
 # ADR 0006: The local provider is a custom Pydantic AI model over llama-cpp-python
 
 Date: 2026-09-04
-Amended: 2026-09-05 (ticket 23, the quality slot became Qwen3.5 9B)
+Amended: 2026-09-05 (ticket 23, the quality slot became Qwen3.5 9B; ticket 17, the sub-agent
+output ceiling)
 Status: accepted
 
 The file keeps its ticket-16 name so the links to it still work; the decision was never about
@@ -43,6 +44,12 @@ of it. Two 4-bit models and their multimodal projectors also have to share one 2
   GBNF grammar from its parameters, and turns thinking off because a grammar leaves no room for
   it. Every other request declares its tools with `tool_choice: auto`. `response_format` is
   never sent.
+- A forced tool call is a grammar, and a grammar over a list has no end of its own: asked to
+  read a statement page, the fast model repeated rows until the context was full (ticket 11,
+  six minutes for three pages). Every sub-agent request therefore carries an output ceiling,
+  `providers.SUBAGENT_MAX_TOKENS` (3072 tokens, above the largest honest answer of about 2500
+  for a 30 booking page or a 25 merchant batch), on both providers. A call that hits it fails
+  its validation and is retried once. The chat turn keeps the model's own default (4096).
 - Cancellation is checked between tokens. Generation runs one token at a time in a worker
   thread, so the Stop endpoint's `CancellationToken` and the `StreamedResponse.close_stream`
   path both end the loop within one token.

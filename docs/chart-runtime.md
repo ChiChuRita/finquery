@@ -159,6 +159,12 @@ carry becomes plain bars, narrated. A grouped or stacked chart whose rows carry 
 does, and so does a line or an area over fewer than three points, because a stroke from January
 to July says something about the five months the query did not return.
 
+A fourth is folded rather than repaired: a doughnut over more rows than it has slices keeps the
+five largest and sums the rest into one slice named `Other` or `Sonstige`, in the request's
+language, before any code is written (`runner._fold_slices`). Folding is arithmetic, so it is
+not left to a repair round, which the local fast model lost three times over twelve categories.
+The rows the card shows are the rows the chart drew, and the fold is narrated.
+
 The stub mimics the parts of the library the rules need: `pie` allocates real angles and rejects
 a negative value, `sankeyDiagram` validates the graph and calls the `marks` callback with node
 and link rows that carry the documented fields (`x0`, `x1`, `y0`, `y1`, `x`, `y`, `key`, `value`,
@@ -200,7 +206,11 @@ variables (`--foreground`, `--muted-foreground`, `--border`, `--card`, `--chart-
 
 The frame owns what the code may not: `height: 280`, the responsive width, the palette,
 `svgAnimation: { duration: 320, easing: 'ease-out' }`, the `ariaLabel` (the chart's title) and
-the language the month labels are written in.
+the language the month labels are written in. It also decides how finely a `nice: true` axis
+rounds its end: TanStack Charts rounds to the tick count it will draw, one tick per 92 pixels,
+so a 300 pixel frame in a Regenerate pair took 13.800 EUR to an axis ending at 20.000 EUR. The
+frame rewrites `nice: true` to `nice: 5` before it renders, so the end stays near the data
+whatever the width, and the labels drawn are still the width's count.
 
 ## The tool result
 
@@ -212,6 +222,7 @@ renders:
   "request": "...", "title": "...", "shape": "line", "language": "en",
   "plan": "Chart plan: line, ...",
   "sql": "SELECT ...", "row_count": 12, "columns": ["month", "total_eur"], "rows": [ ... ],
+  "figures": ["month 2025-01, total_eur 2.265,34 EUR", ...],
   "code": "return defineChart({ ... });", "notes": ["Repair 1 of 2: ..."],
   "summary": "...", "error": null, "rendered": true
 }

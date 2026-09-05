@@ -16,8 +16,10 @@ instead of an empty chat, once, and Settings reopens it. Avoid: wizard, tour, se
 
 **Answer language**: the language the assistant writes its answers in, one per profile: follow
 (the language of each message, the default), German or English. A fixed choice overrides the
-follow-the-message rule in the prompt. Avoid: locale, UI language (the interface is English
-either way).
+follow-the-message rule in the prompt. On follow, the language of the newest message is
+detected in code from its function words and named in the prompt, because the local fast model
+left to detect it answers German data in German. Avoid: locale, UI language (the interface is
+English either way).
 
 **Account**: a bank account or card, derived from imports or created manually. Avoid: profile,
 wallet.
