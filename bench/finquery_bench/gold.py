@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from finquery.query.guard import SqlFailed, SqlRejected, execute_read_only, validate_sql
 from finquery_bench.datapoints import CHART_SET, NO_ANSWER, SQL_SET, read, write
 from finquery_bench.dataset import fresh_database
+from finquery_bench.score import figures
 
 
 class GoldFailed(RuntimeError):
@@ -43,9 +44,14 @@ def run_reference(
             rows = execute_read_only(session, validated, profile_id)
     except SqlFailed as exc:
         raise GoldFailed(f"{ident}: SQLite could not run the reference SQL: {exc}") from exc
-    if not rows.rows and answer != NO_ANSWER:
+    # No rows and rows that carry no figure are the same failure: a datapoint whose gold holds
+    # no number is scored against nothing, so every answer passes it. The judging of 2026-09-05
+    # found one, a generated statement that filtered on a subcategory no booking carries and
+    # came back as a single NULL.
+    if answer != NO_ANSWER and not figures(rows.rows):
+        empty = "returned no rows" if not rows.rows else "returned rows with no figure in them"
         raise GoldFailed(
-            f"{ident}: the reference SQL returned no rows, so this datapoint has no expected "
+            f"{ident}: the reference SQL {empty}, so this datapoint has no expected "
             f"figure. Fix the statement, or mark the datapoint answer: \"{NO_ANSWER}\" when the "
             f"honest answer really is that the data holds nothing."
         )

@@ -14,13 +14,14 @@ from pydantic_ai.messages import ModelResponse, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.settings import ModelSettings
 
-from finquery_bench.datapoints import CHART_SET, SQL_SET, load_sql, pick, review_sample
+from finquery_bench.datapoints import CHART_SET, SQL_SET, load_charts, load_sql, pick, review_sample
 from finquery_bench.dataset import fresh_database
 from finquery_bench.gold import GoldFailed, build, run_reference
 from finquery_bench.models import Target
 from finquery_bench.report import compare
 from finquery_bench.run import run_points, summarize
 from finquery_bench.score import columns_map, figure_match, shape_match
+from finquery_bench.splits import assign
 
 
 @pytest.fixture(scope="module")
@@ -67,6 +68,39 @@ def test_a_reference_that_answers_nothing_fails_the_build(database) -> None:
             "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE booked_on = '1999-01-01' "
             "GROUP BY booked_on",
         )
+
+
+def test_a_reference_whose_rows_carry_no_figure_fails_the_build(database) -> None:
+    """A single NULL is not an answer: gold with no number in it scores every reply as right."""
+    session_factory, profile_id = database
+    with pytest.raises(GoldFailed, match="no figure"):
+        run_reference(
+            session_factory,
+            profile_id,
+            "made-up",
+            "SELECT ROUND(SUM(amount), 2) AS total_eur FROM transaction_view "
+            "WHERE subcategory = 'Salary'",
+        )
+
+
+def test_every_datapoint_is_train_or_heldout() -> None:
+    """About a third of each set is held out, and every stratum of it contributes."""
+    points = [*load_sql(), *load_charts()]
+    assert all(point.split in ("train", "heldout") for point in points)
+    for name in ("sql", "chart"):
+        of_set = [point for point in points if point.set_name == name]
+        heldout = [point for point in of_set if point.split == "heldout"]
+        assert 0.25 <= len(heldout) / len(of_set) <= 0.4, name
+        assert {point.source for point in heldout} == {"hand", "generated"}, name
+        assert {point.kind for point in heldout} == {point.kind for point in of_set}, name
+
+
+def test_the_split_does_not_move_when_a_datapoint_is_added() -> None:
+    """The split is a hash of the id, so growing one stratum leaves the others alone."""
+    items = [{"id": f"s{index:02d}", "kind": "total"} for index in range(20)]
+    before = assign(items, lambda item: item["kind"])
+    after = assign([*items, {"id": "s99", "kind": "entity"}], lambda item: item["kind"])
+    assert {ident: after[ident] for ident in before} == before
 
 
 def scripted(answers: dict[str, str]) -> FunctionModel:
@@ -217,10 +251,11 @@ def test_compare_names_the_datapoints_that_changed_hands() -> None:
 
 
 def test_the_review_sample_is_stable_for_a_seed() -> None:
-    first = [point.id for point in review_sample(7)]
+    sample = review_sample(7)
+    first = [point.id for point in sample]
     assert first == [point.id for point in review_sample(7)]
     assert len(first) == 30
-    assert len([ident for ident in first if ident.startswith("s")]) == 20
+    assert len([point for point in sample if point.set_name == "sql"]) == 20
     assert first != [point.id for point in review_sample(8)]
 
 

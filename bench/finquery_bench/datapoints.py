@@ -59,6 +59,7 @@ class SqlPoint:
     why: str = ""
     answer: str = ""
     source: str = "hand"
+    split: str = "train"
     gold: Gold | None = None
 
     @property
@@ -81,6 +82,7 @@ class ChartPoint:
     covers: list[str] = field(default_factory=list)
     why: str = ""
     source: str = "hand"
+    split: str = "train"
     gold: Gold | None = None
 
     @property
@@ -124,6 +126,7 @@ def load_sql(path: Path = SQL_SET) -> list[SqlPoint]:
             why=item.get("why", ""),
             answer=item.get("answer", ""),
             source=item.get("source", "hand"),
+            split=item.get("split", "train"),
             gold=Gold.of(item.get("gold")),
         )
         for item in payload["datapoints"]
@@ -145,6 +148,7 @@ def load_charts(path: Path = CHART_SET) -> list[ChartPoint]:
             covers=list(item.get("covers", [])),
             why=item.get("why", ""),
             source=item.get("source", "hand"),
+            split=item.get("split", "train"),
             gold=Gold.of(item.get("gold")),
         )
         for item in payload["prompts"]

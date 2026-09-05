@@ -99,6 +99,8 @@ def command_sample(args: argparse.Namespace) -> int:
                 "also": list(getattr(point, "also", [])),
                 "roles": list(getattr(point, "roles", [])),
                 "answer": getattr(point, "answer", ""),
+                "source": point.source,
+                "split": point.split,
                 "sql": point.sql,
                 "gold": {
                     "columns": point.gold.columns if point.gold else [],
