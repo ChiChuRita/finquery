@@ -52,7 +52,14 @@ carries its own arithmetic: an opening balance, a running balance per row and a 
   no source text, so the verbatim guard cannot run and the balances or the total are the only
   proof there is: a row from an image with neither is flagged as unverified. A receipt is checked
   by adding its line items up and holding them to the printed total, and a receipt with no total
-  says so.
+  says so. Its date is a span like every other figure: it is parsed in code, a day that has not
+  happened yet is not a date that was read, and a receipt whose date cannot be read asks for it
+  on the preview card rather than booking today behind the user's back. Three more things about
+  a receipt are decided in code rather than trusted or guessed, because twenty public receipts
+  showed each of them silently wrong: a line that repeats the running subtotal is not an article
+  (`ZWI.SUMME` counted as one doubles the basket), a discount is a line item with the minus sign
+  it was printed with, and a receipt in another currency is refused with a sentence instead of
+  being booked at par, which is the only mistake on this path that nothing later would catch.
 - **The verdict is one sentence, produced in code**, stored on the Import record
   (`Import.reconciliation`) and shown wherever the import is: the review card's note, the tool
   step in the transcript, the past imports list. The endpoint that commits a reviewed extraction

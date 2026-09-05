@@ -17,6 +17,7 @@ with no total printed is flagged and says so, because then there is nothing to c
 """
 
 import logging
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -45,14 +46,43 @@ MATCH_DAYS = 3
 
 MAX_LEG_DESCRIPTION = 120
 
-BillFlag = Literal["no_total", "does_not_add_up", "no_date", "no_items"]
+BillFlag = Literal["no_total", "does_not_add_up", "no_date", "no_items", "several_receipts", "foreign_currency"]
 
 FLAG_REASONS: dict[BillFlag, str] = {
     "no_total": "No total is printed on this receipt, so the line items could not be checked.",
     "does_not_add_up": "The line items do not add up to the printed total.",
     "no_date": "The date on the receipt could not be read.",
     "no_items": "No line item could be read from this receipt.",
+    "several_receipts": "This photo shows more than one receipt, so only the first one was read.",
+    "foreign_currency": "This receipt is not in euros, so nothing was booked from it.",
 }
+
+# The currency a booking is written in. Another one is refused rather than booked at par: a
+# receipt from Poland read as 8,27 EUR is the one kind of mistake nothing later would catch
+# (twenty public receipts, 2026-09-05). Only a currency that can be named is refused, because
+# the same run also had a reader answer this field with a stray comma, and a German receipt
+# refused over a misread glyph would be the worse trade.
+EURO_NAMES = {"", "eur", "euro", "eur.", "€", "e"}
+FOREIGN_SIGNS = {"$", "us$", "£", "¥", "zł", "zl", "kč", "kc", "ft", "kr", "sfr", "fr."}
+_CURRENCY_CODE = re.compile(r"^[a-z]{3}$")
+
+# What a German till prints into the item list that is not an article. The model is told the
+# same list; this is the second line, because a subtotal counted as an article doubles the
+# basket and the receipt then "does not add up" for a reason the user cannot see.
+SUBTOTAL_WORDS = (
+    "zwi.summe",
+    "zwi summe",
+    "zwischensumme",
+    "zw.summe",
+    "zwsumme",
+    "subtotal",
+    "sub total",
+    "zw. summe",
+    "summe",
+    "posten",
+    "gesamtsumme",
+    "total",
+)
 
 
 class BillLine(BaseModel):
@@ -69,8 +99,17 @@ class BillExtraction(BaseModel):
     merchant: str
     booked_on: date
     total_cents: int
+    """Unsigned. `direction` says which way the money went."""
+    direction: Literal["out", "in"] = "out"
+    """`in` for a receipt that pays money back: a Leergutbon, a Retoure, a refund."""
+    currency: str = "EUR"
+    """The currency as printed. Anything but euros is refused rather than booked at par."""
     items: list[BillLine] = Field(default_factory=list)
     total_printed: bool = True
+    date_read: bool = True
+    """False when the receipt's own date could not be read, so `booked_on` is only today."""
+    note: str | None = None
+    """What the reader wants to say about the photo itself, when there is anything."""
     flags: list[BillFlag] = Field(default_factory=list)
     line: str = ""
     """The one sentence about the arithmetic, counted here and quoted by the tool."""
@@ -80,13 +119,81 @@ class BillExtraction(BaseModel):
         return not self.flags
 
 
+def _reason(extraction: BillExtraction, flag: BillFlag) -> str:
+    if flag == "foreign_currency":
+        return f"This receipt is in {extraction.currency}, not euros, so nothing was booked from it."
+    return FLAG_REASONS[flag]
+
+
 def _line_of(extraction: BillExtraction) -> str:
+    """The one sentence under the items: what the arithmetic says, then what the photo does."""
     if extraction.verified:
-        return (
+        back = " back" if extraction.direction == "in" else ""
+        said = [
             f"{len(extraction.items)} line items add up to the printed total of "
-            f"{eur(extraction.total_cents)} EUR."
-        )
-    return " ".join(FLAG_REASONS[flag] for flag in extraction.flags)
+            f"{eur(extraction.total_cents)} EUR{back}."
+        ]
+    else:
+        said = [_reason(extraction, flag) for flag in extraction.flags]
+    if extraction.note:
+        said.append(extraction.note.strip())
+    return " ".join(said)
+
+
+def bill_date(date_text: str, *, today: date) -> date | None:
+    """The day this receipt was printed, or None when the span is not a printed date.
+
+    The same discipline as every other figure (ADR 0011): the model points at the span and the
+    day is parsed from it here. Two spans are not a date however well they parse: an empty one,
+    and one naming a day that has not happened yet, which is what a model writing a plausible
+    date rather than reading one produces. Neither becomes a booking date; both become a
+    question.
+    """
+    try:
+        read = parse_statement_date(date_text, year=today.year)
+    except (RowUnreadable, ValueError):
+        return None
+    return None if read > today else read
+
+
+def is_euro(currency_text: str) -> bool:
+    """Whether the receipt is in the currency this app books in.
+
+    True unless the span names another currency: a three letter code that is not EUR, or a sign
+    that belongs to one. A span that names no currency at all is euros, because these receipts
+    are German and a glyph the reader could not make out is not evidence of anything.
+    """
+    token = currency_text.strip().casefold()
+    if token in EURO_NAMES or token.strip(".") in EURO_NAMES:
+        return True
+    if token in FOREIGN_SIGNS:
+        return False
+    return not _CURRENCY_CODE.match(token)
+
+
+def _reads_as_subtotal(description: str) -> bool:
+    text = description.casefold()
+    return any(word in text for word in SUBTOTAL_WORDS)
+
+
+def _without_subtotals(items: list[BillLine]) -> list[BillLine]:
+    """The articles, with the running subtotals a till prints between them left out.
+
+    `ZWI.SUMME 25,74` under the last article of an ALDI receipt is the whole basket again, and
+    counted as an article it doubles it (twenty public receipts, 2026-09-05). Two signals have
+    to agree before a line is dropped: it reads like a subtotal, and its amount is exactly the
+    sum of the articles before it. A real article whose price happens to equal what came before
+    is therefore kept, and a subtotal that does not add up is kept and shows up as a receipt
+    that does not add up, which is a question rather than a silent halving.
+    """
+    kept: list[BillLine] = []
+    running = 0
+    for item in items:
+        if running and item.amount_cents == running and _reads_as_subtotal(item.description):
+            continue
+        kept.append(item)
+        running += item.amount_cents
+    return kept
 
 
 def check_bill(bill: Bill, *, today: date) -> BillExtraction | None:
@@ -97,39 +204,56 @@ def check_bill(bill: Bill, *, today: date) -> BillExtraction | None:
     items: list[BillLine] = []
     for item in bill.items:
         try:
-            items.append(BillLine(description=item.description.strip()[:120], amount_cents=abs(money(item.amount_text))))
+            # Signed, so a discount, a coupon or a deposit return subtracts the way it does on
+            # the paper. Only the printed sign is used; nothing here decides what a line means.
+            items.append(BillLine(description=item.description.strip()[:120], amount_cents=money(item.amount_text)))
         except ValueError:
             continue
+    items = _without_subtotals(items)
     total = None
     if bill.total_text:
         try:
             total = abs(money(bill.total_text))
         except ValueError:
             total = None
+    tax = None
+    if bill.tax_text:
+        try:
+            tax = abs(money(bill.tax_text))
+        except ValueError:
+            tax = None
     summed = sum(item.amount_cents for item in items)
     if total is None and not summed:
         return None
 
     flags: list[BillFlag] = []
+    if not is_euro(bill.currency_text):
+        flags.append("foreign_currency")
+    if bill.several_receipts:
+        flags.append("several_receipts")
     if total is None:
         # Nothing printed to check against, so the items are the total and the user is told.
         flags.append("no_total")
-        total = summed
+        total = abs(summed)
     elif not items:
         flags.append("no_items")
-    elif summed != total:
+    elif summed != total and summed + (tax or 0) != total:
+        # A receipt whose prices are printed without tax adds it once at the foot, so the
+        # articles plus that figure are the total. Every US receipt reads this way.
         flags.append("does_not_add_up")
-    try:
-        booked_on = parse_statement_date(bill.date_text, year=today.year)
-    except (RowUnreadable, ValueError):
-        booked_on = today
+    read = bill_date(bill.date_text, today=today)
+    if read is None:
         flags.append("no_date")
     extraction = BillExtraction(
         merchant=bill.merchant.strip()[:120] or "Receipt",
-        booked_on=booked_on,
-        total_cents=total,
+        booked_on=read or today,
+        date_read=read is not None,
+        total_cents=abs(total),
+        direction=bill.direction,
+        currency=bill.currency_text.strip() or "EUR",
         items=items,
         total_printed="no_total" not in flags,
+        note=(bill.note or "").strip() or None,
         flags=flags,
     )
     extraction.line = _line_of(extraction)
@@ -210,7 +334,7 @@ async def group_items(
             sample_description=item.description,
             counterparty=None,
             bookings=1,
-            average_cents=-item.amount_cents,
+            average_cents=-abs(item.amount_cents),
             incoming=False,
         )
         for index, item in enumerate(items)
@@ -245,9 +369,12 @@ async def group_items(
 
 
 def _leg(description: str, amount_cents: int, category: str | None, subcategory: str | None) -> SplitLeg:
+    # The receipt prints what was paid and a booking is money out, so the sign turns over. A
+    # discount line is printed negative and therefore becomes a positive leg, which is what
+    # makes the legs add up to the parent.
     return SplitLeg(
         description=description[:MAX_LEG_DESCRIPTION],
-        amount_cents=-abs(amount_cents),
+        amount_cents=-amount_cents,
         category=category,
         subcategory=subcategory,
     )
@@ -313,13 +440,31 @@ async def bill_outcome(
             "booked_on": extraction.booked_on.isoformat(),
             "total_cents": extraction.total_cents,
             "total_printed": extraction.total_printed,
+            "date_read": extraction.date_read,
+            "direction": extraction.direction,
+            "currency": extraction.currency,
             "items": [item.model_dump() for item in extraction.items],
             "verified": extraction.verified,
             "check": extraction.line,
         },
     }
-    booking = find_match(
-        session, profile_id, total_cents=extraction.total_cents, booked_on=extraction.booked_on
+    if "foreign_currency" in extraction.flags:
+        # Booking 8,27 PLN as 8,27 EUR is the one mistake on this path that nothing later would
+        # catch, so a receipt in another currency is refused with a sentence and never drafted.
+        return {
+            **payload,
+            "status": "nothing_found",
+            "error": (
+                f"{_reason(extraction, 'foreign_currency')} FinQuery books euros only, so add "
+                f"the booking yourself with the amount your account was charged."
+            ),
+        }
+    # A Leergutbon pays money back, so it matches nothing that was paid: it is a new booking in
+    # the other direction.
+    booking = (
+        find_match(session, profile_id, total_cents=extraction.total_cents, booked_on=extraction.booked_on)
+        if extraction.direction == "out"
+        else None
     )
     if booking is not None:
         payload["matched"] = {
@@ -371,7 +516,7 @@ async def bill_outcome(
             ProposedTransaction(
                 booked_on=extraction.booked_on,
                 amount=f"{extraction.total_cents / 100:.2f}",
-                direction="out",
+                direction=extraction.direction,
                 description=extraction.merchant,
                 counterparty=extraction.merchant,
                 account_name=None,
@@ -380,6 +525,17 @@ async def bill_outcome(
     )
     if not drafts:
         return {**payload, "status": "nothing_found", "error": "The receipt held no bookable amount.", "problems": problems}
+    instruction = (
+        "No booking of this profile matches the receipt, so it would be a new one. Show this "
+        "`card` with `ask_user`, unchanged, and call `add_transaction` with the row's `ref` if "
+        "the user confirms it."
+    )
+    if not extraction.date_read:
+        instruction += (
+            " The date could not be read off this receipt, so the row carries today's date and "
+            "the card asks for the printed one. If the user types a date, pass it to "
+            "`add_transaction` as `booked_on`, copied exactly as they wrote it."
+        )
     return {
         **payload,
         "status": "bill_draft",
@@ -394,10 +550,6 @@ async def bill_outcome(
             }
             for draft in drafts
         ],
-        "card": preview_card(drafts).model_dump(mode="json"),
-        "instruction": (
-            "No booking of this profile matches the receipt, so it would be a new one. Show this "
-            "`card` with `ask_user`, unchanged, and call `add_transaction` with the row's `ref` if "
-            "the user confirms it."
-        ),
+        "card": preview_card(drafts, ask_date=not extraction.date_read).model_dump(mode="json"),
+        "instruction": instruction,
     }

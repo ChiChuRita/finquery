@@ -148,7 +148,18 @@ def statement_reader(*, retype: tuple[int, int] | None = None, drop: tuple[int, 
     return respond
 
 
-def bill_reader(*, items: Sequence[tuple[str, str]], total: str | None, date_text: str, merchant: str):
+def bill_reader(
+    *,
+    items: Sequence[tuple[str, str]],
+    total: str | None,
+    date_text: str,
+    merchant: str,
+    currency_text: str = "EUR",
+    tax_text: str | None = None,
+    direction: str = "out",
+    note: str | None = None,
+    several_receipts: bool = False,
+):
     """The fast slot for a receipt: the line items it was asked for, and the images it was sent."""
     categorizer = scripted_categorizer({description: ("Groceries", None, 0.8) for description, _ in items})
     images: list[BinaryContent] = []
@@ -166,6 +177,11 @@ def bill_reader(*, items: Sequence[tuple[str, str]], total: str | None, date_tex
                 "merchant": merchant,
                 "date_text": date_text,
                 "total_text": total,
+                "currency_text": currency_text,
+                "tax_text": tax_text,
+                "direction": direction,
+                "note": note,
+                "several_receipts": several_receipts,
                 "items": [{"description": description, "amount_text": amount} for description, amount in items],
             }
             return ModelResponse(parts=[ToolCallPart("read_bill", json.dumps(payload))])
@@ -519,6 +535,335 @@ async def test_a_bill_that_matches_nothing_previews_a_new_transaction(
     assert len(rows) == before + 1
     written = next(row for row in rows if row["description"] == "OBI Markt")
     assert (written["amount_cents"], written["booked_on"], written["source"]) == (-1249, "2025-07-19", "manual")
+
+
+async def test_a_receipt_date_printed_with_its_time_is_the_date_that_is_booked(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """A German till prints `04.09.26 20:00`, and that is a date, not an unreadable span.
+
+    The real Edeka receipt of the end-to-end test printed exactly that, the span came back
+    with the time on it, and the booking fell back to today (2026-09-05).
+    """
+    await import_synthetic(client, profile_id)
+    reader = bill_reader(
+        items=(("Uludag Gazoz 0,33l", "0,99"), ("Hi-Chew Original", "3,49")),
+        total="4,48",
+        date_text="04.09.26 20:00",
+        merchant="EDEKA Mueller",
+    )
+    scripts.fast = importing(OBI_BILL.name)
+    scripts.fast_call = reader  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    response = await client.post(
+        f"/api/conversations/{conversation_id}/chat",
+        json=attach(conversation_id, "here is a receipt", OBI_BILL, media_type="image/png"),
+    )
+    assert response.status_code == 200, response.text
+    output = outputs_of(parse_sse(response.text))[0]
+
+    assert output["status"] == "bill_draft"
+    assert output["bill"]["booked_on"] == "2026-09-04"
+    assert output["bill"]["date_read"] is True
+    assert output["drafts"][0]["booked_on"] == "2026-09-04"
+    # Nothing was flagged, so the card is the plain preview with no question about the date.
+    assert output["bill"]["verified"] is True
+    assert output["card"]["allow_free_text"] is False
+
+
+async def test_a_receipt_date_printed_after_its_time_is_read_too(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """An ALDI till prints the clock first: `14:12 04.05.2019`."""
+    output = await read_receipt(
+        client,
+        profile_id,
+        bill_reader(
+            items=(("GESCHIRRSPULTABS", "2,65"),),
+            total="2,65",
+            date_text="14:12 04.05.2019",
+            merchant="ALDI",
+        ),
+        scripts,
+    )
+
+    assert output["bill"]["booked_on"] == "2019-05-04"
+    assert output["bill"]["date_read"] is True
+
+
+async def read_receipt(client: httpx.AsyncClient, profile_id: str, reader, scripts: Scripts) -> dict[str, Any]:
+    """One receipt through the chat, as a photo on the composer: the tool's own output."""
+    scripts.fast = importing(OBI_BILL.name)
+    scripts.fast_call = reader  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+    response = await client.post(
+        f"/api/conversations/{conversation_id}/chat",
+        json=attach(conversation_id, "here is a receipt", OBI_BILL, media_type="image/png"),
+    )
+    assert response.status_code == 200, response.text
+    return outputs_of(parse_sse(response.text))[0]
+
+
+async def test_a_subtotal_line_is_not_a_line_item(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """`ZWI.SUMME` printed between the articles is the basket again, not an article.
+
+    Counted as one it doubles the receipt, which is what an ALDI receipt did in the run of
+    twenty public receipts: 32 items summing to 52,13 against a printed 25,74.
+    """
+    output = await read_receipt(
+        client,
+        profile_id,
+        bill_reader(
+            items=(("Bananen", "1,99"), ("Milch", "1,29"), ("ZWI.SUMME", "3,28"), ("Brot", "2,49")),
+            total="5,77",
+            date_text="04.05.2019",
+            merchant="ALDI Hesel",
+        ),
+        scripts,
+    )
+
+    assert [item["description"] for item in output["bill"]["items"]] == ["Bananen", "Milch", "Brot"]
+    assert output["bill"]["verified"] is True
+    assert "3 line items add up to the printed total of 5,77 EUR." == output["bill"]["check"]
+
+
+async def test_a_discount_is_a_negative_line_item_so_the_receipt_adds_up(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """A `Rabatt` line is the difference between the articles and the total, so it is kept."""
+    output = await read_receipt(
+        client,
+        profile_id,
+        bill_reader(
+            items=(("Katzenfutter", "34,97"), ("MwSt.-Senkung", "-0,88")),
+            total="34,09",
+            date_text="04.12.2020",
+            merchant="Fressnapf Koeln",
+        ),
+        scripts,
+    )
+
+    assert [item["amount_cents"] for item in output["bill"]["items"]] == [3497, -88]
+    assert output["bill"]["verified"] is True
+    assert output["drafts"][0]["amount_cents"] == -3409
+
+
+async def test_a_receipt_whose_prices_are_printed_before_tax_adds_up_with_it(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """1.00 + 1.00, tax 0.18, total 2.18: every US receipt reads this way and is not broken."""
+    output = await read_receipt(
+        client,
+        profile_id,
+        bill_reader(
+            items=(("CANDY BAR", "1.00"), ("SODA", "1.00")),
+            total="2.18",
+            tax_text="0.18",
+            date_text="04.05.2019",
+            merchant="FAMILY DOLLAR",
+        ),
+        scripts,
+    )
+
+    assert output["bill"]["verified"] is True
+    assert output["bill"]["total_cents"] == 218
+
+
+async def test_a_receipt_in_another_currency_is_refused_instead_of_booked_as_euros(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """8,27 PLN booked as 8,27 EUR is the one wrong figure nothing later would catch."""
+    output = await read_receipt(
+        client,
+        profile_id,
+        bill_reader(
+            items=(("Chleb", "3,29"), ("Mleko", "4,98")),
+            total="8,27",
+            currency_text="PLN",
+            date_text="2020-01-09",
+            merchant="Biedronka",
+        ),
+        scripts,
+    )
+
+    assert output["status"] == "nothing_found"
+    assert "in PLN, not euros" in output["error"]
+    assert "drafts" not in output and "card" not in output
+    assert len(await rows_of(client, profile_id)) == 0
+
+
+async def test_a_photo_of_several_receipts_says_only_the_first_was_read(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    output = await read_receipt(
+        client,
+        profile_id,
+        bill_reader(
+            items=(("Nudeln", "1,29"), ("Sauce", "9,25")),
+            total="10,54",
+            date_text="16.02.2018",
+            merchant="LIDL",
+            note="Three receipts are lying side by side in this photo.",
+            several_receipts=True,
+        ),
+        scripts,
+    )
+
+    check = output["bill"]["check"]
+    assert "only the first one was read" in check
+    assert "Three receipts are lying side by side in this photo." in check
+    assert output["bill"]["verified"] is False, "a photo of three receipts is not a checked one"
+    assert output["drafts"][0]["amount_cents"] == -1054
+
+
+async def test_a_deposit_refund_is_booked_as_money_in(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """A Leergutbon pays 0,25 EUR back, and money back is not a purchase."""
+    output = await read_receipt(
+        client,
+        profile_id,
+        bill_reader(
+            items=(("Pfandrueckgabe 1 x 0,25", "0,25"),),
+            total="0,25",
+            direction="in",
+            date_text="23.03.2019",
+            merchant="ALDI Markt",
+        ),
+        scripts,
+    )
+
+    assert output["status"] == "bill_draft"
+    assert output["bill"]["direction"] == "in"
+    assert output["drafts"][0]["amount_cents"] == 25
+    assert "0,25 EUR back" in output["bill"]["check"]
+
+
+def receipt_as_statement(rows: Sequence[tuple[str, str, str]]):
+    """A fast slot that reads a photographed receipt as if its articles were bookings."""
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        payload = {
+            "rows": [
+                {
+                    "date_text": date_text,
+                    "amount_text": amount,
+                    "direction": "out",
+                    "description": description,
+                    "balance_text": None,
+                }
+                for date_text, amount, description in rows
+            ]
+        }
+        return ModelResponse(parts=[ToolCallPart("read_statement", json.dumps(payload))])
+
+    return respond
+
+
+async def test_a_receipt_posted_to_the_statement_door_is_refused(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """The chat routes a photo to the receipt reader; this door has to say when it got one.
+
+    Eighteen of twenty public receipts were refused because the reader itself said "this is a
+    receipt"; two came back as bookings (`Rucolasauce -0,99`). A page of a statement carries the
+    running balance that makes its figures checkable, and a receipt carries none.
+    """
+    scripts.fast_call = receipt_as_statement(
+        [("28.06.2007", "-0,99", "Rucolasauce"), ("28.06.2007", "-2,99", "VISU PENCIL SET")]
+    )
+
+    response = await client.post(
+        "/api/imports/extract",
+        files={"file": (EDEKA_BILL.name, EDEKA_BILL.read_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 422, response.text
+    assert "till receipt" in response.json()["detail"]
+
+
+def confirming_with_a_date(file_name: str, *, ref: str, booked_on: str):
+    """A chat model that shows the bill's card and books the row with the date the user typed."""
+
+    async def fn(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        imports = _returns(messages, "import_file")
+        cards = _returns(messages, "ask_user")
+        added = _returns(messages, "add_transaction")
+        if not imports:
+            yield _call(0, "import_file", file_name=file_name)
+            return
+        if added:
+            yield f"Added {added[-1].get('description')} on {added[-1].get('booked_on')}."
+            return
+        if not cards:
+            yield _call(0, "ask_user", **imports[-1]["card"])
+            return
+        yield _call(0, "add_transaction", ref=ref, booked_on=booked_on)
+
+    return fn
+
+
+async def test_a_receipt_with_no_readable_date_asks_for_it_instead_of_booking_today(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """No date on the paper is a question, not a silent booking of today.
+
+    The card says the date could not be read and offers the free text field for it, and the
+    date the user types is parsed in code before the booking is written.
+    """
+    await import_synthetic(client, profile_id)
+    reader = bill_reader(
+        items=(("Blumenerde 40L", "7,99"), ("Giesskanne", "4,50")),
+        total="12,49",
+        date_text="",
+        merchant="OBI Markt",
+    )
+    scripts.fast = confirming_with_a_date(OBI_BILL.name, ref="t1", booked_on="19.07.2025")
+    scripts.fast_call = reader  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    first = await client.post(
+        f"/api/conversations/{conversation_id}/chat",
+        json=attach(conversation_id, "book this receipt", OBI_BILL, media_type="image/png"),
+    )
+    assert first.status_code == 200, first.text
+    chunks = parse_sse(first.text)
+    output = outputs_of(chunks)[0]
+
+    assert output["status"] == "bill_draft"
+    assert output["bill"]["date_read"] is False
+    assert "The date on the receipt could not be read." in output["bill"]["check"]
+    card = cards_in(chunks)[0]["input"]
+    assert card["allow_free_text"] is True
+    assert "Type the printed date" in card["note"]
+
+    before = len(await rows_of(client, profile_id))
+    pending = (await transcript(client, conversation_id))["messages"][1]
+    second = await client.post(
+        f"/api/conversations/{conversation_id}/chat",
+        json=answer_card(
+            conversation_id,
+            pending["id"],
+            pending_card(pending),
+            {
+                "answers": [
+                    {"ref": "t1", "value": "add", "text": None},
+                    {"ref": "", "value": None, "text": "19.07.2025"},
+                ]
+            },
+        ),
+    )
+    assert second.status_code == 200, second.text
+    added = [out for out in outputs_of(parse_sse(second.text)) if out.get("status") == "added"][0]
+    assert added["booked_on"] == "2025-07-19"
+
+    rows = await rows_of(client, profile_id)
+    assert len(rows) == before + 1
+    written = next(row for row in rows if row["description"] == "OBI Markt")
+    assert written["booked_on"] == "2025-07-19", "the typed date is the one that was written"
 
 
 @pytest.mark.skipif(not TRADE_REPUBLIC.exists(), reason="the private Trade Republic export is not in this checkout")

@@ -73,8 +73,14 @@ function Bill({ bill }: { bill: ExtractedBill }) {
   return (
     <div className="space-y-2">
       <p className="text-sm">
-        <span className="font-medium">{bill.merchant}</span>, {formatDate(bill.booked_on)},{' '}
-        <span className="tabular-nums">{formatEur(-bill.total_cents)}</span>
+        <span className="font-medium">{bill.merchant}</span>, {formatDate(bill.booked_on)}
+        {/* Today standing in for a date nobody read is a fact the card has to admit where the
+            date is, not only in the line under the items. */}
+        {!bill.date_read && <span className="text-warning"> (today, not read off the receipt)</span>},{' '}
+        {/* A Leergutbon pays money back, so its figure is not a minus. */}
+        <span className="tabular-nums">
+          {formatEur(bill.direction === 'in' ? bill.total_cents : -bill.total_cents)}
+        </span>
       </p>
       {bill.items.length > 0 && (
         <ul className="space-y-0.5 text-xs">

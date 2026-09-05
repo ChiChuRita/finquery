@@ -55,6 +55,12 @@ MONTHS: dict[str, int] = {
 _MONTH_DATE = re.compile(r"(\d{1,2})\.?\s*([A-Za-zÄÖÜäöüéÉ]{3,9})\.?\s*(\d{2,4})")
 _DIGITS = re.compile(r"\d+")
 
+# A till and a card terminal print the time next to the date, on either side of it, and the span
+# is copied as it stands: "04.09.26 20:00", "26.11.2025, 14:23 Uhr", "14:12 04.05.2019" (ALDI
+# prints the clock first). The clock is not part of the day.
+_CLOCK_AFTER = re.compile(r"[\s,]+\d{1,2}:\d{2}(:\d{2})?\s*(uhr)?\.?$", re.IGNORECASE)
+_CLOCK_BEFORE = re.compile(r"^\d{1,2}:\d{2}(:\d{2})?\s*(uhr)?[\s,]+", re.IGNORECASE)
+
 
 class RowUnreadable(ValueError):
     """The span the model returned is not a date or an amount."""
@@ -79,12 +85,14 @@ def has_sign(text: str) -> bool:
 
 
 def parse_statement_date(text: str, *, year: int | None = None) -> date:
-    """A date as a statement prints it: `04.01.25`, `2025-01-04`, `15 Mai 2024`, `01.04.`.
+    """A date as a page prints it: `04.01.25`, `2025-01-04`, `15 Mai 2024`, `01.04.`, `04.09.26 20:00`.
 
     `year` is the year the rest of the statement is in, which is what a German statement that
-    prints `01.04.` without one means.
+    prints `01.04.` without one means. A time printed with the date is dropped, on either side
+    of it: a receipt prints "Datum Uhrzeit 04.09.26 20:00" or "14:12 04.05.2019" and the span is
+    copied as it stands.
     """
-    value = text.strip().strip(",;")
+    value = _CLOCK_BEFORE.sub("", _CLOCK_AFTER.sub("", text.strip())).strip(",;")
     try:
         return parse_date(value, "DD.MM.YYYY")
     except ValueError:

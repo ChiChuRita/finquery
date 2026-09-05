@@ -154,7 +154,13 @@ See `docs/adr/0011-two-guards-on-every-extracted-figure.md`.
 
 A photo is read as a receipt: when its total matches a booking within three days the assistant
 proposes a split of that booking into the receipt's line items, grouped by category, and otherwise
-it previews a new booking.
+it previews a new booking. The date is the one the till printed, parsed in code from the span the
+model copied (`04.09.26 20:00` and `14:12 04.05.2019` are dates); a receipt whose date cannot be
+read says so on the card and asks for it instead of quietly booking today. A subtotal line
+(`ZWI.SUMME`) is not an article and is dropped where it repeats what came before it, a discount is
+a negative line item so the items still add up, a receipt whose prices are printed before tax adds
+up with the tax line, a `Leergutbon` books money in rather than out, and a receipt in another
+currency is refused with a sentence rather than booked as euros.
 
 `/import` is the overview of what all of this produced, and imports nothing itself: per past
 import the file, its kind, the account, when it ran, how many rows were read and how many landed,
