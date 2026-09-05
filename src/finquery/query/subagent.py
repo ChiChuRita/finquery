@@ -204,12 +204,35 @@ class QueryContext:
     counterparties: tuple[tuple[str, int], ...]
 
 
+def is_euro_column(name: str) -> bool:
+    """The columns this prompt tells the model to write euros into: `amount` and every `*_eur`.
+
+    The alias rule above is what makes this readable: a figure column is named for what it is,
+    so the tool result can format it as money and the check can tell a figure from a count.
+    """
+    return name == "amount" or name.endswith("_eur")
+
+
 @dataclass(frozen=True)
 class Rejection:
     """A statement the guard or SQLite refused, and why. Feeds the one retry."""
 
     sql: str
     error: str
+
+
+@dataclass(frozen=True)
+class Revision:
+    """A statement that ran and did not answer the question. Feeds the one rewrite.
+
+    The other half of `Rejection`: nothing was wrong with the SQL, so the prompt says so and
+    hands over the reason (a degenerate result, or the check pass's one sentence) and what to
+    ask instead. See `finquery.query.check` and ticket 40.
+    """
+
+    sql: str
+    reason: str
+    advice: str = ""
 
 
 query_agent = Agent(
@@ -378,7 +401,12 @@ def profile_facts(context: QueryContext) -> str:
 
 
 def query_prompt(
-    request: str, context: QueryContext, *, hints: str | None = None, rejected: Rejection | None = None
+    request: str,
+    context: QueryContext,
+    *,
+    hints: str | None = None,
+    rejected: Rejection | None = None,
+    revised: Revision | None = None,
 ) -> str:
     """Build the whole prompt the query sub-agent sees. Pure function, reused by training."""
     sections = [VIEW_SCHEMA, RULES, EXAMPLES, profile_facts(context), f"Question: {request.strip()}"]
@@ -388,6 +416,12 @@ def query_prompt(
         sections.append(
             "Your previous statement did not run. Write a different one that answers the same question.\n\n"
             f"Refused SQL:\n{rejected.sql.strip()}\n\nProblem: {rejected.error}"
+        )
+    if revised is not None:
+        advice = f"\n\n{revised.advice.strip()}" if revised.advice.strip() else ""
+        sections.append(
+            "Your previous statement ran, but it did not answer the question. Write a different "
+            f"one.\n\nPrevious SQL:\n{revised.sql.strip()}\n\nProblem: {revised.reason}{advice}"
         )
     return "\n\n".join(sections)
 
@@ -399,10 +433,13 @@ async def write_sql(
     *,
     hints: str | None = None,
     rejected: Rejection | None = None,
+    revised: Revision | None = None,
     model_settings: ModelSettings | None = None,
 ) -> str:
     """Ask the fast slot for one statement through the forced `run_sql` tool."""
     result = await query_agent.run(
-        query_prompt(request, context, hints=hints, rejected=rejected), model=model, model_settings=model_settings
+        query_prompt(request, context, hints=hints, rejected=rejected, revised=revised),
+        model=model,
+        model_settings=model_settings,
     )
     return result.output.sql

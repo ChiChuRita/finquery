@@ -17,12 +17,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from finquery.db import create_profile, ensure_account
 from finquery.formats import eur
 from finquery.memory import MemoryKind
+from finquery.query.check import CHECK_TOOL
 
 from .conftest import (
     SYNTHETIC,
     Chat,
     Scripts,
     distilled,
+    is_check_request,
     is_distillation_request,
     is_followup_request,
     new_conversation,
@@ -77,19 +79,31 @@ def scripted_sql(
     followups: Sequence[str] = (),
     memories: Sequence[str] = (),
     memory_kind: MemoryKind = "fact",
+    checks: Sequence[dict[str, str]] = (),
 ):
     """The sub-agent's forced single tool call, one statement per attempt.
 
     Both post-turn steps run on the same slot and are not streamed either, so they land here
     too. They get their own answer and never count as an attempt.
+
+    The check pass of ticket 40 shares the slot as well and answers `ok` unless the test wrote
+    a verdict for it in `checks`, so a scripted statement stands as it is written. Its prompts
+    are on `respond.judgements`, the statements' on `respond.prompts`.
     """
     prompts: list[str] = []
+    judgements: list[str] = []
 
     def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         if is_followup_request(messages):
             return ModelResponse(parts=[TextPart(content="\n".join(followups) if followups else "No follow-ups.")])
         if is_distillation_request(messages):
             return ModelResponse(parts=[distilled(*memories, kind=memory_kind)])
+        if is_check_request(messages):
+            judgements.append(_last_user_prompt(messages))
+            assert [tool.name for tool in info.output_tools] == [CHECK_TOOL]
+            assert info.allow_text_output is False
+            verdict = checks[len(judgements) - 1] if len(judgements) <= len(checks) else {"verdict": "ok"}
+            return ModelResponse(parts=[ToolCallPart(CHECK_TOOL, json.dumps(verdict))])
         prompts.append(_last_user_prompt(messages))
         assert [tool.name for tool in info.output_tools] == ["run_sql"]
         assert info.allow_text_output is False
@@ -98,6 +112,7 @@ def scripted_sql(
         return ModelResponse(parts=[ToolCallPart("run_sql", json.dumps({"sql": sql}))])
 
     respond.prompts = prompts  # type: ignore[attr-defined]
+    respond.judgements = judgements  # type: ignore[attr-defined]
     return respond
 
 
@@ -204,6 +219,9 @@ async def test_scripted_sql_executes_and_its_rows_reach_the_transcript(
     # Thinking, tool step, answer and the post-turn parts are one message, live and on reload.
     assert [p["type"] for p in detail["messages"][-1]["parts"]] == [
         "tool-query",
+        # The check pass narrates into the thinking panel, so the tool step is followed by one
+        # reasoning block, live and on reload (ticket 40).
+        "reasoning",
         "text",
         "data-context",
         "data-followups",

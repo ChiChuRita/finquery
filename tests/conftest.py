@@ -15,6 +15,7 @@ from finquery.app import create_app
 from finquery.context import SUMMARY_MARKER
 from finquery.followups import FOLLOWUP_MARKER
 from finquery.memory import DISTILL_MARKER, DISTILL_TOOL, MemoryKind
+from finquery.query.check import CHECK_MARKER, CHECK_TOOL
 from finquery.settings import Settings
 from finquery.weblookup import Hit, Page
 
@@ -32,7 +33,8 @@ def _collected(fn: StreamFn) -> Callable[[list[ModelMessage], AgentInfo], Awaita
 
     A script that yields a `ToolCallPart` answers a sub-agent with a schema; anything else is
     collected into text. The distillation pass needs its tool either way, so a script that says
-    nothing about it remembers nothing.
+    nothing about it remembers nothing, and so does the check pass, which leaves a result the
+    test did not script a verdict for exactly as the sub-agent wrote it.
     """
 
     async def function(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
@@ -41,6 +43,8 @@ def _collected(fn: StreamFn) -> Callable[[list[ModelMessage], AgentInfo], Awaita
             return ModelResponse(parts=tool_calls)
         if is_distillation_request(messages):
             return ModelResponse(parts=[distilled()])
+        if is_check_request(messages):
+            return ModelResponse(parts=[judged()])
         return ModelResponse(parts=[TextPart(content="".join(item for item in items if isinstance(item, str)))])
 
     return function
@@ -86,6 +90,16 @@ def is_followup_request(messages: Sequence[ModelMessage]) -> bool:
 def is_distillation_request(messages: Sequence[ModelMessage]) -> bool:
     """True for the post-turn step that asks the fast slot what is worth remembering."""
     return _asks_for(messages, DISTILL_MARKER)
+
+
+def is_check_request(messages: Sequence[ModelMessage]) -> bool:
+    """True for the pass that asks the fast slot whether a result answers the question."""
+    return _asks_for(messages, CHECK_MARKER)
+
+
+def judged(verdict: str = "ok", reason: str = "", intent: str = "") -> ToolCallPart:
+    """The check pass's forced tool call: the result stands unless a test says otherwise."""
+    return ToolCallPart(tool_name=CHECK_TOOL, args={"verdict": verdict, "reason": reason, "intent": intent})
 
 
 def is_summary_request(messages: Sequence[ModelMessage]) -> bool:

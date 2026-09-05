@@ -3,6 +3,7 @@
     uv run finquery-bench --set sql --model google/gemini-3.8-flash
     uv run finquery-bench --set all --model qwen/qwen3.5-9b --n 20 --seed 7
     uv run finquery-bench --set chart --model local:fast --adapter chart
+    uv run finquery-bench --set sql --model qwen/qwen3.5-9b --no-check
     uv run finquery-bench compare bench/results/A.json bench/results/B.json
     uv run finquery-bench sample --seed 7
 
@@ -43,7 +44,8 @@ def command_run(args: argparse.Namespace) -> int:
     settings = Settings()
     target = resolve_target(args.model, args.adapter, settings)
     points = pick(load(args.set), n=args.n, seed=args.seed)
-    print(f"{len(points)} datapoints of the {args.set} set on {target.name}", flush=True)
+    checked = "with the check" if args.check else "without the check"
+    print(f"{len(points)} datapoints of the {args.set} set on {target.name}, {checked}", flush=True)
     with fresh_database() as (session_factory, profile_id):
         run = asyncio.run(
             run_points(
@@ -54,11 +56,13 @@ def command_run(args: argparse.Namespace) -> int:
                 today=_today(),
                 seed=args.seed,
                 set_name=args.set,
+                check=args.check,
                 on_result=_progress,
             )
         )
     payload = run.payload()
-    as_json, as_markdown = save(payload, target.slug, args.out)
+    # The two modes write two files: a run is only comparable with one of its own kind.
+    as_json, as_markdown = save(payload, target.slug if args.check else f"{target.slug}-nocheck", args.out)
     print()
     print(table(payload))
     print(f"written: {as_json}\n         {as_markdown}")
@@ -129,6 +133,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="a slot on the current provider (fast, quality), an OpenRouter id, or local:<slot>",
     )
     runner.add_argument("--adapter", default=None, choices=("query", "chart"), help="a LoRA adapter, local only")
+    runner.add_argument(
+        "--no-check",
+        dest="check",
+        action="store_false",
+        help="run without the query's check pass and its rewrite (the path before ticket 40)",
+    )
     runner.add_argument("--n", type=int, default=None, help="run a sample of this many datapoints")
     runner.add_argument("--seed", type=int, default=DEFAULT_SEED, help="which sample --n takes")
     runner.add_argument("--out", type=Path, default=RESULTS, help="where the result files go")

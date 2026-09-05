@@ -1,12 +1,13 @@
 """One run: every datapoint through the real sub-agent path, scored against its gold rows.
 
-The SQL set drives the path the app drives: `query_prompt` on the model under test, the guard,
-`execute_read_only`, and one retry with the refusal in the prompt, exactly as `run_query` does
-it. The retry is unrolled here rather than borrowed so the run can say whether the first
-statement was the one that worked, which is the number that moves when a model gets better.
+Both sets call what the app calls: `run_query` for the SQL set (the sub-agent, the guard,
+`execute_read_only`, the retry on a refusal and, since ticket 40, the check pass and its one
+rewrite) and `run_chart` for the chart set, because a chart is a plan, a query, generated code
+and a self-check, and only the whole path is worth a score. `--no-check` turns ticket 40 off,
+which is how a run measures what it is worth.
 
-The chart set calls `run_chart` itself, because a chart is a plan, a query, generated code and a
-self-check, and only the whole path is worth a score.
+`QueryOutcome.attempts` is what says whether the first statement was the one that worked, which
+is the number that moves when a model gets better.
 """
 
 import time
@@ -17,9 +18,8 @@ from typing import Any
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.chart import run_chart
-from finquery.query.guard import SqlFailed, SqlRejected, execute_read_only, validate_sql
-from finquery.query.runner import ATTEMPTS
-from finquery.query.subagent import QueryContext, Rejection, load_query_context, write_sql
+from finquery.query import run_query
+from finquery.query.subagent import QueryContext, load_query_context
 from finquery_bench.datapoints import ChartPoint, Point, SqlPoint
 from finquery_bench.models import Target
 from finquery_bench.score import columns_map, figure_match, shape_match
@@ -83,50 +83,37 @@ async def run_sql_point(
     session_factory: sessionmaker[Session],
     profile_id: str,
     context: QueryContext,
+    check: bool = True,
 ) -> Result:
     """Write the statement, guard it, run it, and score its rows against the gold ones."""
     started = time.perf_counter()
-    model = target.resolve("fast")
-    rejected: Rejection | None = None
-    refusals: list[str] = []
-    sql: str | None = None
-    columns: list[str] = []
-    rows: list[dict[str, Any]] = []
-    error: str | None = None
-    attempts = 0
-    for _ in range(ATTEMPTS):
-        attempts += 1
-        try:
-            written = await write_sql(
-                model, point.question, context, hints=_hints(point), rejected=rejected,
-                model_settings=target.settings,
-            )
-        except Exception as exc:  # noqa: BLE001 - any model or transport failure is one message here
-            error = f"no statement: {exc}"
-            refusals.append(error)
-            break
-        try:
-            validated = validate_sql(written)
-            with session_factory() as session:
-                result = execute_read_only(session, validated, profile_id)
-        except (SqlRejected, SqlFailed) as exc:
-            rejected = Rejection(sql=written, error=str(exc))
-            refusals.append(str(exc))
-            error = str(exc)
-            continue
-        except Exception as exc:  # noqa: BLE001
-            # The guard itself can raise on text no parser accepts: sqlglot answers an
-            # unterminated string literal with a TokenError, which `validate_sql` does not
-            # turn into a refusal (qwen/qwen3.5-9b wrote one on 2026-09-05). Making that a
-            # refusal is ticket 37's; a run counts it as an invalid statement and goes on.
-            reason = f"the guard raised {type(exc).__name__}: {exc}"
-            rejected = Rejection(sql=written, error=reason)
-            refusals.append(reason)
-            error = reason
-            continue
-        sql, columns, rows, error = validated, result.columns, result.rows, None
-        break
-
+    try:
+        outcome = await run_query(
+            resolve_model=target.resolve,
+            model_settings=target.settings,
+            session_factory=session_factory,
+            profile_id=profile_id,
+            request=point.question,
+            hints=_hints(point),
+            check=check,
+            context=context,
+        )
+    except Exception as exc:  # noqa: BLE001 - one datapoint that throws is one score, not a dead run
+        return Result(
+            id=point.id,
+            set="sql",
+            kind=point.kind,
+            difficulty=point.difficulty,
+            language=point.language,
+            question=point.question,
+            seconds=round(time.perf_counter() - started, 2),
+            figure_match=False,
+            sql_valid=False,
+            first_attempt=False,
+            attempts=1,
+            error=f"the query path raised {type(exc).__name__}: {exc}",
+        )
+    ran = outcome.error is None
     gold = point.gold.rows if point.gold else []
     return Result(
         id=point.id,
@@ -136,15 +123,16 @@ async def run_sql_point(
         language=point.language,
         question=point.question,
         seconds=round(time.perf_counter() - started, 2),
-        figure_match=sql is not None and figure_match(gold, rows, answer=point.answer),
-        sql_valid=sql is not None,
-        first_attempt=sql is not None and attempts == 1,
-        attempts=attempts,
-        sql=sql,
-        columns=columns,
-        rows=rows,
-        error=error,
-        refusals=refusals,
+        figure_match=ran and figure_match(gold, outcome.rows, answer=point.answer),
+        sql_valid=ran,
+        first_attempt=ran and outcome.attempts == 1,
+        attempts=outcome.attempts,
+        sql=outcome.sql if ran else None,
+        columns=outcome.columns,
+        rows=outcome.rows,
+        error=outcome.error,
+        refusals=list(outcome.refusals),
+        notes=list(outcome.notes),
     )
 
 
@@ -154,6 +142,7 @@ async def run_chart_point(
     target: Target,
     session_factory: sessionmaker[Session],
     profile_id: str,
+    check: bool = True,
 ) -> Result:
     """Plan, query, write and check one chart, and score the drawing and its rows."""
     started = time.perf_counter()
@@ -164,6 +153,7 @@ async def run_chart_point(
             session_factory=session_factory,
             profile_id=profile_id,
             request=point.prompt,
+            check=check,
         )
     except Exception as exc:  # noqa: BLE001 - one datapoint that throws is one score, not a dead run
         return Result(
@@ -221,6 +211,8 @@ class Run:
     seconds: float
     seed: int
     results: list[Result]
+    check: bool = True
+    """Whether the query's check pass ran. False is `--no-check`, the path before ticket 40."""
 
     def payload(self) -> dict[str, Any]:
         return {
@@ -229,6 +221,7 @@ class Run:
             "started_at": self.started_at,
             "seconds": round(self.seconds, 1),
             "seed": self.seed,
+            "check": self.check,
             "n": len(self.results),
             "summary": summarize(self.results),
             "results": [result.payload() for result in self.results],
@@ -294,6 +287,7 @@ async def run_points(
     today: date,
     seed: int,
     set_name: str,
+    check: bool = True,
     on_result=None,  # noqa: ANN001 - a progress line, nothing more
 ) -> Run:
     """Run every datapoint in order, one after the other, so the latencies are honest."""
@@ -305,11 +299,16 @@ async def run_points(
     for point in points:
         if isinstance(point, SqlPoint):
             result = await run_sql_point(
-                point, target=target, session_factory=session_factory, profile_id=profile_id, context=context
+                point,
+                target=target,
+                session_factory=session_factory,
+                profile_id=profile_id,
+                context=context,
+                check=check,
             )
         else:
             result = await run_chart_point(
-                point, target=target, session_factory=session_factory, profile_id=profile_id
+                point, target=target, session_factory=session_factory, profile_id=profile_id, check=check
             )
         results.append(result)
         if on_result is not None:
@@ -321,4 +320,5 @@ async def run_points(
         seconds=time.perf_counter() - started,
         seed=seed,
         results=results,
+        check=check,
     )

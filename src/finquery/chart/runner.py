@@ -216,8 +216,14 @@ async def run_chart(
     request: str,
     hints: str | None = None,
     narrate: Narrator | None = None,
+    check: bool = True,
 ) -> ChartOutcome:
-    """Plan a chart, get its rows through the query sub-agent, write it and check it."""
+    """Plan a chart, get its rows through the query sub-agent, write it and check it.
+
+    `check` is the query's own check pass (ticket 40), passed through so the benchmark can
+    measure a chart run with it and without it. The plan already pins what the statement has to
+    return, so what it changes here is the rewrite a degenerate result asks for.
+    """
     say: Narrator = narrate or (lambda _text: None)
 
     with session_factory() as session:
@@ -279,6 +285,9 @@ async def run_chart(
         profile_id=profile_id,
         request=plan.question,
         hints=f"{hints.strip()} {shaped}" if hints else shaped,
+        check=check,
+        narrate=say,
+        context=context,
     )
     if outcome.error is not None:
         say(f"No chart: {outcome.error}")

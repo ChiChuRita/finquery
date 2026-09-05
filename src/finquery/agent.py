@@ -447,6 +447,7 @@ async def query(ctx: RunContext[ChatDeps], request: str, hints: str | None = Non
         profile_id=ctx.deps.profile_id,
         request=request,
         hints=hints,
+        narrate=ctx.deps.narrate,
     )
     return outcome.payload()
 

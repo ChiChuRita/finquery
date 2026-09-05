@@ -14,6 +14,7 @@ from pydantic_ai.messages import ModelResponse, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.settings import ModelSettings
 
+from finquery.query.check import CHECK_TOOL
 from finquery_bench.datapoints import CHART_SET, SQL_SET, load_charts, load_sql, pick, review_sample
 from finquery_bench.dataset import fresh_database
 from finquery_bench.gold import GoldFailed, build, run_reference
@@ -22,6 +23,8 @@ from finquery_bench.report import compare
 from finquery_bench.run import run_points, summarize
 from finquery_bench.score import columns_map, figure_match, shape_match
 from finquery_bench.splits import assign
+
+from .conftest import judged
 
 
 @pytest.fixture(scope="module")
@@ -103,10 +106,14 @@ def test_the_split_does_not_move_when_a_datapoint_is_added() -> None:
     assert {ident: after[ident] for ident in before} == before
 
 
-def scripted(answers: dict[str, str]) -> FunctionModel:
-    """A model that writes one prepared statement per question it recognizes."""
+def scripted(answers: dict[str, str], judgements: list[str] | None = None) -> FunctionModel:
+    """A model that writes one prepared statement per question it recognizes.
 
-    def call(messages: list, _info: AgentInfo) -> ModelResponse:
+    It says `ok` to every check pass of ticket 40 and, when the test hands one in, writes the
+    prompts it judged into `judgements`, which is how a run says whether the pass ran at all.
+    """
+
+    def call(messages: list, info: AgentInfo) -> ModelResponse:
         prompt = "".join(
             part.content
             for message in messages
@@ -114,6 +121,10 @@ def scripted(answers: dict[str, str]) -> FunctionModel:
             for part in message.parts
             if part.part_kind == "user-prompt" and isinstance(part.content, str)
         )
+        if [tool.name for tool in info.output_tools] == [CHECK_TOOL]:
+            if judgements is not None:
+                judgements.append(prompt)
+            return ModelResponse(parts=[judged()])
         for question, sql in answers.items():
             if question in prompt:
                 return ModelResponse(parts=[ToolCallPart(tool_name="run_sql", args={"sql": sql})])
@@ -155,6 +166,35 @@ async def test_the_runner_scores_a_right_and_a_wrong_statement(database) -> None
     assert scores[wrong.id].figure_match is False
     assert scores[wrong.id].sql_valid is True
     assert run.payload()["summary"]["figure_match"] == 0.5
+
+
+async def test_no_check_leaves_a_statement_to_stand_and_the_run_says_so(database) -> None:
+    """`--no-check` is the path before ticket 40, which is what a before and after needs."""
+    from datetime import date
+
+    session_factory, profile_id = database
+    point = load_sql()[0]
+    judgements: list[str] = []
+    target = Target(
+        name="scripted", resolve=lambda _slot: scripted({point.question: point.sql}, judgements), settings=ModelSettings()
+    )
+    arguments = dict(
+        target=target,
+        session_factory=session_factory,
+        profile_id=profile_id,
+        today=date(2025, 12, 31),
+        seed=1,
+        set_name="sql",
+    )
+
+    without = await run_points([point], check=False, **arguments)  # type: ignore[arg-type]
+    assert judgements == [], "no model judged the result"
+    assert without.payload()["check"] is False
+
+    with_check = await run_points([point], check=True, **arguments)  # type: ignore[arg-type]
+    assert len(judgements) == 1, "the check pass ran once"
+    assert with_check.payload()["check"] is True
+    assert without.results[0].figure_match == with_check.results[0].figure_match is True
 
 
 async def test_a_refused_statement_is_retried_and_reported(database) -> None:
