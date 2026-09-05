@@ -129,16 +129,27 @@ class TextFilter:
         self._markers = MarkerFilter()
         self._held = ""
         self._check = check or AnswerCheck()
+        self._started = False
 
     def feed(self, delta: str) -> str:
         buffer = self._held + self._markers.feed(delta)
         cut = buffer.rfind("\n") + 1
         ready, self._held = buffer[:cut], buffer[cut:]
-        return self._check.clean(strip_channel_lines(ready))
+        return self._release(ready)
 
     def flush(self) -> str:
         held, self._held = self._held + self._markers.flush(), ""
-        return self._check.clean(strip_channel_lines(held))
+        return self._release(held)
+
+    def _release(self, text: str) -> str:
+        cleaned = self._check.clean(strip_channel_lines(text))
+        if self._started:
+            return cleaned
+        # Every answer of the 9B review began with two blank lines, which is where the thought
+        # channel ended rather than anything the model meant to write.
+        cleaned = cleaned.lstrip()
+        self._started = bool(cleaned)
+        return cleaned
 
 
 class ThinkingFilter:

@@ -610,11 +610,15 @@ async def test_the_replacement_is_written_in_the_language_of_the_question(
 async def test_a_stray_token_of_another_script_is_dropped(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
 ) -> None:
-    """B4 and B6: "Gesamth" in Greek letters and the Russian "pravit" inside German sentences."""
+    """B4 and B6: "Gesamth" in Greek letters and the Russian "pravit" inside German sentences.
+
+    The two blank lines every answer of that run opened with go too: that is where the thought
+    channel ended, not something the model meant to write.
+    """
     await import_synthetic(client, profile_id)
     scripts.fast = ask_query_then_say(
         "spending in 2025",
-        "Die Gesamτή Ausgaben liegen im Rahmen.\nправить Die Zahlung ist klein.",
+        "\n\nDie Gesamτή Ausgaben liegen im Rahmen.\nправить Die Zahlung ist klein.",
     )
     scripts.fast_call = scripted_sql(  # type: ignore[assignment]
         "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount < 0"
@@ -623,7 +627,8 @@ async def test_a_stray_token_of_another_script_is_dropped(
 
     _, chunks = await chat(conversation_id, "Wie viel habe ich 2025 ausgegeben?")
 
-    assert answer(chunks) == "Die Ausgaben liegen im Rahmen.\nDie Zahlung ist klein."
+    text = "".join(str(c["delta"]) for c in chunks if c["type"] == "text-delta")
+    assert text == "Die Ausgaben liegen im Rahmen.\nDie Zahlung ist klein."
 
 
 # --------------------------------------------------------------------------- 10: memory
