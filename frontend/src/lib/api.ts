@@ -307,8 +307,10 @@ export type ImportFileOutput =
   | {
       status: 'confirm_mapping'
       file: string
-      note: string
       mapping: CsvMapping
+      /** What the sub-agent said about the layout, for the step above the card. */
+      mapping_note: string
+      /** The whole question, `options` and all, ready for `ask_user` unchanged. */
       card: AskUserInput
       instruction: string
     }

@@ -30,13 +30,19 @@ the user skipped simply has no answer.
 continues: `finquery.answers` applies them and writes what it did into `applied`, which is
 part of the tool result the model reads. Nothing about that is the model's arithmetic, and a
 card whose kind nobody handles is simply handed to the model as it came.
+
+One rule is enforced rather than asked for: a card with no rows and no options is refused, with
+the reason as the model's retry prompt. See `NOTHING_TO_ANSWER` and `AskUserToolset`.
 """
 
+from dataclasses import replace
 from typing import Literal
 
 from pydantic import BaseModel, Field
+from pydantic_ai import ModelRetry, RunContext
 from pydantic_ai.tools import GenerateToolJsonSchema, ToolDefinition
 from pydantic_ai.toolsets import ExternalToolset
+from pydantic_ai.toolsets.abstract import ToolsetTool
 
 from finquery.nullish import nullish_before
 
@@ -197,5 +203,55 @@ ASK_USER_TOOL = ToolDefinition(
     parameters_json_schema=AskUser.model_json_schema(schema_generator=GenerateToolJsonSchema),
 )
 
-ask_user_toolset: ExternalToolset[object] = ExternalToolset([ASK_USER_TOOL], id="ask-user")
+NOTHING_TO_ANSWER = (
+    "That card has no rows and no options, so it draws a title with nothing under it and the "
+    "user cannot answer it at all. Call `ask_user` again with the `card` the tool gave you: its "
+    "`rows` for a question about several things, its `options` for a single yes or no decision, "
+    "copied exactly and never left out."
+)
+"""Why the server refuses to park a run on a card nobody can answer.
+
+The free text field is drawn per row, so a card with neither rows nor options offers no button
+and no field: the mapping confirmation of the e2e of 2026-09-05 (B2) rendered as a dead end that
+survived a reload, because the model rebuilt the card from memory and dropped the two options
+`import_file` had handed it. This sentence goes back as the tool's retry prompt, which is the
+only moment the model can still fix it.
+"""
+
+CARD_RETRIES = 2
+"""How often the model may be asked to build the card again before the turn gives up."""
+
+
+def _answerable(ctx: RunContext[object], /, **args: object) -> None:
+    """Refuse a card the user could not answer, while the model can still call again.
+
+    Positional-only context, because the rest of the signature is whatever the model wrote:
+    the framework hands the arguments over as keywords and a field called `ctx` would otherwise
+    collide with this one.
+    """
+    card = unwrap_card(args)
+    if card.get("rows") or card.get("options"):
+        return
+    raise ModelRetry(NOTHING_TO_ANSWER)
+
+
+class AskUserToolset(ExternalToolset[object]):
+    """`ask_user`, deferred, plus the one rule a card has to meet before a run parks on it.
+
+    An external toolset validates nothing by default, because its tool runs elsewhere. This one
+    does check the arguments, for the same reason the browser cannot: once the run has ended on
+    the call, the card is what the user is left with, and a card with nothing answerable on it
+    ends the conversation. The check is a retry rather than an error, so the model gets the
+    sentence and one more chance to pass the card through unchanged.
+    """
+
+    async def get_tools(self, ctx: RunContext[object]) -> dict[str, ToolsetTool[object]]:
+        tools = await super().get_tools(ctx)
+        return {
+            name: replace(tool, max_retries=CARD_RETRIES, args_validator_func=_answerable)
+            for name, tool in tools.items()
+        }
+
+
+ask_user_toolset = AskUserToolset([ASK_USER_TOOL], id="ask-user")
 """The toolset that makes `ask_user` a deferred tool of the chat agent."""

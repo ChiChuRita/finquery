@@ -43,6 +43,7 @@ from finquery.extract.bill import bill_outcome, read_bill_image
 from finquery.extract.pdf import PdfUnreadable
 from finquery.extract.review import review_card as extraction_review_card
 from finquery.extract.statement import Extraction, commit_extraction, extract_statement
+from finquery.formats import day, eur
 from finquery.ingest import duplicates
 from finquery.ingest.commit import commit_rows, import_summary
 from finquery.ingest.csv_reader import (
@@ -115,9 +116,15 @@ def _mapping_lines(mapping: Mapping) -> list[tuple[str, str]]:
 
 
 def _samples(sniffed: Sniffed, mapping: Mapping) -> list[str]:
+    """The first bookings the mapping produces, written the way the rest of the app writes them.
+
+    The card is where the user decides whether the columns landed right, so a date and an amount
+    on it read `01.01.2025` and `-39,90 EUR`, not `2025-01-01  -39.90 EUR` (e2e of 2026-09-05,
+    m5). One format, `finquery.formats`.
+    """
     parsed = parse(sniffed, mapping, limit=CARD_SAMPLE_ROWS)
     return [
-        f"{row.booked_on.isoformat()}  {row.amount_cents / 100:>10.2f} EUR  {row.description[:48]}"
+        f"{day(row.booked_on)}  {eur(row.amount_cents):>10} EUR  {row.description[:48]}"
         for row in parsed.rows
     ]
 
@@ -253,11 +260,18 @@ async def _mapping_for_file(
         {
             "status": "confirm_mapping",
             "file": record.file_name,
-            "note": proposal.note,
             "mapping": proposal.mapping.model_dump(),
+            # What the sub-agent said about the layout, for the tool step. Named so it cannot be
+            # read as a field of the card: it used to be `note`, the card's own field name, and
+            # a title and a `note` are exactly what the model built its own button-less card
+            # from (e2e of 2026-09-05, B2).
+            "mapping_note": proposal.note,
+            # The whole question, already written, `options` and all.
             "card": card.model_dump(mode="json"),
             "instruction": (
-                "Show this `card` with `ask_user`, unchanged. If the user answers "
+                "Pass the fields of this `card` to `ask_user` unchanged, including its "
+                "`options`: they are the two buttons the user answers with, and a card without "
+                "them cannot be answered at all. Then, if the user answers "
                 f"{CONFIRM!r}, call `import_file` again for this file with confirmed=true. "
                 "If they answer anything else, import nothing and offer to read the file again with "
                 "the columns they name."

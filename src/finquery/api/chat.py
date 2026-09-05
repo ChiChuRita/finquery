@@ -9,7 +9,7 @@ import logging
 import re
 import time
 from collections.abc import AsyncIterator, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -42,6 +42,7 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     ReasoningEndChunk,
     ReasoningStartChunk,
     TextDeltaChunk,
+    ToolInputAvailableChunk,
 )
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -49,6 +50,7 @@ from finquery.agent import ChatDeps, chat_agent
 from finquery.answers import resolve_answers
 from finquery.api.attachments import store_uploads, take_uploads, turn_chips
 from finquery.api.conversations import get_conversation_or_404
+from finquery.ask_user import ASK_USER
 from finquery.attachments import AttachmentRejected
 from finquery.context import (
     Assembly,
@@ -59,7 +61,7 @@ from finquery.context import (
     summarize,
     turns_to_fold,
 )
-from finquery.db import Conversation, Turn, new_id, utcnow
+from finquery.db import Conversation, Profile, Turn, new_id, utcnow
 from finquery.followups import suggest_followups
 from finquery.local.gemma import MarkerFilter, strip_channel_lines, strip_markers
 from finquery.memory import MemoryBlock, add_memory, build_memory_block, distill_memories, list_memories
@@ -195,6 +197,40 @@ class History:
         if last is None:
             return {}
         return {call.tool_call_id: call for call in last.tool_calls if call.tool_call_id not in answered}
+
+
+CARD_TOOLS = ("review_batch", "review_duplicates", "import_file", "extract_transaction")
+"""The tools that hand the assistant a whole `card` to pass to `ask_user` unchanged.
+
+Named here as well as in the system prompt because the prompt is a request and this is a
+guarantee: see `card_the_model_did_not_ask`.
+"""
+
+
+def card_the_model_did_not_ask(produced: Sequence[ModelMessage]) -> dict[str, object] | None:
+    """The Question card a tool built and the model wrote about instead of showing.
+
+    `review_batch` returning a queue has to be followed by a card, and the fast model instead
+    ended a turn with "There is one merchant left to categorize" and no card below it, which is
+    where the demo's review step dies (e2e of 2026-09-05, M1). The card is already built, by the
+    same `categorize.review_card` the seeded review conversation uses, so the server shows it
+    rather than asking the model again.
+
+    None when the model did call `ask_user` (the run then ends parked on that call anyway), and
+    None when no tool of this turn handed one over.
+    """
+    if any(part.part_kind == "tool-call" and part.tool_name == ASK_USER for m in produced for part in m.parts):
+        return None
+    cards = [
+        part.content["card"]
+        for message in produced
+        for part in message.parts
+        if part.part_kind == "tool-return"
+        and part.tool_name in CARD_TOOLS
+        and isinstance(part.content, dict)
+        and isinstance(part.content.get("card"), dict)
+    ]
+    return cards[-1] if cards else None
 
 
 @dataclass
@@ -356,24 +392,50 @@ def _one_assistant_message(ui_messages: list[UIMessage]) -> list[UIMessage]:
     return folded
 
 
+def _refused_cards(messages: Sequence[ModelMessage]) -> set[str]:
+    """The `ask_user` calls the server refused to park the run on.
+
+    A card with nothing answerable on it is sent back as a retry (`ask_user.NOTHING_TO_ANSWER`).
+    That call was never drawn and never will be, so leaving it in the transcript would put a
+    dead question above the card the model then got right.
+    """
+    return {
+        part.tool_call_id
+        for message in messages
+        if message.kind == "request"
+        for part in message.parts
+        if part.part_kind == "retry-prompt" and part.tool_name == ASK_USER
+    }
+
+
 def _renderable(messages: list[ModelMessage]) -> list[ModelMessage]:
-    """Drop the requests that only exist to make the model try again.
+    """Drop what only exists to make the model try again.
 
     A response with nothing but thinking earns a retry prompt, which is a `ModelRequest` the
     dump turns into a user text part: the transcript would show "Validation feedback: Please
     return text or call a tool" as if the user had typed it. The model history keeps it, the
     UI messages do not. A retry that belongs to a tool call keeps its `tool_name` and stays,
-    because that one renders as the tool step's error.
+    because that one renders as the tool step's error: a refused `set_rule` or changeset is
+    something the user should see.
+
+    A refused Question card is the exception, and it goes with its retry: see `_refused_cards`.
     """
-    return [
-        message
-        for message in messages
-        if not (
-            message.kind == "request"
-            and message.parts
-            and all(part.part_kind == "retry-prompt" and part.tool_name is None for part in message.parts)
-        )
-    ]
+    refused = _refused_cards(messages)
+    kept: list[ModelMessage] = []
+    for message in messages:
+        parts = [
+            part
+            for part in message.parts
+            if not (part.part_kind in {"retry-prompt", "tool-call"} and part.tool_call_id in refused)
+        ]
+        if message.kind == "request" and parts and all(
+            part.part_kind == "retry-prompt" and part.tool_name is None for part in parts
+        ):
+            continue
+        if not parts:
+            continue
+        kept.append(replace(message, parts=parts) if len(parts) != len(message.parts) else message)
+    return kept
 
 
 def _clean_text(messages: Sequence[ModelMessage]) -> None:
@@ -627,6 +689,10 @@ async def chat(request: Request, conversation_id: str) -> Response:
         question = next(reversed(_user_prompts(stored.messages)), "")
     with state.session_factory() as session:
         memory_block = build_memory_block(session, profile_id, question)
+        # The profile's own answer language, so the follow-up chips are written in the language
+        # the answer above them is written in (`finquery.followups.language_line`).
+        profile = session.get(Profile, profile_id)
+        answer_language = profile.answer_language if profile else "follow"
     prompt = await _prompt_for(request, conversation_id, stored.turns, summary, summary_through, memory_block)
     history = prompt.history
     # Where the turn being written starts in the run's messages. Answering a deferred call
@@ -660,6 +726,15 @@ async def chat(request: Request, conversation_id: str) -> Response:
         except TimeoutError:
             logger.warning("post-turn steps timed out after %s s", POST_TURN_TIMEOUT)
             followups = []
+        # A card a tool built and the model narrated instead of showing is shown here, so the
+        # run parks on it exactly as if the model had called `ask_user` itself.
+        if (card := card_the_model_did_not_ask(produced)) is not None and (
+            response := next((m for m in reversed(messages) if isinstance(m, ModelResponse)), None)
+        ) is not None:
+            call = ToolCallPart(tool_name=ASK_USER, args=card, tool_call_id=f"server-card-{new_id()}")
+            response.parts.append(call)
+            followups = []
+            yield ToolInputAvailableChunk(tool_call_id=call.tool_call_id, tool_name=ASK_USER, input=card)
         data_parts = [DataUIPart(type=CONTEXT_PART, data=_context_stats(produced))]
         if followups:
             data_parts.append(DataUIPart(type=FOLLOWUPS_PART, data={"suggestions": followups}))
@@ -720,7 +795,11 @@ async def chat(request: Request, conversation_id: str) -> Response:
             return []
         # Sub-agents are pinned to the fast slot whatever the conversation runs on.
         return await suggest_followups(
-            state.resolve_model("fast"), state.subagent_settings, prompts[-1], _assistant_text(produced)
+            state.resolve_model("fast"),
+            state.subagent_settings,
+            prompts[-1],
+            _assistant_text(produced),
+            answer_language,
         )
 
     async def _distill(turn_messages: Sequence[ModelMessage]) -> None:
