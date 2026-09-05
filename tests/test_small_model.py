@@ -196,6 +196,28 @@ async def test_a_division_by_a_hundred_is_made_real(
     assert output["rows"] == [{"hundreds": 4.33}], "433 / 100 is not 4"
 
 
+async def test_an_unterminated_string_literal_is_a_refusal_not_a_crash(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """sqlglot raises a TokenError for this, not a ParseError, and it killed the turn."""
+    await import_synthetic(client, profile_id)
+    unterminated = "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE description LIKE '%rewe"
+    good = (
+        "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view "
+        "WHERE amount < 0 AND lower(description || ' ' || coalesce(counterparty, '')) LIKE '%rewe%'"
+    )
+    respond = scripted_sql(unterminated, good)
+    scripts.fast = ask_query_then_say("spending at REWE", "Done.")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "How much did I spend at REWE?")
+
+    assert tool_output(chunks)["error"] is None
+    assert "SQLite cannot parse this" in respond.prompts[1]  # type: ignore[attr-defined]
+    assert answer(chunks) == "Done."
+
+
 # --------------------------------------------------------------------------- 4: subcategories
 
 

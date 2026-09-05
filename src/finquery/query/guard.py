@@ -21,6 +21,7 @@ import sqlglot
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlglot import exp
+from sqlglot.errors import TokenError
 
 from finquery.db import QUERY_VIEW
 
@@ -139,7 +140,10 @@ def validate_sql(sql: str, *, taxonomy: Mapping[str, str] | None = None) -> str:
         raise SqlRejected(TOO_LONG.format(length=len(text), limit=MAX_STATEMENT_CHARS))
     try:
         parsed = [statement for statement in sqlglot.parse(text, read=DIALECT) if statement is not None]
-    except sqlglot.ParseError as exc:
+    except (sqlglot.ParseError, TokenError) as exc:
+        # A `TokenError` is what an unterminated string literal raises, and a model writing a
+        # LIKE pattern gets one wrong now and then. Uncaught it leaves the tool as an exception
+        # and takes the turn with it; here it is a refusal the sub-agent fixes on its retry.
         raise SqlRejected(f"SQLite cannot parse this: {exc}") from exc
     if len(parsed) != 1:
         raise SqlRejected(f"Send exactly one statement, not {len(parsed)}.")
