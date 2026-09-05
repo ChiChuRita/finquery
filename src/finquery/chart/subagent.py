@@ -646,6 +646,8 @@ def code_prompt(
         CONTRACT,
         "Worked examples:\n\n" + "\n\n".join(example.as_prompt() for example in examples),
         _rows_brief(columns, rows),
+        # The plan's own reasoning stays out: it is about the request, and this pass writes from
+        # the shape, the title and the rows it was given. What it needs of the plan is here.
         f"Chart to write: shape {plan.shape}, titled \"{plan.title}\".",
     ]
     if previous is not None and findings is not None:
