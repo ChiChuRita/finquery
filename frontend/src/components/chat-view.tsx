@@ -721,29 +721,33 @@ function TranscriptMessage({
               Stopped
             </Badge>
           )}
-          <span className="ml-auto flex items-center gap-1">
-            <FeedbackError message={feedback.problem} />
-            {feedback.rating === 'pick' && !feedback.second && <span>Pair collected</span>}
-            {feedback.rating === 'down' && rerunnable && !feedback.second && (
-              <Button
-                className="text-muted-foreground"
-                disabled={feedback.asking || !feedback.ready}
-                onClick={() => void feedback.compare()}
-                size="xs"
-                variant="ghost"
-              >
-                <GitCompareIcon data-icon="inline-start" />
-                {feedback.asking ? 'Answering again...' : 'Compare a second answer'}
-              </Button>
-            )}
-            <Thumbs
-              busy={feedback.busy}
-              disabled={!feedback.ready}
-              onRate={(next) => void feedback.rate(next)}
-              rating={feedback.rating}
-              subject="response"
-            />
-          </span>
+          {/* A turn that was cut off before it wrote anything has nothing to rate, and a thumb
+              on it would go into the preference pairs as an opinion about an empty answer. */}
+          {parts.length > 0 && (
+            <span className="ml-auto flex items-center gap-1">
+              <FeedbackError message={feedback.problem} />
+              {feedback.rating === 'pick' && !feedback.second && <span>Pair collected</span>}
+              {feedback.rating === 'down' && rerunnable && !feedback.second && (
+                <Button
+                  className="text-muted-foreground"
+                  disabled={feedback.asking || !feedback.ready}
+                  onClick={() => void feedback.compare()}
+                  size="xs"
+                  variant="ghost"
+                >
+                  <GitCompareIcon data-icon="inline-start" />
+                  {feedback.asking ? 'Answering again...' : 'Compare a second answer'}
+                </Button>
+              )}
+              <Thumbs
+                busy={feedback.busy}
+                disabled={!feedback.ready}
+                onRate={(next) => void feedback.rate(next)}
+                rating={feedback.rating}
+                subject="response"
+              />
+            </span>
+          )}
         </MessageToolbar>
       )}
 

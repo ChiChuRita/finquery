@@ -23,17 +23,29 @@ token for that whole time, and a reload would lose the question.
   agent's `output_type` is `[str, DeferredToolRequests]`. A run that calls it ends with the
   call pending, so no model slot is held while the user thinks. The Vercel adapter streams the
   call as a tool part in state `input-available`.
-- The browser renders the Question card, answers with `addToolOutput`, and `useChat` sends the
-  next request by itself (`sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls`).
-  That request carries the assistant message with the tool output instead of a new prompt.
+- The browser renders the Question card and **answers it explicitly**: `chat-view.answerCard`
+  puts the output on the message the card is on and sends that one message. The SDK's own pair
+  is not used, and the reason is in ticket 29: `addToolOutput` writes to the newest assistant
+  message whatever call id it is given, and `sendAutomaticallyWhen` only ever looks at the
+  newest message, so a card the user came back to after typing something else swallowed its own
+  answer and sent nothing at all.
 - The chat endpoint matches the outputs it receives against the tool calls its own persisted
-  history left open and passes them as `deferred_tool_results`, so the same run resumes. An
-  output that matches no open call of this conversation is ignored.
-- A turn that ended on a pending call is **rewritten**, not followed by a second turn
+  history left open, **in any turn**, and passes them as `deferred_tool_results`, so the same
+  run resumes. A request whose outputs match no open call is refused with 409 rather than read
+  as a new prompt: it is a second browser tab answering a card that is already applied.
+- A turn that ended on a pending call is **rewritten in place**, not followed by a second turn
   (`persist_turn(..., replaces=...)`): the messages of both halves are dumped together, so the
-  tool part carries its output and a reload renders what the stream rendered. This is also why
-  the Import page can seed a first turn nobody streamed (summary plus a pending `ask_user`
+  tool part carries its output and a reload renders what the stream rendered. It keeps its
+  position, so a card answered after a newer message stays where the user saw it. This is also
+  why the Import page can seed a first turn nobody streamed (summary plus a pending `ask_user`
   call) and have answering it resume that run.
+- **The prompt for a resumed run ends where that turn ended.** pydantic AI looks for the
+  pending call on the last response of the history it is given, so the turns the user added in
+  between are left out of that one run: they stay in the transcript and in every later prompt.
+  For the same reason the rolling summary is read one turn short of the card, or a long enough
+  detour would summarize the pending call out of its own run (ADR 0007), and nothing is
+  compressed on that run: it is not the resumed run's business to move a marker the rest of the
+  conversation is assembled from.
 - What the answers mean is not the wire format's business, and it is not the model's either.
   The card carries an `apply` hint (`{"kind": "category_rule"}` today) and
   `finquery.answers` acts on the answers in code between the two halves of the run: for

@@ -696,6 +696,44 @@ async def test_a_card_answered_after_a_newer_message_still_resumes_its_own_turn(
     assert reloaded["messages"][2]["parts"][0]["text"] == "How much did I spend on groceries in May?"
 
 
+async def test_a_card_whose_merchant_moved_meanwhile_still_applies_and_counts_honestly(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The user categorized the merchant themselves while the card sat there unanswered.
+
+    The card is not a claim about the rows: `set_rule` runs against the data as it is when the
+    answer arrives, so the answer wins and the count is what actually moved. Nothing is refused
+    for having been overtaken.
+    """
+    conversation_id, detail = await _review_conversation(client, profile_id, scripts)
+    card = detail["messages"][1]["parts"][1]
+
+    # A rule taught in plain language in the meantime, in another conversation.
+    scripts.fast = call_tools(("set_rule", {"pattern": "anna weber", "category": "Groceries"}))
+    _, taught = await chat(await new_conversation(client, profile_id), "Anna Weber is always Groceries.")
+    assert "6 matched, 6 updated" in answer(taught)
+    assert {row["category"] for row in await rows_of(client, profile_id, "ANNA WEBER")} == {"Groceries"}
+
+    scripts.fast = echo_applied()
+    resumed = await client.post(
+        f"/api/conversations/{conversation_id}/chat",
+        json=answer_card(
+            conversation_id,
+            detail["messages"][1]["id"],
+            card,
+            {"answers": [{"ref": "anna weber", "value": "Dining > Restaurant", "text": None}]},
+        ),
+    )
+
+    assert resumed.status_code == 200, resumed.text
+    applied = outputs_of(parse_sse(resumed.text))[0]["applied"]
+    # Six bookings moved again, from Groceries to what the card was answered with.
+    assert "Anna Weber" in applied and "Dining > Restaurant" in applied and "6 bookings" in applied
+    assert {(r["category"], r["subcategory"]) for r in await rows_of(client, profile_id, "ANNA WEBER")} == {
+        ("Dining", "Restaurant")
+    }
+
+
 async def test_a_card_answered_twice_is_refused_rather_than_applied_again(
     client: httpx.AsyncClient, scripts: Scripts, profile_id: str
 ) -> None:

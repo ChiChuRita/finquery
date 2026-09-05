@@ -806,7 +806,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # something else before coming back to the card (ticket 29). Its own run is what resumes,
     # so the prompt ends where that turn ended and the answers of any older card in the same
     # request are left for their own turn.
-    card_turn = max((stored.turn_of(call_id) or 0 for call_id in answers), default=None)
+    card_turn = max((index for call_id in answers if (index := stored.turn_of(call_id)) is not None), default=None)
     if card_turn is not None:
         answers = {call_id: output for call_id, output in answers.items() if stored.turn_of(call_id) == card_turn}
     elif _carries_tool_output(adapter.run_input.messages):
@@ -834,8 +834,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # was left to think at this boundary (review of 2026-09-04).
     turn_settings = state.subagent_settings if answers else None
     # The server owns the history: only the newest client message is appended to it.
-    client_messages = adapter.run_input.messages
-    adapter.run_input.messages = [] if answers else client_messages[-1:]
+    adapter.run_input.messages = [] if answers else adapter.run_input.messages[-1:]
 
     # Attachments are taken out of the message before the agent is given it: the bytes are
     # stored per conversation and read by `import_file`, and only chips travel into the
@@ -913,7 +912,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
     history = prompt.history
     # Where the turn being written starts in the run's messages. Answering a deferred call
     # continues the turn that parked, so it starts where that turn started, not at the end of
-    # the prompt. Compression never folds that turn away: it is the last one of `prompt_turns`.
+    # the prompt. That turn is never folded away: it is the last one the assembly was given.
     turn_start = len(history) if card_turn is None else max(0, len(history) - len(stored.turns[card_turn].messages))
     # A resumed run streams into the browser's newest message, and a card the user came back to
     # is not on it. The output chunk for that call would then have nowhere to land ("No tool
