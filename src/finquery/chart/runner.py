@@ -12,8 +12,9 @@ from typing import Any
 from pydantic_ai.settings import ModelSettings
 from sqlalchemy.orm import Session, sessionmaker
 
+from finquery.chart.fold import fold_rows
 from finquery.chart.selfcheck import check_chart_code, data_findings
-from finquery.chart.shapes import MAX_SERIES, MAX_SLICES, SHAPES
+from finquery.chart.shapes import MAX_SERIES, SHAPES
 from finquery.chart.subagent import ChartPlan, write_code, write_plan
 from finquery.providers import ModelResolver, ProviderNotAvailable
 from finquery.query import QueryOutcome, load_query_context, run_query
@@ -180,109 +181,10 @@ def _honest_shape(
 
 # What a query calls the bucket everything else was folded into. A doughnut whose rest slice
 # holds most of the money carries no information, and the review of 2026-09-04 saw one at 90
-# percent, so the share goes into the caption where the user reads it.
+# percent, so the share goes into the caption where the user reads it. The folding itself is
+# `finquery.chart.fold`, which the dashboard runs again on every load.
 REST_LABELS = ("rest", "other", "others", "sonstige", "sonstiges", "andere", "uebrige", "übrige")
 REST_MAJORITY = 0.5
-REST_NAME = {"de": "Sonstige", "en": "Other"}
-
-
-def _fold_slices(
-    plan: ChartPlan, columns: list[str], rows: list[dict[str, Any]]
-) -> tuple[list[dict[str, Any]], str | None]:
-    """A doughnut over more rows than it has slices: the smallest become one rest slice.
-
-    Folding is arithmetic, not a judgement, so it is done here in code rather than asked of a
-    repair round: the local fast model drew twelve categories three rounds running and lost the
-    chart, and a round that relabels instead of summing is what the browser threw on. The rows
-    the chart draws are the rows the card shows, and the fold is narrated.
-    """
-    if plan.shape != "doughnut" or len(rows) <= MAX_SLICES or len(columns) < 2:
-        return rows, None
-    label, value = columns[0], columns[1]
-    if any(not isinstance(row.get(value), (int, float)) or isinstance(row.get(value), bool) for row in rows):
-        return rows, None
-    ranked = sorted(rows, key=lambda row: float(row[value]), reverse=True)
-    kept, rest = ranked[: MAX_SLICES - 1], ranked[MAX_SLICES - 1 :]
-    folded = {column: None for column in columns}
-    folded[label] = REST_NAME.get(plan.language, REST_NAME["en"])
-    folded[value] = round(sum(float(row[value]) for row in rest), 2)
-    note = (
-        f"The query returned {len(rows)} slices and a doughnut shows {MAX_SLICES}, so the "
-        f"{len(rest)} smallest are one '{folded[label]}' slice."
-    )
-    return [*kept, folded], note
-
-
-def _fold_groups(
-    plan: ChartPlan, columns: list[str], rows: list[dict[str, Any]]
-) -> tuple[list[dict[str, Any]], str | None]:
-    """A grouped or stacked chart over more groups than the palette has colours.
-
-    The same arithmetic as `_fold_slices`, and here for the same reason. Asking the query to
-    keep the largest groups and relabel the rest is what broke the stacked bars three rounds
-    running on 2026-09-05: the statement wrote `CASE ... ELSE 'Other'` but grouped by the month
-    alone, so every month came back with several 'Other' rows and no definition could stack
-    them. So the query is asked for each group as it is named, and the tail is folded here,
-    where summing is a line of code rather than a repair round.
-    """
-    rule = SHAPES[plan.shape]
-    if not rule.crossed or len(columns) < 3:
-        return rows, None
-    position, group, value = columns[0], columns[1], columns[2]
-    if any(not isinstance(row.get(value), (int, float)) or isinstance(row.get(value), bool) for row in rows):
-        return rows, None
-    totals: dict[str, float] = {}
-    for row in rows:
-        name = str(row.get(group))
-        totals[name] = totals.get(name, 0.0) + float(row[value])
-    if len(totals) <= MAX_SERIES:
-        return rows, None
-    largest = sorted(totals.items(), key=lambda item: item[1], reverse=True)[: MAX_SERIES - 1]
-    kept = {name for name, _ in largest}
-    rest_name = REST_NAME.get(plan.language, REST_NAME["en"])
-    folded: list[dict[str, Any]] = []
-    at: dict[tuple[str, str], dict[str, Any]] = {}
-    for row in rows:
-        name = str(row.get(group))
-        name = name if name in kept else rest_name
-        key = (str(row.get(position)), name)
-        if (seen := at.get(key)) is None:
-            fresh = {**row, group: name}
-            at[key] = fresh
-            folded.append(fresh)
-        else:
-            seen[value] = round(float(seen[value]) + float(row[value]), 2)
-    note = (
-        f"The query returned {len(totals)} groups and a chart has {MAX_SERIES} colours, so the "
-        f"{len(totals) - len(kept)} smallest are one '{rest_name}' group per {position}."
-    )
-    return folded, note
-
-
-def _drop_self_loops(
-    plan: ChartPlan, columns: list[str], rows: list[dict[str, Any]]
-) -> tuple[list[dict[str, Any]], str | None]:
-    """A flow from a name into itself is a total row, and a sankey refuses the whole graph for it.
-
-    "Show me where my income goes as a sankey" returned Income to Income beside the real flows
-    on 2026-09-05, and one row cost the chart. The row carries no flow, so it is left out here
-    and the omission is narrated. Rows that are nothing but self loops are left alone: then
-    there is no flow at all and `data_findings` says so.
-    """
-    if plan.shape != "sankey" or len(columns) < 3:
-        return rows, None
-    source, target = columns[0], columns[1]
-    loops = [row for row in rows if str(row.get(source)) == str(row.get(target))]
-    kept = [row for row in rows if str(row.get(source)) != str(row.get(target))]
-    if not loops or not kept:
-        return rows, None
-    names = ", ".join(dict.fromkeys(str(row.get(source)) for row in loops))
-    flowed = "One row flowed" if len(loops) == 1 else f"{len(loops)} rows flowed"
-    note = (
-        f"{flowed} from {names} into itself, which is a total and not a flow, so it is left out "
-        f"and {len(kept)} flows are drawn."
-    )
-    return kept, note
 
 
 def _rest_share(shape: str, columns: list[str], rows: list[dict[str, Any]]) -> str | None:
@@ -359,10 +261,10 @@ async def run_chart(
             f"booking is an honest bucket, and never from a CASE over the booking text."
         )
         # A chart has six colours, and folding the tail into one group is arithmetic this app
-        # does itself (`_fold_groups`). Asking the statement for it is what cost the stacked
-        # bars three rounds on 2026-09-05: the CASE relabelled the small categories 'Other'
-        # while the statement still grouped by the month alone, so every month came back with
-        # several 'Other' rows and the stack could not be drawn at all.
+        # does itself (`chart.fold.fold_rows`). Asking the statement for it is what cost the
+        # stacked bars three rounds on 2026-09-05: the CASE relabelled the small categories
+        # 'Other' while the statement still grouped by the month alone, so every month came
+        # back with several 'Other' rows and the stack could not be drawn at all.
         shaped += (
             f" Return every group under its own name: never rename one to 'Other' or 'Sonstige', "
             f"never fold the small ones together and never put a LIMIT on the groups. This app "
@@ -404,17 +306,19 @@ async def run_chart(
         )
     say(f"Data: {len(outcome.rows)} rows over {', '.join(outcome.columns)}.")
 
-    # Two folds in code, both arithmetic and neither a judgement, so neither is left to the
-    # query or to a repair round. They run before the rows are judged, because the rows they
-    # produce are the rows the chart draws and the card shows.
-    rows, loops = _drop_self_loops(plan, outcome.columns, outcome.rows)
-    rows, grouped = _fold_groups(plan, outcome.columns, rows)
-    for note in (loops, grouped):
-        if note is not None:
-            say(note)
-    if rows is not outcome.rows:
+    # The fold: arithmetic and not a judgement, so it is not left to the query or to a repair
+    # round. It runs before the rows are judged, because the rows it produces are the rows the
+    # chart draws and the card shows. The dashboard runs the same function over the same
+    # statement's rows on every load, which is how a pinned chart keeps drawing this fold.
+    folded = fold_rows(plan.shape, outcome.columns, outcome.rows, language=plan.language)
+    if folded.note is not None:
+        say(folded.note)
         outcome = QueryOutcome(
-            request=outcome.request, sql=outcome.sql, columns=outcome.columns, rows=rows, summary=outcome.summary
+            request=outcome.request,
+            sql=outcome.sql,
+            columns=outcome.columns,
+            rows=folded.rows,
+            summary=outcome.summary,
         )
 
     # What the rows make impossible, judged before a single line of code is written: no repair
@@ -438,13 +342,6 @@ async def run_chart(
     plan, downgrade = _honest_shape(plan, outcome.columns, outcome.rows)
     if downgrade is not None:
         say(downgrade)
-
-    rows, folded = _fold_slices(plan, outcome.columns, outcome.rows)
-    if folded is not None:
-        say(folded)
-        outcome = QueryOutcome(
-            request=outcome.request, sql=outcome.sql, columns=outcome.columns, rows=rows, summary=outcome.summary
-        )
 
     if (share := _rest_share(plan.shape, outcome.columns, outcome.rows)) is not None:
         plan = plan.model_copy(update={"title": f"{plan.title} ({share} in the rest slice)"})

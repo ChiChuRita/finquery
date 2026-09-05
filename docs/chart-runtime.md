@@ -161,21 +161,29 @@ to July says something about the five months the query did not return.
 
 A fourth is folded rather than repaired. Folding is arithmetic, so it is not left to a repair
 round and never to the SQL: the rows the card shows are the rows the chart drew, and every fold
-is narrated. Three of them, all before a line of code is written:
+is narrated. `chart.fold.fold_rows(shape, columns, rows, language=...)` is all three of them, one
+per shape and keyed by what the columns are for, and it runs before a line of code is written:
 
 - a **doughnut** over more rows than it has slices keeps the five largest and sums the rest into
-  one slice named `Other` or `Sonstige`, in the request's language (`runner._fold_slices`). The
-  local fast model lost a twelve-category doughnut three rounds running before this existed;
+  one slice named `Other` or `Sonstige`, in the request's language. The local fast model lost a
+  twelve-category doughnut three rounds running before this existed;
 - a **grouped or stacked bar** over more groups than the palette has colours keeps the five
-  largest by total and sums the rest into one such group per position (`runner._fold_groups`).
-  The query is therefore asked for each group under its own name and told not to fold: asking
-  the statement for it is what produced `CASE ... 'Other'` beside `GROUP BY month`, so every
-  month came back carrying several 'Other' rows and no definition could stack them;
+  largest by total and sums the rest into one such group per position. The query is therefore
+  asked for each group under its own name and told not to fold: asking the statement for it is
+  what produced `CASE ... 'Other'` beside `GROUP BY month`, so every month came back carrying
+  several 'Other' rows and no definition could stack them;
 - a **sankey** row flowing from a name into itself is a total and not a flow, so it is left out
-  and the omission is narrated (`runner._drop_self_loops`). One such row, which "show me where
-  my income goes" produces readily, otherwise refuses the whole graph. Rows that are nothing
-  but self loops are left alone, because then there is no flow to draw and the rule above says
-  so in one sentence.
+  and the omission is narrated. One such row, which "show me where my income goes" produces
+  readily, otherwise refuses the whole graph. Rows that are nothing but self loops are left
+  alone, because then there is no flow to draw and the rule above says so in one sentence.
+
+The fold is a function of its own because it happens twice for the same chart. A chart pinned to
+the dashboard stores the statement and not the figures, so `dashboard.run_card` re-runs the SQL
+through the guard on every load and refresh and folds what comes back with the same call
+(ticket 39): before that, a stack that showed six series in the chat showed eleven on the
+dashboard and cycled the palette. The column roles are read off the order the query was asked
+for its columns in, which `runner._euro_last` fixes before the statement is written and a stored
+statement keeps.
 
 The stub mimics the parts of the library the rules need: `pie` allocates real angles and rejects
 a negative value, `sankeyDiagram` validates the graph and calls the `marks` callback with node

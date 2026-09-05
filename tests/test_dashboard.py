@@ -12,7 +12,16 @@ from finquery.chart.shapes import Shape
 from finquery.dashboard import DEFAULTS
 
 from .conftest import Chat, Scripts, new_conversation, tool_call_of, turn_of
-from .test_chart import MONTHLY_SQL, ask_chart_then_report, chart_output, scripted_chart
+from .test_chart import (
+    MANY_TOPICS_SQL,
+    MONTHLY_SQL,
+    STACKED_CODE,
+    STACKED_PLAN,
+    ask_chart_then_report,
+    chart_output,
+    narration,
+    scripted_chart,
+)
 from .test_query import import_synthetic
 
 LINE_PLAN = {
@@ -194,6 +203,56 @@ async def test_a_chart_drawn_in_a_chat_is_pinned_to_the_dashboard(
     assert twice.status_code == 201
     assert twice.json()["id"] == card["id"]
     assert len((await dashboard(client, profile_id))["charts"]) == 5
+
+
+async def test_a_pinned_stacked_chart_draws_the_rows_it_drew_in_the_chat(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """Seven groups over six colours, folded in the chat and folded again on every load.
+
+    The fold is arithmetic in code (`finquery.chart.fold`), never in the stored statement, so a
+    card that re-runs its own SQL has to fold what comes back: before this, a stack that showed
+    six series in the chat showed eleven on the dashboard and cycled the palette (ticket 36).
+    """
+    await import_synthetic(client, profile_id)
+    scripts.fast = ask_chart_then_report("spending per month and group in 2025 as stacked bars")
+    scripts.fast_call = scripted_chart(plan=STACKED_PLAN, sql=MANY_TOPICS_SQL, codes=[STACKED_CODE])  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+    _, chunks = await chat(conversation_id, "Gestapelte Balken pro Monat und Gruppe bitte.")
+    output = chart_output(chunks)
+    assert "The query returned 7 groups and a chart has 6 colours" in narration(chunks)
+    assert len({row["topic"] for row in output["rows"]}) == 6
+
+    pinned = await client.post(
+        "/api/dashboard/charts/from-turn",
+        json={
+            "profile_id": profile_id,
+            "turn_id": turn_of(chunks),
+            "tool_call_id": tool_call_of(chunks, "chart"),
+        },
+    )
+    assert pinned.status_code == 201, pinned.text
+    card = pinned.json()
+
+    stored = next(
+        other for other in (await dashboard(client, profile_id))["charts"] if other["id"] == card["id"]
+    )
+    assert stored["rows"] == output["rows"], "a stored chart draws the rows it drew in the chat"
+    topics = {row["topic"] for row in stored["rows"]}
+    assert len(topics) == 6 and "Sonstige" in topics
+    pairs = [(row["month"], row["topic"]) for row in stored["rows"]]
+    assert len(pairs) == len(set(pairs)), "one figure per month and group, which is what a stack needs"
+    # The tail is summed and not dropped, on this load as in the chat: the card still holds
+    # every euro its own statement returned.
+    page = (await client.get("/api/transactions", params={"profile_id": profile_id, "limit": 1000})).json()
+    spent = -sum(row["amount_cents"] for row in page["rows"] if row["amount_cents"] < 0) / 100
+    assert round(sum(row["total_eur"] for row in stored["rows"]), 2) == round(spent, 2)
+
+    refreshed = await client.post(
+        f"/api/dashboard/charts/{card['id']}/refresh", json={"profile_id": profile_id}
+    )
+    assert refreshed.status_code == 200, refreshed.text
+    assert refreshed.json()["rows"] == output["rows"]
 
 
 async def test_a_chart_asked_for_on_the_dashboard_is_previewed_before_it_is_kept(
