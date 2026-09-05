@@ -50,12 +50,12 @@
 flowchart LR
   subgraph Browser["Browser (Vite, React 19, AI Elements, shadcn, TanStack)"]
     Chat["Chat + Question cards"]
-    Dash["Dashboard"]
+    Dash["Dashboard\n(tiles, pinned charts,\nevery card re-queried on load)"]
     Tx["Transactions, Imports, Memory, Feedback, Settings"]
     Frame["Sandboxed chart iframe (TanStack Charts)"]
   end
   subgraph API["FastAPI, one Python process"]
-    Stream["AI SDK stream adapter\n(Pydantic AI, background turns)"]
+    Stream["AI SDK stream adapter (Pydantic AI)\nbackground turns: the run is a server task,\nthe browser only subscribes"]
     Agent["Chat agent + tools"]
     Sub["Sub-agents\nquery, chart, categorizer, extraction, memory, web lookup"]
     Guard["SQL guard (sqlglot, read-only, profile scoped)"]
@@ -122,7 +122,7 @@ sequenceDiagram
     <div class="card"><h3><span class="dot" style="background:var(--c2)"></span>Context management</h3><ul>
       <li>Profiles as isolation</li><li>Per-turn assembly: summary, memories, taxonomy</li><li>Rolling summary at 60 percent, editable divider</li><li>Token badge</li></ul></div>
     <div class="card"><h3><span class="dot" style="background:var(--c3)"></span>Sub-agents</h3><ul>
-      <li>Query, chart, categorizer, extraction, memory, web lookup</li><li>Forced single tool, reasoning first</li><li>Self-check and visible repairs</li></ul></div>
+      <li>Query, chart, categorizer, extraction, memory, web lookup</li><li>Forced single tool, reasoning first, worked examples</li><li>Self-check and visible repairs</li><li>Every query judged against the question, one rewrite</li></ul></div>
     <div class="card"><h3><span class="dot" style="background:var(--c4)"></span>Preference optimization</h3><ul>
       <li>Thumbs on answers and charts</li><li>Regenerate pair and A/B compare with Pick</li><li>Feedback page, JSONL export, DPO script</li></ul></div>
     <div class="card"><h3><span class="dot" style="background:var(--c5)"></span>Self-directed web search</h3><ul>
@@ -132,19 +132,20 @@ sequenceDiagram
   <h2>5. How we know it works</h2>
   <div class="mermaid">
 flowchart LR
-  T["Tests at one seam\n311 HTTP-seam tests, scripted models"] --> R["Browser reviews\nheadful agents, screenshots, both themes"]
+  T["Tests at one seam\n330 HTTP-seam tests, scripted models\n(326 pass, 4 environmental skips)"] --> R["Browser reviews\nheadful agents, screenshots, both themes"]
   R --> E["End-to-end run\n57 pass, 4 partial, 2 fail, then fixed"]
-  E --> B["Benchmarks\n152 SQL + 63 chart datapoints,\ngold rows from reference SQL,\nheld-out split"]
-  B --> M["Measured models\nGemini 3.8 Flash 93 / 92\nQwen3.5 9B 57 / 40\nGemma 4 E4B 51 / pending"]
+  E --> B["Benchmarks\n152 SQL + 63 chart datapoints,\nevery one judged against the data,\ngold rows from reference SQL,\nheld-out third"]
+  B --> M["Measured models, SQL / chart\nGemini 3.8 Flash 95 / 97\nQwen3.5 9B 69 / 40\nGemma 4 E4B 57 / pending"]
   M --> F["Fine-tuning next\ntrain split as examples,\nheld-out as the score,\nlabeling page for chart samples"]
   </div>
 
   <h2>6. Where the numbers stand (figure match on the grown sets)</h2>
+  <p class="lead">152 SQL questions and 63 chart requests, run on 2026-09-05. The SQL column is the current prompt with the result check switched off, which is the one measurement the OpenRouter key survived; what the check itself is worth is still unmeasured.</p>
   <table>
     <tr><th>Model</th><th>Where</th><th class="num">SQL</th><th class="num">Charts</th><th>Note</th></tr>
-    <tr><td>Gemini 3.8 Flash</td><td>OpenRouter, dev only</td><td class="num">93 %</td><td class="num">92 %</td><td>the reference for what the prompts allow</td></tr>
-    <tr><td>Qwen3.5 9B</td><td>OpenRouter and local quality slot</td><td class="num">57 %</td><td class="num">40 %</td><td>valid SQL 92 %, wrong reading often; ticket 40 adds check and retry</td></tr>
-    <tr><td>Gemma 4 E4B</td><td>local fast slot, all sub-agents</td><td class="num">51 %</td><td class="num">pending</td><td>the adapters target this model</td></tr>
+    <tr><td>Gemini 3.8 Flash</td><td>OpenRouter, dev only</td><td class="num">95 %</td><td class="num">97 %</td><td>the reference for what the prompts allow; 93 and 92 before tickets 40 and 42, and 100 % on the held-out third</td></tr>
+    <tr><td>Qwen3.5 9B</td><td>OpenRouter and local quality slot</td><td class="num">69 %</td><td class="num">40 %</td><td>57 % before the new query prompt, and 64 % held out; still not the slot that writes SQL. The chart re-run stopped 26 datapoints in when the key ran out</td></tr>
+    <tr><td>Gemma 4 E4B</td><td>local fast slot, all sub-agents</td><td class="num">57 %</td><td class="num">pending</td><td>152 questions in 26 minutes on the laptop, median 9.2 s each, on the baseline prompt; the adapters target this model</td></tr>
   </table>
 
   <h2>7. Repo map</h2>

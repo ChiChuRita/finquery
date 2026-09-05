@@ -4,6 +4,10 @@ Local-first conversational personal-finance analyst. Import bank statements, ask
 natural language, get deterministic, auditable answers. Numbers always come from executed
 queries, never from the model.
 
+One picture of the whole thing: `docs/overview.html` (open it in a browser, no build step).
+The live demo, step by step and with measured timings: `docs/demo-script.md`. What the models
+actually score: `bench/README.md`.
+
 ## Run
 
 Requirements: Python 3.12 with [uv](https://docs.astral.sh/uv/), Node 22 (only to build the
@@ -20,24 +24,31 @@ SQLite database lives in `data/finquery.db` (override with `FINQUERY_DB_PATH`). 
 database opens with onboarding; "Load the sample year" in its last step imports the shipped
 synthetic dataset, which is also where the demo starts (`docs/demo-script.md`).
 
-The provider is one switch. `FINQUERY_PROVIDER=openrouter` runs both slots on OpenRouter
-(Gemma 4 26B fast, Qwen3.5 9B quality); `FINQUERY_PROVIDER=local` runs the same two slots in
-this process (Gemma 4 E4B fast, Qwen3.5 9B quality, see below). Nothing else changes, and the
-selector in the composer names the model the running provider really resolves each slot to.
+The provider is one switch, and the two slots are the same two models either way. **Fast** is
+Gemma 4 (E4B locally, 26B hosted) and runs every sub-agent: SQL, chart, categorizer, extraction,
+memory, the result check and the web lookup. **Quality** is Qwen3.5 9B and only ever answers in
+the chat. `FINQUERY_PROVIDER=openrouter` resolves both slots to OpenRouter ids;
+`FINQUERY_PROVIDER=local` runs both in this process (see below). Nothing else changes, and the
+selector in the composer names the model the running provider really resolved each slot to, so
+"Gemma 4 E4B" and "Gemma 4 26B" are two different labels for the same slot. On OpenRouter either
+slot can be pointed at another model without a code change.
 
 Settings (environment or `.env`):
 
-| Variable                     | Default            | Meaning                                       |
-| ---------------------------- | ------------------ | --------------------------------------------- |
-| `FINQUERY_PROVIDER`          | `openrouter`       | `openrouter` or `local`                       |
-| `OPENROUTER_API_KEY`         |                    | Required for `openrouter`                     |
-| `FINQUERY_DB_PATH`           | `data/finquery.db` | SQLite file                                   |
-| `FINQUERY_HOST`              | `127.0.0.1`        | Bind address                                  |
-| `FINQUERY_PORT`              | `8000`             | Port                                          |
-| `FINQUERY_CONTEXT_BUDGET`    | `32768`            | Tokens per turn; compression starts at 60%    |
-| `FINQUERY_MODELS_DIR`        | `models`           | Where the local GGUF files live               |
-| `FINQUERY_PARKED_MODELS_DIR` |                    | Folder of GGUFs to reuse instead of download  |
-| `FINQUERY_LOCAL_N_CTX`       | `32768`            | Context cap per resident local model          |
+| Variable                                | Default                    | Meaning                                    |
+| --------------------------------------- | -------------------------- | ------------------------------------------ |
+| `FINQUERY_PROVIDER`                     | `openrouter`               | `openrouter` or `local`                    |
+| `OPENROUTER_API_KEY`                    |                            | Required for `openrouter`                  |
+| `FINQUERY_OPENROUTER_FAST_MODEL`        | `google/gemma-4-26b-a4b-it`| Hosted model behind the fast slot          |
+| `FINQUERY_OPENROUTER_QUALITY_MODEL`     | `qwen/qwen3.5-9b`          | Hosted model behind the quality slot       |
+| `FINQUERY_DB_PATH`                      | `data/finquery.db`         | SQLite file                                |
+| `FINQUERY_HOST`                         | `127.0.0.1`                | Bind address                               |
+| `FINQUERY_PORT`                         | `8000`                     | Port                                       |
+| `FINQUERY_CONTEXT_BUDGET`               | `32768`                    | Tokens per turn; compression starts at 60% |
+| `FINQUERY_EXTRACTION_PAGE_CONCURRENCY`  | 12 hosted, 4 local         | PDF pages read at once                     |
+| `FINQUERY_MODELS_DIR`                   | `models`                   | Where the local GGUF files live            |
+| `FINQUERY_PARKED_MODELS_DIR`            |                            | Folder of GGUFs to reuse instead of download |
+| `FINQUERY_LOCAL_N_CTX`                  | `32768`                    | Context cap per resident local model       |
 
 ## Run on the local models
 
@@ -79,8 +90,11 @@ uv run finquery --dev           # API only on :8000 with auto reload
 cd frontend && npm run dev      # Vite on :5173, proxies /api to :8000
 ```
 
-Type-check the frontend with `npm run build` in `frontend/` (`tsc -b` and Vite), which is also
-what `uv run finquery` needs run before it serves a change. AI Elements components live in
+**`npm run build` in `frontend/` is the frontend typecheck.** It is `tsc -b` and then Vite, and
+it is also what `uv run finquery` needs run before it serves a change. `npx tsc --noEmit` checks
+nothing here: `tsconfig.json` is a solution file with `"files": []`.
+
+AI Elements components live in
 `frontend/src/components/ai-elements` and are added with
 `npx shadcn@latest add https://elements.ai-sdk.dev/api/registry/<name>.json`. Only ever add one
 that is not there yet: most of the vendored files carry local edits (theme tokens instead of raw
@@ -93,17 +107,49 @@ the 48 components were deliberately rejected.
 
 ```sh
 uv run pytest                    # the HTTP-seam suite
-cd frontend && npx tsc --noEmit && npm run build
+cd frontend && npm run build     # typecheck and bundle
 ```
 
 Tests drive the FastAPI app over HTTP with both model slots replaced by scripted models. No test
-calls OpenRouter and none loads a real model. See `docs/adr/0003-single-http-test-seam.md`.
+calls OpenRouter and none loads a real model. See `docs/adr/0003-single-http-test-seam.md`. Four
+of them skip unless the private fixtures are present (two Trade Republic exports, one statement
+PDF) or the local smoke suite is asked for.
 
 One suite is opt-in because it does load the real local models:
 
 ```sh
 FINQUERY_PROVIDER=local FINQUERY_SMOKE=1 uv run pytest tests/test_local_smoke.py -s
 ```
+
+## Benchmark
+
+Two hand-checked sets and a runner that scores any model on them: 152 SQL questions and 63 chart
+requests over the shipped synthetic year, every one with a reference statement whose executed
+rows are the gold, and about a third of each held out for later fine-tuning. The whole story,
+including how to grow the sets and how to read them, is `bench/README.md`.
+
+```sh
+uv run finquery-bench --set all --model qwen/qwen3.5-9b
+FINQUERY_PROVIDER=local uv run finquery-bench --set sql --model local:fast --n 20
+uv run finquery-bench compare bench/results/A.json bench/results/B.json
+```
+
+Figure match, exact to the cent, on 2026-09-05:
+
+| Model | Slot | SQL (152) | Charts (63) |
+| --- | --- | ---: | ---: |
+| Gemini 3.8 Flash | dev reference, not shipped | 93 %, **95 %** with the current prompt | 92 %, **97 %** after ticket 42 |
+| Qwen3.5 9B | quality, hosted and local | 57 %, **69 %** with the current prompt | 40 % |
+| Gemma 4 E4B | local fast slot, every sub-agent | **57 %** (median 9.2 s per question) | not run |
+
+The E4B run is the one local number and it was taken on the baseline prompt, so it has no second
+figure yet. Read the second figure in each SQL cell as the prompt alone: those runs are
+`--no-check`, so
+they measure the worked examples and the reasoning field without ticket 40's result check. The
+check's own before and after is the one number missing, because the OpenRouter key hit its total
+limit before those four runs; `bench/README.md` has the four commands that finish it. Qwen's
+chart run after ticket 42 stopped 26 datapoints in for the same reason, so its 40 percent is
+still the baseline.
 
 ## Onboarding
 
@@ -148,7 +194,8 @@ Question cards right there. Each answer becomes a category rule and recategorize
 of that merchant, and telling the assistant "PayPal to Anna is always Dining" in chat does the
 same.
 
-A statement PDF is read from the text layer with pdfplumber, four pages at a time, and the
+A statement PDF is read from the text layer with pdfplumber, twelve pages at a time on a hosted
+provider and four locally (`FINQUERY_EXTRACTION_PAGE_CONCURRENCY`), and the
 extraction sub-agent answers with the literal spans it read each figure from. Two guards then
 decide whether the rows can be trusted: every amount, balance and date has to occur in the text of
 the page it was read from, and the statement has to reconcile, per row on its running balance, per
@@ -228,43 +275,26 @@ merchant token leaves at most once per profile: the result is cached. Search nee
 (`ddgs` over DuckDuckGo, Bing and Brave in that order). See
 `docs/adr/0010-web-lookup-behind-a-merchant-token.md`.
 
-## Layout
+## What is where
 
-- `src/finquery/`: `main.py` (CLI), `app.py` (factory), `settings.py`, `providers.py` (slots),
-  `db.py` (SQLAlchemy models and the query view), `taxonomy.py` (default categories),
-  `agent.py` (chat agent and its tools), `query/` (query sub-agent, SQL guard, execution),
-  `chart/` (chart sub-agent, shapes, QuickJS self-check),
-  `dashboard.py` (the tiles, the four default cards and the guarded run behind every card),
-  `changesets.py` and `edits.py` (proposed changes and the rules about what may be written),
-  `categorize/` (rules, merchant dictionary, categorizer sub-agent, review queue),
-  `weblookup/` (the merchant token scrubber, the keyless search client, the self-directed
-  lookup loop, the outbound log and the lookup cache),
-  `ask_user.py` (the Question card tool) and `answers.py` (what its answers do, in code),
-  `followups.py` (post-turn suggestions),
-  `onboarding.py` (the state a profile is in, the welcome turn's copy and the language rule),
-  `memory.py` (durable facts: the `remember` tool, the distillation pass, prompt selection),
-  `preferences.py` (ratings and picks as training data),
-  `nullish.py` (the one place that knows what a model writes when it means nothing),
-  `context.py` (token budget, per-turn prompt assembly, rolling summary),
-  `attachments.py` (files dropped into a chat), `progress.py` (a tool's live progress part),
-  `ingest/` (CSV reader, presets, mapping sub-agent, commit, duplicate candidates, the chat
-  import and typed transactions),
-  `extract/` (PDF text and page rendering, statement layouts, the extraction sub-agent, the
-  verbatim and reconciliation guards, the bill flow, the review card),
-  `api/` (REST and chat endpoints; `api/chat.py` also owns the turn's end marker, which is what
-  says a turn whose run stopped existing was interrupted rather than never asked, and
-  `api/running.py` holds the turns being produced right now, each a task with a buffer its
-  readers subscribe to),
-  `local/` (the local provider: catalog, downloads, runtime, model, the Gemma 4 and Qwen3.5
-  wire formats, check)
-- `frontend/`: Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router, Query and
-  Charts. `src/chart-runtime/` is a second page: the sandboxed frame charts render in
-- `training/preference/`: the DPO export, the train script and the loop they belong to
-- `tests/`: HTTP-seam tests
-- `fixtures/synthetic/`: shipped demo dataset. `scripts/`: its generator,
-  `measure_categorization.py`, which imports a CSV into a running app and prints what each
-  categorization stage placed, and `measure_extraction.py`, which reads a folder of receipts and
-  a statement PDF through the extraction sub-agent and scores them against what is printed
-- `CONTEXT.md`: domain glossary. `docs/adr/`: architecture decisions.
-  `docs/chart-runtime.md`: the contract generated chart code is written against
-- `.scratch/finquery/`: spec and tickets
+| Path | What lives there |
+| --- | --- |
+| `src/finquery/agent.py` | the chat agent, its tools and the system prompt |
+| `src/finquery/query/` | the query sub-agent, the SQL guard, execution, and `check.py` (the degenerate rewrite and the result check) |
+| `src/finquery/chart/` | the chart sub-agent, the shapes, the fold both callers share, the QuickJS self-check |
+| `src/finquery/dashboard.py` | the tiles, the four default cards, and the guarded run behind every card |
+| `src/finquery/ingest/`, `extract/` | CSV presets and the mapping sub-agent; PDF and photo reading with the verbatim and reconciliation guards |
+| `src/finquery/categorize/`, `weblookup/` | rules, merchant dictionary, categorizer sub-agent, review queue; the token scrubber, the keyless search client, the lookup loop and the outbound log |
+| `src/finquery/changesets.py`, `edits.py`, `ask_user.py`, `answers.py` | proposed changes, what may be written, the Question card tool and what its answers do in code |
+| `src/finquery/context.py`, `memory.py`, `onboarding.py`, `preferences.py`, `followups.py` | the per-turn prompt, durable facts, the first-run state, ratings and picks, post-turn suggestions |
+| `src/finquery/api/` | REST and chat endpoints; `running.py` is the turns being produced right now, each a task with a buffer its readers subscribe to |
+| `src/finquery/local/` | the local provider: catalog, downloads, runtime, the Gemma 4 and Qwen3.5 wire formats, `finquery-check` |
+| `src/finquery/db.py`, `taxonomy.py`, `providers.py`, `settings.py`, `app.py`, `main.py` | the models and the query view, the default categories, the two slots, configuration, the app factory, the CLI |
+| `src/finquery/attachments.py`, `progress.py`, `prose.py`, `nullish.py` | files dropped into a chat, a tool's live progress part, the figures check on what the model writes, and the one place that knows what a model writes when it means nothing |
+| `frontend/` | Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router, Query and Charts. `src/chart-runtime/` is a second page: the sandboxed frame charts render in |
+| `bench/` | the two benchmark sets, the runner, the validation page, the results |
+| `tests/` | the HTTP-seam suite |
+| `training/preference/` | the DPO export, the train script and the loop they belong to |
+| `fixtures/synthetic/`, `scripts/` | the shipped dataset and its generator, plus `measure_categorization.py` and `measure_extraction.py` |
+| `docs/` | `overview.html`, `demo-script.md`, `chart-runtime.md` (the contract generated chart code is written against) and `adr/` |
+| `CONTEXT.md`, `.scratch/finquery/` | the domain glossary; the spec and the tickets |
