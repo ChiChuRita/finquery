@@ -603,8 +603,11 @@ async def test_the_replacement_is_written_in_the_language_of_the_question(
     _, chunks = await chat(conversation_id, "Welche Abos habe ich und was kosten die im Jahr?")
 
     text = answer(chunks)
-    assert "1.056,00" not in text
-    assert "keiner Abfrage" in text, text
+    # The whole sentence went, not the half after the thousands separator: a full stop between
+    # two digits ends no sentence.
+    assert text.startswith("Eine Zahl an dieser Stelle"), text
+    assert "1.056" not in text
+    assert "keiner Abfrage" in text
 
 
 async def test_a_stray_token_of_another_script_is_dropped(

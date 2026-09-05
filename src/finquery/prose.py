@@ -41,8 +41,31 @@ MONEY = re.compile(
 _DECIMAL = re.compile(rf"(?<![\d.,])(?:{_NUMBER})(?!\d)")
 _NUMERIC = re.compile(r"^-?\d+(?:[.,]\d+)?$")
 
-# One sentence, its terminator included, or a last one with no terminator.
-_SENTENCE = re.compile(r"[^.!?\n]*[.!?\n]+|[^.!?\n]+")
+_ENDS = ".!?"
+
+
+def sentences(text: str) -> list[str]:
+    """The text cut into sentences, each with its terminator and its line break.
+
+    Written out rather than a regex because the thing being looked for is a figure: a full stop
+    between two digits is a thousands separator (1.234,56) and ends nothing.
+    """
+    parts: list[str] = []
+    start = 0
+    for index, character in enumerate(text):
+        if character == "\n":
+            parts.append(text[start : index + 1])
+            start = index + 1
+        elif character in _ENDS:
+            before = text[index - 1] if index else ""
+            after = text[index + 1] if index + 1 < len(text) else ""
+            if before.isdigit() and after.isdigit():
+                continue
+            parts.append(text[start : index + 1])
+            start = index + 1
+    if start < len(text):
+        parts.append(text[start:])
+    return parts
 
 
 def to_cents(written: str) -> int | None:
@@ -186,7 +209,7 @@ class AnswerCheck:
             # a figure against: the prompt's rule (no figure without a query) is the only guard,
             # and a number here may as easily be the user's own or a date as an invention.
             return cleaned
-        return "".join(self._sentence(part) for part in _SENTENCE.findall(cleaned))
+        return "".join(self._sentence(part) for part in sentences(cleaned))
 
     def _sentence(self, sentence: str) -> str:
         amounts = money_in(sentence)
