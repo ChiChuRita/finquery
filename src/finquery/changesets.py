@@ -628,14 +628,20 @@ def _preview(session: Session, profile_id: str, title: str, payload: Payload, ro
                 after["category"] = categories.get(payload.category_id or "")
                 after["subcategory"] = subcategories.get(payload.subcategory_id or "")
             preview_rows.append(PreviewRow(id=row.id, before=before, after=after))
-        # The fields the changeset writes, from the payload rather than from the rows the table
-        # happens to show, so a long selection still names them all.
+        # The fields the changeset really changes, over every affected row rather than the ones
+        # the table happens to show. A value equal to what the row already holds is not a change,
+        # and a model fills those in to make its call look complete (ticket 37), so naming them
+        # would have the sentence claim an amount moved when it did not.
         written = {
-            "date": payload.booked_on is not None,
-            "description": payload.description is not None,
-            "amount": payload.amount_cents is not None,
-            "category": payload.set_category,
-            "subcategory": payload.set_category and payload.subcategory_id is not None,
+            "date": payload.booked_on is not None and any(row.booked_on != payload.booked_on for row in rows),
+            "description": payload.description is not None
+            and any(row.description != payload.description for row in rows),
+            "amount": payload.amount_cents is not None
+            and any(row.amount_cents != payload.amount_cents for row in rows),
+            "category": payload.set_category and any(row.category_id != payload.category_id for row in rows),
+            "subcategory": payload.set_category
+            and payload.subcategory_id is not None
+            and any(row.subcategory_id != payload.subcategory_id for row in rows),
         }
         edited = ", ".join(field for field in FIELDS if written[field]) or "nothing"
         summary = f"{_bookings(len(rows))} {_verb(len(rows), 'is', 'are')} edited: {edited}."
