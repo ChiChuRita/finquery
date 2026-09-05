@@ -148,23 +148,23 @@
       "kind": "total",
       "difficulty": 3,
       "language": "de",
-      "question": "Was gebe ich pro Woche im Schnitt fuer Lebensmittel aus?",
+      "question": "Was habe ich 2025 im Schnitt pro Woche fuer Lebensmittel ausgegeben, auf 52 Wochen gerechnet?",
       "tags": [
         "average",
         "week",
         "category",
         "German"
       ],
-      "why": "The question that cost Qwen3.5 four minutes and fifteen statements. The average is one division inside the statement, and the divisor is the 49 weeks that carry a grocery booking, not the 52 of the calendar. Deliberately unforgiving: an answer that divides by 52 is five euros out and counts as a miss.",
+      "why": "An average, which is one division inside the statement. The divisor is the question's own: asked without one, 'pro Woche' has three defensible readings (the 52 weeks of the year, the 51.7 the data spans, the 49 that carry a grocery booking), and a benchmark scored to the cent cannot have three right answers, so the question names the 52.",
       "source": "hand",
-      "sql": "SELECT ROUND(-SUM(amount) / (COUNT(DISTINCT strftime('%Y-%W', booked_on)) * 1.0), 2) AS per_week_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Groceries' AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'",
+      "sql": "SELECT ROUND(-SUM(amount) / 52.0, 2) AS per_week_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Groceries' AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'",
       "gold": {
         "columns": [
           "per_week_eur"
         ],
         "rows": [
           {
-            "per_week_eur": 91.33
+            "per_week_eur": 86.06
           }
         ]
       }
@@ -427,13 +427,13 @@
       "kind": "breakdown",
       "difficulty": 2,
       "language": "de",
-      "question": "Wie verteilen sich meine Lebensmittelausgaben auf die einzelnen Supermaerkte?",
+      "question": "Wie verteilen sich meine Lebensmittelausgaben auf die einzelnen Laeden?",
       "tags": [
         "merchant",
         "category",
         "German"
       ],
-      "why": "A category filter and a merchant grouping in one statement. The bakery and the two drugstores are groceries here, which is what the profile's own taxonomy says.",
+      "why": "A category filter and a merchant grouping in one statement. Lebensmittel is the household's own Groceries category, so the bakery and the two drugstores are in it, which is why the question asks about the shops and not about the supermarkets.",
       "source": "hand",
       "sql": "SELECT coalesce(counterparty, description) AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Groceries' GROUP BY merchant ORDER BY total_eur DESC",
       "gold": {
@@ -649,50 +649,42 @@
         "date function",
         "German"
       ],
-      "why": "Grouping by something that is not a period or a category. `strftime('%w', ...)` is the only way to it, and the rent falls on the first of the month, which moves through the week.",
+      "why": "Grouping by something that is not a period or a category. `strftime('%w', ...)` is the only way to it, and the rent falls on the first of the month, which moves through the week. The question asks about money, so the euro figure is the only column.",
       "source": "hand",
-      "sql": "SELECT strftime('%w', booked_on) AS weekday, ROUND(-SUM(amount), 2) AS total_eur, COUNT(*) AS bookings FROM transaction_view WHERE amount_cents < 0 GROUP BY weekday ORDER BY total_eur DESC",
+      "sql": "SELECT strftime('%w', booked_on) AS weekday, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 GROUP BY weekday ORDER BY total_eur DESC",
       "gold": {
         "columns": [
           "weekday",
-          "total_eur",
-          "bookings"
+          "total_eur"
         ],
         "rows": [
           {
             "weekday": "6",
-            "total_eur": 5808.23,
-            "bookings": 69
+            "total_eur": 5808.23
           },
           {
             "weekday": "1",
-            "total_eur": 5106.01,
-            "bookings": 76
+            "total_eur": 5106.01
           },
           {
             "weekday": "3",
-            "total_eur": 4441.48,
-            "bookings": 54
+            "total_eur": 4441.48
           },
           {
             "weekday": "2",
-            "total_eur": 4201.09,
-            "bookings": 53
+            "total_eur": 4201.09
           },
           {
             "weekday": "0",
-            "total_eur": 3179.31,
-            "bookings": 59
+            "total_eur": 3179.31
           },
           {
             "weekday": "4",
-            "total_eur": 2906.95,
-            "bookings": 58
+            "total_eur": 2906.95
           },
           {
             "weekday": "5",
-            "total_eur": 2892.82,
-            "bookings": 51
+            "total_eur": 2892.82
           }
         ]
       }
@@ -732,13 +724,13 @@
       "kind": "breakdown",
       "difficulty": 2,
       "language": "de",
-      "question": "Zeig mir pro Monat, wie viele Buchungen ich hatte und was sie zusammen gekostet haben.",
+      "question": "Zeig mir pro Monat, wie viele Ausgaben ich hatte und was sie zusammen gekostet haben.",
       "tags": [
         "month",
         "count",
         "German"
       ],
-      "why": "A count and a sum side by side over twelve months. The count has to be of the spending rows only, so the filter belongs in the WHERE clause and not around the sum.",
+      "why": "A count and a sum side by side over twelve months. The question asks about the spending, so both figures are over the spending rows and the filter belongs in the WHERE clause; s36 asks for the bookings of a month and counts every row, income included.",
       "source": "hand",
       "sql": "SELECT strftime('%Y-%m', booked_on) AS month, COUNT(*) AS bookings, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 GROUP BY month ORDER BY month",
       "gold": {
@@ -1206,14 +1198,14 @@
       "kind": "trend",
       "difficulty": 2,
       "language": "de",
-      "question": "Wie haben sich meine Ausgaben in Restaurants und Cafes ueber das Jahr entwickelt?",
+      "question": "Wie haben sich meine Ausgaben fuers Essengehen ueber das Jahr entwickelt?",
       "tags": [
         "month",
         "category",
         "German",
         "series"
       ],
-      "why": "A series inside one category. The German for the category is not the category's name, which is what the taxonomy in the prompt is for.",
+      "why": "A series inside one category. Essengehen is the household's Dining category, all four of its subcategories, which is what the taxonomy in the prompt is for: naming two of them in the question would ask for a narrower figure.",
       "source": "hand",
       "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Dining' GROUP BY month ORDER BY month",
       "gold": {
@@ -1745,18 +1737,16 @@
       ],
       "why": "Smallest means the smallest amount of money, and recurring means the same amount month after month. Ordering signed cents ascending returns the largest payment instead, which is exactly what Qwen3.5 published.",
       "source": "hand",
-      "sql": "WITH recurring AS (SELECT coalesce(counterparty, description) AS merchant, COUNT(*) AS bookings, ROUND(-AVG(amount), 2) AS amount_eur, MIN(amount) AS lo, MAX(amount) AS hi FROM transaction_view WHERE amount < 0 GROUP BY merchant HAVING bookings >= 6 AND lo = hi) SELECT merchant, amount_eur, bookings FROM recurring ORDER BY amount_eur ASC LIMIT 1",
+      "sql": "WITH recurring AS (SELECT coalesce(counterparty, description) AS merchant, COUNT(*) AS bookings, ROUND(-AVG(amount), 2) AS amount_eur, MIN(amount) AS lo, MAX(amount) AS hi FROM transaction_view WHERE amount < 0 GROUP BY merchant HAVING bookings >= 6 AND lo = hi) SELECT merchant, amount_eur FROM recurring ORDER BY amount_eur ASC LIMIT 1",
       "gold": {
         "columns": [
           "merchant",
-          "amount_eur",
-          "bookings"
+          "amount_eur"
         ],
         "rows": [
           {
             "merchant": "AMAZON PRIME MEMBERSHIP",
-            "amount_eur": 8.99,
-            "bookings": 12
+            "amount_eur": 8.99
           }
         ]
       }
@@ -1862,9 +1852,9 @@
         "exclusion",
         "German"
       ],
-      "why": "An exclusion in words has to become a NOT in the statement. The rent is 13.800 EUR, so forgetting it leaves the whole ranking one place out of step.",
+      "why": "An exclusion in words has to become a NOT in the statement. The rent is 13.800 EUR, so forgetting it answers with the landlord. 'Wer' asks for one name, and s67 is the same exclusion over a ranking of five.",
       "source": "hand",
-      "sql": "SELECT coalesce(counterparty, description) AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' AND NOT (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%miete%') GROUP BY merchant ORDER BY total_eur DESC LIMIT 5",
+      "sql": "SELECT coalesce(counterparty, description) AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' AND NOT (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%miete%') GROUP BY merchant ORDER BY total_eur DESC LIMIT 1",
       "gold": {
         "columns": [
           "merchant",
@@ -1874,22 +1864,6 @@
           {
             "merchant": "Sparkasse Geldautomat",
             "total_eur": 2400.0
-          },
-          {
-            "merchant": "AMAZON EU S.A R.L.",
-            "total_eur": 1269.6
-          },
-          {
-            "merchant": "KAUFLAND BERLIN",
-            "total_eur": 1098.5
-          },
-          {
-            "merchant": "Vattenfall Europe Sales GmbH",
-            "total_eur": 936.0
-          },
-          {
-            "merchant": "REWE Markt GmbH",
-            "total_eur": 732.0
           }
         ]
       }

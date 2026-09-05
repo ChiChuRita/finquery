@@ -675,7 +675,7 @@
     {
       "id": "10-quarter-groups-de",
       "language": "de",
-      "prompt": "Vergleiche Lebensmittel und Restaurants pro Quartal 2025 als gruppierte Balken.",
+      "prompt": "Vergleiche Lebensmittel und Essengehen pro Quartal 2025 als gruppierte Balken.",
       "shape": "bar_grouped",
       "also": [],
       "covers": [
@@ -689,7 +689,7 @@
         "series",
         "value"
       ],
-      "why": "The German version. A chart captioned by quarter may not have months along its axis.",
+      "why": "The German version. Essengehen is the whole Dining category, and a chart captioned by quarter may not have months along its axis.",
       "source": "hand",
       "sql": "SELECT '2025-Q' || ((CAST(strftime('%m', booked_on) AS INTEGER) + 2) / 3) AS quarter, category AS topic, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category IN ('Groceries', 'Dining') AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY quarter, topic ORDER BY quarter, topic",
       "gold": {

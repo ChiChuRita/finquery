@@ -38,7 +38,7 @@
       "kind": "total",
       "difficulty": 3,
       "language": "de",
-      "question": "Was gebe ich pro Woche im Schnitt fuer Lebensmittel aus?",
+      "question": "Was habe ich 2025 im Schnitt pro Woche fuer Lebensmittel ausgegeben, auf 52 Wochen gerechnet?",
       "prefix": [],
       "tags": [
         "average",
@@ -46,19 +46,19 @@
         "category",
         "German"
       ],
-      "why": "The question that cost Qwen3.5 four minutes and fifteen statements. The average is one division inside the statement, and the divisor is the 49 weeks that carry a grocery booking, not the 52 of the calendar. Deliberately unforgiving: an answer that divides by 52 is five euros out and counts as a miss.",
+      "why": "An average, which is one division inside the statement. The divisor is the question's own: asked without one, 'pro Woche' has three defensible readings (the 52 weeks of the year, the 51.7 the data spans, the 49 that carry a grocery booking), and a benchmark scored to the cent cannot have three right answers, so the question names the 52.",
       "shape": null,
       "also": [],
       "roles": [],
       "answer": "",
-      "sql": "SELECT ROUND(-SUM(amount) / (COUNT(DISTINCT strftime('%Y-%W', booked_on)) * 1.0), 2) AS per_week_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Groceries' AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'",
+      "sql": "SELECT ROUND(-SUM(amount) / 52.0, 2) AS per_week_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Groceries' AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'",
       "gold": {
         "columns": [
           "per_week_eur"
         ],
         "rows": [
           {
-            "per_week_eur": 91.33
+            "per_week_eur": 86.06
           }
         ]
       }
@@ -231,14 +231,14 @@
       "kind": "breakdown",
       "difficulty": 2,
       "language": "de",
-      "question": "Zeig mir pro Monat, wie viele Buchungen ich hatte und was sie zusammen gekostet haben.",
+      "question": "Zeig mir pro Monat, wie viele Ausgaben ich hatte und was sie zusammen gekostet haben.",
       "prefix": [],
       "tags": [
         "month",
         "count",
         "German"
       ],
-      "why": "A count and a sum side by side over twelve months. The count has to be of the spending rows only, so the filter belongs in the WHERE clause and not around the sum.",
+      "why": "A count and a sum side by side over twelve months. The question asks about the spending, so both figures are over the spending rows and the filter belongs in the WHERE clause; s36 asks for the bookings of a month and counts every row, income included.",
       "shape": null,
       "also": [],
       "roles": [],
@@ -1232,14 +1232,14 @@
       "kind": "bar_grouped",
       "difficulty": 2,
       "language": "de",
-      "question": "Vergleiche Lebensmittel und Restaurants pro Quartal 2025 als gruppierte Balken.",
+      "question": "Vergleiche Lebensmittel und Essengehen pro Quartal 2025 als gruppierte Balken.",
       "prefix": [],
       "tags": [
         "quarter period",
         "German",
         "bar_grouped"
       ],
-      "why": "The German version. A chart captioned by quarter may not have months along its axis.",
+      "why": "The German version. Essengehen is the whole Dining category, and a chart captioned by quarter may not have months along its axis.",
       "shape": "bar_grouped",
       "also": [],
       "roles": [
