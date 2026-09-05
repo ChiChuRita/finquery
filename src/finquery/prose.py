@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from finquery.formats import eur
+from finquery.onboarding import detect_language
 
 CENT_TOLERANCE = 1
 """How far a prose figure may sit from the figure a query returned. One cent covers rounding."""
@@ -62,6 +63,10 @@ def sentences(text: str) -> list[str]:
             before = text[index - 1] if index else ""
             after = text[index + 1] if index + 1 < len(text) else ""
             if before.isdigit() and (after.isdigit() or _GERMAN_DATE.search(text[max(0, index - 5) : index + 1])):
+                continue
+            # A single letter before the stop is an initial, not the end of a sentence: "z. B.",
+            # "u. a.", "e. g." all read as two sentences otherwise.
+            if before.isalpha() and (index < 2 or not text[index - 2].isalnum()):
                 continue
             parts.append(text[start : index + 1])
             start = index + 1
@@ -198,14 +203,20 @@ class AnswerCheck:
 
     figures: Figures = field(default_factory=Figures)
     language: str = "en"
+    """The language of the question, and the fallback for the sentence the server writes."""
     rewritten: int = 0
     _quoted: bool = False
+    _seen: str = ""
 
     def clean(self, text: str) -> str:
         """The text with every unsupported figure replaced and every stray token dropped."""
         if not text:
             return text
         cleaned = strip_foreign_tokens(text)
+        # The answer decides the language of what replaces one of its sentences: a model asked in
+        # one language sometimes answers in the other, and a German paragraph with an English
+        # sentence dropped into it reads as a bug.
+        self._seen = (self._seen + cleaned)[-500:]
         if not self.figures.lines:
             # No query has produced a figure in this conversation, so there is nothing to judge
             # a figure against: the prompt's rule (no figure without a query) is the only guard,
@@ -224,7 +235,8 @@ class AnswerCheck:
         return f"{replacement}{tail or ' '}"
 
     def _replacement(self) -> str:
-        language = "de" if self.language == "de" else "en"
+        language = detect_language(self._seen) or self.language
+        language = "de" if language == "de" else "en"
         if self._quoted:
             return DROPPED[language]
         self._quoted = True
