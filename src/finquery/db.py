@@ -39,6 +39,7 @@ from sqlalchemy import (
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
+from finquery.formats import eur
 from finquery.taxonomy import DEFAULT_TAXONOMY
 
 DEFAULT_PROFILE_NAME = "Default"
@@ -478,8 +479,8 @@ class SplitSumError(ValueError):
 def split_sum_error(legs_cents: int, amount_cents: int) -> SplitSumError:
     """The one wording for a broken split, whether a flush found it or a proposal did."""
     return SplitSumError(
-        f"The legs of the split add up to {legs_cents / 100:.2f} "
-        f"but the transaction is {amount_cents / 100:.2f}."
+        f"The legs of the split add up to {eur(legs_cents)} EUR "
+        f"but the transaction is {eur(amount_cents)} EUR."
     )
 
 

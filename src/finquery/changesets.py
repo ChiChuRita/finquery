@@ -53,6 +53,7 @@ from finquery.edits import (
     resolve_names,
     resolve_taxonomy,
 )
+from finquery.formats import eur
 from finquery.nullish import nullish_before
 
 ChangesetKind = Literal["recategorize", "split", "edit", "delete", "taxonomy"]
@@ -363,6 +364,7 @@ def _taxonomy_name(session: Session, profile_id: str, handle: str) -> str | None
 
 
 def _euro(cents: int) -> str:
+    """The machine-readable amount of a preview row. The browser formats it for display."""
     return f"{cents / 100:.2f}"
 
 
@@ -648,7 +650,7 @@ def _preview(session: Session, profile_id: str, title: str, payload: Payload, ro
             )
             for leg in payload.legs
         )
-        summary = f"{parent.description} of {_euro(parent.amount_cents)} EUR becomes {len(payload.legs)} legs."
+        summary = f"{parent.description} of {eur(parent.amount_cents)} EUR becomes {len(payload.legs)} legs."
         note = "Queries and charts count the legs of a split, never the booking they came from."
     else:
         assert payload.taxonomy is not None
