@@ -131,6 +131,7 @@ async def run_query(
     request: str,
     hints: str | None = None,
     check: bool = True,
+    pinned: bool = False,
     narrate: Narrator | None = None,
     context: QueryContext | None = None,
     today: date | None = None,
@@ -144,6 +145,12 @@ async def run_query(
     and whatever it returns. On, the result is judged before it is handed over, and a rewrite
     is asked for once. The chart tool passes it through and the benchmark turns it off with
     `--no-check`, which is how the two are measured against each other.
+
+    `pinned` is for a caller that already decided what the statement has to return, which is the
+    chart tool: its plan fixed the columns and the shape, so there is no interpretation left to
+    judge. The assistant's own `hints` do not pin anything, they are its reading of the question
+    and often where the mistake is ("sortieren nach amount ascending" on the smallest recurring
+    payment, 2026-09-05), so they are handed to the check rather than used to skip it.
 
     `context` is for a caller that already loaded it (the chart tool, the benchmark, which pins
     `today` so a relative period lands inside the shipped year).
@@ -218,9 +225,9 @@ async def run_query(
                 sql=validated, reason=reason, advice=causes(context), reasoning=written.reasoning
             )
             continue
-        # A hint from the assistant pins what the statement is supposed to mean (which columns,
-        # which merchants, which shape the chart needs), so there is nothing left to judge.
-        if hints:
+        # The chart's plan already fixed what this statement must return, so judging its intent
+        # would be a model call spent on a question nobody asked.
+        if pinned:
             return outcome
         note(CHECKING)
         try:
@@ -230,6 +237,7 @@ async def run_query(
                 context,
                 validated,
                 figures(rows.columns, rows.rows),
+                hints=hints,
                 reasoning=written.reasoning,
                 model_settings=model_settings,
             )

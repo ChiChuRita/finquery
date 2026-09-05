@@ -120,16 +120,24 @@ check_agent = Agent(
 
 
 def check_prompt(
-    request: str, context: QueryContext, sql: str, figures: list[str], *, reasoning: str = ""
+    request: str,
+    context: QueryContext,
+    sql: str,
+    figures: list[str],
+    *,
+    hints: str | None = None,
+    reasoning: str = "",
 ) -> str:
     """The whole prompt the check pass sees. Pure, like `query_prompt`, so training can rebuild it.
 
     The question stands on its own: the chat agent rewrites a follow-up into a request that
-    carries its own period and topic before the sub-agent ever sees it, and when the assistant
-    pinned the interpretation with a hint instead, `run_query` skips this pass altogether.
+    carries its own period and topic, and the conversation before it, before the sub-agent ever
+    sees it. What the assistant added on top is shown as what it is, a reading that can be wrong.
     """
     rows = "\n".join(figures[:CHECK_ROWS]) or "(no rows)"
     sections = [REVISE_WHEN, profile_facts(context), f"Question: {request.strip()}"]
+    if hints and hints.strip():
+        sections.append(f"What the assistant added, which is its reading and not the question:\n{hints.strip()}")
     if reasoning.strip():
         # What the sub-agent said it was doing, which is where a misread period or sign is
         # visible in one line rather than inside the SQL.
@@ -149,12 +157,13 @@ async def check_result(
     sql: str,
     figures: list[str],
     *,
+    hints: str | None = None,
     reasoning: str = "",
     model_settings: ModelSettings | None = None,
 ) -> Verdict:
     """Ask the fast slot whether this result answers the question, through one forced tool."""
     result = await check_agent.run(
-        check_prompt(request, context, sql, figures, reasoning=reasoning),
+        check_prompt(request, context, sql, figures, hints=hints, reasoning=reasoning),
         model=model,
         model_settings=model_settings,
     )

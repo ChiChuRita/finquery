@@ -183,10 +183,17 @@ async def test_a_query_costs_at_most_three_model_calls(
     assert tool_output(chunks)["error"] is None, "the rewritten statement is the result"
 
 
-async def test_the_check_is_skipped_when_the_assistant_pinned_the_interpretation(
+async def test_the_assistants_hint_is_judged_rather_than_trusted(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
 ) -> None:
-    """A hint says what the statement is supposed to mean, so there is nothing left to judge."""
+    """A hint is the assistant's reading of the question, and that is often the mistake.
+
+    Asked for the smallest recurring payment on 2026-09-05, the chat agent hinted "sortieren
+    nach amount ascending", which is the largest, and the sub-agent did as it was told. So the
+    hint goes to the check as what it is rather than switching the check off. The chart tool is
+    the one caller whose intent really is pinned, and it says so with `pinned=True`; the chart
+    tests fail if a check ever reaches their scripted model.
+    """
     await import_synthetic(client, profile_id)
     respond = scripted_sql(MAY_ONLY)
     scripts.fast = ask_query_then_report("total spending", hints="Only May 2025, one figure.")
@@ -196,9 +203,10 @@ async def test_the_check_is_skipped_when_the_assistant_pinned_the_interpretation
     _, chunks = await chat(conversation_id, "How much did I spend in May?")
 
     assert tool_output(chunks)["error"] is None
-    assert len(respond.prompts) == 1  # type: ignore[attr-defined]
-    assert respond.judgements == []  # type: ignore[attr-defined]
-    assert narration(chunks) == ""
+    judgements = respond.judgements  # type: ignore[attr-defined]
+    assert len(judgements) == 1
+    assert "which is its reading and not the question:\nOnly May 2025, one figure." in judgements[0]
+    assert CHECKING in narration(chunks)
 
 
 async def test_the_check_is_skipped_when_the_statement_came_from_a_retry(
