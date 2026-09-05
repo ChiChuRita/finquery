@@ -241,6 +241,9 @@ export function PickerCell({
           aria-label={label}
           className="h-7! w-full min-w-0 rounded-md border-transparent px-1.5 font-normal shadow-none hover:bg-accent dark:bg-transparent dark:hover:bg-accent"
           size="sm"
+          // A narrow column clips "Friends and family" to "Friends an", and the trigger is the
+          // only place the whole name can still be read.
+          title={choices.find((choice) => choice.id === value)?.name ?? placeholder}
         >
           {/* An empty cell shows the placeholder, not the label of the item that clears it:
               a `Select` whose value is the clear item would otherwise print that item's words

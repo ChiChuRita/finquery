@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { MoreHorizontalIcon, PlusIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { ChangesetEffect } from '@/components/changeset-card'
 import { NameDialog } from '@/components/dialogs'
@@ -130,6 +130,7 @@ export function TaxonomyCard() {
                   />
                 ) : (
                   <button
+                    aria-label={`Rename ${category.name}`}
                     className="text-left font-medium text-sm hover:text-primary"
                     onClick={() => setRenaming({ category: category.name })}
                     title="Click to rename"
@@ -159,6 +160,7 @@ export function TaxonomyCard() {
                       <DropdownMenu key={subcategory.id}>
                         <DropdownMenuTrigger asChild>
                           <button
+                            aria-label={`Change ${subcategory.name} in ${category.name}`}
                             className="rounded-full border px-2 py-0.5 text-xs transition-colors hover:bg-accent"
                             type="button"
                           >
@@ -213,6 +215,7 @@ export function TaxonomyCard() {
                     ),
                   )}
                   <button
+                    aria-label={`Add a subcategory to ${category.name}`}
                     className="rounded-full border border-dashed px-2 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground"
                     onClick={() => setAdding({ category: category.name })}
                     type="button"
@@ -330,7 +333,12 @@ function CategoryMenu({
   )
 }
 
-/** Enter renames, Escape and losing focus give up: a rename opens a dialog, so it must be asked for. */
+/** Enter and clicking away both propose the rename; Escape gives up.
+ *
+ * Clicking away used to throw the new name silently away, which is the opposite of what every
+ * inline cell on the Transactions page does. It does not write either: it opens the same
+ * preview dialog Enter opens, so nothing happens to a booking that was not shown first.
+ */
 function RenameInput({
   name,
   label,
@@ -342,21 +350,33 @@ function RenameInput({
   onRename: (next: string) => void
   onCancel: () => void
 }) {
+  // Answering unmounts this input, and unmounting a focused input fires blur, which would
+  // propose the same rename a second time.
+  const done = useRef(false)
+  const submit = (value: string) => {
+    if (done.current) return
+    done.current = true
+    const next = value.trim()
+    if (next && next !== name) onRename(next)
+    else onCancel()
+  }
   return (
     <Input
       aria-label={label}
       autoFocus
       className="h-7 w-48 text-sm"
       defaultValue={name}
-      onBlur={onCancel}
+      onBlur={(event) => submit(event.currentTarget.value)}
       onKeyDown={(event) => {
-        if (event.key === 'Escape') onCancel()
+        if (event.key === 'Escape') {
+          done.current = true
+          onCancel()
+        }
         if (event.key !== 'Enter') return
         event.preventDefault()
-        const next = event.currentTarget.value.trim()
-        if (next && next !== name) onRename(next)
-        else onCancel()
+        submit(event.currentTarget.value)
       }}
+      title="Enter or click away to see what the rename does. Escape leaves it alone."
     />
   )
 }

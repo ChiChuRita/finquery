@@ -63,7 +63,13 @@ function FileRow({ file }: { file: ModelFile }) {
   )
 }
 
-function SlotBlock({ model }: { model: SlotModel }) {
+/** One slot: which model fills it and how ready it is.
+ *
+ * "resident" is a fact about a GGUF sitting in this process's memory, so it is only said on
+ * the local provider. A hosted model is neither resident nor on disk; it is simply reachable.
+ */
+function SlotBlock({ model, local }: { model: SlotModel; local: boolean }) {
+  const state = local ? (model.loaded ? 'resident' : model.ready ? 'on disk' : 'incomplete') : 'hosted'
   return (
     <div className="rounded-lg border p-3">
       <div className="flex items-baseline justify-between gap-3">
@@ -81,14 +87,14 @@ function SlotBlock({ model }: { model: SlotModel }) {
         <span
           className={cn(
             'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
-            model.loaded
-              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-              : model.ready
+            state === 'incomplete'
+              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+              : state === 'on disk'
                 ? 'bg-muted text-muted-foreground'
-                : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+                : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
           )}
         >
-          {model.loaded ? 'resident' : model.ready ? 'on disk' : 'incomplete'}
+          {state}
         </span>
       </div>
       {model.files.length > 0 && <ul className="mt-2 divide-y">{model.files.map((f) => <FileRow file={f} key={f.filename} />)}</ul>}
@@ -183,7 +189,7 @@ export function ModelsCard() {
 
       <div className="mt-3 space-y-2">
         {data.models.map((model) => (
-          <SlotBlock key={model.slot} model={model} />
+          <SlotBlock key={model.slot} local={local} model={model} />
         ))}
       </div>
 

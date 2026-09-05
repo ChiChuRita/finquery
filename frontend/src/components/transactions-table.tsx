@@ -142,7 +142,13 @@ export function TransactionsTable({
         }),
         helper.accessor('title', {
           id: 'title',
-          header: 'Enriched title',
+          // The one column of this table that is not edited here: it is written by the
+          // enrichment step, and a cell that refuses a click has to say why.
+          header: () => (
+            <span title="Written by the enrichment step at import, not edited here. Change the description instead.">
+              Enriched title
+            </span>
+          ),
           meta: { width: 'minmax(5.5rem, 0.8fr)' },
           cell: ({ row }) => (
             <span className="block truncate px-1.5 py-1 text-muted-foreground text-sm" title={row.original.title ?? ''}>

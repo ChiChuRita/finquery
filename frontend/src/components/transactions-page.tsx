@@ -1,7 +1,8 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import type { RowSelectionState } from '@tanstack/react-table'
-import { SearchIcon, XIcon } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { PlusIcon, SearchIcon, XIcon } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { TransactionsTable, type Patch } from '@/components/transactions-table'
 import { AddTransactionDialog, ConfirmDeleteDialog } from '@/components/transaction-dialogs'
@@ -66,9 +67,21 @@ function FilterBar({
 }) {
   // The text filter runs on the server, so it waits for a pause in the typing.
   const [text, setText] = useState(filters.q)
+  // What this bar last sent up. The bar is not the only place the filters are cleared from
+  // (the empty state offers it too), and without this the debounce would push the old text
+  // straight back in.
+  const pushed = useRef(filters.q)
+  useEffect(() => {
+    if (filters.q === pushed.current) return
+    pushed.current = filters.q
+    setText(filters.q)
+  }, [filters.q])
   useEffect(() => {
     if (text === filters.q) return
-    const timer = setTimeout(() => onChange({ ...filters, q: text }), 250)
+    const timer = setTimeout(() => {
+      pushed.current = text
+      onChange({ ...filters, q: text })
+    }, 250)
     return () => clearTimeout(timer)
   }, [text, filters, onChange])
 
@@ -285,11 +298,25 @@ export function TransactionsPage() {
           </p>
           <p className="text-muted-foreground text-xs">
             {hasFilters(filters)
-              ? 'Widen the date range or clear the filters.'
+              ? 'Try fewer of them, or start again from every booking.'
               : accounts.length > 0
                 ? 'Drop a bank statement into the chat, or add a booking by hand.'
                 : 'Drop a bank statement into the chat. Manual rows need an account to book against.'}
           </p>
+          {hasFilters(filters) ? (
+            <Button className="mt-2" onClick={() => setFilters(NO_FILTERS)} size="sm" variant="outline">
+              <XIcon data-icon="inline-start" />
+              Clear the filters
+            </Button>
+          ) : (
+            // Every import happens in a chat, so the way out of an empty table is a chat.
+            <Button asChild className="mt-2" size="sm" variant="outline">
+              <Link to="/">
+                <PlusIcon data-icon="inline-start" />
+                New chat
+              </Link>
+            </Button>
+          )}
         </div>
       ) : (
         <TransactionsTable

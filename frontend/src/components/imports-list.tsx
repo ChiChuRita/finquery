@@ -78,6 +78,7 @@ function ImportCard({
             disabled={busy}
             onClick={onDelete}
             size="icon-sm"
+            title="Delete this import and the bookings it brought in"
             variant="ghost"
           >
             <Trash2Icon />

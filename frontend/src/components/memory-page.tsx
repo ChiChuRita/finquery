@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BrainIcon, PencilIcon, Trash2Icon } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { BrainIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { useState } from 'react'
 
 import { ConfirmDialog } from '@/components/dialogs'
@@ -52,10 +53,18 @@ export function MemoryPage() {
           </div>
 
           {!memories || memories.length === 0 ? (
-            <div className="flex items-center gap-3 rounded-xl border border-dashed px-4 py-6 text-muted-foreground text-sm">
-              <BrainIcon className="size-4 shrink-0" />
-              Nothing remembered yet. Tell the assistant something durable, like what a merchant is or that PayPal
-              to Anna is dinner, and it appears here.
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-10 text-center">
+              <BrainIcon aria-hidden="true" className="size-5 text-muted-foreground" />
+              <p className="mx-auto max-w-md text-balance text-muted-foreground text-sm">
+                Nothing remembered yet. Tell the assistant something durable, like what a merchant is or that
+                PayPal to Anna is dinner, and it appears here.
+              </p>
+              <Button asChild size="sm" variant="outline">
+                <Link to="/">
+                  <PlusIcon data-icon="inline-start" />
+                  New chat
+                </Link>
+              </Button>
             </div>
           ) : (
             <ul className="divide-y rounded-xl border">
@@ -94,7 +103,9 @@ export function MemoryPage() {
                       {SOURCE_LABEL[memory.source]} &middot; {formatDateTime(memory.created_at)}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                  {/* Dim rather than absent: a row whose only affordance appears on hover reads as a
+                      read-only list, and nothing else on the page says the facts can be changed. */}
+                  <div className="flex shrink-0 items-center gap-1 opacity-50 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
                     <Button
                       aria-label="Edit this memory"
                       onClick={() => setEditing(memory.id)}
