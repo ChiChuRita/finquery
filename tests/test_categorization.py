@@ -521,3 +521,87 @@ async def test_a_categorized_import_changes_what_the_query_sub_agent_is_told(
 
     assert "only 408 of 433 bookings have a category" in after
     assert "Groceries (Supermarket, Bakery, Drugstore)" in after
+
+
+
+def narrates_the_queue():
+    """A chat turn that asks `review_batch` for the queue and then writes about it in prose.
+
+    Exactly what the fast model did on 2026-09-05: "There is one merchant left to categorize",
+    with no card below it and nothing for the user to press.
+    """
+
+    async def fn(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        if is_followup_request(messages):
+            yield "No follow-ups."
+            return
+        if is_distillation_request(messages):
+            yield distilled()
+            return
+        queues = [result for name, result in _tool_returns(messages) if name == "review_batch"]
+        if not queues:
+            yield {0: DeltaToolCall(name="review_batch", json_args="{}")}
+            return
+        yield f"There are {queues[-1]['pending_merchants']} merchants left to categorize."
+
+    return fn
+
+
+async def test_a_review_queue_the_model_only_narrates_still_reaches_the_user_as_a_card(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """`review_batch` returning a queue is always followed by a card (e2e of 2026-09-05, M1).
+
+    The card is already built, by the same `categorize.review_card` the seeded review
+    conversation uses, so when the model writes about the queue instead of showing it the server
+    shows it. The run then parks on that call exactly as if the model had made it, which is what
+    answering it below proves.
+    """
+    await import_synthetic(client, profile_id)
+    scripts.fast_call = scripted_categorizer()  # type: ignore[assignment]
+    await categorize(client, profile_id, await last_import(client, profile_id))
+
+    scripts.fast = narrates_the_queue()
+    conversation_id = await new_conversation(client, profile_id)
+    response = await client.post(
+        f"/api/conversations/{conversation_id}/chat",
+        json={
+            "id": conversation_id,
+            "trigger": "submit-message",
+            "messages": [
+                {"id": "u1", "role": "user", "parts": [{"type": "text", "text": "Which merchants are left?"}]}
+            ],
+        },
+    )
+    assert response.status_code == 200, response.text
+    chunks = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: {")]
+
+    cards = [c for c in chunks if c["type"] == "tool-input-available" and c["toolName"] == "ask_user"]
+    assert len(cards) == 1, "the queue reached the user as prose and nothing else"
+    card = cards[0]["input"]
+    assert {row["ref"] for row in card["rows"]} <= MODEL_MERCHANTS
+    assert card["rows"], "an empty card is no card"
+    assert card["apply"] == {"kind": "category_rule"}
+    # The prose the model did write is still the answer above the card.
+    assert "merchants left to categorize" in answer(chunks)
+    # A turn waiting on a card offers no follow-ups.
+    assert [c for c in chunks if c["type"] == "data-followups"] == []
+
+    # It is a real pending call: answering it resumes the run and the answers are applied.
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    pending = next(part for part in detail["messages"][1]["parts"] if part["type"] == "tool-ask_user")
+    assert pending["state"] == "approval-requested"
+    scripts.fast = echo_applied()
+    scripts.fast_call = None
+    resumed = await client.post(
+        f"/api/conversations/{conversation_id}/chat",
+        json=answer_card(
+            conversation_id,
+            detail["messages"][1]["id"],
+            pending,
+            {"answers": [{"ref": "anna weber", "value": "Dining > Restaurant", "text": None}]},
+        ),
+    )
+    assert resumed.status_code == 200, resumed.text
+    rows = await rows_of(client, profile_id, "ANNA WEBER")
+    assert {(row["category"], row["subcategory"]) for row in rows} == {("Dining", "Restaurant")}
