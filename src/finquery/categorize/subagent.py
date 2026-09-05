@@ -13,12 +13,15 @@ Question card asks about and a rule matches on.
 text the model saw plus the answer it gave.
 """
 
+import logging
 from dataclasses import dataclass
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, ToolOutput
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
+
+logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 25
 """Merchants per model call."""
@@ -55,17 +58,36 @@ Rules:
 """
 
 EXAMPLE = """\
-Example entries and good answers:
+A worked batch. The reasoning is written first, one line per merchant, and only then the
+entries:
 
   key: hausverwaltung bergmann | 12 bookings, money out, about -1150.00 EUR each
   text: "MIETE WOHNUNG 12 03/2025" (counterparty: Hausverwaltung Bergmann GmbH)
-  -> category Housing, subcategory Rent, confidence 0.85, title "Hausverwaltung Bergmann",
-     description "landlord, monthly rent"
+
+  key: nordlicht systeme | 12 bookings, money in, about 2850.00 EUR each
+  text: "GEHALT 03/2025 PERS.NR 4711" (counterparty: Nordlicht Systeme GmbH)
 
   key: anna weber | 6 bookings, money out, about -24.00 EUR each, via PayPal
   text: "PP.4711.PP . ANNA WEBER, Ihre Zahlung" (counterparty: PayPal Europe S.a.r.l.)
-  -> category Transfers, subcategory Friends and family, confidence 0.4, title "Anna Weber",
-     description "PayPal payment to a person"
+
+  key: pfand | 1 booking, money out, about -0.25 EUR each
+  text: "Pfand" (a line item of a receipt)
+
+reasoning:
+Bergmann: MIETE is rent and the counterparty is a property manager, so Housing over Rent
+Nordlicht: money in and GEHALT, so Income over Salary and not a spending category
+Anna Weber: a person's name through PayPal, so Transfers, but which one is the household's call
+Pfand: a deposit line of a shop receipt, so it belongs where the shopping does
+
+entries:
+  hausverwaltung bergmann -> category Housing, subcategory Rent, confidence 0.85,
+     title "Hausverwaltung Bergmann", description "landlord, monthly rent"
+  nordlicht systeme -> category Income, subcategory Salary, confidence 0.9,
+     title "Nordlicht Systeme", description "employer, monthly salary"
+  anna weber -> category Transfers, subcategory Friends and family, confidence 0.4,
+     title "Anna Weber", description "PayPal payment to a person"
+  pfand -> category Groceries, subcategory Supermarket, confidence 0.8, title "Pfand",
+     description "bottle deposit on a shop receipt"
 """
 
 
@@ -81,8 +103,19 @@ class MerchantCategory(BaseModel):
 
 
 class Categorization(BaseModel):
-    """One entry per merchant in the batch."""
+    """One entry per merchant in the batch, and the reading behind them.
 
+    `reasoning` is first so the batch is read before it is filed: a small model that starts
+    with the entries files the second merchant where it filed the first (ticket 42).
+    """
+
+    reasoning: str = Field(
+        description=(
+            "One very short line per merchant, written before the entries: what you read the "
+            "merchant as, and whether a subcategory of that category really fits or none does. "
+            "No prose, no repetition of the booking text."
+        )
+    )
     merchants: list[MerchantCategory]
 
 
@@ -139,6 +172,62 @@ def categorize_prompt(
     )
 
 
+def refusals(
+    answer: Categorization,
+    entries: list[MerchantBatchEntry],
+    taxonomy: tuple[tuple[str, tuple[str, ...]], ...],
+) -> list[str]:
+    """What is wrong with this batch, in the words the resubmit uses.
+
+    Three things, all of which leave a merchant Needs review when nobody says so: a category
+    that is not the household's, a subcategory that belongs to another category, and a merchant
+    of the batch with no entry at all. An entry for a merchant nobody asked about is not one of
+    them: it is dropped where the answers are read, and asking again would cost a call to lose
+    the same line.
+    """
+    categories = {name: set(subs) for name, subs in taxonomy}
+    found: list[str] = []
+    answered: set[str] = set()
+    asked = {entry.key for entry in entries}
+    for entry in answer.merchants:
+        if entry.key not in asked:
+            continue
+        answered.add(entry.key)
+        if entry.category not in categories:
+            found.append(
+                f"`{entry.key}`: this household has no category `{entry.category}`. Pick one of "
+                f"the categories listed above, spelled exactly as it is listed."
+            )
+        elif entry.subcategory and entry.subcategory not in categories[entry.category]:
+            listed = ", ".join(sorted(categories[entry.category])) or "none"
+            found.append(
+                f"`{entry.key}`: `{entry.subcategory}` is not a subcategory of "
+                f"{entry.category}. Its subcategories are: {listed}. Use one of them or null."
+            )
+    for key in (entry.key for entry in entries if entry.key not in answered):
+        found.append(f"`{key}` has no entry. Every merchant of the batch needs one.")
+    return found
+
+
+def resubmit_prompt(answer: Categorization, found: list[str]) -> str:
+    """A resubmit: the answer that was refused, what is wrong with it, and the correction."""
+    entries = "\n".join(
+        f"  {entry.key} -> {entry.category}"
+        + (f" > {entry.subcategory}" if entry.subcategory else "")
+        + f", confidence {entry.confidence}"
+        for entry in answer.merchants
+    )
+    return (
+        "Your last answer could not be filed. This is a correction of it, not a new batch: "
+        "keep every entry the points below do not name.\n\n"
+        f"Your reasoning was:\n{answer.reasoning.strip()}\n\n"
+        f"Your entries were:\n{entries}\n\n"
+        "What is wrong with it:\n" + "\n".join(f"- {line}" for line in found) + "\n\n"
+        "Answer again with the corrected reasoning and the full set of entries. The first line "
+        "of the reasoning says what you changed."
+    )
+
+
 async def categorize_merchants(
     model: Model,
     entries: list[MerchantBatchEntry],
@@ -148,14 +237,23 @@ async def categorize_merchants(
 ) -> dict[str, MerchantCategory]:
     """Ask the fast slot about a batch of merchants, keyed by merchant key.
 
-    A batch that comes back short or with a key nobody asked about simply leaves those
-    merchants unanswered, which the pipeline reads as Needs review.
+    An answer naming a category this household does not have, or leaving a merchant out, is
+    handed back once with what is wrong with it, because both of those silently cost the
+    merchant its category and the second answer usually has it. Whatever is still unanswered or
+    unusable after that is left out, which the pipeline reads as Needs review.
     """
     if not entries:
         return {}
-    result = await categorizer_agent.run(
-        categorize_prompt(entries, taxonomy), model=model, model_settings=model_settings
-    )
+    prompt = categorize_prompt(entries, taxonomy)
+    result = await categorizer_agent.run(prompt, model=model, model_settings=model_settings)
+    found = refusals(result.output, entries, taxonomy)
+    if found:
+        logger.info("the categorizer is resubmitting a batch of %d: %s", len(entries), "; ".join(found))
+        result = await categorizer_agent.run(
+            f"{prompt}\n\n{resubmit_prompt(result.output, found)}",
+            model=model,
+            model_settings=model_settings,
+        )
     asked = {entry.key for entry in entries}
     return {answer.key: answer for answer in result.output.merchants if answer.key in asked}
 

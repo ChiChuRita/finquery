@@ -85,10 +85,10 @@ def scripted_categorizer(guesses: dict[str, tuple[str, str | None, float]] = GUE
                 "title": key.title(),
                 "description": "guessed by the model",
             }
-            for key in _KEY.findall(prompt)
+            for key in keys_in(prompt)
             if key in guesses
         ]
-        return ModelResponse(parts=[ToolCallPart("categorize", json.dumps({"merchants": merchants}))])
+        return ModelResponse(parts=[ToolCallPart("categorize", json.dumps({"reasoning": "read each merchant off its text", "merchants": merchants}))])
 
     respond.prompts = prompts  # type: ignore[attr-defined]
     respond.queries = queries  # type: ignore[attr-defined]
@@ -106,7 +106,11 @@ def _last_user_prompt(messages: Sequence[ModelMessage]) -> str:
 
 
 def keys_in(prompt: str) -> set[str]:
-    return set(_KEY.findall(prompt))
+    """The merchant keys of the batch, which is everything after the last heading.
+
+    The worked example of the prompt is written in the same shape, keys included, so a search
+    over the whole text would find its merchants too."""
+    return set(_KEY.findall(prompt.rsplit("Categorize these", 1)[-1]))
 
 
 async def categorize(client: httpx.AsyncClient, profile_id: str, import_id: str) -> dict[str, Any]:
@@ -254,6 +258,61 @@ async def test_the_dictionary_categorizes_without_ever_asking_the_model(
     # A PayPal payment to a person stays Needs review, which is the absence of a category.
     anna = await rows_of(client, profile_id, "ANNA WEBER")
     assert {(row["category"], row["title"]) for row in anna} == {(None, "Anna Weber")}
+
+
+async def test_a_batch_naming_a_category_the_household_does_not_have_is_resubmitted(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """A refused answer is handed back with what is wrong with it, not thrown away (ticket 42).
+
+    A category this profile does not carry costs the merchant its category silently, and the
+    model that wrote it usually has the right one: it just has to be told which line is wrong.
+    """
+    await import_synthetic(client, profile_id)
+    prompts: list[str] = []
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        if is_followup_request(messages):
+            return ModelResponse(parts=[TextPart(content="No follow-ups.")])
+        if is_distillation_request(messages):
+            return ModelResponse(parts=[distilled()])
+        prompt = _last_user_prompt(messages)
+        prompts.append(prompt)
+        first = len(prompts) == 1
+        merchants = [
+            {
+                "key": key,
+                # The first answer files the landlord under a category nobody has, and leaves
+                # the employer out altogether.
+                "category": "Wohnkosten" if first and key == "hausverwaltung bergmann" else GUESSES[key][0],
+                "subcategory": GUESSES[key][1],
+                "confidence": GUESSES[key][2],
+                "title": key.title(),
+                "description": "guessed by the model",
+            }
+            for key in keys_in(prompt)
+            if key in GUESSES and not (first and key == "mustermann systems")
+        ]
+        return ModelResponse(
+            parts=[ToolCallPart("categorize", json.dumps({"reasoning": "rent and salary", "merchants": merchants}))]
+        )
+
+    scripts.fast_call = respond  # type: ignore[assignment]
+
+    report = await categorize(client, profile_id, await last_import(client, profile_id))
+
+    assert len(prompts) == 2, "the refused batch was handed back exactly once"
+    resubmit = prompts[1]
+    assert "Your last answer could not be filed." in resubmit
+    assert "Your reasoning was:\nrent and salary" in resubmit
+    assert "hausverwaltung bergmann -> Wohnkosten > Rent" in resubmit
+    assert "this household has no category `Wohnkosten`" in resubmit
+    assert "`mustermann systems` has no entry" in resubmit
+    assert "The first line of the reasoning says what you changed." in resubmit
+    # The corrected answer is the one that was filed.
+    assert report["by_model"] == 24
+    rent = await rows_of(client, profile_id, "MIETE WOHNUNG")
+    assert {(row["category"], row["subcategory"]) for row in rent} == {("Housing", "Rent")}
 
 
 async def test_a_rule_beats_the_model_and_runs_before_it(

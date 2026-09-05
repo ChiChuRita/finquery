@@ -31,6 +31,15 @@ TOKEN = re.compile(r"^The merchant token: (?P<token>.+)$", re.MULTILINE)
 STEP = re.compile(r"^Step \d+:", re.MULTILINE)
 URL = re.compile(r"https?://\S+")
 
+
+def urls_in(prompt: str) -> list[str]:
+    """The URLs this loop really saw, which is the steps section and not the worked example.
+
+    The prompt teaches the shape of a lookup with a search result and a source in it, so a
+    search over the whole text would hand the script a URL nobody was shown."""
+    heading = "What your steps returned so far:"
+    return URL.findall(prompt.rsplit(heading, 1)[-1]) if heading in prompt else []
+
 KARLS = "KARTENZAHLUNG KARLS DANKT 12,50 EUR 03.05.2025"
 KARLS_HITS = [
     Hit("Karls Erdbeerhof - Wikipedia", "https://de.wikipedia.org/wiki/Karls", "A chain of strawberry farms"),
@@ -95,8 +104,10 @@ def _last_user_prompt(messages: Sequence[ModelMessage]) -> str:
 
 
 def _decide(**decision: Any) -> ModelResponse:
-    # `confidence` is required on every decision, so a search sends zero the way the prompt says.
+    # `confidence` is required on every decision, so a search sends zero the way the prompt says,
+    # and `reasoning` is the field the model fills before it decides anything.
     decision.setdefault("confidence", 0.0)
+    decision.setdefault("reasoning", f"the token reads like a business\nso: {decision.get('action')}")
     return ModelResponse(parts=[ToolCallPart("decide", json.dumps(decision))])
 
 
@@ -140,7 +151,7 @@ def fast_slot(decide: Decider, guesses: dict[str, tuple[str, str | None, float]]
             }
             for key in keys_in(prompt)
         ]
-        return ModelResponse(parts=[ToolCallPart("categorize", json.dumps({"merchants": merchants}))])
+        return ModelResponse(parts=[ToolCallPart("categorize", json.dumps({"reasoning": "read each merchant off its text", "merchants": merchants}))])
 
     respond.prompts = prompts  # type: ignore[attr-defined]
     respond.categorizer = categorizer  # type: ignore[attr-defined]
@@ -166,7 +177,7 @@ def searches_then_finishes(
             category=category,
             subcategory=subcategory,
             confidence=confidence,
-            sources=URL.findall(prompt)[:2],
+            sources=urls_in(prompt)[:2],
         )
 
     return decide
@@ -179,14 +190,14 @@ def searches_then_reads_then_finishes() -> Decider:
         if steps == 0:
             return _decide(action="search", query=f"what is {token}")
         if steps == 1:
-            return _decide(action="fetch", url=URL.findall(prompt)[-1])
+            return _decide(action="fetch", url=urls_in(prompt)[-1])
         return _decide(
             action="finish",
             summary="Karls Erlebnis-Dorf sells strawberries and jam",
             category="Groceries",
             subcategory="Supermarket",
             confidence=0.9,
-            sources=[URL.findall(prompt)[-1]],
+            sources=[urls_in(prompt)[-1]],
         )
 
     return decide
@@ -203,7 +214,7 @@ def finishes_with_no_confidence() -> Decider:
             summary="a chain of strawberry farms",
             category="Groceries",
             subcategory="Supermarket",
-            sources=URL.findall(prompt)[:1],
+            sources=urls_in(prompt)[:1],
             confidence=0.8 if "needs `confidence`" in prompt else 0.0,
         )
 
@@ -215,7 +226,7 @@ def never_stops(action: str = "search") -> Decider:
 
     def decide(prompt: str, token: str, _steps: int) -> ModelResponse:
         if action == "fetch":
-            urls = URL.findall(prompt)
+            urls = urls_in(prompt)
             if not urls:
                 return _decide(action="search", query=token)
             return _decide(action="fetch", url=urls[0])
@@ -455,7 +466,12 @@ async def test_a_finish_with_no_confidence_is_handed_back_once(
     assert found["category"] == "Groceries"
     # Handing the finish back costs a model round trip, never a second request to the web.
     assert len(web_client.calls) == 1
-    assert "needs `confidence`" in slot.prompts[-1]  # type: ignore[attr-defined]
+    # The refusal is framed as a correction of that decision: what was wrong with it, the
+    # model's own reasoning, and what to send instead (ticket 42).
+    handed_back = slot.prompts[-1]  # type: ignore[attr-defined]
+    assert "needs `confidence`" in handed_back
+    assert "you reasoned: the token reads like a business so: finish" in handed_back
+    assert "Send this same summary and category again with your honest confidence" in handed_back
 
 
 async def test_a_cache_hit_avoids_a_second_request(
