@@ -21,6 +21,11 @@ The two kinds ticket 08 brings, `mapping_confirmation` and `transaction_draft`, 
 They have to declare a kind all the same, or the fallback above would offer their Confirm and
 Discard answers to `set_rule` as category names.
 
+An applier answers with `ask_user.Applied`: `line` becomes `applied` on the tool result, which
+is what the card shows the moment the answers are applied, and `say` becomes `say`, which is
+the sentence the model is asked to write instead of copying that line back. An applier with
+nothing better to offer leaves `say` empty.
+
 Every applier is async, because keeping a duplicate or committing an extraction inserts
 bookings and a booking is categorized, which asks the fast slot. `resolve_answers` is therefore
 awaited from the chat endpoint, before the resumed half of the run starts.
