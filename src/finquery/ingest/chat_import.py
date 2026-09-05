@@ -574,7 +574,10 @@ async def _import_bill(
         return {
             "status": "nothing_found",
             "file": record.file_name,
-            "error": "No total and no line item could be read from that photo.",
+            "error": (
+                "No total and no line item could be read from that photo. Attach a photo of the "
+                "receipt itself, or type the booking and I will add it."
+            ),
         }
     await report(
         "checking",

@@ -39,10 +39,6 @@ AttachmentKind = Literal["csv", "pdf", "image", "other"]
 CSV_SUFFIXES = (".csv", ".tsv", ".txt")
 CSV_MEDIA_TYPES = ("text/csv", "text/tab-separated-values", "application/csv", "text/plain")
 
-ACCEPTED = ".csv,.tsv,.txt,.pdf,text/csv,text/plain,application/pdf,image/*"
-"""What the composer offers. Also what the server admits, in one place."""
-
-
 class AttachmentRejected(ValueError):
     """The upload is not something a conversation may carry."""
 
@@ -85,10 +81,11 @@ def store(
     of ours could ever take.
     """
     if not upload.data:
-        raise AttachmentRejected(f"{upload.file_name} is empty.")
+        raise AttachmentRejected(f"{upload.file_name} is empty, so there is nothing to read in it.")
     if len(upload.data) > MAX_ATTACHMENT_BYTES:
         raise AttachmentRejected(
-            f"{upload.file_name} is larger than {MAX_ATTACHMENT_BYTES // (1024 * 1024)} MB."
+            f"{upload.file_name} is larger than {MAX_ATTACHMENT_BYTES // (1024 * 1024)} MB. "
+            "Export a shorter date range from your bank and attach that."
         )
     kind = kind_of(upload.file_name, upload.media_type)
     if kind == "other":

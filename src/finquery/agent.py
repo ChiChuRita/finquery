@@ -21,10 +21,12 @@ Selected memories and the rolling summary arrive as run instructions assembled b
 `finquery.context.assemble`, not from here.
 """
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
-from functools import partial
+from functools import partial, wraps
+from inspect import iscoroutinefunction
 from typing import Any
 
 from pydantic_ai import Agent, ModelRetry, RunContext
@@ -53,6 +55,8 @@ from finquery.progress import report as report_progress
 from finquery.providers import ModelResolver, ProviderNotAvailable
 from finquery.query import load_query_context, run_query
 from finquery.weblookup import MAX_FETCHES, MAX_SEARCHES, WebClient, lookups_for, web_lookup_enabled
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """\
 You are FinQuery, a local-first personal-finance analyst. You help the user understand their
@@ -223,6 +227,9 @@ of it in prose is a question the user cannot answer. `propose_changeset`, `apply
 and the split a receipt proposes are already on screen with their own buttons, so they take no
 `ask_user` call at all.
 
+A result carrying `tool_failed` means that step went wrong. Say its `error` in one line, say
+nothing about what the step would have found, and do not call the same tool again this turn.
+
 After a tool returns, always write the answer as text. Never finish a turn with your thinking
 alone, and never mention the internal feedback you may receive between steps.
 
@@ -264,6 +271,57 @@ chat_agent: Agent[ChatDeps, str | DeferredToolRequests] = Agent(
     toolsets=[ask_user_toolset],
     name="finquery-chat",
 )
+
+
+TOOL_FAILED = "tool_failed"
+"""The key on a tool result that says the step failed for a reason nobody wrote copy for."""
+
+
+def _tool_failure(name: str, exc: Exception) -> dict[str, Any]:
+    logger.exception("the %s tool failed", name)
+    return {
+        TOOL_FAILED: True,
+        "error": (
+            f"The {name.replace('_', ' ')} step could not be finished because something "
+            "unexpected went wrong. Try it again, or ask for it in another way."
+        ),
+    }
+
+
+def guarded(fn: Callable[..., Any]) -> Callable[..., Any]:
+    """One sentence in the tool's step instead of an exception that ends the turn.
+
+    Every refusal this app means to give is already a sentence: a `ModelRetry` the model
+    corrects itself from, or an `error` field the prompt tells it to read out. What is left is
+    the failure nobody wrote copy for (a search backend raising something new, a corrupt row,
+    a bug), and without this it leaves the browser with a raw error and a dead turn. Here it is
+    logged whole and reaches the transcript as a step the user can read. `Cancelled` is a
+    `BaseException`, so Stop still cuts a tool short the way it did.
+    """
+    name = fn.__name__
+    if iscoroutinefunction(fn):
+
+        @wraps(fn)
+        async def run_async(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return await fn(*args, **kwargs)
+            except ModelRetry:
+                raise
+            except Exception as exc:  # noqa: BLE001 - that is the point of this wrapper
+                return _tool_failure(name, exc)
+
+        return run_async
+
+    @wraps(fn)
+    def run(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return fn(*args, **kwargs)
+        except ModelRetry:
+            raise
+        except Exception as exc:  # noqa: BLE001 - that is the point of this wrapper
+            return _tool_failure(name, exc)
+
+    return run
 
 
 @chat_agent.instructions
@@ -325,6 +383,7 @@ def attached_files(ctx: RunContext[ChatDeps]) -> str:
 
 
 @chat_agent.tool
+@guarded
 async def query(ctx: RunContext[ChatDeps], request: str, hints: str | None = None) -> dict[str, Any]:
     """Answer one question about the user's transactions with SQL that really ran.
 
@@ -350,6 +409,7 @@ async def query(ctx: RunContext[ChatDeps], request: str, hints: str | None = Non
 
 
 @chat_agent.tool(retries=2)
+@guarded
 def propose_changeset(ctx: RunContext[ChatDeps], intent: ChangesetIntent) -> dict[str, Any]:
     """Propose a change to the user's bookings or categories, for them to apply or discard.
 
@@ -374,6 +434,7 @@ def propose_changeset(ctx: RunContext[ChatDeps], intent: ChangesetIntent) -> dic
 
 
 @chat_agent.tool(retries=2)
+@guarded
 def apply_simple_edit(
     ctx: RunContext[ChatDeps],
     transaction_id: str,
@@ -426,6 +487,7 @@ def apply_simple_edit(
 
 
 @chat_agent.tool
+@guarded
 def remember(ctx: RunContext[ChatDeps], text: str, kind: MemoryKind = "fact") -> str:
     """Remember one durable fact about the user or their transactions across all conversations.
 
@@ -453,6 +515,7 @@ def remember(ctx: RunContext[ChatDeps], text: str, kind: MemoryKind = "fact") ->
 # `set_rule` calls in one response. They write, and SQLite serializes writers, so they run one
 # after another instead of racing for the same connection.
 @chat_agent.tool(sequential=True)
+@guarded
 def set_rule(
     ctx: RunContext[ChatDeps], pattern: str, category: str, subcategory: str | None = None
 ) -> dict[str, Any]:
@@ -481,6 +544,7 @@ def set_rule(
 
 
 @chat_agent.tool
+@guarded
 async def review_batch(ctx: RunContext[ChatDeps], limit: int = QUESTIONS_PER_CARD) -> dict[str, Any]:
     """The merchants that still need the user's decision, as a ready Question card.
 
@@ -520,6 +584,7 @@ async def review_batch(ctx: RunContext[ChatDeps], limit: int = QUESTIONS_PER_CAR
 
 
 @chat_agent.tool
+@guarded
 async def review_duplicates(ctx: RunContext[ChatDeps], limit: int = DUPLICATES_PER_CARD) -> dict[str, Any]:
     """The bookings held aside as possible duplicates, ready to become a Question card.
 
@@ -538,6 +603,7 @@ async def review_duplicates(ctx: RunContext[ChatDeps], limit: int = DUPLICATES_P
 
 
 @chat_agent.tool
+@guarded
 async def chart(ctx: RunContext[ChatDeps], request: str, hints: str | None = None) -> dict[str, Any]:
     """Draw one chart of the user's transactions and show it in the answer.
 
@@ -616,6 +682,7 @@ def _only_when_web_lookup_is_on(ctx: RunContext[ChatDeps], tool_def: ToolDefinit
 
 
 @chat_agent.tool(prepare=_only_when_web_lookup_is_on)
+@guarded
 async def lookup_merchant(ctx: RunContext[ChatDeps], merchant: str) -> dict[str, Any]:
     """Find out what an unknown merchant is by searching the web.
 
@@ -649,6 +716,7 @@ async def lookup_merchant(ctx: RunContext[ChatDeps], merchant: str) -> dict[str,
 
 
 @chat_agent.tool
+@guarded
 async def import_file(
     ctx: RunContext[ChatDeps],
     file_name: str,
@@ -684,6 +752,7 @@ async def import_file(
 
 
 @chat_agent.tool
+@guarded
 async def extract_transaction(ctx: RunContext[ChatDeps], text: str) -> dict[str, Any]:
     """Read the bookings out of what the user typed or pasted, as a preview they confirm.
 
@@ -743,6 +812,7 @@ async def extract_transaction(ctx: RunContext[ChatDeps], text: str) -> dict[str,
 # One confirmed card can hold several rows, so the model emits several calls in one response.
 # They write, and SQLite serializes writers, so they run one after another.
 @chat_agent.tool(sequential=True)
+@guarded
 async def add_transaction(
     ctx: RunContext[ChatDeps], ref: str, booked_on: str | None = None
 ) -> dict[str, Any]:

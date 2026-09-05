@@ -20,17 +20,16 @@ from .conftest import (
 
 # Two conditions have to hold for compression to fire, and only the second is what this budget
 # is for: there must be something older than the last six turns (so never before the eighth),
-# and the prompt must be over 60 percent of the budget. The system prompt alone is 3145 tokens
+# and the prompt must be over 60 percent of the budget. The system prompt alone is 3192 tokens
 # now, so the token half is already true on the first turn and the turn count is what decides.
 # What the budget has to clear is the floor a compressed prompt cannot go below (the system
-# prompt, the summary and the last six turns), measured at 4063 tokens here. The real default is
-# 32768, far above any floor. Every ticket that adds a prompt block has had to move this: this
-# time for ticket 30's minors (a message that is not a question, memories as the only source of
-# a name, the duplicate summary in the model's own words), which cost 261 tokens on top of the
-# 2884 main carried. Measured rather than guessed, the way this paragraph describes: drive
-# twelve turns with the budget in the settings and take the largest `used` of the turns that
-# compressed. 4800 leaves about 18 percent of headroom over the floor, near the margin ticket
-# 27 left.
+# prompt, the summary and the last six turns), measured at 4110 tokens here. The real default is
+# 32768, far above any floor. Every ticket that adds a prompt block has had to move this;
+# ticket 31 added the two sentences about a `tool_failed` result, 47 tokens on top of the 3145
+# ticket 30 measured, and the floor went from 4063 to 4110, so the constant stays where it is.
+# Measured rather than guessed, the way this paragraph describes: drive twelve turns with the
+# budget in the settings and take the largest `used` of the turns that compressed. 4800 leaves
+# about 17 percent of headroom over the floor, near the margin ticket 27 left.
 BUDGET = 4800
 SUMMARY = "The user asked about groceries and rent in the spring and cares about subscriptions."
 

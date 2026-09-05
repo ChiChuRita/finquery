@@ -164,12 +164,19 @@ export function SplitEditor({
         {legs.length > 0 && (
           // The server refuses a split whose legs miss the transaction, and it says so in its
           // own number format. The hint next to this button already has the figure, so the
-          // editor refuses in place instead of asking.
+          // editor refuses in place instead of asking. One leg is not a split either, and
+          // "Remove the split" is the button for what that user means.
           <Button
-            disabled={save.isPending || left !== 0}
+            disabled={save.isPending || left !== 0 || legs.length < 2}
             onClick={() => submit(legs.map(toChild))}
             size="sm"
-            title={left === 0 ? undefined : `${formatEur(left)} is still unaccounted for.`}
+            title={
+              legs.length < 2
+                ? 'A split needs at least two legs.'
+                : left === 0
+                  ? undefined
+                  : `${formatEur(left)} is still unaccounted for.`
+            }
           >
             {save.isPending ? 'Saving...' : 'Save split'}
           </Button>

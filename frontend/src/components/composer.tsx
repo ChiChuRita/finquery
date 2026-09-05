@@ -26,6 +26,18 @@ const ACCEPT =
 const MAX_FILES = 5
 const MAX_FILE_BYTES = 20 * 1024 * 1024
 
+/** What the composer says when it will not take a file, in this app's own words.
+ *
+ * The library writes for many files at once ("All files exceed the maximum size."), where the
+ * case here is nearly always one file that has to be swapped for another one. The sentences
+ * match what the server answers for the same three refusals (`finquery.attachments`).
+ */
+const REJECTED: Record<string, string> = {
+  accept: 'FinQuery reads a CSV export, a statement PDF or a photo. That file is none of the three.',
+  max_file_size: `A file has to be under ${MAX_FILE_BYTES / (1024 * 1024)} MB. Export a shorter date range from your bank and attach that.`,
+  max_files: `One message carries at most ${MAX_FILES} files. Send these and attach the rest after.`,
+}
+
 export function Composer({
   status,
   onSubmit,
@@ -66,7 +78,7 @@ export function Composer({
       maxFileSize={MAX_FILE_BYTES}
       maxFiles={MAX_FILES}
       multiple
-      onError={(error) => setRejected(error.message)}
+      onError={(error) => setRejected(REJECTED[error.code] ?? error.message)}
       onSubmit={handleSubmit}
     >
       <PromptInputBody>

@@ -1,0 +1,5 @@
+Auftragskonto;Buchungstag;Verwendungszweck;Betrag;Beguenstigter/Zahlungspflichtiger
+DE1;19.01.2025;Erste Zahlung;-11,00;Laden
+DE1;20.01.2025;Kauf; Danke;-12,00;Laden
+DE1;21.01.2025;Dritte Zahlung;-13,00
+DE1;22.01.2025;Vierte Zahlung;-14,00;Laden

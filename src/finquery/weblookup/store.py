@@ -19,6 +19,15 @@ SENT = "sent"
 OK = "ok"
 LOG_PAGE = 50
 
+SWITCHED_OFF = (
+    "Web lookup was switched off while this lookup was running, so nothing more left this "
+    "machine."
+)
+
+
+class WebLookupOff(RuntimeError):
+    """The profile switched web lookup off. Raised where a request would have been made."""
+
 
 @dataclass(frozen=True)
 class Source:
@@ -121,6 +130,15 @@ class OutboundJournal:
     token: str
 
     def before(self, kind: str, target: str) -> str:
+        """Log this request, or refuse it because the switch went off since the loop started.
+
+        The switch is read per turn, so a loop that was already running would otherwise keep
+        sending. This is the only route the loop has to the outside world, so checking it here
+        is what makes "off" mean nothing leaves, even mid-lookup.
+        """
+        with self.factory() as session:
+            if not web_lookup_enabled(session, self.profile_id):
+                raise WebLookupOff(SWITCHED_OFF)
         return log_request(self.factory, self.profile_id, kind, target, self.token)
 
     def after(self, handle: str, status: str) -> None:

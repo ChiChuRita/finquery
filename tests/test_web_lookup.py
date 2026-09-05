@@ -521,7 +521,11 @@ async def test_a_search_that_fails_is_reported_and_not_cached(
 
     _, chunks = await chat(conversation_id, "Was ist KARLS DANKT?")
 
-    assert outputs(chunks)[0]["error"] is not None
+    # The sentence names what actually happened, not the budget it happened to spend.
+    assert outputs(chunks)[0]["error"] == (
+        "No web search went through: the search backends are rate limiting us right now. "
+        "Nothing was learned about this merchant."
+    )
     entries = await outbound_log(client, profile_id)
     assert [e["status"] for e in entries] == ["the search backends are rate limiting us right now"] * 4
     # Nothing was learned, so the next attempt is free to try again.
@@ -611,3 +615,66 @@ async def test_a_low_confidence_lookup_still_becomes_a_question_card(
     # The lookup's guess is the first button of the card, the way the model's guess is.
     assert asked["hausverwaltung bergmann"]["guess"] == "Shopping"
     assert asked["hausverwaltung bergmann"]["confidence"] == 0.4
+
+async def test_switching_the_lookup_off_mid_loop_stops_the_next_request(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str, web_client: StubWeb
+) -> None:
+    """The switch is read per turn, so a loop already running has to be stopped where it sends.
+
+    The journal is the loop's only route out, so the check sits there: the search that was
+    already in flight finishes and no second one is made.
+    """
+    await switch_web_lookup(client, profile_id, True)
+    made = 0
+
+    async def flip_it_off() -> None:
+        nonlocal made
+        made += 1
+        if made == 1:
+            await switch_web_lookup(client, profile_id, False)
+
+    web_client.watch = flip_it_off
+    scripts.fast = asks_about(KARLS)
+    scripts.fast_call = fast_slot(never_stops("search"))  # type: ignore[assignment]
+
+    _, chunks = await chat(await new_conversation(client, profile_id), "Was ist KARLS DANKT?")
+
+    assert web_client.searches == ["karls shop"], "the budget was four; the switch stopped it after one"
+    assert outputs(chunks)[0]["error"] == (
+        "Web lookup was switched off while this lookup was running, so nothing more left this machine."
+    )
+    # The one request that did go out is in the log, and nothing else is.
+    assert [(e["kind"], e["target"]) for e in await outbound_log(client, profile_id)] == [("search", "karls shop")]
+
+
+async def test_a_failure_nobody_wrote_copy_for_becomes_a_sentence_in_the_step(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str, web_client: StubWeb
+) -> None:
+    """An exception inside a tool used to end the turn with the exception's own text.
+
+    The search client is the one part of the app that talks to a machine we do not control, so
+    it is where a failure nobody anticipated is easiest to reach. `agent.guarded` turns any of
+    them into a tool result the transcript can render and the log keeps whole.
+    """
+    await switch_web_lookup(client, profile_id, True)
+
+    async def unheard_of(query: str) -> list[Hit]:
+        raise RuntimeError("the search library raised something new")
+
+    web_client.search = unheard_of  # type: ignore[assignment]
+    scripts.fast = asks_about(KARLS)
+    scripts.fast_call = fast_slot(searches_then_finishes())  # type: ignore[assignment]
+
+    response, chunks = await chat(await new_conversation(client, profile_id), "Was ist KARLS DANKT?")
+
+    assert response.status_code == 200
+    assert outputs(chunks) == [
+        {
+            "tool_failed": True,
+            "error": (
+                "The lookup merchant step could not be finished because something unexpected "
+                "went wrong. Try it again, or ask for it in another way."
+            ),
+        }
+    ]
+    assert "the search library raised something new" not in response.text

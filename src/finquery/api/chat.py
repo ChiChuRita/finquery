@@ -653,6 +653,14 @@ async def chat(request: Request, conversation_id: str) -> Response:
     turn_position = max(0, len(stored.turns) - 1) if answers else len(stored.turns)
     try:
         uploads = take_uploads(adapter.run_input.messages)
+        # A turn with nothing in it is not a turn: an empty box, a message of only spaces, or a
+        # request whose parts are gone. Without this the framework answers "Processed history
+        # cannot be empty." into the stream, and a message of spaces spends a model call.
+        if not answers and not uploads and not _latest_user_text(adapter.run_input.messages).strip():
+            raise HTTPException(
+                status_code=422,
+                detail="Type a question about your transactions, or drop a file in to import it.",
+            )
         with state.session_factory() as session:
             if uploads:
                 store_uploads(session, profile_id, conversation_id, turn_position, uploads)

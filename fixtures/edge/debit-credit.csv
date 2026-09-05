@@ -1,0 +1,5 @@
+Datum;Soll;Haben;Buchungsinfo;Empfänger
+11.01.2025;24,90;0,00;Einkauf;REWE
+12.01.2025;0,00;1.200,00;Gehalt;Arbeitgeber
+13.01.2025;10,00;5,00;Beides gefüllt;Bank
+14.01.2025;;;Nichts gefüllt;Bank

@@ -8,6 +8,7 @@ import {
   type ToolUIPart,
 } from 'ai'
 import {
+  AlertTriangleIcon,
   BrainIcon,
   CircleStopIcon,
   FileTextIcon,
@@ -208,7 +209,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
           )}
           {error && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-destructive text-sm" role="alert">
-              {error.message}
+              {refusal(error)}
             </div>
           )}
         </ConversationContent>
@@ -397,6 +398,49 @@ function stoppedTool(part: MessagePart, interrupted: boolean): boolean {
   return OPEN_TOOL.has(tool.state)
 }
 
+/** What a refused request says, as a sentence rather than as a response body.
+ *
+ * `useChat` puts the body of a non-2xx response straight into `error.message`, and every
+ * refusal this app writes is a FastAPI `{"detail": "..."}`, so an empty file or a message with
+ * nothing in it reached the transcript as JSON.
+ */
+function refusal(error: Error): string {
+  try {
+    const body = JSON.parse(error.message) as { detail?: unknown }
+    if (typeof body.detail === 'string' && body.detail) return body.detail
+  } catch {
+    // Not a JSON body, so whatever the transport said is all there is to say.
+  }
+  return error.message || 'Something went wrong. Try that again.'
+}
+
+/** The sentence a tool that failed unexpectedly left behind, or nothing.
+ *
+ * The server turns any exception inside a tool into `{tool_failed, error}` (`agent.guarded`),
+ * so the transcript shows a step the user can read instead of the turn ending on a raw error.
+ * Judged before the per-tool renderers, which all read their own tool's fields.
+ */
+function failedTool(part: MessagePart): string | undefined {
+  if (!part.type.startsWith('tool-')) return undefined
+  const tool = part as ToolUIPart
+  if (tool.state !== 'output-available' || typeof tool.output !== 'object' || tool.output === null) {
+    return undefined
+  }
+  const output = tool.output as { tool_failed?: boolean; error?: string }
+  if (!output.tool_failed) return undefined
+  return output.error ?? 'That step could not be finished.'
+}
+
+/** The step a failed tool leaves in the transcript: one sentence, never an exception. */
+function FailedToolStep({ reason }: { reason: string }) {
+  return (
+    <Step tone="error">
+      <AlertTriangleIcon aria-hidden="true" className="size-3.5 shrink-0" />
+      <span>{reason}</span>
+    </Step>
+  )
+}
+
 /** The step a stopped tool leaves in the transcript. The partial turn keeps it (m6). */
 function StoppedToolStep({ type }: { type: string }) {
   return (
@@ -527,7 +571,12 @@ function TranscriptMessage({
     <Message from={message.role}>
       <MessageContent>
         {foldReasoning(message.parts).map((part, index) => {
-          // Judged before any card reads the part: a stopped tool has no result to render.
+          // Judged before any card reads the part: neither a failed nor a stopped tool has
+          // the result its own renderer would read.
+          const failed = failedTool(part)
+          if (failed !== undefined) {
+            return <FailedToolStep key={`${message.id}-${index}`} reason={failed} />
+          }
           if (stoppedTool(part, interrupted)) {
             return <StoppedToolStep key={`${message.id}-${index}`} type={part.type} />
           }
