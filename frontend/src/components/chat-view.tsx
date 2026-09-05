@@ -6,16 +6,25 @@ import {
   AlertTriangleIcon,
   BrainIcon,
   CircleStopIcon,
-  FileTextIcon,
   GitCompareIcon,
-  ImageIcon,
   SparklesIcon,
   ZapIcon,
 } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { StickToBottomContext } from 'use-stick-to-bottom'
 
-import { Conversation, ConversationContent, ConversationScrollButton } from '@/components/ai-elements/conversation'
+import {
+  Attachment,
+  AttachmentInfo,
+  AttachmentPreview,
+  Attachments,
+} from '@/components/ai-elements/attachments'
+import {
+  Conversation,
+  ConversationContent,
+  ConversationDownload,
+  ConversationScrollButton,
+} from '@/components/ai-elements/conversation'
 import { Message, MessageContent, MessageResponse, MessageToolbar } from '@/components/ai-elements/message'
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
 import { Shimmer } from '@/components/ai-elements/shimmer'
@@ -56,6 +65,7 @@ import {
 } from '@/lib/api'
 import { hasPendingPrompt, takePendingPrompt } from '@/lib/pending'
 import { useSlotLabel } from '@/lib/slots'
+import { messageToMarkdown, transcriptFilename } from '@/lib/transcript-markdown'
 import { readScrollTop, useWorkspace, writeScrollTop } from '@/lib/workspace'
 
 const SLOT_ICONS: Record<ModelSlot, typeof ZapIcon> = { fast: ZapIcon, quality: SparklesIcon }
@@ -262,7 +272,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <PageBar title={conversation.title}>
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-2">
           {context ? (
             <ContextBadge stats={context} />
           ) : (
@@ -270,6 +280,18 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
               &ndash;
             </span>
           )}
+          {/* The whole audit trail, in a file: every step, card and figure as markdown. */}
+          <ConversationDownload
+            aria-label="Download this conversation"
+            className="static size-7 text-muted-foreground"
+            disabled={messages.length === 0}
+            filename={transcriptFilename(conversation.title)}
+            formatMessage={messageToMarkdown}
+            messages={messages}
+            size="icon-sm"
+            title="Download this conversation as markdown"
+            variant="ghost"
+          />
         </span>
       </PageBar>
 
@@ -401,19 +423,42 @@ function useRememberedScroll(conversationId: string) {
   return context
 }
 
-/** A file the user sent with this message. It links to the stored copy the server kept. */
-function AttachmentChip({ part }: { part: FileUIPart }) {
-  const Icon = part.mediaType?.startsWith('image/') ? ImageIcon : FileTextIcon
+const isPhoto = (part: FileUIPart) => part.mediaType?.startsWith('image/') === true
+
+/** The files the user sent with this message, each one a link to the copy the server stored.
+ *
+ * A photo is shown as a photo: the receipt dropped on the composer is what the user has to
+ * recognize the message by, and a grey icon with a file name is not it. A CSV and a statement
+ * PDF have nothing to look at, so those stay chips.
+ */
+function MessageAttachments({ files, messageId }: { files: FileUIPart[]; messageId: string }) {
+  const photos = files.filter(isPhoto)
+  const documents = files.filter((file) => !isPhoto(file))
+  // Ids come from the position in the message, not in the row being drawn: the two rows are
+  // slices of the same list and would otherwise both start at zero.
+  const link = (file: FileUIPart) => {
+    const id = `${messageId}-file-${files.indexOf(file)}`
+    return (
+      <a href={file.url} key={id} rel="noreferrer" target="_blank" title={file.filename}>
+        {/* `AttachmentInfo` draws nothing in the grid variant, so one link serves both rows. */}
+        <Attachment data={{ ...file, id }}>
+          <AttachmentPreview />
+          <AttachmentInfo className="max-w-48 text-xs" />
+        </Attachment>
+      </a>
+    )
+  }
   return (
-    <a
-      className="not-prose mb-0 inline-flex max-w-full items-center gap-1.5 rounded-full border bg-background/60 px-2.5 py-1 text-xs transition-colors hover:bg-muted"
-      href={part.url}
-      rel="noreferrer"
-      target="_blank"
-    >
-      <Icon className="size-3.5 shrink-0 text-muted-foreground" />
-      <span className="truncate">{part.filename ?? 'attachment'}</span>
-    </a>
+    <div className="not-prose mb-0 flex w-full flex-col gap-2">
+      {photos.length > 0 && (
+        // The library's grid pushes itself to the right edge; inside this bubble it reads
+        // left to right like everything else in it.
+        <Attachments className="ml-0" variant="grid">
+          {photos.map(link)}
+        </Attachments>
+      )}
+      {documents.length > 0 && <Attachments variant="inline">{documents.map(link)}</Attachments>}
+    </div>
   )
 }
 
@@ -671,6 +716,8 @@ function TranscriptMessage({
   const suggestions = message.parts.filter((p) => p.type === 'data-followups')
   const followups = isLast && !live && !pendingCard ? (suggestions.at(-1)?.data.suggestions ?? []) : []
   const parts = foldReasoning(message.parts)
+  // What was attached to this message, drawn as one row rather than one chip per part.
+  const files = parts.filter((part) => part.type === 'file')
 
   return (
     <Message from={message.role}>
@@ -724,7 +771,10 @@ function TranscriptMessage({
             return <AddedToolStep key={part.toolCallId} part={part} />
           }
           if (part.type === 'file') {
-            return <AttachmentChip key={`${message.id}-${index}`} part={part} />
+            // Every file of this message is drawn once, together, where the first of them sits.
+            return part === files[0] ? (
+              <MessageAttachments files={files} key={`${message.id}-files`} messageId={message.id} />
+            ) : null
           }
           if (part.type === 'tool-set_rule') {
             return <RuleToolStep key={`${message.id}-${index}`} part={part} />

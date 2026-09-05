@@ -106,14 +106,16 @@ const getMessageText = (message: UIMessage): string =>
     .map((part) => part.text)
     .join("");
 
-export type ConversationDownloadProps = Omit<
-  ComponentProps<typeof Button>,
-  "onClick"
-> & {
-  messages: UIMessage[];
-  filename?: string;
-  formatMessage?: (message: UIMessage, index: number) => string;
-};
+// Local edit: the message type is a parameter, so an app with its own tools and data parts can
+// pass a `formatMessage` that reads them. As shipped, `formatMessage` takes a bare `UIMessage`,
+// which no typed transcript is assignable to, so the only way to write a formatter that sees a
+// tool's output was a cast at the call site.
+export type ConversationDownloadProps<TMessage extends UIMessage = UIMessage> =
+  Omit<ComponentProps<typeof Button>, "onClick"> & {
+    messages: TMessage[];
+    filename?: string;
+    formatMessage?: (message: TMessage, index: number) => string;
+  };
 
 const defaultFormatMessage = (message: UIMessage): string => {
   const roleLabel =
@@ -121,22 +123,22 @@ const defaultFormatMessage = (message: UIMessage): string => {
   return `**${roleLabel}:** ${getMessageText(message)}`;
 };
 
-export const messagesToMarkdown = (
-  messages: UIMessage[],
+export const messagesToMarkdown = <TMessage extends UIMessage>(
+  messages: TMessage[],
   formatMessage: (
-    message: UIMessage,
+    message: TMessage,
     index: number
   ) => string = defaultFormatMessage
 ): string => messages.map((msg, i) => formatMessage(msg, i)).join("\n\n");
 
-export const ConversationDownload = ({
+export const ConversationDownload = <TMessage extends UIMessage>({
   messages,
   filename = "conversation.md",
   formatMessage = defaultFormatMessage,
   className,
   children,
   ...props
-}: ConversationDownloadProps) => {
+}: ConversationDownloadProps<TMessage>) => {
   const handleDownload = useCallback(() => {
     const markdown = messagesToMarkdown(messages, formatMessage);
     const blob = new Blob([markdown], { type: "text/markdown" });
