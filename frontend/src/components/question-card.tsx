@@ -179,6 +179,10 @@ export function QuestionCard({
                     <div className="flex flex-wrap gap-1.5">
                       {optionsFor(row, fallback).map((option) => (
                         <Button
+                          // Every row offers the same handful of labels, so the label alone
+                          // names twenty identical buttons. The row is what tells them apart.
+                          aria-label={`${option.label} for ${row.label}`}
+                          aria-pressed={choice?.value === option.value}
                           className={cn('h-7 text-xs', choice?.value === option.value && 'ring-2 ring-primary')}
                           disabled={!open}
                           key={option.value}
@@ -192,9 +196,17 @@ export function QuestionCard({
                     </div>
                     {input.allow_free_text !== false && (
                       <Input
+                        aria-label={`Another answer for ${row.label}`}
                         className="h-7 text-xs"
                         disabled={!open}
                         onChange={(event) => type(row.ref, event.target.value)}
+                        // Enter sends the card, the way Enter sends the composer below it.
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter') return
+                          event.preventDefault()
+                          const payload = answers()
+                          if (open && payload.length > 0) send(payload)
+                        }}
                         placeholder="or type an answer"
                         value={choice?.text ?? ''}
                       />
@@ -236,7 +248,13 @@ export function QuestionCard({
 
       {rows.length > 0 && !answered && (
         <div className="mt-3 flex items-center justify-end gap-2">
-          <Button disabled={!open} onClick={() => send([])} size="sm" variant="ghost">
+          <Button
+            disabled={!open}
+            onClick={() => send([])}
+            size="sm"
+            title="They stay as they are, and you can ask about them again at any time."
+            variant="ghost"
+          >
             Skip these
           </Button>
           <Button disabled={!open || answers().length === 0} onClick={() => send(answers())} size="sm">

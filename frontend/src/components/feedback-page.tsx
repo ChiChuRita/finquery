@@ -1,10 +1,19 @@
 import { useQuery } from '@tanstack/react-query'
-import { ChartColumnIcon, DownloadIcon, MessageSquareIcon, ScaleIcon, ThumbsDownIcon, ThumbsUpIcon } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import {
+  ChartColumnIcon,
+  DownloadIcon,
+  MessageSquareIcon,
+  PlusIcon,
+  ScaleIcon,
+  ThumbsDownIcon,
+  ThumbsUpIcon,
+} from 'lucide-react'
 
 import { DocumentPage } from '@/components/page'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import {
   preferencesExportUrl,
   preferencesQuery,
@@ -27,6 +36,17 @@ const RATING = {
   pick: { label: 'Picked', icon: ScaleIcon, className: 'text-foreground' },
 } satisfies Record<PreferenceRating, { label: string; icon: typeof ThumbsUpIcon; className: string }>
 
+/** The one line of a record's prompt a person can read.
+ *
+ * A chart record's prompt is the whole training input: the request, the plan, the columns and
+ * the SQL, joined by newlines. That belongs in the export, not in a list somebody is skimming,
+ * so the list shows the request and the title carries the rest.
+ */
+function headline(prompt: string): string {
+  const first = prompt.split('\n').find((line) => line.trim() !== '')?.trim() ?? ''
+  return first.startsWith('Request: ') ? first.slice('Request: '.length) : first
+}
+
 /** One record: what was asked, what the user said about the answer, and when. */
 function Row({ record }: { record: PreferenceRecord }) {
   const kind = KIND[record.kind]
@@ -41,7 +61,7 @@ function Row({ record }: { record: PreferenceRecord }) {
       </Badge>
       <div className="min-w-0 flex-1">
         <p className="line-clamp-2 text-sm" title={record.prompt}>
-          {record.prompt}
+          {headline(record.prompt)}
         </p>
         <p className="pt-1 text-2xs text-muted-foreground">
           {formatDateTime(record.created_at)} &middot; {record.model_slot} slot
@@ -106,6 +126,15 @@ export function FeedbackPage() {
                 records appear here.
               </EmptyDescription>
             </EmptyHeader>
+            <EmptyContent>
+              {/* Every rating is given in a chat, so the way out of an empty list is a chat. */}
+              <Button asChild size="sm" variant="outline">
+                <Link to="/">
+                  <PlusIcon data-icon="inline-start" />
+                  New chat
+                </Link>
+              </Button>
+            </EmptyContent>
           </Empty>
         ) : (
           <ul className="divide-y rounded-xl border">

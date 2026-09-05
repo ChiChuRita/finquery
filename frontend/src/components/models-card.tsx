@@ -64,7 +64,13 @@ function FileRow({ file }: { file: ModelFile }) {
   )
 }
 
-function SlotBlock({ model }: { model: SlotModel }) {
+/** One slot: which model fills it and how ready it is.
+ *
+ * "resident" is a fact about a GGUF sitting in this process's memory, so it is only said on
+ * the local provider. A hosted model is neither resident nor on disk; it is simply reachable.
+ */
+function SlotBlock({ model, local }: { model: SlotModel; local: boolean }) {
+  const state = local ? (model.loaded ? 'resident' : model.ready ? 'on disk' : 'incomplete') : 'hosted'
   return (
     <div className="rounded-lg border p-3">
       <div className="flex items-baseline justify-between gap-3">
@@ -79,8 +85,8 @@ function SlotBlock({ model }: { model: SlotModel }) {
             {model.n_ctx ? (model.loaded ? ` - resident, loaded in ${model.load_seconds}s` : ' - loads on first use') : ''}
           </p>
         </div>
-        <Badge className="shrink-0" variant={model.loaded ? 'success' : model.ready ? 'secondary' : 'warning'}>
-          {model.loaded ? 'resident' : model.ready ? 'on disk' : 'incomplete'}
+        <Badge className="shrink-0" variant={state === 'incomplete' ? 'warning' : state === 'on disk' ? 'secondary' : 'success'}>
+          {state}
         </Badge>
       </div>
       {model.files.length > 0 && <ul className="mt-2 divide-y">{model.files.map((f) => <FileRow file={f} key={f.filename} />)}</ul>}
@@ -175,7 +181,7 @@ export function ModelsCard() {
 
       <div className="mt-3 flex flex-col gap-2">
         {data.models.map((model) => (
-          <SlotBlock key={model.slot} model={model} />
+          <SlotBlock key={model.slot} local={local} model={model} />
         ))}
       </div>
 

@@ -1,12 +1,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BrainIcon, PencilIcon, Trash2Icon } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { BrainIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { useState } from 'react'
 
 import { ConfirmDialog } from '@/components/dialogs'
 import { DocumentPage } from '@/components/page'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Textarea } from '@/components/ui/textarea'
 import { deleteMemory, memoriesQuery, patchMemory, type Memory, type MemoryKind } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
@@ -61,6 +62,15 @@ export function MemoryPage() {
                 and it appears here.
               </EmptyDescription>
             </EmptyHeader>
+            <EmptyContent>
+              {/* Nothing is remembered outside a chat, so the way out of an empty list is a chat. */}
+              <Button asChild size="sm" variant="outline">
+                <Link to="/">
+                  <PlusIcon data-icon="inline-start" />
+                  New chat
+                </Link>
+              </Button>
+            </EmptyContent>
           </Empty>
         ) : (
           <ul className="divide-y rounded-xl border">
@@ -99,7 +109,9 @@ export function MemoryPage() {
                     {SOURCE_LABEL[memory.source]} &middot; {formatDateTime(memory.created_at)}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                {/* Dim rather than absent: a row whose only affordance appears on hover reads as a
+                    read-only list, and nothing else on the page says the facts can be changed. */}
+                <div className="flex shrink-0 items-center gap-1 opacity-50 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
                   <Button aria-label="Edit this memory" onClick={() => setEditing(memory.id)} size="icon-xs" variant="ghost">
                     <PencilIcon />
                   </Button>

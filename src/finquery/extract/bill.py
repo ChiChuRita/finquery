@@ -34,6 +34,7 @@ from finquery.db import Transaction
 from finquery.extract import pdf
 from finquery.extract.guards import RowUnreadable, money, parse_statement_date
 from finquery.extract.subagent import Bill, read_bill
+from finquery.formats import day, eur
 from finquery.ingest.typed import ProposedTransaction, preview_card, store_drafts
 from finquery.providers import ModelResolver
 
@@ -83,7 +84,7 @@ def _line_of(extraction: BillExtraction) -> str:
     if extraction.verified:
         return (
             f"{len(extraction.items)} line items add up to the printed total of "
-            f"{extraction.total_cents / 100:.2f} EUR."
+            f"{eur(extraction.total_cents)} EUR."
         )
     return " ".join(FLAG_REASONS[flag] for flag in extraction.flags)
 
@@ -356,8 +357,8 @@ async def bill_outcome(
             **payload,
             "status": "bill_matched",
             "message": (
-                f"{extraction.merchant} for {extraction.total_cents / 100:.2f} EUR is already in the "
-                f"profile as the booking of {booking.booked_on.isoformat()}, and this receipt gives "
+                f"{extraction.merchant} for {eur(extraction.total_cents)} EUR is already in the "
+                f"profile as the booking of {day(booking.booked_on)}, and this receipt gives "
                 "nothing to split it into."
             ),
         }

@@ -39,10 +39,12 @@ export function EmptyState({ onPick }: { onPick: (text: string) => void }) {
               <Suggestion key={s} onClick={onPick} suggestion={s} />
             ))}
           </div>
+          {/* `text-balance` breaks this one after "Drop a CSV": at this length an evenly
+              balanced block reads worse than plain prose. */}
           {empty && (
-            <p className="max-w-md text-balance text-muted-foreground text-sm">
-              There is nothing imported in this profile yet. Drop a CSV export, a statement PDF or a bill
-              photo into the box below and I will read it, ask about anything I am unsure of and import it.
+            <p className="max-w-lg text-pretty text-muted-foreground text-sm">
+              Nothing is imported in this profile yet. Drop a CSV export, a statement PDF or a bill photo
+              into the box below and I will read it and ask about anything I am unsure of.
             </p>
           )}
         </div>

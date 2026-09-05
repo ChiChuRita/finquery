@@ -79,11 +79,28 @@ def _split_at_marker(buffer: str, markers: tuple[str, ...]) -> tuple[str, str | 
     return buffer, None, ""
 
 
+CHANNEL_NAMES = frozenset({"thought", "thinking"})
+"""The words that follow `<|channel>` in the template.
+
+OpenRouter serves the same models and swallows the angle-bracket tokens, which are special
+tokens, but hands the channel's *name* back as ordinary text, so an answer arrives with a bare
+`thought` line in it. Nothing the user should read is ever one of these words alone on a line.
+"""
+
+
+def strip_channel_lines(text: str) -> str:
+    """Drop lines that are nothing but a channel name."""
+    if not any(name in text.casefold() for name in CHANNEL_NAMES):
+        return text
+    kept = [line for line in text.split("\n") if line.strip().casefold() not in CHANNEL_NAMES]
+    return "\n".join(kept)
+
+
 def strip_markers(text: str) -> str:
     """Remove every chat-template token from a finished piece of text."""
     for marker in TEMPLATE_MARKERS:
         text = text.replace(marker, "")
-    return text
+    return strip_channel_lines(text)
 
 
 class MarkerFilter:

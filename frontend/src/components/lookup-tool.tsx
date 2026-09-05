@@ -74,6 +74,15 @@ export function LookupToolStep({ part }: { part: LookupMerchantPart }) {
         )}
       </div>
       {output.summary && <p className="text-foreground">{output.summary}</p>}
+      {/* The audit story of this feature is only true if it is legible, and the transcript is
+          where the user is looking when it happens. A cache hit says it in the line above. */}
+      {!output.cached && (
+        <p className="text-muted-foreground">
+          Only the token <span className="font-medium">{output.merchant}</span> left this machine:
+          no amount, no date, no account number and no name. Settings, under Web lookup, lists
+          every request that has ever gone out.
+        </p>
+      )}
       {output.sources.length > 0 && (
         <Sources className="mb-0">
           <SourcesTrigger count={output.sources.length} />

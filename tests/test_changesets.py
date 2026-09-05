@@ -252,6 +252,32 @@ async def test_a_simple_edit_applies_at_once_and_undo_reverts_it(
     assert again.status_code == 400
 
 
+async def test_a_split_summary_writes_a_four_figure_amount_the_german_way(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The thousands separator is the half of the format the small Edeka booking never shows."""
+    await import_synthetic(client, profile_id)
+    row = (await listing(client, profile_id, q="miete wohnung", limit=1))["rows"][0]
+    assert row["amount_cents"] == -115000
+    scripts.fast = call_tool(
+        "propose_changeset",
+        {
+            "kind": "split",
+            "title": "Split the rent",
+            "transaction_ids": [row["id"]],
+            "legs": [
+                {"description": "Flat", "amount_cents": -100000, "category": "Housing"},
+                {"description": "Garage", "amount_cents": -15000, "category": "Housing"},
+            ],
+        },
+    )
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Split the January rent into the flat and the garage.")
+
+    assert "1.150,00 EUR" in tool_output(chunks)["summary"]
+
+
 async def test_a_split_from_chat_creates_legs_that_sum_to_the_parent(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
 ) -> None:
@@ -276,6 +302,10 @@ async def test_a_split_from_chat_creates_legs_that_sum_to_the_parent(
 
     preview = tool_output(chunks)
     assert preview["kind"] == "split"
+    # The one amount the browser never reformats, so the server writes it the German way the
+    # rest of the app reads in: "-20,73 EUR", never "-20.73 EUR".
+    cents = abs(row["amount_cents"])
+    assert f"{cents // 100},{cents % 100:02d} EUR" in preview["summary"]
     # The parent as it is, then the legs it becomes: a new leg has no id yet.
     assert preview["rows"][0]["id"] == row["id"]
     assert preview["rows"][0]["after"] is None
@@ -315,9 +345,11 @@ async def test_a_split_whose_legs_do_not_sum_is_refused_with_the_reason(
 
     _, chunks = await chat(conversation_id, "Split that Edeka receipt into 10 and 5 euros.")
 
-    # The refusal reached the agent in words, and the agent reported it.
-    assert "add up to -15.00" in answer(chunks)
-    assert f"the transaction is {row['amount_cents'] / 100:.2f}" in answer(chunks)
+    # The refusal reached the agent in words, and the agent reported it, in the app's own money
+    # format rather than the en-US one the split editor's live hint never used.
+    cents = abs(row["amount_cents"])
+    assert "add up to -15,00 EUR" in answer(chunks)
+    assert f"the transaction is -{cents // 100},{cents % 100:02d} EUR" in answer(chunks)
     # Nothing was proposed and nothing was written.
     assert (await client.get(f"/api/transactions/{row['id']}/splits", params={"profile_id": profile_id})).json() == []
     assert (await listing(client, profile_id))["total"] == 433

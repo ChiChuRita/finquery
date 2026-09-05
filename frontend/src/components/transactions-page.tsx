@@ -1,14 +1,15 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import type { RowSelectionState } from '@tanstack/react-table'
-import { SearchIcon, TableIcon, XIcon } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { PlusIcon, SearchIcon, TableIcon, XIcon } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { PageBar } from '@/components/page'
 import { TransactionsTable, type Patch } from '@/components/transactions-table'
 import { AddTransactionDialog, ConfirmDeleteDialog } from '@/components/transaction-dialogs'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Label } from '@/components/ui/label'
@@ -69,9 +70,21 @@ function FilterBar({
 }) {
   // The text filter runs on the server, so it waits for a pause in the typing.
   const [text, setText] = useState(filters.q)
+  // What this bar last sent up. The bar is not the only place the filters are cleared from
+  // (the empty state offers it too), and without this the debounce would push the old text
+  // straight back in.
+  const pushed = useRef(filters.q)
+  useEffect(() => {
+    if (filters.q === pushed.current) return
+    pushed.current = filters.q
+    setText(filters.q)
+  }, [filters.q])
   useEffect(() => {
     if (text === filters.q) return
-    const timer = setTimeout(() => onChange({ ...filters, q: text }), 250)
+    const timer = setTimeout(() => {
+      pushed.current = text
+      onChange({ ...filters, q: text })
+    }, 250)
     return () => clearTimeout(timer)
   }, [text, filters, onChange])
 
@@ -293,12 +306,28 @@ export function TransactionsPage() {
             </EmptyTitle>
             <EmptyDescription>
               {hasFilters(filters)
-                ? 'Widen the date range or clear the filters.'
+                ? 'Try fewer of them, or start again from every booking.'
                 : accounts.length > 0
                   ? 'Drop a bank statement into the chat, or add a booking by hand.'
                   : 'Drop a bank statement into the chat. Manual rows need an account to book against.'}
             </EmptyDescription>
           </EmptyHeader>
+          <EmptyContent>
+            {hasFilters(filters) ? (
+              <Button onClick={() => setFilters(NO_FILTERS)} size="sm" variant="outline">
+                <XIcon data-icon="inline-start" />
+                Clear the filters
+              </Button>
+            ) : (
+              // Every import happens in a chat, so the way out of an empty table is a chat.
+              <Button asChild size="sm" variant="outline">
+                <Link to="/">
+                  <PlusIcon data-icon="inline-start" />
+                  New chat
+                </Link>
+              </Button>
+            )}
+          </EmptyContent>
         </Empty>
       ) : (
         <TransactionsTable

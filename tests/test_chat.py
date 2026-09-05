@@ -277,6 +277,42 @@ async def test_chat_template_tokens_never_reach_the_answer(
     assert "turn|>" not in detail.text
 
 
+async def test_a_bare_channel_name_never_reaches_the_answer(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    """OpenRouter swallows `<|channel>` but hands its channel name back as ordinary text.
+
+    The walkthrough of 2026-09-05 got two answers with a line reading nothing but `thought`.
+    A word that happens to contain one of those names is untouched.
+    """
+
+    async def leaks(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        if is_followup_request(messages):
+            yield "No follow-ups."
+            return
+        if is_distillation_request(messages):
+            yield distilled()
+            return
+        yield "I thought about it.\n"
+        # A whole line, and one split across two deltas the way a stream really arrives.
+        yield "thought\n"
+        yield "thou"
+        yield "ght\nYour income was 68.469,80 EUR.\n"
+
+    scripts.fast = leaks
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+
+    response, chunks = await chat(conversation_id, "What was my income in 2025?")
+
+    text = "".join(str(c["delta"]) for c in chunks if c["type"] == "text-delta")
+    assert text.strip() == "I thought about it.\nYour income was 68.469,80 EUR."
+    assert "\nthought\n" not in response.text
+    detail = await client.get(f"/api/conversations/{conversation_id}")
+    stored = detail.json()["messages"][-1]["parts"]
+    answers = [part["text"] for part in stored if part["type"] == "text"]
+    assert [answer.strip() for answer in answers] == ["I thought about it.\nYour income was 68.469,80 EUR."]
+
+
 async def test_the_thinking_duration_covers_the_whole_turn(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
 ) -> None:

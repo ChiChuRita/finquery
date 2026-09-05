@@ -147,15 +147,19 @@ def call_tools(*calls: tuple[str, dict[str, Any]]):
     return fn
 
 
-def echo_applied():
+def echo_applied(followups: Sequence[str] = ()):
     """A chat turn that only summarizes an answered card, quoting what the server applied.
 
     It calls no tool, so anything that moves in the database was moved by code. `settings`
-    records what the resumed half was run with.
+    records what the resumed half was run with, and `followups` is what the post-turn step
+    offers, so a test can check that a card turn ends with a way forward.
     """
     settings: list[object] = []
 
     async def fn(messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[object]:
+        if is_followup_request(messages):
+            yield "\n".join(followups) if followups else "No follow-ups."
+            return
         settings.append(info.model_settings)
         card = next((result for name, result in _tool_returns(messages) if name == "ask_user"), None)
         yield f"Summarized: {card['applied']}" if card else "Nothing to summarize."
@@ -389,8 +393,12 @@ async def test_answering_a_question_card_applies_the_answers_in_code(
         {"ref": "anna weber", "value": "Dining > Restaurant", "text": None},
         {"ref": "jonas keller", "value": None, "text": "Leisure"},
     ]
-    summarize = echo_applied()
+    summarize = echo_applied(followups=["Show me what changed?", "Which merchants are left?"])
     scripts.fast = summarize
+    # Categorization is behind us and applying the answers is code, so nothing on this half of
+    # the turn calls a sub-agent with a schema. Clearing it lets the post-turn steps reach the
+    # script above, which is what has the follow-ups.
+    scripts.fast_call = None
     response = await client.post(
         f"/api/conversations/{conversation_id}/chat",
         json=answer_card(conversation_id, detail["messages"][1]["id"], card, {"answers": answers}),
@@ -426,9 +434,18 @@ async def test_answering_a_question_card_applies_the_answers_in_code(
     reloaded = (await client.get(f"/api/conversations/{conversation_id}")).json()
     assert [m["role"] for m in reloaded["messages"]] == ["user", "assistant"]
     parts = reloaded["messages"][1]["parts"]
-    assert [part["type"] for part in parts] == ["text", "tool-ask_user", "text", "data-context"]
+    assert [part["type"] for part in parts] == [
+        "text",
+        "tool-ask_user",
+        "text",
+        "data-context",
+        # A resumed card turn has no user prompt of its own, and used to be the one turn in the
+        # app that ended with no way forward.
+        "data-followups",
+    ]
     assert parts[1]["state"] == "output-available"
     assert parts[1]["output"]["applied"] == applied
+    assert parts[4]["data"]["suggestions"] == ["Show me what changed?", "Which merchants are left?"]
 
 
 async def test_a_card_the_user_skips_leaves_the_rows_alone(
