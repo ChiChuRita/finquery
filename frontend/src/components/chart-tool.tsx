@@ -1,6 +1,21 @@
-import { ChartColumnIcon, ChevronDownIcon, RefreshCwIcon } from 'lucide-react'
+import {
+  ChartColumnIcon,
+  ChevronDownIcon,
+  ClipboardListIcon,
+  Code2Icon,
+  DatabaseIcon,
+  RefreshCwIcon,
+  ShieldCheckIcon,
+  WrenchIcon,
+  type LucideIcon,
+} from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
+import {
+  ChainOfThought,
+  ChainOfThoughtContent,
+  ChainOfThoughtStep,
+} from '@/components/ai-elements/chain-of-thought'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { FeedbackError, PairGrid, PairSide, Thumbs, useFeedback } from '@/components/feedback'
 import { ErrorSection, RowsTable, Section, SqlSection, rowLabel } from '@/components/query-result'
@@ -170,26 +185,133 @@ function ChartFrame({
   )
 }
 
-/** The audit trail under every chart: what was asked, what ran and the rows it drew. */
-function Footer({ output, actions }: { output: ChartToolOutput; actions: ReactNode }) {
-  const [open, setOpen] = useState(false)
+type ChainStatus = 'complete' | 'active' | 'pending'
+
+interface ChainStep {
+  icon: LucideIcon
+  label: string
+  description?: string
+  status: ChainStatus
+}
+
+const repairsLine = (count: number) =>
+  count === 0 ? 'Self-check passed' : `Self-check passed after ${count === 1 ? 'one repair' : `${count} repairs`}`
+
+/** The four things the chart sub-agent does, plus one step per repair round it needed.
+ *
+ * The words are the ones it narrates while it works (`chart/runner.py`): the plan, the data
+ * line, each repair and the self-check verdict. A chart still being made has no output to read
+ * yet, so its rail shows the first step active and the rest pending; once the tool has answered,
+ * every step it reached is complete and the ones it never got to stay pending.
+ */
+function chartSteps(output?: ChartToolOutput): ChainStep[] {
+  if (!output) {
+    return [
+      { icon: ClipboardListIcon, label: 'Planning the chart', status: 'active' },
+      { icon: DatabaseIcon, label: 'Querying the rows', status: 'pending' },
+      { icon: Code2Icon, label: 'Writing the chart definition', status: 'pending' },
+      { icon: ShieldCheckIcon, label: 'Checking it', status: 'pending' },
+    ]
+  }
+  const reached = (done: boolean): ChainStatus => (done ? 'complete' : 'pending')
+  const drawn = Boolean(output.code) && !output.error
+  // One note per repair round, and, for a chart shown with a rule it could not satisfy, the
+  // reason as one more. That last one is the verdict of the check, not a round of its own.
+  const rounds = output.notes.filter((note) => note.startsWith('Repair ') || note.startsWith('Gave up'))
+  const unmet = output.notes.find((note) => !rounds.includes(note))
+  return [
+    {
+      icon: ClipboardListIcon,
+      label: 'Planned the chart',
+      description: output.plan || undefined,
+      status: reached(Boolean(output.plan)),
+    },
+    {
+      icon: DatabaseIcon,
+      label: output.sql ? `Queried the rows · ${rowLabel(output.row_count)}` : 'The query returned nothing to draw',
+      description: output.sql ? output.columns.join(', ') : undefined,
+      status: reached(Boolean(output.sql)),
+    },
+    {
+      icon: Code2Icon,
+      label: 'Wrote the chart definition',
+      description: output.code ? (SHAPE_LABELS[output.shape] ?? output.shape) : undefined,
+      status: reached(Boolean(output.code)),
+    },
+    ...rounds.map((note): ChainStep => ({ icon: WrenchIcon, label: note, status: 'complete' })),
+    {
+      icon: ShieldCheckIcon,
+      label: unmet ?? (drawn ? repairsLine(rounds.length) : 'The chart was not drawn'),
+      description: drawn || unmet ? undefined : failureLine(output.error ?? ''),
+      status: reached(drawn || Boolean(unmet)),
+    },
+  ]
+}
+
+/** How this chart was made, on the icon rail: the plan, the query, the code and the check.
+ *
+ * It lives inside the details and nowhere else. The card, the query step and the changeset are
+ * the audit trail of the answer and must stay open on the page; this is the sub-agent's own
+ * work, which is worth reading once and then folding away.
+ */
+function ChartChain({ output }: { output?: ChartToolOutput }) {
+  return (
+    <ChainOfThought open>
+      <ChainOfThoughtContent>
+        {/* Keyed by position: two repair rounds can leave the same note behind. */}
+        {chartSteps(output).map((step, index) => (
+          <ChainOfThoughtStep
+            description={step.description}
+            icon={step.icon}
+            key={index}
+            label={step.label}
+            status={step.status}
+          />
+        ))}
+      </ChainOfThoughtContent>
+    </ChainOfThought>
+  )
+}
+
+/** The audit trail under every chart: what was asked, how it was made, what ran and the rows.
+ *
+ * A chart still being made opens this by itself, because the chain of thought inside it is the
+ * only thing there is to watch while nothing is drawn yet. The finished card starts folded, the
+ * way it always did.
+ */
+function Footer({
+  output,
+  running = false,
+  actions,
+}: {
+  output?: ChartToolOutput
+  running?: boolean
+  actions?: ReactNode
+}) {
+  const [open, setOpen] = useState(running)
   return (
     <Collapsible onOpenChange={setOpen} open={open}>
       <div className="flex items-center justify-between gap-2 border-t px-2 py-1.5">
         <CollapsibleTrigger asChild>
           <Button className="gap-1.5 text-muted-foreground" size="sm" variant="ghost">
             <ChevronDownIcon className={open ? 'rotate-180 transition-transform' : 'transition-transform'} />
-            {output.sql ? `SQL and ${rowLabel(output.row_count)}` : 'Details'}
+            {output?.sql ? `SQL and ${rowLabel(output.row_count)}` : 'Details'}
           </Button>
         </CollapsibleTrigger>
         {actions}
       </div>
       <CollapsibleContent className="space-y-4 border-t px-4 pt-3 pb-4">
-        <Section label="Request">
-          <p className="text-sm">{output.request}</p>
-          {output.plan && <p className="text-muted-foreground text-sm">{output.plan}</p>}
+        {/* While the chart is being made the card's own heading is the request, so it is not
+            repeated here. */}
+        {output && (
+          <Section label="Request">
+            <p className="text-sm">{output.request}</p>
+          </Section>
+        )}
+        <Section label="How this chart was made">
+          <ChartChain output={output} />
         </Section>
-        {output.error && (
+        {output?.error && (
           // The card says the failure in one line; what was quoted into it, code and all, is here.
           <Section label="Why it failed">
             <p className="whitespace-pre-wrap break-words rounded-md bg-muted px-3 py-2 font-mono text-muted-foreground text-xs">
@@ -197,17 +319,8 @@ function Footer({ output, actions }: { output: ChartToolOutput; actions: ReactNo
             </p>
           </Section>
         )}
-        {output.notes.length > 0 && (
-          <Section label="Repairs">
-            <ul className="space-y-1 text-muted-foreground text-sm">
-              {output.notes.map((note) => (
-                <li key={note}>{note}</li>
-              ))}
-            </ul>
-          </Section>
-        )}
-        {output.sql && <SqlSection sql={output.sql} />}
-        {output.row_count > 0 && (
+        {output?.sql && <SqlSection sql={output.sql} />}
+        {output && output.row_count > 0 && (
           <Section label={`Rows · ${rowLabel(output.row_count)}`}>
             <RowsTable columns={output.columns} rows={output.rows} />
           </Section>
@@ -470,6 +583,7 @@ export function ChartToolStep({
         <div className="flex items-center gap-2 px-4 pb-4">
           <Shimmer className="text-muted-foreground text-sm">Planning, querying, drawing...</Shimmer>
         </div>
+        <Footer running />
       </Card>
     )
   }
