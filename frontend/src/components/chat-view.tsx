@@ -44,6 +44,7 @@ import {
   patchConversation,
   refusalSentence,
   stopConversation,
+  streamUrl,
   type AskUserOutput,
   type AskUserPart,
   type ChatMessage,
@@ -53,7 +54,7 @@ import {
   type ModelSlot,
   type PreferenceRating,
 } from '@/lib/api'
-import { takePendingPrompt } from '@/lib/pending'
+import { hasPendingPrompt, takePendingPrompt } from '@/lib/pending'
 import { useSlotLabel } from '@/lib/slots'
 import { readScrollTop, useWorkspace, writeScrollTop } from '@/lib/workspace'
 
@@ -95,14 +96,20 @@ function ratingsByTarget(conversation: ConversationDetail): Map<string, Preferen
 
 export function ChatView({ conversation }: { conversation: ConversationDetail }) {
   const queryClient = useQueryClient()
-  const { profile } = useWorkspace()
+  const { profile, conversations } = useWorkspace()
   const [slot, setSlot] = useState<ModelSlot>(conversation.model_slot)
   const scrollContext = useRememberedScroll(conversation.id)
+  // The list is polled while anything runs, so it knows before this transcript does that the
+  // turn has started or ended. Until it has been loaded, what the conversation itself said.
+  const listed = conversations.find((c) => c.id === conversation.id) ?? conversation
 
   const transport = useMemo(
     () =>
       new DefaultChatTransport<ChatMessage>({
         api: chatUrl(conversation.id),
+        // Where the SDK's resume reattaches. Its default is `<api>/<chatId>/stream`, which here
+        // would be the chat endpoint with the conversation id twice.
+        prepareReconnectToStreamRequest: () => ({ api: streamUrl(conversation.id) }),
         // The server owns the history, so one message travels: the newest, or the one carrying
         // the Question card that was just answered. A card the user comes back to after asking
         // something else is not the newest message, and its answer is what this request is
@@ -127,9 +134,19 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
   // the transcript is taken back from the server once the turn ends and the two agree again.
   const resync = useRef(false)
 
+  // Whether the turn that is running is this view's own. The request that started it is already
+  // streaming it, and asking to resume on top of that would run the same stream into the
+  // transcript twice. It starts true for a conversation opened with a prompt waiting to be
+  // sent, which is the one turn this view starts without anybody pressing anything.
+  const [sentHere, setSentHere] = useState(() => hasPendingPrompt(conversation.id))
+  // Reattach to a turn somebody else started: the tab was closed and opened again, the user
+  // switched conversation and came back, or the page was reloaded mid-answer.
+  const reattach = listed.running && !sentHere
+
   const { messages, sendMessage, setMessages, status, stop, error } = useChat<ChatMessage>({
     id: conversation.id,
     messages: conversation.messages,
+    resume: reattach,
     transport,
     // No `sendAutomaticallyWhen`: it only ever fires for the newest assistant message, and
     // `addToolOutput` only ever writes to that message too, so a card the user came back to
@@ -145,6 +162,9 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
       }))
     },
     onFinish: () => {
+      // This view is done with that turn, so a turn started elsewhere afterwards is one to
+      // reattach to like any other.
+      setSentHere(false)
       void queryClient.invalidateQueries(conversationsQuery(profile?.id))
       void queryClient.invalidateQueries(conversationQuery(conversation.id))
       if (!resync.current) return
@@ -170,9 +190,16 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
   // the answer starts. Reading back through a long chat and then asking something otherwise
   // leaves the new turn off screen with nothing moving.
   const send = (message: Parameters<typeof sendMessage>[0]) => {
+    setSentHere(true)
     void sendMessage(message)
     scrollContext.current?.scrollToBottom()
   }
+
+  // The tab and the sidebar row draw their spinner from the conversation list, so it is asked
+  // again as soon as the server really has this turn (the first chunk is the proof it does).
+  useEffect(() => {
+    if (status === 'streaming') void queryClient.invalidateQueries(conversationsQuery(profile?.id))
+  }, [profile?.id, queryClient, status])
 
   /** Answer one Question card: put the output on the message the card is on, then send it.
    *
@@ -184,6 +211,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
   const answerCard = (toolCallId: string, output: AskUserOutput) => {
     const target = messages.find((message) => holdsCall(message, toolCallId))
     if (!target) return
+    setSentHere(true)
     // The stream will append the resumed half to the newest message, which is not this one.
     resync.current = target !== messages.at(-1)
     setMessages(
@@ -220,6 +248,9 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
   }
 
   const streaming = status === 'streaming' || status === 'submitted'
+  // A turn is being answered for this conversation: here, in another tab, or with nobody
+  // watching it at all. The composer is closed for all three, and Stop ends any of them.
+  const running = streaming || listed.running
   const ratings = useMemo(() => ratingsByTarget(conversation), [conversation])
   const lastMessage = messages.at(-1)
   const context = latestContext(messages)
@@ -294,10 +325,14 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
             onStop={handleStop}
             onSubmit={(text, files) => send(text ? { text, files } : { files })}
             slot={slot}
-            status={status}
+            // Running is running, whoever is watching: the box is closed and the button stops
+            // the turn, in the tab that started it and in one that only came to look.
+            status={running && status === 'ready' ? 'streaming' : status}
           />
           <p className="pt-2 text-center text-2xs text-muted-foreground">
-            Numbers come from executed queries, never from the model.
+            {running
+              ? 'This chat is answering. It keeps going if you switch chats or close the tab.'
+              : 'Numbers come from executed queries, never from the model.'}
           </p>
         </div>
       </div>

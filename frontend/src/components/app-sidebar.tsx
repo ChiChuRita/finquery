@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
 import { conversationsQuery, deleteConversation, patchConversation, type Conversation } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { forgetConversation, useWorkspace } from '@/lib/workspace'
@@ -137,10 +138,16 @@ export function AppSidebar() {
                           params.conversationId === conversation.id && 'font-medium',
                         )}
                         params={{ conversationId: conversation.id }}
-                        title={conversation.title}
+                        title={conversation.running ? `${conversation.title} (answering)` : conversation.title}
                         to="/c/$conversationId"
                       >
-                        <MessageSquareIcon className={ROW_ICON} />
+                        {/* A chat answering a turn says so wherever the user is, because the
+                            turn no longer needs anyone to be watching it (ticket 33). */}
+                        {conversation.running ? (
+                          <Spinner aria-label="Answering" className={ROW_ICON} />
+                        ) : (
+                          <MessageSquareIcon className={ROW_ICON} />
+                        )}
                         <span className="truncate">{conversation.title}</span>
                       </Link>
                       <DropdownMenu>

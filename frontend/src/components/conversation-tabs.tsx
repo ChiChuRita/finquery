@@ -3,6 +3,7 @@ import { PlusIcon, XIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
@@ -57,12 +58,14 @@ export function ConversationTabs() {
           >
             <Link
               aria-current={active ? 'page' : undefined}
-              className="max-w-44 truncate rounded-md py-1 pl-2.5 focus-ring"
+              className="flex max-w-44 items-center gap-1.5 rounded-md py-1 pl-2.5 focus-ring"
               params={{ conversationId: tab.id }}
-              title={tab.title}
+              title={tab.running ? `${tab.title} (answering)` : tab.title}
               to="/c/$conversationId"
             >
-              {tab.title}
+              {/* A turn of that chat is running, wherever the user happens to be looking. */}
+              {tab.running && <Spinner aria-label="Answering" className="size-3 shrink-0 text-muted-foreground" />}
+              <span className="truncate">{tab.title}</span>
             </Link>
             <Button
               aria-label={`Close ${tab.title}`}
