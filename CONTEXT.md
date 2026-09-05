@@ -166,6 +166,13 @@ the card embeds it, not what it is).
 **Self-check**: the in-process run of generated chart code in QuickJS against recording stubs,
 whose findings are the repair instructions the sub-agent gets back. Avoid: validation, linting.
 
+**Dashboard card**: one chart a profile keeps on its Dashboard page: a title, a shape, the SQL
+and the checked definition, and never a figure. The statement is re-run through the same guard
+and the same profile-scoped view on every load, so the numbers are the data's and a statement
+that stopped running is a sentence on that card. A card is seeded (one of four defaults), pinned
+from a chart in a chat, or asked for on the page in words. Avoid: widget, tile (a tile is one of
+the four plain figures above the cards), pin (the verb is fine, the noun is the card).
+
 ## Models
 
 **Model slot**: one of two logical positions, **fast** and **quality**. The chat agent uses the

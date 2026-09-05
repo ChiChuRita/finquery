@@ -184,6 +184,17 @@ Charts definition in plain JavaScript and checks it in-process before it is draw
 frame. The plan and any repairs show up in the thinking panel; the card carries the SQL and the
 rows behind the drawing. The contract is `docs/chart-runtime.md`.
 
+A chart worth keeping goes on the Dashboard (`/dashboard`), which is the page each profile opens
+with four figures of its newest month (spent, earned, net, and how many bookings still need
+review) and the charts it keeps. Four of them are there from the first visit: spending per month,
+spending by category over the last three months, income against spending, and the top ten
+merchants of the year. "Add to dashboard" on any chart card in a chat puts that chart there, and
+the line at the top of the page ("spending on groceries per month") runs the same chart sub-agent
+and shows the result with Keep and Discard. A card can be renamed, moved, refreshed and removed.
+What is stored is the title, the shape, the statement and the checked definition, never a number:
+every load runs the statement again through the same guard, so a card is as current as the data
+and one whose query stopped running says so on itself instead of breaking the page.
+
 Rate what comes back. Every answer has thumbs in its toolbar and every chart card has thumbs
 plus a Regenerate, which draws the same request a second time and shows both charts side by
 side with a Pick. A thumbs down on an answer offers an A/B: the same message is answered again
@@ -219,6 +230,7 @@ merchant token leaves at most once per profile: the result is cached. Search nee
   `db.py` (SQLAlchemy models and the query view), `taxonomy.py` (default categories),
   `agent.py` (chat agent and its tools), `query/` (query sub-agent, SQL guard, execution),
   `chart/` (chart sub-agent, shapes, QuickJS self-check),
+  `dashboard.py` (the tiles, the four default cards and the guarded run behind every card),
   `changesets.py` and `edits.py` (proposed changes and the rules about what may be written),
   `categorize/` (rules, merchant dictionary, categorizer sub-agent, review queue),
   `weblookup/` (the merchant token scrubber, the keyless search client, the self-directed
