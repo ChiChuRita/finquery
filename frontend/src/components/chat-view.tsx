@@ -209,7 +209,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
           )}
           {error && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-destructive text-sm" role="alert">
-              {error.message}
+              {refusal(error)}
             </div>
           )}
         </ConversationContent>
@@ -396,6 +396,22 @@ function stoppedTool(part: MessagePart, interrupted: boolean): boolean {
   }
   if (!interrupted || part.type === 'tool-ask_user') return false
   return OPEN_TOOL.has(tool.state)
+}
+
+/** What a refused request says, as a sentence rather than as a response body.
+ *
+ * `useChat` puts the body of a non-2xx response straight into `error.message`, and every
+ * refusal this app writes is a FastAPI `{"detail": "..."}`, so an empty file or a message with
+ * nothing in it reached the transcript as JSON.
+ */
+function refusal(error: Error): string {
+  try {
+    const body = JSON.parse(error.message) as { detail?: unknown }
+    if (typeof body.detail === 'string' && body.detail) return body.detail
+  } catch {
+    // Not a JSON body, so whatever the transport said is all there is to say.
+  }
+  return error.message || 'Something went wrong. Try that again.'
 }
 
 /** The sentence a tool that failed unexpectedly left behind, or nothing.

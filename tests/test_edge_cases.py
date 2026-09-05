@@ -274,11 +274,13 @@ async def test_a_file_the_composer_cannot_carry_is_refused_with_a_sentence(
     """Three refusals before a model is asked anything: empty, too big, and a kind nobody reads."""
     empty = await drop(client, scripts, profile_id, "empty.csv", b"")
     assert empty.status_code == 422
-    assert empty.json()["detail"] == "empty.csv is empty."
+    assert empty.json()["detail"] == "empty.csv is empty, so there is nothing to read in it."
 
     oversized = await drop(client, scripts, profile_id, "huge.csv", b"x" * (21 * 1024 * 1024))
     assert oversized.status_code == 422
-    assert oversized.json()["detail"] == "huge.csv is larger than 20 MB."
+    assert oversized.json()["detail"] == (
+        "huge.csv is larger than 20 MB. Export a shorter date range from your bank and attach that."
+    )
 
     other = await drop(
         client,
