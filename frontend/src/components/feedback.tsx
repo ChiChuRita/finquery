@@ -60,6 +60,13 @@ export function useFeedback(turnId: string | undefined, target: string | null, i
 
 const QUESTION = { response: 'Was this response useful?', chart: 'Was this chart useful?' }
 
+// A screen reader reads the name, not the tooltip, so the name has to be the verdict itself:
+// "Yes. Was this response useful?" reads as a question being asked of the reader.
+const VERDICT = {
+  response: { up: 'This response was useful', down: 'This response was not useful' },
+  chart: { up: 'This chart was useful', down: 'This chart was not useful' },
+}
+
 /** Thumbs up and down, in the message toolbar of an answer or the footer of a chart card. */
 export function Thumbs({
   subject,
@@ -81,7 +88,7 @@ export function Thumbs({
         aria-pressed={rating === 'up'}
         className={cn('size-6 text-muted-foreground', rating === 'up' && 'text-primary')}
         disabled={disabled || busy}
-        label={`Yes. ${question}`}
+        label={VERDICT[subject].up}
         onClick={() => onRate('up')}
         tooltip={rating === 'up' ? 'You found this useful' : question}
       >
@@ -91,7 +98,7 @@ export function Thumbs({
         aria-pressed={rating === 'down'}
         className={cn('size-6 text-muted-foreground', rating === 'down' && 'text-destructive')}
         disabled={disabled || busy}
-        label={`No. ${question}`}
+        label={VERDICT[subject].down}
         onClick={() => onRate('down')}
         tooltip={rating === 'down' ? 'You did not find this useful' : question}
       >
@@ -141,6 +148,9 @@ export function PairSide({
           <p className="text-center text-muted-foreground text-xs">{unavailable}</p>
         ) : (
           <Button
+            // Both sides of a pair carry the same words, so the heading above them is what
+            // tells a screen reader which one is being picked.
+            aria-label={picked ? `Picked: ${label}` : `Pick ${label}`}
             className="w-full"
             disabled={disabled || picked}
             onClick={onPick}

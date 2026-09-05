@@ -128,6 +128,14 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
     else if (pending?.files?.length) void sendMessage({ files: pending.files })
   }, [conversation.id, sendMessage])
 
+  // Everything the user sends goes through here, so the transcript is always at the bottom when
+  // the answer starts. Reading back through a long chat and then asking something otherwise
+  // leaves the new turn off screen with nothing moving.
+  const send = (message: Parameters<typeof sendMessage>[0]) => {
+    void sendMessage(message)
+    scrollContext.current?.scrollToBottom()
+  }
+
   const changeSlot = async (next: ModelSlot) => {
     setSlot(next)
     await patchConversation(conversation.id, { model_slot: next })
@@ -167,7 +175,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
       <Conversation className="flex-1" contextRef={scrollContext} initial={false}>
         <ConversationContent className="mx-auto w-full max-w-3xl gap-6 px-6 py-8">
           {messages.length === 0 && !streaming ? (
-            <EmptyState onPick={(text) => void sendMessage({ text })} />
+            <EmptyState onPick={(text) => send({ text })} />
           ) : (
             messages.map((message, index) => (
               <Fragment key={message.id}>
@@ -182,7 +190,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
                   isLast={message === lastMessage}
                   message={message}
                   onAnswer={(toolCallId, output) => void addToolOutput({ tool: 'ask_user', toolCallId, output })}
-                  onPickFollowup={(text) => void sendMessage({ text })}
+                  onPickFollowup={(text) => send({ text })}
                   progress={progress}
                   ratings={ratings}
                   slot={slot}
@@ -204,7 +212,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
             </div>
           )}
         </ConversationContent>
-        <ConversationScrollButton />
+        <ConversationScrollButton aria-label="Jump to the newest message" title="Jump to the newest message" />
       </Conversation>
 
       <div className="shrink-0 px-6 pb-5">
@@ -213,7 +221,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
             draftId={conversation.id}
             onSlotChange={changeSlot}
             onStop={handleStop}
-            onSubmit={(text, files) => sendMessage(text ? { text, files } : { files })}
+            onSubmit={(text, files) => send(text ? { text, files } : { files })}
             slot={slot}
             status={status}
           />
@@ -328,53 +336,90 @@ const SILENT = new Set<string>(['data-context', 'data-followups', 'data-import_p
 const drawn = (part: MessagePart) =>
   !SILENT.has(part.type) && (part.type !== 'text' || part.text.trim() !== '')
 
-/** One turn can think several times in a row (a tool call ends a model response). One panel.
+/** One turn thinks once, in one panel, however many times the model paused.
  *
- * The parts that draw nothing go first, so a pause that only wrote a memory in between still
- * reads as the one pause it was.
+ * A tool call ends a model response, so a turn with two tools produces three reasoning parts
+ * with a step between each pair. Rendered as they arrive that is three panels, each labelled
+ * with the turn's whole thinking time, which reads as three times the thinking that happened.
+ * They are all folded into the first one instead: one panel, one honest duration, and it sits
+ * above the steps it led to.
  */
 function foldReasoning(parts: MessagePart[]): MessagePart[] {
   const folded: MessagePart[] = []
+  let first = -1
   for (const part of parts.filter(drawn)) {
-    const previous = folded.at(-1)
-    if (part.type === 'reasoning' && previous?.type === 'reasoning') {
-      folded[folded.length - 1] = { ...previous, state: part.state, text: `${previous.text}\n\n${part.text}` }
+    if (part.type === 'reasoning' && first >= 0) {
+      const previous = folded[first] as MessagePart & { type: 'reasoning' }
+      folded[first] = { ...previous, state: part.state, text: `${previous.text}\n\n${part.text}` }
       continue
     }
+    if (part.type === 'reasoning') first = folded.length
     folded.push(part)
   }
   return folded
+}
+
+// Mirrors `question-card.OPEN`, plus the state a card streaming its rows is in: the states a
+// parked `ask_user` call arrives in, live and after a reload.
+const OPEN_CALL = new Set(['input-streaming', 'input-available', 'approval-requested'])
+
+/** A Question card of this message that nobody has answered yet.
+ *
+ * The turn is not finished with the user: offering follow-ups and a rating next to it would
+ * invite them away from the one thing it is waiting for.
+ */
+function waitingForAnswer(parts: MessagePart[]): boolean {
+  return parts.some((part) => part.type === 'tool-ask_user' && OPEN_CALL.has(part.state))
 }
 
 /** How tall a panel of thinking may grow while the turn runs. Past that it scrolls itself, so
  *  the tool step and the answer below it stay on screen. */
 const THINKING_CAP = 'max-h-56 overflow-y-auto pr-1 [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]'
 
-/** The thinking of one pause. While the turn runs the panel is capped and follows its own tail. */
+/** The thinking of one turn: open and capped while it streams, folded away once the answer starts.
+ *
+ * The panel's own state is controlled here rather than left to the component, which closes
+ * itself exactly once: a turn that thinks, calls a tool and thinks again reopened it and then
+ * stayed open, leaving the model's scratch work above the answer for good. The cap follows the
+ * same signal, so a panel that has folded reserves no height.
+ */
 function ThinkingPanel({
   text,
   isStreaming,
-  capped,
   duration,
 }: {
   text: string
   isStreaming: boolean
-  /** The turn is still going, so the panel keeps its cap until it folds itself away. */
-  capped: boolean
   duration?: number
 }) {
   const box = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(isStreaming)
+  const streamed = useRef(isStreaming)
+
+  // Opening and folding follow the stream. Between two of those moments the reader's own click
+  // stands, so a panel opened to read it does not snap shut under them.
+  useEffect(() => {
+    if (streamed.current === isStreaming) return
+    streamed.current = isStreaming
+    setOpen(isStreaming)
+  }, [isStreaming])
 
   useEffect(() => {
-    if (!capped) return
+    if (!isStreaming) return
     const element = box.current
     if (element) element.scrollTop = element.scrollHeight
-  }, [capped, text])
+  }, [isStreaming, text])
 
   return (
-    <Reasoning className="mb-0 w-full" duration={duration} isStreaming={isStreaming}>
+    <Reasoning
+      className="mb-0 w-full"
+      duration={duration}
+      isStreaming={isStreaming}
+      onOpenChange={setOpen}
+      open={open}
+    >
       <ReasoningTrigger getThinkingMessage={thinkingMessage} />
-      <ReasoningContent className={capped ? THINKING_CAP : undefined} ref={box}>
+      <ReasoningContent className={isStreaming ? THINKING_CAP : undefined} ref={box}>
         {text}
       </ReasoningContent>
     </Reasoning>
@@ -417,10 +462,12 @@ function TranscriptMessage({
   // The turn's own slot, or the conversation's while the turn is still streaming and has no metadata.
   const turnSlot = message.metadata?.model_slot ?? slot
   const TurnIcon = SLOT_ICONS[turnSlot]
+  // A turn that is still waiting on a Question card is not over, whatever the stream says.
+  const pendingCard = waitingForAnswer(message.parts)
   // Only the newest answer offers follow-ups, and only the newest set of them: a turn that
   // resumed a Question card is one message with one part per round.
   const suggestions = message.parts.filter((p) => p.type === 'data-followups')
-  const followups = isLast && !live ? (suggestions.at(-1)?.data.suggestions ?? []) : []
+  const followups = isLast && !live && !pendingCard ? (suggestions.at(-1)?.data.suggestions ?? []) : []
 
   return (
     <Message from={message.role}>
@@ -433,10 +480,9 @@ function TranscriptMessage({
             const duration = !isStreaming && seconds !== undefined ? Math.max(1, Math.round(seconds)) : undefined
             return (
               <ThinkingPanel
-                capped={live}
                 duration={duration}
                 isStreaming={isStreaming}
-                key={`${message.id}-${index}`}
+                key={`${message.id}-thinking`}
                 text={part.text}
               />
             )
@@ -510,7 +556,7 @@ function TranscriptMessage({
         })}
       </MessageContent>
 
-      {message.role === 'assistant' && !live && (
+      {message.role === 'assistant' && !live && !pendingCard && (
         <MessageToolbar className="mt-1 justify-start gap-2 text-muted-foreground text-xs">
           <span className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-0.5">
             <TurnIcon className="size-3" />

@@ -28,7 +28,7 @@ import {
   type ChangesetRow,
   type ChangesetToolPart,
 } from '@/lib/api'
-import { formatEur } from '@/lib/format'
+import { formatDate, formatEur } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 
@@ -61,8 +61,10 @@ const NEEDS_REVIEW = 'Needs review'
 
 function display(field: ChangesetField, value: string | null | undefined) {
   if (value === null || value === undefined) return field === 'category' ? NEEDS_REVIEW : '—'
-  // The preview carries plain decimals; the euro sign is a display decision.
-  return field === 'amount' ? formatEur(Math.round(Number(value) * 100)) : value
+  // The preview carries plain decimals and ISO dates; the euro sign and DD.MM.YYYY are display
+  // decisions, and they are the ones every other table in the app makes.
+  if (field === 'amount') return formatEur(Math.round(Number(value) * 100))
+  return field === 'date' ? formatDate(value) : value
 }
 
 function statusLabel(changeset: Changeset) {
@@ -78,6 +80,31 @@ function statusLabel(changeset: Changeset) {
       return 'Out of date'
     case 'superseded':
       return 'Replaced by a newer proposal'
+  }
+}
+
+/** The one line that tells someone who has never seen this card what it is and where it stands.
+ *
+ * A preview that writes nothing is the whole point of a changeset, and "Waiting for you" alone
+ * does not say it. Every other state says what already happened to the bookings and what is
+ * still possible.
+ */
+function statusNote(changeset: Changeset): string {
+  switch (changeset.status) {
+    case 'proposed':
+      return 'A preview. Nothing is written until you press Apply.'
+    case 'applied':
+      return changeset.undoable
+        ? 'These bookings have changed. Undo puts them back as they were.'
+        : 'These bookings have changed. The legs of a split are edited on the Transactions page.'
+    case 'discarded':
+      return changeset.applied_at
+        ? 'Undone. The bookings are back as they were.'
+        : 'Discarded. Nothing was written.'
+    case 'stale':
+      return 'Those bookings changed after this preview was made, so it will not be applied. Ask again for a fresh one.'
+    case 'superseded':
+      return 'A newer proposal for the same bookings replaced this one.'
   }
 }
 
@@ -269,11 +296,7 @@ export function ChangesetProposal({ preview }: { preview: Changeset }) {
             Undo
           </Button>
         )}
-        {changeset.status === 'stale' && (
-          <p className="text-muted-foreground text-xs">
-            Those bookings changed after this preview was made. Ask again for a fresh proposal.
-          </p>
-        )}
+        <p className="text-muted-foreground text-xs">{statusNote(changeset)}</p>
         {act.error && changeset.status === 'proposed' && (
           <p className="text-destructive text-xs" role="alert">
             {act.error.message}

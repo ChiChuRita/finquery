@@ -17,6 +17,10 @@ export function MemoryToolStep({ part }: { part: RememberPart }) {
         type="tool-remember"
       />
       <ToolContent>
+        <p className="text-muted-foreground text-xs">
+          A durable fact, shared by every conversation of this profile. The Memory page lists them
+          all and lets you change or forget any of them.
+        </p>
         <Section label="Memory">
           <div className="flex flex-wrap items-baseline gap-2">
             <p className="text-sm">{text ?? 'Writing it down...'}</p>

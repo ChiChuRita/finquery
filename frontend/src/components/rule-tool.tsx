@@ -105,19 +105,25 @@ export function ReviewToolStep({ part }: { part: ReviewBatchPart }) {
             <p className="text-muted-foreground text-sm">Every booking of this profile has a category.</p>
           </Section>
         ) : (
-          <Section label={`Asking about ${merchants(questions.length)}`}>
-            <ul className="space-y-2">
-              {questions.map((question) => (
-                <li className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm" key={question.pattern}>
-                  <span className="min-w-0 truncate font-medium">{question.label}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {bookings(question.bookings)} · {formatEur(question.amount_cents)}
-                    {question.guess ? ` · guess: ${question.guess}` : ''}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Section>
+          <>
+            <p className="text-muted-foreground text-xs">
+              Bookings with no category, grouped by merchant. Each answer on the card below becomes
+              a rule, so the same merchant is never asked about twice.
+            </p>
+            <Section label={`Asking about ${merchants(questions.length)}`}>
+              <ul className="space-y-2">
+                {questions.map((question) => (
+                  <li className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm" key={question.pattern}>
+                    <span className="min-w-0 truncate font-medium">{question.label}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {bookings(question.bookings)} · {formatEur(question.amount_cents)}
+                      {question.guess ? ` · guess: ${question.guess}` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          </>
         )}
       </ToolContent>
     </Tool>

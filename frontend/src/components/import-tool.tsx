@@ -267,7 +267,7 @@ export function PreviewToolStep({ part }: { part: ExtractTransactionPart }) {
       </span>
       {part.output.problems.length > 0 && (
         <Badge className="ml-auto" variant="secondary">
-          {part.output.problems.length} line(s) skipped
+          {part.output.problems.length === 1 ? '1 line skipped' : `${part.output.problems.length} lines skipped`}
         </Badge>
       )}
     </Step>
