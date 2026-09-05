@@ -7,6 +7,7 @@ import pytest
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart, DeltaToolCall
 
+from finquery import agent
 from finquery.api import chat as chat_api
 from finquery.app import create_app
 from finquery.local.runtime import LocalStack
@@ -160,6 +161,56 @@ async def test_stop_persists_partial_turn_as_interrupted(client: httpx.AsyncClie
 
     # Nothing is running any more, so a second stop is a no-op.
     assert (await client.post(f"/api/conversations/{conversation_id}/stop")).json() == {"stopped": False}
+
+
+async def test_stopping_a_running_tool_answers_its_call_with_a_sentence_not_a_result(
+    client: httpx.AsyncClient, scripts: Scripts, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stop while a tool is running, which is what took the app to the error boundary.
+
+    A cancelled run closes the open call with a plain sentence where the tool's own result
+    object belongs, so the browser gets a `chart` step in state `output-available` whose output
+    is a string. Every field a chart card reads off it is then undefined, and reading `.length`
+    on one of them replaced the whole page with "Something went wrong!" (e2e of 2026-09-05, B1).
+    The card guards the part; this pins the shape the guard exists for, and that the partial
+    turn keeps the step.
+    """
+    running = asyncio.Event()
+
+    async def never_returns(*_args: object, **_kwargs: object) -> object:
+        running.set()
+        await asyncio.sleep(60)
+        raise AssertionError("the chart tool should have been cancelled")
+
+    monkeypatch.setattr(agent, "run_chart", never_returns)
+
+    async def asks_for_a_chart(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        yield {0: DeltaThinkingPart(content="planning a chart")}
+        yield {1: DeltaToolCall(name="chart", json_args='{"request": "spending per month"}')}
+
+    scripts.fast = asks_for_a_chart
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+
+    turn = asyncio.create_task(
+        client.post(f"/api/conversations/{conversation_id}/chat", json=chat_body("chart it", conversation_id))
+    )
+    await asyncio.wait_for(running.wait(), timeout=5)
+    assert (await client.post(f"/api/conversations/{conversation_id}/stop")).json() == {"stopped": True}
+    chunks = parse_sse((await asyncio.wait_for(turn, timeout=5)).text)
+
+    calls = [c for c in chunks if c["type"] == "tool-input-available"]
+    assert [c["toolName"] for c in calls] == ["chart"]
+    outputs = [c for c in chunks if c["type"] == "tool-output-available"]
+    assert len(outputs) == 1, chunks
+    # Not the chart tool's result: a sentence, with none of the fields the card reads.
+    assert isinstance(outputs[0]["output"], str)
+    assert "abort" in kinds(chunks)
+
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert detail["interrupted"] is True
+    parts = [p["type"] for p in detail["messages"][-1]["parts"]]
+    # The partial turn keeps its thinking and the step the tool never finished (m6).
+    assert parts == ["reasoning", "tool-chart", "data-context"]
 
 
 async def test_local_provider_refuses_to_chat_until_the_models_are_downloaded(tmp_path: Path) -> None:

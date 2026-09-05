@@ -1,7 +1,12 @@
 import { useChat } from '@ai-sdk/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls, type FileUIPart } from 'ai'
+import {
+  DefaultChatTransport,
+  lastAssistantMessageIsCompleteWithToolCalls,
+  type FileUIPart,
+  type ToolUIPart,
+} from 'ai'
 import {
   BrainIcon,
   CircleStopIcon,
@@ -33,6 +38,7 @@ import { QueryToolStep } from '@/components/query-tool'
 import { QuestionCard } from '@/components/question-card'
 import { ReviewToolStep, RuleToolStep } from '@/components/rule-tool'
 import { SummaryDivider } from '@/components/summary-divider'
+import { Step } from '@/components/tool-step'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -55,21 +61,14 @@ import { readScrollTop, useWorkspace, writeScrollTop } from '@/lib/workspace'
 
 const SLOT_ICONS: Record<ModelSlot, typeof ZapIcon> = { fast: ZapIcon, quality: SparklesIcon }
 
-/** Tools whose turn cannot be answered a second time: they wrote, or they asked a human.
+/** The only tools whose turn can be answered a second time: read-only, and they draw no card.
  *
- * The server refuses the rerun for exactly these, and the UI does not offer it either, so a
- * changeset is never proposed twice and a Question card never parks a second run.
+ * An allowlist rather than a list of the tools that write, because that list has to be extended
+ * by every ticket that adds a tool and a tool left out of it earns the user a refusal they did
+ * not ask for. Must stay in step with `preferences.RERUN_TOOLS`, which is what the server both
+ * declares on the rerun and refuses a turn against.
  */
-// Must stay in step with `preferences.MUTATING_TOOLS`: the server refuses an A/B for a turn
-// that used one of these, so offering the button here would only earn a 409.
-const WRITING_PARTS = new Set([
-  'tool-propose_changeset',
-  'tool-apply_simple_edit',
-  'tool-set_rule',
-  'tool-ask_user',
-  'tool-import_file',
-  'tool-add_transaction',
-])
+const RERUNNABLE_PARTS = new Set(['tool-query', 'tool-chart'])
 
 /** Every rating this chat collected, keyed by the turn and the chart inside it. */
 function ratingsByTarget(conversation: ConversationDetail): Map<string, PreferenceRating> {
@@ -337,27 +336,78 @@ const SILENT = new Set<string>(['data-context', 'data-followups', 'data-import_p
 const drawn = (part: MessagePart) =>
   !SILENT.has(part.type) && (part.type !== 'text' || part.text.trim() !== '')
 
-/** One turn thinks once, in one panel, however many times the model paused.
+type ReasoningPart = MessagePart & { type: 'reasoning' }
+
+const isReasoning = (part: MessagePart): part is ReasoningPart => part.type === 'reasoning'
+
+/** One turn thinks once, in one panel, above the steps it led to.
  *
  * A tool call ends a model response, so a turn with two tools produces three reasoning parts
  * with a step between each pair. Rendered as they arrive that is three panels, each labelled
  * with the turn's whole thinking time, which reads as three times the thinking that happened.
- * They are all folded into the first one instead: one panel, one honest duration, and it sits
- * above the steps it led to.
+ * They are all folded into one instead: one panel, one honest duration.
+ *
+ * The panel goes to the top of the turn rather than where its first block happened to land. A
+ * model that calls a tool without thinking first, and a sub-agent's narration (which the server
+ * puts back after the step it belongs to), both leave the turn's only reasoning part *below*
+ * the card, and three of eight chart turns drew their thinking under the chart (e2e of
+ * 2026-09-05, m7). One position, whichever way the turn ran.
  */
 function foldReasoning(parts: MessagePart[]): MessagePart[] {
-  const folded: MessagePart[] = []
-  let first = -1
-  for (const part of parts.filter(drawn)) {
-    if (part.type === 'reasoning' && first >= 0) {
-      const previous = folded[first] as MessagePart & { type: 'reasoning' }
-      folded[first] = { ...previous, state: part.state, text: `${previous.text}\n\n${part.text}` }
-      continue
-    }
-    if (part.type === 'reasoning') first = folded.length
-    folded.push(part)
+  const visible = parts.filter(drawn)
+  const thinking = visible.filter(isReasoning)
+  const rest = visible.filter((part) => !isReasoning(part))
+  if (thinking.length === 0) return rest
+  const folded: ReasoningPart = {
+    ...thinking[0],
+    // The panel is still streaming while its newest block is.
+    state: thinking[thinking.length - 1].state,
+    text: thinking.map((part) => part.text).join('\n\n'),
   }
-  return folded
+  return [folded, ...rest]
+}
+
+// The states a tool call arrives in before it has a result: streaming its arguments, waiting to
+// run, or dumped as pending after a reload.
+const OPEN_TOOL = new Set(['input-streaming', 'input-available', 'approval-requested'])
+
+/** A tool step of a turn that Stop cut short, told apart from one that really returned.
+ *
+ * A cancelled run closes the call it was in the middle of with a plain sentence where the
+ * tool's own result object belongs, and a call whose arguments were still streaming stays open
+ * for good. Either way the card below would read fields off something that has none:
+ * `output.notes.length` on a chart, `changeset.rows.length` on a proposal. That read is what
+ * replaced the whole page with the error boundary when Stop landed in the middle of a chart
+ * (e2e of 2026-09-05, B1), and it is guarded here, once, before any card sees the part.
+ *
+ * A Question card is the exception among open calls: a stopped turn's card is still answerable,
+ * and answering it resumes the run.
+ */
+function stoppedTool(part: MessagePart, interrupted: boolean): boolean {
+  if (!part.type.startsWith('tool-')) return false
+  const tool = part as ToolUIPart
+  if (tool.state === 'output-available') {
+    // Every tool of this agent answers with an object except `remember`, whose whole result is
+    // one sentence, so anything else here is not a result at all. `remember` writes a row and
+    // returns; there is no window to stop it in, and an open call is still caught below.
+    if (part.type === 'tool-remember') return false
+    return typeof tool.output !== 'object' || tool.output === null
+  }
+  if (!interrupted || part.type === 'tool-ask_user') return false
+  return OPEN_TOOL.has(tool.state)
+}
+
+/** The step a stopped tool leaves in the transcript. The partial turn keeps it (m6). */
+function StoppedToolStep({ type }: { type: string }) {
+  return (
+    <Step>
+      <CircleStopIcon aria-hidden="true" className="size-3.5 shrink-0" />
+      <span>
+        The <span className="font-medium">{type.slice('tool-'.length).replaceAll('_', ' ')}</span> step was
+        stopped before it finished, so it has no result.
+      </span>
+    </Step>
+  )
 }
 
 // Mirrors `question-card.OPEN`, plus the state a card streaming its rows is in: the states a
@@ -452,8 +502,10 @@ function TranscriptMessage({
   // the end of the stream, so the thumbs appear when the answer is stored and not before.
   const turnId = message.metadata?.turn_id
   const feedback = useAnswerFeedback(turnId, ratings.get(`${turnId}:`))
-  // A turn that wrote something is not rerun: the A/B is not offered for it.
-  const rerunnable = !message.parts.some((part) => WRITING_PARTS.has(part.type))
+  // A turn that used a tool the rerun does not have is not rerun: no A/B is offered for it.
+  const rerunnable = !message.parts.some(
+    (part) => part.type.startsWith('tool-') && !RERUNNABLE_PARTS.has(part.type),
+  )
   const answerText = message.parts
     .filter((part) => part.type === 'text')
     .map((part) => part.text)
@@ -475,6 +527,10 @@ function TranscriptMessage({
     <Message from={message.role}>
       <MessageContent>
         {foldReasoning(message.parts).map((part, index) => {
+          // Judged before any card reads the part: a stopped tool has no result to render.
+          if (stoppedTool(part, interrupted)) {
+            return <StoppedToolStep key={`${message.id}-${index}`} type={part.type} />
+          }
           if (part.type === 'reasoning') {
             const isStreaming = live && part.state === 'streaming'
             // The server measures the duration; while streaming the component counts by itself.
