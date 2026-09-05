@@ -156,6 +156,7 @@ def load_slot(spec: ModelSpec, weights: Path, projector: Path, n_ctx: int) -> Sl
 class SlotStatus:
     slot: ModelSlot
     name: str
+    label: str
     ready: bool
     loaded: bool
     load_seconds: float | None
@@ -233,6 +234,7 @@ class LocalStack:
             SlotStatus(
                 slot=spec.slot,
                 name=spec.name,
+                label=spec.label,
                 ready=self.downloads.ready(spec.slot),
                 loaded=spec.slot in self._slots,
                 load_seconds=self._slots[spec.slot].load_seconds if spec.slot in self._slots else None,

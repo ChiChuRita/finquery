@@ -24,8 +24,14 @@ export function ConversationTabs() {
     await (next ? navigate({ to: '/c/$conversationId', params: { conversationId: next.id } }) : navigate({ to: '/' }))
   }
 
+  // Each tab is a link to a route, so this is navigation, not an ARIA tablist: a tablist may hold
+  // nothing but tabs, and the close buttons and the New chat link in here were the one axe
+  // violation on every page.
   return (
-    <div className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b bg-sidebar px-2" role="tablist">
+    <nav
+      aria-label="Open conversations"
+      className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b bg-sidebar px-2"
+    >
       {tabs.map((tab) => {
         const active = tab.id === conversationId
         return (
@@ -39,10 +45,9 @@ export function ConversationTabs() {
             key={tab.id}
           >
             <Link
-              aria-selected={active}
+              aria-current={active ? 'page' : undefined}
               className="max-w-44 truncate rounded-md py-1 pl-2.5 focus-ring"
               params={{ conversationId: tab.id }}
-              role="tab"
               title={tab.title}
               to="/c/$conversationId"
             >
@@ -73,6 +78,6 @@ export function ConversationTabs() {
         </TooltipTrigger>
         <TooltipContent>New chat</TooltipContent>
       </Tooltip>
-    </div>
+    </nav>
   )
 }

@@ -17,8 +17,6 @@ import {
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
-const SLOT_LABEL: Record<string, string> = { fast: 'Gemma 4 E4B', quality: 'Qwen3.5 9B' }
-
 const gigabytes = (bytes: number) => `${(bytes / 1e9).toFixed(2)} GB`
 
 function FileRow({ file }: { file: ModelFile }) {
@@ -76,7 +74,7 @@ function SlotBlock({ model, local }: { model: SlotModel; local: boolean }) {
       <div className="flex items-baseline justify-between gap-3">
         <div className="min-w-0">
           <p className="font-medium text-sm">
-            {SLOT_LABEL[model.slot] ?? model.slot}
+            {model.label}
             <span className="ml-2 font-normal font-mono text-muted-foreground text-xs">{model.name}</span>
           </p>
           <p className="text-2xs text-muted-foreground">
@@ -94,11 +92,11 @@ function SlotBlock({ model, local }: { model: SlotModel; local: boolean }) {
   )
 }
 
-function CheckReport({ report }: { report: SanityReport }) {
+function CheckReport({ report, label }: { report: SanityReport; label: string }) {
   return (
     <div className="rounded-lg border p-3 text-xs">
       <p className="font-medium text-sm">
-        {report.ok ? '✓' : '✕'} {SLOT_LABEL[report.slot] ?? report.slot}
+        {report.ok ? '✓' : '✕'} {label}
         <span className="ml-2 font-normal font-mono text-muted-foreground">{report.model}</span>
       </p>
       {report.error && <p className="mt-1 text-destructive">{report.error}</p>}
@@ -161,7 +159,7 @@ export function ModelsCard() {
           <p className="text-muted-foreground text-xs">
             Provider <span className="font-mono">{data.provider}</span>
             {local
-              ? ' - Gemma 4 E4B and Qwen3.5 9B in this process through llama.cpp'
+              ? ` - ${data.models.map((model) => model.label).join(' and ')} in this process through llama.cpp`
               : ' - hosted, nothing to download'}
           </p>
         </div>
@@ -218,7 +216,11 @@ export function ModelsCard() {
         <div className="mt-3 flex flex-col gap-2">
           <p className="font-medium text-xs">Sanity check</p>
           {reports.map((report) => (
-            <CheckReport key={report.slot} report={report} />
+            <CheckReport
+              key={report.slot}
+              label={data.models.find((model) => model.slot === report.slot)?.label ?? report.slot}
+              report={report}
+            />
           ))}
         </div>
       )}

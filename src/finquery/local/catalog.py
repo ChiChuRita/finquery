@@ -40,6 +40,8 @@ class ModelSpec:
 
     slot: ModelSlot
     name: str
+    label: str
+    """How the UI names this model: the selector, the turn chips, the models card."""
     wire: WireName
     """Which chat wire format this model speaks (`finquery.local.wire`)."""
     weights: FileSpec
@@ -60,6 +62,7 @@ LOCAL_MODELS: dict[ModelSlot, ModelSpec] = {
     "fast": ModelSpec(
         slot="fast",
         name="gemma-4-E4B-it",
+        label="Gemma 4 E4B",
         wire="gemma",
         weights=FileSpec(
             kind="weights",
@@ -79,6 +82,7 @@ LOCAL_MODELS: dict[ModelSlot, ModelSpec] = {
     "quality": ModelSpec(
         slot="quality",
         name="Qwen3.5-9B",
+        label="Qwen3.5 9B",
         wire="qwen",
         weights=FileSpec(
             kind="weights",

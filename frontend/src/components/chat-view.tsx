@@ -40,7 +40,6 @@ import {
   conversationQuery,
   conversationsQuery,
   patchConversation,
-  slotLabel,
   stopConversation,
   type AskUserOutput,
   type ChatMessage,
@@ -51,6 +50,7 @@ import {
   type PreferenceRating,
 } from '@/lib/api'
 import { takePendingPrompt } from '@/lib/pending'
+import { useSlotLabel } from '@/lib/slots'
 import { readScrollTop, useWorkspace, writeScrollTop } from '@/lib/workspace'
 
 const SLOT_ICONS: Record<ModelSlot, typeof ZapIcon> = { fast: ZapIcon, quality: SparklesIcon }
@@ -463,6 +463,7 @@ function TranscriptMessage({
   // The turn's own slot, or the conversation's while the turn is still streaming and has no metadata.
   const turnSlot = message.metadata?.model_slot ?? slot
   const TurnIcon = SLOT_ICONS[turnSlot]
+  const slotLabel = useSlotLabel()
   // A turn that is still waiting on a Question card is not over, whatever the stream says.
   const pendingCard = waitingForAnswer(message.parts)
   // Only the newest answer offers follow-ups, and only the newest set of them: a turn that

@@ -26,6 +26,26 @@ const post = (event: ChartFrameEvent) =>
 const failed = (error: unknown) =>
   post({ kind: 'error', message: error instanceof Error ? `${error.name}: ${error.message}` : String(error) })
 
+/** How finely a `nice: true` axis rounds its end, whatever the frame's width.
+ *
+ * TanStack Charts rounds a nice axis to the tick count it will draw, and it draws one tick per
+ * 92 pixels: a 300 pixel frame in a Regenerate pair asks for three, so 13.800 EUR became an
+ * axis to 20.000 EUR while the full-width card of the same rows ended at 14.000. Rounding to
+ * five steps here keeps the end near the data; the labels drawn are still the width's count. */
+const NICE_STEPS = 5
+
+function niceToTheData(scales: unknown): unknown {
+  if (!scales || typeof scales !== 'object') return scales
+  return Object.fromEntries(
+    Object.entries(scales as Record<string, unknown>).map(([axis, options]) => [
+      axis,
+      options && typeof options === 'object' && (options as { nice?: unknown }).nice === true
+        ? { ...(options as object), nice: NICE_STEPS }
+        : options,
+    ]),
+  )
+}
+
 /** Evaluate the generated body and let the card's theme own the colours, the size and the motion. */
 function buildChart(message: ChartRenderMessage): unknown {
   const body = new Function('data', ...GLOBAL_NAMES, message.code)
@@ -38,6 +58,7 @@ function buildChart(message: ChartRenderMessage): unknown {
   }
   return {
     ...definition,
+    scales: niceToTheData(definition.scales),
     svgAnimation: { duration: 320, easing: 'ease-out' },
     theme: {
       foreground: message.theme.color,

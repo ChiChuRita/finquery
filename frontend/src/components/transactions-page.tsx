@@ -92,8 +92,10 @@ function FilterBar({
 
   return (
     <div className="flex flex-wrap items-center gap-3 border-b px-6 py-3">
-      {/* w-56 rather than w-64: with every filter set, Clear still fits on the one row at 1440. */}
-      <InputGroup className="w-56">
+      {/* The search box is the one control that gives way: it lays out at w-44, so Clear still
+          fits on the row at 1440 with every filter set, grows back to w-56 when there is room,
+          and never shrinks below w-44 (at 1024 the bar wraps instead). */}
+      <InputGroup className="w-44 max-w-56 shrink-0 grow">
         <InputGroupInput
           aria-label="Search descriptions and counterparties"
           onChange={(event) => setText(event.target.value)}

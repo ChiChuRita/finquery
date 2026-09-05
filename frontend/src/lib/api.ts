@@ -5,13 +5,12 @@ import type { ChartLanguage } from '@/lib/chart-frame'
 
 export type ModelSlot = 'fast' | 'quality'
 
-/** The two slots, named after the model each one resolves to on either provider. */
+/** The two slots. `label` is the local model's name and only a stand-in: what the screen shows
+ *  is the name the server reports for the running provider (`lib/slots.ts`). */
 export const MODEL_SLOTS: { slot: ModelSlot; label: string; description: string }[] = [
   { slot: 'fast', label: 'Gemma 4 E4B', description: 'Quick answers, and the model behind every tool' },
   { slot: 'quality', label: 'Qwen3.5 9B', description: 'Slower, reasons further before it answers' },
 ]
-
-export const slotLabel = (slot: ModelSlot | undefined) => MODEL_SLOTS.find((m) => m.slot === slot)?.label
 
 export interface ChatMetadata {
   interrupted?: boolean
@@ -679,6 +678,8 @@ export interface ModelFile {
 export interface SlotModel {
   slot: ModelSlot
   name: string
+  /** The display name of the model in this slot on the running provider. */
+  label: string
   ready: boolean
   loaded: boolean
   load_seconds: number | null

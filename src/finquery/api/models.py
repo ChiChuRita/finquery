@@ -8,7 +8,7 @@ It answers on either provider so the page never has to special-case one.
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from finquery.providers import MODEL_SLOTS, OPENROUTER_MODELS, ModelSlot
+from finquery.providers import MODEL_SLOTS, OPENROUTER_LABELS, OPENROUTER_MODELS, ModelSlot
 
 router = APIRouter()
 
@@ -26,6 +26,8 @@ class FileOut(BaseModel):
 class SlotOut(BaseModel):
     slot: ModelSlot
     name: str
+    label: str
+    """The model's display name, which is what the selector and the turn chips show."""
     ready: bool
     loaded: bool
     load_seconds: float | None = None
@@ -55,6 +57,7 @@ def _local_state(request: Request) -> ModelsOut:
             SlotOut(
                 slot=status.slot,
                 name=status.name,
+                label=status.label,
                 ready=status.ready,
                 loaded=status.loaded,
                 load_seconds=status.load_seconds,
@@ -86,7 +89,10 @@ async def get_models(request: Request) -> ModelsOut:
         return _local_state(request)
     return ModelsOut(
         provider=request.app.state.settings.provider,
-        models=[SlotOut(slot=slot, name=OPENROUTER_MODELS[slot], ready=True, loaded=True) for slot in MODEL_SLOTS],
+        models=[
+            SlotOut(slot=slot, name=OPENROUTER_MODELS[slot], label=OPENROUTER_LABELS[slot], ready=True, loaded=True)
+            for slot in MODEL_SLOTS
+        ],
         adapters=[],
         downloading=False,
     )

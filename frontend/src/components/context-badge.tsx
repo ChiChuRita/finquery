@@ -5,10 +5,12 @@ import {
   ContextContentHeader,
   ContextTrigger,
 } from '@/components/ai-elements/context'
-import { slotLabel, type ContextStats } from '@/lib/api'
+import type { ContextStats } from '@/lib/api'
+import { useSlotLabel } from '@/lib/slots'
 
 /** How much of the model's context the conversation fills. Hover for the breakdown. */
 export function ContextBadge({ stats }: { stats: ContextStats }) {
+  const slotLabel = useSlotLabel()
   return (
     <Context maxTokens={stats.budget} usedTokens={stats.used}>
       <ContextTrigger aria-label="Context usage" className="h-7 gap-1.5 rounded-full px-2 text-xs" />

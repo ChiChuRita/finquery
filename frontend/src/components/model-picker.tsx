@@ -11,6 +11,7 @@ import {
 } from '@/components/ai-elements/model-selector'
 import { PromptInputButton } from '@/components/ai-elements/prompt-input'
 import { MODEL_SLOTS, type ModelSlot } from '@/lib/api'
+import { useSlotLabel } from '@/lib/slots'
 import { cn } from '@/lib/utils'
 
 const ICONS: Record<ModelSlot, typeof ZapIcon> = { fast: ZapIcon, quality: SparklesIcon }
@@ -25,6 +26,7 @@ export function ModelPicker({
   disabled?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const label = useSlotLabel()
   const current = MODEL_SLOTS.find((m) => m.slot === value) ?? MODEL_SLOTS[0]
   const CurrentIcon = ICONS[current.slot]
 
@@ -33,7 +35,7 @@ export function ModelPicker({
       <ModelSelectorTrigger asChild>
         <PromptInputButton aria-label="Choose model" disabled={disabled} tooltip="Model for this conversation">
           <CurrentIcon className="size-4" />
-          <span>{current.label}</span>
+          <span>{label(current.slot)}</span>
           <ChevronDownIcon className="size-3.5 opacity-60" />
         </PromptInputButton>
       </ModelSelectorTrigger>
@@ -63,7 +65,7 @@ export function ModelPicker({
                     <Icon className="size-4" />
                   </span>
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="font-medium">{m.label}</span>
+                    <span className="font-medium">{label(m.slot)}</span>
                     <span className="text-muted-foreground text-xs">{m.description}</span>
                   </span>
                   {selected ? <CheckIcon className="size-4 text-primary" /> : <GaugeIcon className="size-4 opacity-0" />}

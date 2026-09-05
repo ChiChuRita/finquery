@@ -40,6 +40,7 @@ import {
   type TaxonomyChange,
 } from '@/lib/api'
 import { stashPendingPrompt } from '@/lib/pending'
+import { useSlotLabel } from '@/lib/slots'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 
@@ -273,7 +274,8 @@ function CategoriesStep() {
                     />
                   ) : (
                     <button
-                      className="text-left font-medium text-sm hover:text-primary disabled:hover:text-foreground"
+                      aria-label={`Rename ${category.name}`}
+                      className="rounded-sm text-left font-medium text-sm transition-colors hover:text-primary focus-ring disabled:hover:text-foreground"
                       disabled={!on}
                       onClick={() => setRenaming({ category: category.name })}
                       title="Click to rename"
@@ -301,27 +303,32 @@ function CategoriesStep() {
                           }}
                         />
                       ) : (
-                        <button
-                          className="rounded-full border px-2 py-0.5 text-xs transition-colors hover:bg-accent disabled:hover:bg-transparent"
+                        // The same pill the Settings taxonomy editor draws, so the two read as one.
+                        <Button
+                          aria-label={`Rename ${subcategory.name} in ${category.name}`}
+                          className="rounded-full"
                           disabled={!on}
                           key={subcategory.id}
                           onClick={() => setRenaming({ category: category.name, subcategory: subcategory.name })}
+                          size="xs"
                           title="Click to rename"
-                          type="button"
+                          variant="outline"
                         >
                           {subcategory.name}
-                        </button>
+                        </Button>
                       ),
                     )}
                     {on && (
-                      <button
-                        className="rounded-full border border-dashed px-2 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground"
+                      <Button
+                        aria-label={`Add a subcategory to ${category.name}`}
+                        className="rounded-full border-dashed text-muted-foreground"
                         onClick={() => setAdding({ category: category.name })}
-                        type="button"
+                        size="xs"
+                        variant="outline"
                       >
-                        <PlusIcon aria-hidden="true" className="mr-0.5 inline size-3" />
+                        <PlusIcon aria-hidden="true" data-icon="inline-start" />
                         Subcategory
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -380,6 +387,7 @@ function PreferencesStep() {
   const { profile } = useWorkspace()
   const { data: settings } = useQuery(settingsQuery(profile?.id))
   const [error, setError] = useState<string>()
+  const slotLabel = useSlotLabel()
 
   const write = async (patch: Parameters<typeof patchSettings>[1]) => {
     if (!profile) return
@@ -427,7 +435,7 @@ function PreferencesStep() {
             <Choices
               id="default-slot"
               onChange={(value) => void write({ default_model_slot: value as ModelSlot })}
-              options={MODEL_SLOTS.map((model) => ({ value: model.slot, label: model.label }))}
+              options={MODEL_SLOTS.map((model) => ({ value: model.slot, label: slotLabel(model.slot) ?? model.slot }))}
               value={settings?.default_model_slot ?? 'fast'}
             />
           </Field>
@@ -642,7 +650,7 @@ export function OnboardingCard() {
   const state = settings?.onboarding_state
 
   return (
-    <section aria-labelledby="setup-heading" className="rounded-xl border bg-card p-4 shadow-sm">
+    <section aria-labelledby="setup-heading" className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-heading font-semibold text-base" id="setup-heading">
