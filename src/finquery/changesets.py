@@ -54,7 +54,7 @@ from finquery.edits import (
     resolve_taxonomy,
 )
 from finquery.formats import eur
-from finquery.nullish import nullish_before
+from finquery.nullish import empty_list_before, nullish_before
 
 ChangesetKind = Literal["recategorize", "split", "edit", "delete", "taxonomy"]
 TaxonomyOperation = Literal["add", "rename", "merge", "delete"]
@@ -143,6 +143,10 @@ class ChangesetIntent(BaseModel):
     # A model that writes "None" for a subcategory it does not want would have every row of the
     # preview carry that word as its subcategory (review of 2026-09-04).
     _nulls = nullish_before("category", "subcategory", "description", "amount_cents", "booked_on")
+    # And a model that writes `legs: null` on a recategorize means it has no legs. Every field
+    # here is optional per kind, so a null in any of them is the absence it looks like: the two
+    # `propose_changeset` calls of the 9B review died on this one and left an empty turn.
+    _empty = empty_list_before("transaction_ids", "legs")
 
 
 # --------------------------------------------------------------------------- payload
@@ -410,6 +414,15 @@ def _fields_shown(rows: Sequence[PreviewRow]) -> list[str]:
 
 
 def _resolve_where(session: Session, profile_id: str, where: Selection) -> dict[str, Any]:
+    # A filter with nothing in it selects the whole profile, which is never what a proposal
+    # about "the Netflix bookings" means. A model that sends `where: {}` is told to name the
+    # rows instead (ticket 37).
+    if where == Selection():
+        raise TransactionEditError(
+            "That filter selects every booking in the profile, which is not a change anyone "
+            "asked for. Call `query` for the rows you mean and pass their ids, or narrow the "
+            "filter with the text, the period or the category."
+        )
     category_id = None
     if where.category:
         category = find_category(session, profile_id, where.category)

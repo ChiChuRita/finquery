@@ -22,6 +22,22 @@ def nullish(value: object) -> object:
     return None if isinstance(value, str) and value.strip().casefold() in NULLISH else value
 
 
+def empty_list(value: object) -> object:
+    """`[]` when a model wrote nothing where a list belongs, otherwise the value untouched.
+
+    A small model asked for an optional list writes `null` rather than leaving it out, and a
+    field typed `list[...]` refuses that. `"legs": null` on a recategorize is what burned both
+    `propose_changeset` attempts of the 9B review of 2026-09-05: three retries, then a turn with
+    no answer, no card and nothing for the user to act on.
+    """
+    return [] if nullish(value) is None else value
+
+
+def empty_list_before(*fields: str):  # type: ignore[no-untyped-def]
+    """A `field_validator` in mode "before" that reads nothing in a list field as an empty list."""
+    return field_validator(*fields, mode="before")(staticmethod(empty_list))
+
+
 def nullish_before(*fields: str):  # type: ignore[no-untyped-def]
     """A `field_validator` in mode "before" that empties those fields when they say nothing.
 

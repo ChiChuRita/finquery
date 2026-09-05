@@ -930,6 +930,14 @@ async def chat(request: Request, conversation_id: str) -> Response:
             len(m.tool_calls) for m in stored.turns[card_turn].messages if isinstance(m, ModelResponse)
         )
 
+    # What the user wrote this turn. It is the keyword source for memory selection, the language
+    # this answer is checked in, and what `apply_simple_edit` reads to tell an amount the user
+    # named from one the model filled in by itself. A turn resumed from a Question card brings
+    # no new message, so it is the message that opened the turn being answered.
+    question = _latest_user_text(adapter.run_input.messages)
+    if not question:
+        question = next(reversed(_user_prompts(stored.messages)), "")
+
     deps = ChatDeps(
         session_factory=state.session_factory,
         profile_id=profile_id,
@@ -938,15 +946,13 @@ async def chat(request: Request, conversation_id: str) -> Response:
         subagent_settings=state.subagent_settings,
         narrate=narration.say,
         web_client=state.web_client,
+        user_message=question,
     )
 
     # The one place memory enters the prompt: the block is handed to the assembly, which joins
     # it to the rolling summary and hands both back as this turn's run instructions. A turn
     # resumed from a Question card brings no new message, so its memories are selected for the
     # prompt the pending turn started with.
-    question = _latest_user_text(adapter.run_input.messages)
-    if not question:
-        question = next(reversed(_user_prompts(stored.messages)), "")
     with state.session_factory() as session:
         memory_block = build_memory_block(session, profile_id, question)
         # The profile's own answer language, so the follow-up chips are written in the language

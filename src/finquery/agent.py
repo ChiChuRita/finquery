@@ -52,6 +52,7 @@ from finquery.ingest.typed import add_draft, find_draft, preview_card, propose_t
 from finquery.memory import MemoryKind, add_memory
 from finquery.onboarding import language_rule
 from finquery.progress import report as report_progress
+from finquery.prose import names_an_amount
 from finquery.providers import ModelResolver, ProviderNotAvailable
 from finquery.query import QueryOutcome, load_query_context, run_query
 from finquery.weblookup import MAX_FETCHES, MAX_SEARCHES, WebClient, lookups_for, web_lookup_enabled
@@ -458,12 +459,30 @@ def propose_changeset(ctx: RunContext[ChatDeps], intent: ChangesetIntent) -> dic
     return out.model_dump(mode="json")
 
 
+def _was_named(message: str, amount_cents: int) -> bool:
+    """Whether the user's own words carry this amount, whichever way round they wrote the sign.
+
+    TODO: this turn's message only. A user who says the amount in one turn and "yes, do it" in
+    the next has to say it again; the upgrade path is the turn's own user prompts, which the
+    deps would have to carry.
+    """
+    return any(abs(cents) == abs(amount_cents) for cents in names_an_amount(message))
+
+
+AMOUNT_NOT_ASKED_FOR = (
+    "The user's message names no amount, so this booking's amount is not yours to change: an "
+    "`amount_cents` you did not read in their words would overwrite real money. Call "
+    "`apply_simple_edit` again for the same booking with the fields they did name and no "
+    "`amount_cents` at all."
+)
+
+
 @chat_agent.tool(retries=2)
 @guarded
 def apply_simple_edit(
     ctx: RunContext[ChatDeps],
     transaction_id: str,
-    title: str,
+    title: str | None = None,
     category: str | None = None,
     subcategory: str | None = None,
     description: str | None = None,
@@ -477,18 +496,28 @@ def apply_simple_edit(
     or category change is `propose_changeset` instead. The `undo_token` in the result is what
     the Undo button reverts, so the user can always take it back.
 
+    Send only the fields the user named. A field you leave out is left alone; a field you fill in
+    to be complete is a change to their data. `say` in the result is the one line to write back:
+    it names every field that really changed.
+
     Args:
         transaction_id: The booking's id, as a query returned it.
         title: One short line naming the change, for the card.
         category: The category to put it in.
         subcategory: The subcategory, inside that category.
-        description: A new description, when the user corrected the text.
-        amount_cents: A new amount in cents, negative for spending.
-        booked_on: A new booking date.
+        description: A new description, only when the user corrected the text.
+        amount_cents: A new amount in cents, negative for spending, only when the user said what
+            the amount should be.
+        booked_on: A new booking date, only when the user gave one.
     """
+    # `amount_cents: 0` on a request that only asked for a category zeroed a real booking in the
+    # 9B review of 2026-09-05, and the answer said only that the category had been set. The
+    # amount comes from the user's words or it does not come at all.
+    if amount_cents is not None and not _was_named(ctx.deps.user_message, amount_cents):
+        raise ModelRetry(AMOUNT_NOT_ASKED_FOR)
     intent = ChangesetIntent(
         kind="edit",
-        title=title,
+        title=title or "Edit one booking",
         transaction_ids=[transaction_id],
         category=category,
         subcategory=subcategory,
@@ -508,7 +537,13 @@ def apply_simple_edit(
             raise ModelRetry(str(exc)) from exc
         session.commit()
     # The changeset is the undo token: one POST to /api/changesets/{id}/undo puts it back.
-    return {**out.model_dump(mode="json"), "undo_token": out.id}
+    # `say` is counted in code from what was written, so the sentence under the card names the
+    # fields that changed and cannot claim less than the card shows.
+    return {
+        **out.model_dump(mode="json"),
+        "undo_token": out.id,
+        "say": f"{out.summary} Nothing else on it was touched, and Undo puts it back.",
+    }
 
 
 @chat_agent.tool

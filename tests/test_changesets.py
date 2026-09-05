@@ -639,11 +639,17 @@ async def test_a_changeset_cannot_touch_another_profiles_rows(
     assert refused.status_code == 400
     assert "not in this profile" in refused.json()["detail"]
 
-    # A filter only ever sees the proposing profile's rows.
+    # A filter only ever sees the proposing profile's rows. It has to narrow something (an
+    # empty filter is refused, ticket 37), so this one is wide enough to hold both profiles.
     mine = await propose(
         client,
         profile_id,
-        {"kind": "recategorize", "title": "Everything", "where": {}, "category": "Groceries"},
+        {
+            "kind": "recategorize",
+            "title": "Everything",
+            "where": {"date_from": "2020-01-01"},
+            "category": "Groceries",
+        },
     )
     assert mine["total"] == 433
 

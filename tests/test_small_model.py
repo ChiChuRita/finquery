@@ -308,3 +308,208 @@ async def test_the_query_budget_ends_a_runaway_turn(
     assert len(respond.prompts) == 5, "the sub-agent was not asked a sixth time"  # type: ignore[attr-defined]
     assert "five queries" in last_tool_error(chunks)
     assert answer(chunks) == "I could not work that out from the data."
+
+
+# --------------------------------------------------------------------------- 8: the changeset
+
+
+async def some_bookings(client: httpx.AsyncClient, profile_id: str, text: str) -> list[str]:
+    rows = (await client.get("/api/transactions", params={"profile_id": profile_id, "q": text})).json()["rows"]
+    assert rows, text
+    return [row["id"] for row in rows]
+
+
+async def test_a_changeset_with_null_for_every_nested_field_is_proposed(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """G1: two attempts, two empty turns. The model sent `legs: null` and burned its retries."""
+    await import_synthetic(client, profile_id)
+    ids = await some_bookings(client, profile_id, "netflix")
+    scripts.fast = calls_tool(
+        "propose_changeset",
+        {
+            "kind": "recategorize",
+            "title": "Netflix-Buchungen als Leisure umkategorisieren",
+            "transaction_ids": ids,
+            "category": "Leisure",
+            "subcategory": None,
+            "where": None,
+            "description": None,
+            "amount_cents": None,
+            "booked_on": None,
+            "legs": None,
+            "taxonomy": None,
+        },
+        "I have proposed moving those bookings to Leisure.",
+    )
+    scripts.fast_call = fast_slot()  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Recategorize all Netflix bookings as Leisure.")
+
+    calls = [c for c in chunks if c["type"] == "tool-input-available"]
+    assert [c["toolName"] for c in calls] == ["propose_changeset"], "no retry was needed"
+    card = tool_output(chunks)
+    assert card["kind"] == "recategorize"
+    assert card["status"] == "proposed"
+    assert card["total"] == len(ids)
+    assert answer(chunks) == "I have proposed moving those bookings to Leisure."
+    # Nothing was written: a proposal is inert until the user applies it.
+    rows = (await client.get("/api/transactions", params={"profile_id": profile_id, "q": "netflix"})).json()["rows"]
+    assert all(row["category"] is None for row in rows)
+
+
+async def test_a_filter_that_selects_everything_is_refused(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """An empty `where` object is the other half of the same hazard: it matches every booking."""
+    await import_synthetic(client, profile_id)
+    ids = await some_bookings(client, profile_id, "netflix")
+
+    async def first_everything(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        calls = [
+            part
+            for message in messages
+            for part in message.parts
+            if isinstance(part, ToolCallPart) and part.tool_name == "propose_changeset"
+        ]
+        if not calls:
+            yield {
+                0: DeltaToolCall(
+                    name="propose_changeset",
+                    json_args=json.dumps(
+                        {"kind": "recategorize", "title": "Netflix to Leisure", "where": {}, "category": "Leisure"}
+                    ),
+                )
+            }
+            return
+        if len(calls) == 1:
+            yield {
+                0: DeltaToolCall(
+                    name="propose_changeset",
+                    json_args=json.dumps(
+                        {
+                            "kind": "recategorize",
+                            "title": "Netflix to Leisure",
+                            "transaction_ids": ids,
+                            "category": "Leisure",
+                        }
+                    ),
+                )
+            }
+            return
+        yield "I have proposed moving those bookings to Leisure."
+
+    scripts.fast = first_everything
+    scripts.fast_call = fast_slot()  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Recategorize all Netflix bookings as Leisure.")
+
+    card = tool_output(chunks)
+    assert card["total"] == len(ids), "the second call named the rows"
+
+
+# --------------------------------------------------------------------------- 9: the edit
+
+
+async def test_an_edit_never_zeroes_an_amount_the_user_did_not_name(
+    client: httpx.AsyncClient,
+    scripts: Scripts,
+    chat: Chat,
+    profile_id: str,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """G2, verbatim: a category-only request came with `amount_cents: 0` and destroyed a booking."""
+    await import_synthetic(client, profile_id)
+    rows = (await client.get("/api/transactions", params={"profile_id": profile_id, "q": "vapiano"})).json()["rows"]
+    ids = [row["id"] for row in rows]
+    booking = rows[0]
+    before = booking["amount_cents"]
+    assert before != 0
+
+    async def zeroes_then_corrects(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        calls = [
+            part
+            for message in messages
+            for part in message.parts
+            if isinstance(part, ToolCallPart) and part.tool_name == "apply_simple_edit"
+        ]
+        if not calls:
+            yield {
+                0: DeltaToolCall(
+                    name="apply_simple_edit",
+                    json_args=json.dumps(
+                        {
+                            "transaction_id": ids[0],
+                            "title": "Set the VAPIANO booking to Dining > Restaurant",
+                            "category": "Dining",
+                            "subcategory": "Restaurant",
+                            "description": booking["description"],
+                            "amount_cents": 0,
+                            "booked_on": booking["booked_on"],
+                        }
+                    ),
+                )
+            }
+            return
+        if len(calls) == 1:
+            yield {
+                0: DeltaToolCall(
+                    name="apply_simple_edit",
+                    json_args=json.dumps(
+                        {
+                            "transaction_id": ids[0],
+                            "title": "Set the VAPIANO booking to Dining > Restaurant",
+                            "category": "Dining",
+                            "subcategory": "Restaurant",
+                        }
+                    ),
+                )
+            }
+            return
+        result = _last_tool_return(messages, "apply_simple_edit") or {}
+        yield str(result.get("say"))
+
+    scripts.fast = zeroes_then_corrects
+    scripts.fast_call = fast_slot()  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Set the VAPIANO booking to Dining.")
+
+    # The amount is untouched, and the category is what was asked for.
+    with session_factory() as session:
+        row = session.get(Transaction, ids[0])
+        assert row is not None
+        assert row.amount_cents == before
+    edited = (await client.get("/api/transactions", params={"profile_id": profile_id, "q": "vapiano"})).json()
+    changed = next(row for row in edited["rows"] if row["id"] == ids[0])
+    assert changed["category"] == "Dining" and changed["subcategory"] == "Restaurant"
+    # The answer names the fields that changed, and no others.
+    assert "category, subcategory" in answer(chunks)
+    assert "amount" not in answer(chunks)
+
+
+async def test_an_edit_that_names_the_amount_still_writes_it(
+    client: httpx.AsyncClient,
+    scripts: Scripts,
+    chat: Chat,
+    profile_id: str,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """The rule is about a field the user did not name, not about editing an amount."""
+    await import_synthetic(client, profile_id)
+    ids = await some_bookings(client, profile_id, "vapiano")
+    scripts.fast = calls_tool(
+        "apply_simple_edit",
+        {"transaction_id": ids[0], "title": "Correct the VAPIANO amount", "amount_cents": -4230},
+        "Corrected.",
+    )
+    scripts.fast_call = fast_slot()  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    await chat(conversation_id, "That VAPIANO booking was 42,30 EUR, not what it says.")
+
+    with session_factory() as session:
+        row = session.get(Transaction, ids[0])
+        assert row is not None and row.amount_cents == -4230
