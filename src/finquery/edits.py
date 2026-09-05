@@ -10,6 +10,7 @@ the sentence in it.
 Nothing here reads an ambient profile. A caller passes the profile it is allowed to touch.
 """
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -21,6 +22,23 @@ from finquery.db import Account, Category, Subcategory, Transaction, fingerprint
 
 NEEDS_REVIEW = "Needs review"
 """The absence of a category, as the UI and the previews spell it. Never a category row."""
+
+MAX_DESCRIPTION = 500
+MAX_COUNTERPARTY = 200
+"""The widths of `db.Transaction.description` and `.counterparty`. SQLite does not enforce a
+column width, so the limit is enforced here, once, for every path that writes one."""
+
+_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+
+
+def clean_text(text: str, limit: int = MAX_DESCRIPTION) -> str:
+    """One storable line: no control characters, no runs of whitespace, capped at the column.
+
+    A bank's Verwendungszweck arrives with the line breaks it was printed with, occasionally
+    with a stray control character, and occasionally very long. All three would otherwise reach
+    the table, the prompt and the card as they came.
+    """
+    return " ".join(_CONTROL.sub(" ", text).split())[:limit].strip()
 
 
 class TransactionEditError(ValueError):
@@ -112,10 +130,10 @@ def resolve_names(
 
 
 def clean_description(text: str) -> str:
-    stripped = text.strip()
-    if not stripped:
+    cleaned = clean_text(text)
+    if not cleaned:
         raise TransactionEditError("A description cannot be empty.")
-    return stripped
+    return cleaned
 
 
 def like(text: str) -> str:
@@ -189,6 +207,12 @@ def replace_split_legs(session: Session, profile_id: str, parent: Transaction, l
     """
     if parent.parent_id is not None:
         raise TransactionEditError("One leg of a split cannot be split again.")
+    # A split is at least two parts, whichever door it arrives through: the changeset, the
+    # split editor and the legs a receipt proposes all land here.
+    if len(legs) == 1:
+        raise TransactionEditError(
+            "A split needs at least two legs. Save no legs at all to turn it back into one booking."
+        )
     existing = {
         row.id: row for row in session.scalars(select(Transaction).where(Transaction.parent_id == parent.id)).all()
     }

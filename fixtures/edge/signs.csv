@@ -1,0 +1,6 @@
+Auftragskonto;Buchungstag;Verwendungszweck;Betrag;Beguenstigter/Zahlungspflichtiger
+DE1;06.01.2025;Gehalt;+2.400,00;Arbeitgeber
+DE1;07.01.2025;Miete;-1.150,00;Hausverwaltung
+DE1;08.01.2025;Rückbuchung;12,00-;Bank
+DE1;09.01.2025;Gebühr in Klammern;(4,90);Bank
+DE1;10.01.2025;Nullbuchung;0,00;Bank

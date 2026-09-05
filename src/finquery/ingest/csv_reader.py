@@ -10,12 +10,15 @@ corrected by the user on the Question card that confirms a mapping.
 import csv
 import io
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
+
+from finquery.edits import MAX_COUNTERPARTY, clean_text
 
 DELIMITERS = (";", ",", "\t", "|")
 ENCODINGS = (("utf-8-sig", "utf-8"), ("cp1252", "cp1252"))
@@ -214,24 +217,32 @@ def sniff(data: bytes) -> Sniffed:
     best: tuple[int, int, str, list[list[str]]] | None = None
     for candidate in DELIMITERS:
         rows = _rows_for(head, candidate)
-        widths = [len(row) for row in rows]
+        # A one-column row is a preamble line above the header, never the table.
+        widths = [len(row) for row in rows if len(row) >= 2]
         if not widths:
             continue
-        width = max(widths, key=lambda w: (widths.count(w), w))
+        # The most common width is the table's; when two are equally common the one that
+        # occurs first wins, because that is the header. Preferring the wider one made a single
+        # row carrying an unquoted delimiter the header of the whole file.
+        first_at = {width: index for index, width in reversed(list(enumerate(widths)))}
+        width = max(widths, key=lambda w: (widths.count(w), -first_at[w]))
         score = widths.count(width)
-        if width >= 2 and (best is None or (width, score) > (best[0], best[1])):
+        if best is None or (width, score) > (best[0], best[1]):
             best = (width, score, candidate, rows)
     if best is None:
-        raise CsvUnreadable("No delimited header row found. Expected a CSV with at least two columns.")
+        raise CsvUnreadable("No delimited header row found. Export the file again as a CSV with a header row.")
 
     width, _, found_delimiter, head_rows = best
     header_index = next(index for index, row in enumerate(head_rows) if len(row) == width)
     header = [cell.strip() for cell in head_rows[header_index]]
 
     all_rows = _rows_for(text, found_delimiter)
-    data_rows = [row + [""] * (width - len(row)) for row in all_rows[header_index + 1 :] if len(row) <= width]
+    # A short row is padded; a row with more fields than the header is kept as it is and
+    # becomes an issue in `parse`. Dropping it here is how a booking used to disappear from a
+    # file while the import still counted itself complete.
+    data_rows = [row + [""] * (width - len(row)) for row in all_rows[header_index + 1 :]]
     if not data_rows:
-        raise CsvUnreadable("The file has a header but no data rows.")
+        raise CsvUnreadable("The file has a header row but no bookings under it.")
     return Sniffed(encoding=encoding, delimiter=found_delimiter, header=header, rows=data_rows)
 
 
@@ -262,6 +273,9 @@ def mapping_for(preset: Preset, header: list[str]) -> Mapping:
 def parse_amount(text: str, decimal_separator: DecimalSeparator) -> int:
     """German exports write `1.234,56`, `-12,00` and sometimes a trailing minus. Returns cents."""
     cleaned = text.strip().replace("\xa0", "").replace(" ", "")
+    # Accounting notation: a figure in brackets is money out, which is the only place a sign
+    # is written without a sign character.
+    bracketed = cleaned.startswith("(") and cleaned.endswith(")")
     cleaned = re.sub(r"[^0-9,.\-+]", "", cleaned)
     if cleaned.endswith(("-", "+")):
         cleaned = cleaned[-1] + cleaned[:-1]
@@ -272,9 +286,10 @@ def parse_amount(text: str, decimal_separator: DecimalSeparator) -> int:
     if not cleaned or cleaned in "+-":
         raise ValueError(f"no amount in {text.strip()!r}")
     try:
-        return int((Decimal(cleaned) * 100).quantize(Decimal(1)))
+        cents = int((Decimal(cleaned) * 100).quantize(Decimal(1)))
     except InvalidOperation as exc:
         raise ValueError(f"cannot read the amount {text.strip()!r}") from exc
+    return -abs(cents) if bracketed else cents
 
 
 def parse_date(text: str, date_format: DateFormat) -> date:
@@ -292,7 +307,12 @@ def parse_date(text: str, date_format: DateFormat) -> date:
 
 def parse(sniffed: Sniffed, mapping: Mapping, *, limit: int | None = None) -> Parsed:
     """Apply a mapping to sniffed rows. A row that cannot be read becomes an issue, not a crash."""
-    index = {name: position for position, name in enumerate(sniffed.header)}
+    # A header that repeats a name resolves to its first column, which is the one `_find` gives
+    # a preset. Keeping the last would have read the amount out of a different column than the
+    # one the mapping named.
+    index: dict[str, int] = {}
+    for position, name in enumerate(sniffed.header):
+        index.setdefault(name, position)
     for column in (
         mapping.date_column,
         mapping.amount_column,
@@ -310,25 +330,21 @@ def parse(sniffed: Sniffed, mapping: Mapping, *, limit: int | None = None) -> Pa
     parsed = Parsed()
     for number, row in enumerate(sniffed.rows[: limit or len(sniffed.rows)], start=1):
         try:
+            if len(row) > len(sniffed.header):
+                raise ValueError(
+                    f"the row has {len(row)} fields but the header has {len(sniffed.header)}, "
+                    f"so a {sniffed.delimiter!r} in one of them is not quoted"
+                )
             booked_on = parse_date(cell(row, mapping.date_column), mapping.date_format)
             if mapping.amount_column:
                 amount_cents = parse_amount(cell(row, mapping.amount_column), mapping.decimal_separator)
             else:
-                debit = cell(row, mapping.debit_column)
-                credit = cell(row, mapping.credit_column)
-                if debit and credit:
-                    raise ValueError("both the debit and the credit column are filled")
-                if debit:
-                    amount_cents = -abs(parse_amount(debit, mapping.decimal_separator))
-                elif credit:
-                    amount_cents = abs(parse_amount(credit, mapping.decimal_separator))
-                else:
-                    raise ValueError("neither the debit nor the credit column is filled")
+                amount_cents = _debit_or_credit(row, mapping, cell)
         except ValueError as exc:
             parsed.issues.append(f"Row {number}: {exc}")
             continue
-        description = cell(row, mapping.description_column)
-        counterparty = cell(row, mapping.counterparty_column)
+        description = clean_text(cell(row, mapping.description_column))
+        counterparty = clean_text(cell(row, mapping.counterparty_column), MAX_COUNTERPARTY)
         parsed.rows.append(
             ParsedRow(
                 booked_on=booked_on,
@@ -340,3 +356,21 @@ def parse(sniffed: Sniffed, mapping: Mapping, *, limit: int | None = None) -> Pa
             )
         )
     return parsed
+
+
+def _debit_or_credit(row: list[str], mapping: Mapping, cell: Callable[[list[str], str | None], str]) -> int:
+    """The amount of a row from an export with a money-out and a money-in column.
+
+    Only a figure that is not zero says which way the money went: exports exist that write
+    `0,00` into the column they are not using, and reading that as "both are filled" refused
+    every row of the file.
+    """
+    debit_text = cell(row, mapping.debit_column)
+    credit_text = cell(row, mapping.credit_column)
+    if not debit_text and not credit_text:
+        raise ValueError("neither the debit nor the credit column is filled")
+    debit = parse_amount(debit_text, mapping.decimal_separator) if debit_text else 0
+    credit = parse_amount(credit_text, mapping.decimal_separator) if credit_text else 0
+    if debit and credit:
+        raise ValueError("both the debit and the credit column carry an amount")
+    return -abs(debit) if debit else abs(credit)
