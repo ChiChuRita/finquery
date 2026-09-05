@@ -1745,7 +1745,7 @@
       ],
       "why": "Smallest means the smallest amount of money, and recurring means the same amount month after month. Ordering signed cents ascending returns the largest payment instead, which is exactly what Qwen3.5 published.",
       "source": "hand",
-      "sql": "WITH recurring AS (SELECT coalesce(counterparty, description) AS merchant, COUNT(*) AS bookings, ROUND(-AVG(amount), 2) AS amount_eur, MIN(amount_cents) AS lo, MAX(amount_cents) AS hi FROM transaction_view WHERE amount_cents < 0 GROUP BY merchant HAVING bookings >= 6 AND lo = hi) SELECT merchant, amount_eur, bookings FROM recurring ORDER BY amount_eur ASC LIMIT 1",
+      "sql": "WITH recurring AS (SELECT coalesce(counterparty, description) AS merchant, COUNT(*) AS bookings, ROUND(-AVG(amount), 2) AS amount_eur, MIN(amount) AS lo, MAX(amount) AS hi FROM transaction_view WHERE amount < 0 GROUP BY merchant HAVING bookings >= 6 AND lo = hi) SELECT merchant, amount_eur, bookings FROM recurring ORDER BY amount_eur ASC LIMIT 1",
       "gold": {
         "columns": [
           "merchant",

@@ -264,11 +264,14 @@ def _real_division(statement: exp.Expression) -> None:
 
     SQLite divides two integers as integers, so `something / 100` silently drops the cents. The
     prompt writes `100.0` everywhere; this is the same for a statement that did not.
+
+    Only that one divisor. Integer division by anything else is usually meant: a quarter is
+    `(month - 1) / 3 + 1` and wants the integer.
     """
     for division in statement.find_all(exp.Div):
         divisor = division.expression
-        if isinstance(divisor, exp.Literal) and divisor.is_int:
-            division.set("expression", exp.Literal.number(f"{divisor.name}.0"))
+        if isinstance(divisor, exp.Literal) and divisor.is_int and divisor.name == "100":
+            division.set("expression", exp.Literal.number("100.0"))
 
 
 def _invents_a_category(case: exp.Case) -> bool:

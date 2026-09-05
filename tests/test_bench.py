@@ -94,10 +94,12 @@ async def test_the_runner_scores_a_right_and_a_wrong_statement(database) -> None
     model = scripted(
         {
             right.question: right.sql,
-            # The 100x failure of the review of 2026-09-05: a statement that runs and passes
-            # the guard, with cents in a column called euros.
-            wrong.question: "SELECT ROUND(-SUM(amount_cents), 2) AS total_eur FROM transaction_view "
-            "WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'",
+            # A statement that runs and passes the guard and answers the wrong question: half
+            # the year, in a column called total. (The 100x failure of the review of
+            # 2026-09-05, `SUM(amount_cents) AS total_eur`, no longer reaches this point: the
+            # guard refuses cents in a figure since ticket 37.)
+            wrong.question: "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view "
+            "WHERE amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-06-30'",
         }
     )
     target = Target(name="scripted", resolve=lambda _slot: model, settings=ModelSettings())
