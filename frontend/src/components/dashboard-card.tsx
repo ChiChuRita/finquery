@@ -9,16 +9,16 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 
-import { Shimmer } from '@/components/ai-elements/shimmer'
 import {
   ChartCard,
   ChartCardHeader,
   ChartFrame,
+  FailedBody,
   failureLine,
   Footer,
+  RunningBody,
 } from '@/components/chart-tool'
 import { ConfirmDialog } from '@/components/dialogs'
-import { ErrorSection } from '@/components/query-result'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -72,11 +72,11 @@ function CardBody({
 }) {
   if (chart.error) {
     return (
-      <div className="flex flex-col gap-2 px-4 pb-3">
-        <ErrorSection message={failureLine(chart.error)} />
-        <p className="text-muted-foreground text-xs">
-          The whole reason, the plan and the query it ran are under Details.
-        </p>
+      <div className="px-4 pb-3">
+        <FailedBody
+          hint="The whole reason, the plan and the query it ran are under Details."
+          reason={failureLine(chart.error)}
+        />
       </div>
     )
   }
@@ -128,9 +128,9 @@ export function DashboardCard({
 
   return (
     <ChartCard>
-      {/* No shape badge here: the drawing says what it is, and the header needs the width for
-          the title and the five things that can be done to the card. The shape is named under
-          Details, next to the plan. */}
+      {/* The same header as the chat card, without its shape badge: with four actions beside
+          it the badge cut every title to a word and a half ("Income against..."). The shape is
+          named under Details, next to the plan. */}
       <ChartCardHeader
         title={
           renaming ? (
@@ -250,14 +250,7 @@ export function PreviewCard({
     return (
       <ChartCard>
         <ChartCardHeader title={request} />
-        <div
-          className="flex items-center justify-center px-4"
-          style={{ height: CHART_HEIGHT }}
-        >
-          <Shimmer className="text-muted-foreground text-sm">
-            Planning, querying, drawing...
-          </Shimmer>
-        </div>
+        <RunningBody />
         <Footer running />
       </ChartCard>
     )
