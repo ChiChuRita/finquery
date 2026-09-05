@@ -79,10 +79,15 @@ uv run finquery --dev           # API only on :8000 with auto reload
 cd frontend && npm run dev      # Vite on :5173, proxies /api to :8000
 ```
 
-Type-check the frontend with `npx tsc --noEmit` in `frontend/`. AI Elements components live in
+Type-check the frontend with `npm run build` in `frontend/` (`tsc -b` and Vite), which is also
+what `uv run finquery` needs run before it serves a change. AI Elements components live in
 `frontend/src/components/ai-elements` and are added with
-`npx shadcn@latest add https://elements.ai-sdk.dev/api/registry/<name>.json`. Rebuild with
-`npm run build` before `uv run finquery` serves a change.
+`npx shadcn@latest add https://elements.ai-sdk.dev/api/registry/<name>.json`. Only ever add one
+that is not there yet: most of the vendored files carry local edits (theme tokens instead of raw
+palette colours, trimmed markdown plugins, a dropped dependency, a generic message type) and
+`add` overwrites them without a word. To refresh one, diff against the registry JSON by hand.
+See `.scratch/finquery/ai-elements-audit-2026-09-05.md` for the per-file list and for which of
+the 48 components were deliberately rejected.
 
 ## Test
 

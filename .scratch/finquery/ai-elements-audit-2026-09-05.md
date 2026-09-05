@@ -7,9 +7,15 @@ the 48 (the actual `.tsx` source, not only the docs page). On the FinQuery side:
 `frontend/src/components/`, the ten vendored components under `frontend/src/components/ai-elements/`,
 `.scratch/finquery/spec.md` and `docs/demo-script.md`.
 
-What we vendor today: `context`, `conversation`, `message`, `model-selector`, `prompt-input`,
-`reasoning`, `shimmer`, `sources`, `suggestion`, `tool`. Five of those carry local edits
-(see "Risks", "Re-running `add` overwrites our edits").
+What we vendored when this was written: `context`, `conversation`, `message`, `model-selector`,
+`prompt-input`, `reasoning`, `shimmer`, `sources`, `suggestion`, `tool`. Six of those carry local
+edits (see "Risks", "Re-running `add` overwrites our edits").
+
+**Since ticket 34 (2026-09-05):** the shortlist below is built. `attachments` and
+`chain-of-thought` are vendored too (both copied from the registry JSON by hand, because the CLI
+wanted to overwrite `badge.tsx` on the way in), `ConversationDownload` is wired into the chat
+header, and the rejections in the table below are the record. Nothing else on this list was
+touched.
 
 ## The table
 
@@ -155,8 +161,9 @@ re-run would silently revert:
 | `model-selector.tsx` | ~24 lines | `defaultValue` on `Command`, so the palette opens on the slot in use |
 | `reasoning.tsx` | ~23 lines | the trimmed streamdown plugins |
 | `sources.tsx` | ~13 lines | "1 source" instead of "1 sources" |
+| `conversation.tsx` | ~10 lines | the message type of `ConversationDownload` and `messagesToMarkdown` as a parameter, without which no typed transcript can pass a `formatMessage` that reads a tool's output |
 
-Rule: only ever run `add` for a component we have **not** vendored. If one of the six above must
+Rule: only ever run `add` for a component we have **not** vendored. If one of the seven above must
 be refreshed, diff first (`curl -s https://elements.ai-sdk.dev/api/registry/<name>.json | jq -r
 '.files[0].content'` and `sed 's|@/registry/default/ui/|@/components/ui/|g'`).
 
@@ -195,3 +202,24 @@ step (6 to 8), the chart card (9, 10, 19), the changeset (11), the bill split (1
 touches the composer and the user message, `chain-of-thought` touches one card's details. Nothing
 else on this list should be touched before Monday, and `queue`, `test-results`, `agent` and
 `snippet` are explicitly after it.
+
+## Rejected, and why (the record, so nobody re-litigates them)
+
+Every reason is the table row above, in one line here. Ticket 34 points at this section.
+
+| Component | Why not |
+| --- | --- |
+| `agent` | No `status` prop and no controls anywhere in its source, so it cannot carry a running sub-agent. Pulls `accordion` and shiki. |
+| `MessageBranch*` (in `message`) | Shows one branch at a time. Every A/B here exists so both sides can be compared and one picked, and a branch selector has neither the Pick button nor the "did not draw" state. |
+| `task` | The docs claim status icons and a progress counter; the source has neither. `import-tool.tsx`'s `Progress` already renders that list *with* states, so adopting it would be a downgrade. |
+| `checkpoint` | The separator only renders after the children, so our centred pill would move left, and there is no content area for the collapsible summary editor. |
+| `confirmation` | Yes/no only, and it returns `null` unless the SDK `approval` state is set, which we never set. Our Question card is a multi-row form and our changeset has five statuses. |
+| `code-block` | A second highlighter (shiki) for the same SQL we already highlight with `@streamdown/code`. Our `tool.tsx` stubs it out for exactly this reason. |
+| `plan` | Lateral: `chart-tool.tsx` already composes Card, Collapsible and Shimmer by hand, and `PlanContent` fights the full-bleed chart iframe. |
+| `artifact` | Lateral: our chart card is already that shape plus a Footer the component has no slot for. |
+| `sandbox` | Our Details read better as one scroll (request, plan, repairs, SQL, rows) than as Code / Output tabs, and it would pull `tabs` plus shiki. |
+| `web-preview` | A URL bar on a chart card is wrong, and the frame's errors are already shown over the chart and reported to the server. |
+| `open-in-chat` | "Open this in ChatGPT" in a local-first app. The exact opposite of the product's claim. |
+| `jsx-preview` | Evaluates a JSX string in the host page. Model-written chart code runs in a cross-origin `sandbox="allow-scripts"` iframe precisely so it cannot reach the app or the data. |
+| `speech-input` | Its Firefox and Safari fallback posts recorded audio to an external transcription service. |
+| `canvas`, `node`, `edge`, `connection`, `controls`, `panel`, `toolbar` | The xyflow family: no graph UI anywhere in the product, and each one pulls `@xyflow/react`. |
