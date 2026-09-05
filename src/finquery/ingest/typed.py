@@ -33,6 +33,7 @@ from finquery.db import (
     ensure_account,
     fingerprint,
 )
+from finquery.extract.guards import RowUnreadable, parse_statement_date
 from finquery.ingest import duplicates
 from finquery.ingest.csv_reader import parse_amount
 from finquery.nullish import nullish_before
@@ -175,11 +176,24 @@ def store_drafts(
     return drafts, problems
 
 
-def preview_card(drafts: list[TransactionDraft]) -> AskUser:
-    """The preview card: one row per booking, Confirm or Discard on each."""
+NOTHING_WRITTEN = "Nothing is written until you confirm. Discard leaves your data untouched."
+
+ASK_FOR_THE_DATE = (
+    "The date on the receipt could not be read, so today's date stands here. Type the printed "
+    "date (for instance 04.09.2026) to correct it, or confirm to keep today."
+)
+
+
+def preview_card(drafts: list[TransactionDraft], *, ask_date: bool = False) -> AskUser:
+    """The preview card: one row per booking, Confirm or Discard on each.
+
+    `ask_date` is the receipt whose own date could not be read (`extract.bill`). Booking today
+    silently would be a wrong date nobody could see, so the card says so and takes the printed
+    date as free text, which `add_transaction` parses.
+    """
     return AskUser(
         title="Add this transaction?" if len(drafts) == 1 else f"Add these {len(drafts)} transactions?",
-        note="Nothing is written until you confirm. Discard leaves your data untouched.",
+        note=f"{NOTHING_WRITTEN} {ASK_FOR_THE_DATE}" if ask_date else NOTHING_WRITTEN,
         rows=[
             AskRow(
                 ref=draft.ref,
@@ -200,7 +214,7 @@ def preview_card(drafts: list[TransactionDraft]) -> AskUser:
             )
             for draft in drafts
         ],
-        allow_free_text=False,
+        allow_free_text=ask_date,
         # Nothing for the server to apply: a confirmed row is written by `add_transaction`. The
         # kind is here so Confirm and Discard are not read as category names.
         apply=AskApply(kind=TRANSACTION_DRAFT),
@@ -270,12 +284,17 @@ async def add_draft(
     profile_id: str,
     draft: TransactionDraft,
     *,
+    booked_on: str | None = None,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None = None,
 ) -> dict[str, Any]:
     """Write one confirmed draft as a manual transaction and categorize it.
 
     Confirming the same draft twice adds nothing: the draft remembers the booking it became.
+
+    `booked_on` is the date the user typed on the card, which a receipt whose own date could not
+    be read asks for. It is parsed here rather than taken as a day the model worked out, and a
+    span that is not a date is answered with a question instead of a booking.
 
     A booking the profile may already have is not written either. It is held aside as a
     duplicate candidate and comes back as a card of its own, so a payment typed twice by
@@ -289,6 +308,19 @@ async def add_draft(
             "description": draft.description,
             "message": f"{draft.description} was already added, so nothing was written again.",
         }
+    if booked_on and booked_on.strip():
+        try:
+            draft.booked_on = parse_statement_date(booked_on, year=date.today().year)
+        except (RowUnreadable, ValueError):
+            return {
+                "status": "unreadable_date",
+                "ref": draft.ref,
+                "error": (
+                    f"{booked_on!r} is not a date I can read, so nothing was written. Ask for it "
+                    f"as 04.09.2026 and call this again."
+                ),
+            }
+        session.commit()
     held = duplicates.for_draft(session, draft.id)
     if held is not None:
         return _held_aside(session, held, draft, asked=True)

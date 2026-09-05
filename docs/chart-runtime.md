@@ -159,11 +159,23 @@ carry becomes plain bars, narrated. A grouped or stacked chart whose rows carry 
 does, and so does a line or an area over fewer than three points, because a stroke from January
 to July says something about the five months the query did not return.
 
-A fourth is folded rather than repaired: a doughnut over more rows than it has slices keeps the
-five largest and sums the rest into one slice named `Other` or `Sonstige`, in the request's
-language, before any code is written (`runner._fold_slices`). Folding is arithmetic, so it is
-not left to a repair round, which the local fast model lost three times over twelve categories.
-The rows the card shows are the rows the chart drew, and the fold is narrated.
+A fourth is folded rather than repaired. Folding is arithmetic, so it is not left to a repair
+round and never to the SQL: the rows the card shows are the rows the chart drew, and every fold
+is narrated. Three of them, all before a line of code is written:
+
+- a **doughnut** over more rows than it has slices keeps the five largest and sums the rest into
+  one slice named `Other` or `Sonstige`, in the request's language (`runner._fold_slices`). The
+  local fast model lost a twelve-category doughnut three rounds running before this existed;
+- a **grouped or stacked bar** over more groups than the palette has colours keeps the five
+  largest by total and sums the rest into one such group per position (`runner._fold_groups`).
+  The query is therefore asked for each group under its own name and told not to fold: asking
+  the statement for it is what produced `CASE ... 'Other'` beside `GROUP BY month`, so every
+  month came back carrying several 'Other' rows and no definition could stack them;
+- a **sankey** row flowing from a name into itself is a total and not a flow, so it is left out
+  and the omission is narrated (`runner._drop_self_loops`). One such row, which "show me where
+  my income goes" produces readily, otherwise refuses the whole graph. Rows that are nothing
+  but self loops are left alone, because then there is no flow to draw and the rule above says
+  so in one sentence.
 
 The stub mimics the parts of the library the rules need: `pie` allocates real angles and rejects
 a negative value, `sankeyDiagram` validates the graph and calls the `marks` callback with node
@@ -237,8 +249,11 @@ English question coming back as "Monatliche Ausgaben 2025" over "Jan 25 ... Dez 
 means there is none, so the answer says so and gives the figures from `rows` instead of
 describing a drawing that is not there. `summary` is the last thing the model reads, so on a
 failure it repeats the instruction in full (`runner.NO_PICTURE`): no picture, no shape, no axis,
-no colour, the figures instead. The card shows the title, the frame, the thumbs and
-Regenerate, and, on demand, the request, the plan, the repairs, the SQL and the rows.
+no colour, the figures instead. On a drawn chart it names that chart and carries that chart's
+own figures, and it ends with "describe only this chart, never one from an earlier turn": a
+second chart in a row was answered with the first one's sentence, word for word, on 2026-09-05,
+and the cure is leaving nothing to reach back for. The card shows the title, the frame, the
+thumbs and Regenerate, and, on demand, the request, the plan, the repairs, the SQL and the rows.
 
 ## When the browser refuses anyway
 

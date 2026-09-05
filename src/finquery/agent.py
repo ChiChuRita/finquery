@@ -730,7 +730,9 @@ async def extract_transaction(ctx: RunContext[ChatDeps], text: str) -> dict[str,
 # One confirmed card can hold several rows, so the model emits several calls in one response.
 # They write, and SQLite serializes writers, so they run one after another.
 @chat_agent.tool(sequential=True)
-async def add_transaction(ctx: RunContext[ChatDeps], ref: str) -> dict[str, Any]:
+async def add_transaction(
+    ctx: RunContext[ChatDeps], ref: str, booked_on: str | None = None
+) -> dict[str, Any]:
     """Write one transaction the user confirmed on a preview card, and categorize it.
 
     The booking is written from the stored draft, not from anything you pass here, so the ref is
@@ -741,6 +743,9 @@ async def add_transaction(ctx: RunContext[ChatDeps], ref: str) -> dict[str, Any]
 
     Args:
         ref: The `ref` of the confirmed row, for instance `t1`.
+        booked_on: Only when the card asked the user for a date, because a receipt's own date
+            could not be read, and they typed one: pass it exactly as they wrote it
+            (`04.09.2026`). Leave it out otherwise, and never write a date of your own.
     """
     with ctx.deps.session_factory() as session:
         draft = find_draft(session, ctx.deps.conversation_id, ref)
@@ -750,6 +755,7 @@ async def add_transaction(ctx: RunContext[ChatDeps], ref: str) -> dict[str, Any]
             session,
             ctx.deps.profile_id,
             draft,
+            booked_on=booked_on,
             resolve_model=ctx.deps.resolve_model,
             model_settings=ctx.deps.subagent_settings,
         )

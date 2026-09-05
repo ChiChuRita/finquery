@@ -47,20 +47,21 @@ Rules:
   A merchant is named by its enriched `title` (Edeka, Amazon), never by the raw booking text, so
   ask for `coalesce(title, counterparty, description)`: those names are short enough to sit
   under an axis and inside a legend.
-- bar_grouped or bar_stacked: three columns, one row per month and group, and never two rows
-  with the same month and group.
-  The third column holds group names and never a second euro column: two figures in the same
-  row cannot be drawn side by side, so income against spending is one row per month and per
-  name, from a UNION of the two.
+- bar_grouped or bar_stacked: three columns in this order, the month, the group name and the
+  euro figure (`month`, `topic`, `total_eur`), one row per month and group, and never two rows
+  with the same month and group. The euro figure is always the last of the three.
+  The group column holds names and never a second euro column: two figures in the same row
+  cannot be drawn side by side, so income against spending is one row per month and per name,
+  from a UNION of the two.
   Name that column `topic`, never `category`: an alias that reuses a view column name breaks
   the grouping. The group itself always comes from the household's own `category` column, with
   the uncategorized bookings as one 'Needs review' bucket; never ask for a grouping derived
   from the booking text.
-  A chart has {MAX_SERIES} colours, so ask for at most {MAX_SERIES} groups. When the request
-  names the categories it wants, ask for those by name and for nothing else. When it asks for
-  all of them and there are more than {MAX_SERIES}, ask for the {MAX_SERIES - 1} largest over
-  the whole period with everything else summed into one 'Other' group, because more groups than
-  colours means two categories in one picture painted the same, which nobody can read.
+  When the request names the categories it wants, ask for those by name and for nothing else.
+  When it asks for all of them, ask for all of them under their own names: never ask for an
+  'Other' or 'Sonstige' group and never ask for the largest few. A chart has {MAX_SERIES}
+  colours and the app itself keeps the {MAX_SERIES - 1} largest and sums the rest, after the
+  query, where summing is arithmetic rather than a rewritten statement.
 - doughnut: at most {MAX_SLICES} rows, so ask for the largest {MAX_SLICES - 1} plus a rest row
   when there are more categories than that. A rest row that would hold most of the money says
   nothing, so ask for the largest {MAX_SLICES} instead when a handful of buckets carry the
@@ -70,6 +71,9 @@ Rules:
   a single source named in `language` ('Einkommen' or 'Income') flowing into the spending
   groups, or for the income streams by name. One picture is one flow: never two names for the
   same thing, and never a second flow beside the first.
+  Say in the question that the source and the target of a row must differ and that no total row
+  belongs in the result: a row from Income into Income is a flow into itself, which a sankey
+  refuses, and "where does my income go" asked plainly is exactly how one gets written.
 """
 
 CONTRACT = """\

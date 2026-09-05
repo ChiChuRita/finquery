@@ -26,6 +26,8 @@ from pydantic_ai import Agent, BinaryContent, ToolOutput
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 
+from finquery.nullish import nullish_before
+
 MAX_ROWS_PER_PAGE = 60
 """Bookings one page can hold. The shipped statement prints 30 to a page."""
 
@@ -66,12 +68,46 @@ You read a photo of a receipt or bill for the account holder's own finance app. 
 `read_bill` exactly once and nothing else.
 
 - `merchant` is the shop's name as printed at the top.
-- `date_text` is the date exactly as printed on the receipt (`14.03.2025`).
+- `date_text` is the date printed on the receipt, copied character by character. A German till
+  prints it short, `04.09.26` or `04.09.2026`, usually with the time right after it
+  (`04.09.26 20:00`), under a `Datum` or `Datum Uhrzeit` label, at the foot of the receipt
+  near the barcode, the till number or the card payment block. Copy the date and the time that
+  stands with it, and nothing else of that line.
+  Look for it before you answer: almost every receipt carries one, and it is the date the
+  booking gets. Never write today's date, never work a date out from anything and never invent
+  a year. Only if the photo really shows no date at all, return an empty `date_text`: the app
+  then asks the person for it rather than booking the wrong day.
 - `total_text` is the figure printed next to the total (`SUMME`, `Summe`, `Total`, `Gesamt`,
   `zu zahlen`), exactly as printed, or null when no total is printed.
+- `currency_text` is the currency as printed next to the total (`EUR`, `€`, `PLN`, `$`, `CHF`),
+  or an empty string when none is printed.
+- `tax_text` is the tax printed as a separate figure that is added to the articles to make the
+  total (`TAX`, `Steuer`, `IVA` on a receipt whose prices are printed without it), and null on
+  a German receipt, where the `MwSt.` table only says how much of the total is tax.
+- `direction` is `out` on a normal purchase and `in` when the receipt pays money back: a
+  `Leergutbon`, `Pfandbon`, `Retoure`, `Gutschrift`, `Rückgabe` or `Auszahlung`, or a total
+  printed as a credit.
 - `items` is one entry per line item, in the order they are printed, each with the article text
-  and `amount_text` exactly as printed. Leave out discounts you cannot read, deposit returns
-  you are unsure about, the VAT line, the payment line and the total itself.
+  and `amount_text` exactly as printed.
+- `note` is one short line only when there is something about the photo the person has to know:
+  it shows more than one receipt, it is cut off, it is not a receipt at all. Otherwise null.
+- `several_receipts` is true when the photo shows more than one receipt. Read the first one and
+  say so in `note`.
+
+What is not a line item, and is never returned as one:
+- a subtotal: `ZWI.SUMME`, `Zwischensumme`, `Zw.Summe`, `SUB TOTAL`, `Summe 9 Pos.`, `Posten: 3`,
+  `SUMME NETTO`, and the total itself;
+- a quantity or a measure line, which carries no price of its own: `2 x 0,49`, `4 x 1.29`,
+  `0,208 KG x 19,90 EP`, `Säule 01 100,02 l 1,439 EUR/l`. The price of that article is the
+  figure on the article line above or below it, never the number on this one;
+- the VAT table (`MwSt.`, `A 19%`, `Netto`, `Brutto`), the payment lines (`Bar`, `Karte`, `EC`,
+  `Geg. BAR`, `Rückgeld`, `Kartenzahlung`), the loyalty and points lines, the till, receipt and
+  operator numbers, the address and the closing thanks.
+
+A discount is a line item with a negative amount: `Rabatt -1,00`, `Rabat -2,00`, `Coupon -0,50`,
+`MwSt.-Senkung -0,88`, a deposit return inside a purchase (`Leergut -0,25`). Return it exactly as
+printed, minus sign included, because it is the difference between the articles and the total.
+
 - Copy every figure character by character. Never add up anything, never round and never invent
   a figure you cannot see: the line items are added up and checked against the total, and a
   bill that does not add up is shown to the user instead of being trusted.
@@ -101,16 +137,34 @@ class BillItem(BaseModel):
     """One line of a receipt."""
 
     description: str = Field(description="The article text as printed.")
-    amount_text: str = Field(description="The price exactly as printed.")
+    amount_text: str = Field(
+        description="The price exactly as printed, with its minus sign when it is a discount."
+    )
 
 
 class Bill(BaseModel):
     """One receipt as the sub-agent read it."""
 
     merchant: str = Field(description="The shop's name as printed at the top.")
-    date_text: str = Field(description="The date exactly as printed.")
+    date_text: str = Field(
+        default="",
+        description="The date exactly as printed, with its time if one stands there, or empty when none is printed.",
+    )
     total_text: str | None = Field(default=None, description="The total exactly as printed, or null.")
+    currency_text: str = Field(default="", description="The currency as printed (`EUR`, `€`, `PLN`), or empty.")
+    tax_text: str | None = Field(
+        default=None, description="A tax figure added to the articles to make the total, or null."
+    )
+    direction: Literal["out", "in"] = Field(
+        default="out", description="`in` when the receipt pays money back (Leergutbon, Retoure)."
+    )
+    note: str | None = Field(default=None, description="One line about the photo, only when there is one.")
+    several_receipts: bool = Field(default=False, description="True when the photo shows more than one receipt.")
     items: list[BillItem] = Field(default_factory=list)
+
+    # The fast slot answers an empty field with the word `null`, and a note reading "null" would
+    # be shown to the user as if the photo carried one.
+    _nulls = nullish_before("total_text", "tax_text", "note")
 
 
 statement_agent = Agent(
@@ -150,8 +204,9 @@ def image_prompt(*, page: int, pages: int, layout_hint: str, year: int | None) -
 
 def bill_prompt(today: date) -> str:
     return (
-        f"Today is {today.isoformat()}. Read this receipt: the merchant, the date, the total and "
-        f"every line item, at most {MAX_ITEMS}."
+        f"Today is {today.isoformat()}, which is not the receipt's date: the receipt prints its "
+        f"own, and that is the one to copy. Read this receipt: the merchant, the printed date, "
+        f"the total and every line item, at most {MAX_ITEMS}."
     )
 
 

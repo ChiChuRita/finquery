@@ -123,6 +123,54 @@ def ask_chart_then_report(request: str):
     return fn
 
 
+def ask_charts_then_echo(requests: Sequence[str]):
+    """One chart turn per request, each answering with the tool's own `summary`.
+
+    Echoing the summary is how a test reads what the model was handed before it wrote a word
+    about the picture.
+    """
+
+    async def fn(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        result = _last_chart_return(messages)
+        if result is None:
+            asked = sum(
+                1 for message in messages for part in message.parts if part.part_kind == "user-prompt"
+            )
+            request = requests[min(asked, len(requests)) - 1]
+            yield {0: DeltaToolCall(name="chart", json_args=json.dumps({"request": request}))}
+            return
+        yield str(result["summary"])
+
+    return fn
+
+
+def scripted_charts(specs: Sequence[tuple[dict[str, object], str, str]]):
+    """The fast slot behind several chart turns in one conversation: one spec per turn."""
+    prompts: dict[str, list[str]] = {"plan": [], "sql": [], "code": []}
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        if is_followup_request(messages):
+            return ModelResponse(parts=[TextPart(content="No follow-ups.")])
+        if is_distillation_request(messages):
+            return ModelResponse(parts=[distilled()])
+        name = info.output_tools[0].name
+        prompt = _last_user_prompt(messages)
+        if name == "chart_plan":
+            prompts["plan"].append(prompt)
+            return ModelResponse(parts=[ToolCallPart("chart_plan", json.dumps(specs[len(prompts["plan"]) - 1][0]))])
+        turn = max(len(prompts["plan"]) - 1, 0)
+        if name == "run_sql":
+            prompts["sql"].append(prompt)
+            return ModelResponse(parts=[ToolCallPart("run_sql", json.dumps({"sql": specs[turn][1]}))])
+        if name == "chart_code":
+            prompts["code"].append(prompt)
+            return ModelResponse(parts=[ToolCallPart("chart_code", json.dumps({"code": specs[turn][2]}))])
+        raise AssertionError(f"unexpected forced tool {name}")
+
+    respond.prompts = prompts  # type: ignore[attr-defined]
+    return respond
+
+
 def scripted_chart(
     *,
     plan: dict[str, object],
@@ -588,6 +636,46 @@ async def test_a_circular_flow_stops_a_sankey_before_any_code_is_written(
     assert answer(chunks).startswith("I could not draw that:")
 
 
+# "Show me where my income goes as a sankey" asked plainly returned the year's total as
+# Einkommen to Einkommen beside the real flows (end-to-end test of 2026-09-05), and one row
+# refused the whole graph.
+SELF_LOOP_SANKEY_SQL = (
+    "SELECT 'Einkommen' AS source, 'Einkommen' AS target, ROUND(SUM(amount), 2) AS amount_eur "
+    "FROM transaction_view WHERE amount_cents > 0 "
+    "UNION ALL "
+    "SELECT 'Einkommen' AS source, "
+    "CASE WHEN amount_cents < -20000 THEN 'Wohnen' ELSE 'Alltag' END AS target, "
+    "ROUND(-SUM(amount), 2) AS amount_eur FROM transaction_view WHERE amount_cents < 0 GROUP BY 2"
+)
+
+
+async def test_a_sankey_self_loop_is_left_out_instead_of_losing_the_chart(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """A row from a name into itself is a total, not a flow, so it is dropped and narrated."""
+    await import_synthetic(client, profile_id)
+    respond = scripted_chart(
+        plan=SANKEY_PLAN, sql=SELF_LOOP_SANKEY_SQL, codes=[EXAMPLES["sankey"].split("\n", 1)[1]]
+    )
+    scripts.fast = ask_chart_then_report("where my income goes in 2025 as a sankey")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Zeig mir als Sankey, wohin mein Einkommen fliesst.")
+
+    output = chart_output(chunks)
+    assert output["error"] is None
+    assert output["rendered"] is True
+    assert len(respond.prompts["code"]) == 1, "the self loop is dropped before the code pass"  # type: ignore[attr-defined]
+    assert output["row_count"] == 2
+    assert all(row["source"] != row["target"] for row in output["rows"])
+    assert "One row flowed from Einkommen into itself" in narration(chunks)
+    assert "2 flows are drawn" in narration(chunks)
+    # Both prompts say it before the rows ever come back.
+    assert "a flow into itself" in respond.prompts["plan"][0]  # type: ignore[attr-defined]
+    assert "the same name in source and target" in respond.prompts["sql"][0]  # type: ignore[attr-defined]
+
+
 async def test_a_drawn_chart_says_it_is_rendered_and_tells_the_model_to_write_text(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
 ) -> None:
@@ -912,18 +1000,97 @@ SIX_TOPICS_SQL = (
 
 STACKED_CODE = EXAMPLES["bar_stacked"].split("\n", 1)[1]
 
+# The same stack, coloured by the month and the group together, so the code asks for a colour
+# per bar segment however few groups the rows carry.
+PAIR_COLOURED_CODE = STACKED_CODE.replace(
+    "z: 'topic', color: (row) => short(row.topic)",
+    "z: (row) => row.topic + ' ' + row.month, color: (row) => short(row.topic + ' ' + row.month)",
+)
 
-async def test_more_groups_than_colours_is_reported_but_still_drawn(
+
+async def test_a_stacked_chart_folds_its_tail_into_one_group_in_code(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """Seven groups over six colours: the app keeps the five largest and sums the rest.
+
+    The query is asked for each group under its own name, because asking the statement to fold
+    is what broke the stacked bars on 2026-09-05: it relabelled the small groups 'Other' while
+    grouping by the month alone, so every month came back with several 'Other' rows and no
+    definition could stack them. Folding is arithmetic, so it happens here, in one pass, and
+    the rows the card shows are the rows the chart drew.
+    """
+    await import_synthetic(client, profile_id)
+    respond = scripted_chart(plan=STACKED_PLAN, sql=MANY_TOPICS_SQL, codes=[STACKED_CODE])
+    scripts.fast = ask_chart_then_report("spending per month and group in 2025 as stacked bars")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Gestapelte Balken pro Monat und Gruppe bitte.")
+
+    output = chart_output(chunks)
+    assert output["error"] is None
+    assert output["rendered"] is True
+    assert output["code"] == STACKED_CODE
+    assert len(respond.prompts["code"]) == 1, "the fold is arithmetic, not a repair round"  # type: ignore[attr-defined]
+
+    rows = output["rows"]
+    groups = {row["topic"] for row in rows}
+    assert len(groups) == 6 and "Sonstige" in groups
+    pairs = [(row["month"], row["topic"]) for row in rows]
+    assert len(pairs) == len(set(pairs)), "one figure per month and group, which is what a stack needs"
+    assert "The query returned 7 groups and a chart has 6 colours" in narration(chunks)
+    assert "2 smallest are one 'Sonstige' group per month" in narration(chunks)
+
+    # The tail is summed and not dropped: the folded rows still hold every euro the query
+    # returned, which is this profile's whole spending.
+    page = (await client.get("/api/transactions", params={"profile_id": profile_id, "limit": 1000})).json()
+    spent = -sum(row["amount_cents"] for row in page["rows"] if row["amount_cents"] < 0) / 100
+    assert round(sum(row["total_eur"] for row in rows), 2) == round(spent, 2)
+
+    # The statement was asked for one row per pair and for no fold of its own.
+    statement = respond.prompts["sql"][0]  # type: ignore[attr-defined]
+    assert "GROUP BY month, topic" in statement
+    assert "never rename one to 'Other' or 'Sonstige'" in statement
+
+
+async def test_a_stacked_plan_that_puts_the_euro_column_second_is_reordered(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """`month, total_eur, topic` made every reader take the euro column for the group.
+
+    The query hint, the pair rule and the fold all read the three columns as position, group
+    and figure, so the euro column goes last before the statement is even asked for.
+    """
+    await import_synthetic(client, profile_id)
+    plan = {**STACKED_PLAN, "columns": ["month", "total_eur", "topic"]}
+    respond = scripted_chart(plan=plan, sql=SIX_TOPICS_SQL, codes=[STACKED_CODE])
+    scripts.fast = ask_chart_then_report("spending per month and group in 2025 as stacked bars")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Gestapelte Balken pro Monat und Gruppe bitte.")
+
+    output = chart_output(chunks)
+    assert output["error"] is None and output["rendered"] is True
+    assert "over month, topic, total_eur" in narration(chunks)
+    statement = respond.prompts["sql"][0]  # type: ignore[attr-defined]
+    assert "Return exactly these columns, in this order: month, topic, total_eur." in statement
+    assert "GROUP BY month, topic" in statement
+
+
+async def test_more_colours_than_the_palette_is_reported_but_still_drawn(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
 ) -> None:
     """Eleven categories over six colours painted two of them the same (review of 2026-09-05).
 
-    The finding is not fatal: a chart whose seventh colour repeats still answers the question,
-    and no chart at all does not, so after the last round it is shown with the note on it.
+    The rows cannot ask for that any more, because the tail is folded before the code is
+    written, but the code's own colour channel still can. The finding is not fatal: a chart
+    whose seventh colour repeats still answers the question, and no chart at all does not, so
+    after the last round it is shown with the note on it.
     """
     await import_synthetic(client, profile_id)
     respond = scripted_chart(
-        plan=STACKED_PLAN, sql=MANY_TOPICS_SQL, codes=[STACKED_CODE, STACKED_CODE, STACKED_CODE]
+        plan=STACKED_PLAN, sql=SIX_TOPICS_SQL, codes=[PAIR_COLOURED_CODE] * 3
     )
     scripts.fast = ask_chart_then_report("spending per month and group in 2025 as stacked bars")
     scripts.fast_call = respond  # type: ignore[assignment]
@@ -932,9 +1099,9 @@ async def test_more_groups_than_colours_is_reported_but_still_drawn(
     _, chunks = await chat(conversation_id, "Gestapelte Balken pro Monat und Gruppe bitte.")
 
     output = chart_output(chunks)
-    assert output["code"] == STACKED_CODE
+    assert output["code"] == PAIR_COLOURED_CODE
     assert output["rendered"] is True
-    assert "The palette holds 6 colours and this chart asks for 7" in output["notes"][0]
+    assert "The palette holds 6 colours and this chart asks for 72" in output["notes"][0]
     assert "Shown with one rule unmet" in output["notes"][-1]
 
 
@@ -1272,6 +1439,66 @@ async def test_rows_that_name_one_position_many_times_stop_before_any_code(
     assert "Sonstiges" in output["error"]
     assert respond.prompts["code"] == []  # type: ignore[attr-defined]
     assert output["row_count"] == 12
+
+# --------------------------------------------------------------------------- two charts in a row
+
+AREA_TURN_PLAN = {
+    "shape": "area",
+    "language": "en",
+    "title": "Cumulative spending in 2025",
+    "question": "cumulative spending per month in 2025",
+    "columns": ["month", "cumulative_eur"],
+    "reason": "A running total reads as an area.",
+}
+
+GROUPED_TURN_PLAN = {
+    "shape": "bar_grouped",
+    "language": "en",
+    "title": "Large and small payments per month",
+    "question": "large and small payments per month in 2025",
+    "columns": ["month", "topic", "total_eur"],
+    "reason": "Two groups side by side per month.",
+}
+
+
+async def test_the_second_chart_in_a_row_is_the_one_the_model_is_told_to_describe(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The prose under a grouped chart repeated the previous chart's answer (2026-09-05).
+
+    The tool result is the last thing the model reads, so it names this chart and carries this
+    chart's own figures: there is nothing left to reach back to an earlier turn for.
+    """
+    await import_synthetic(client, profile_id)
+    respond = scripted_charts(
+        [
+            (AREA_TURN_PLAN, SHAPE_SQL["area"], EXAMPLES["area"].split("\n", 1)[1]),
+            (GROUPED_TURN_PLAN, SHAPE_SQL["bar_grouped"], EXAMPLES["bar_grouped"].split("\n", 1)[1]),
+        ]
+    )
+    scripts.fast = ask_charts_then_echo(
+        ["cumulative spending in 2025 as an area chart", "large against small payments per month in 2025"]
+    )
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, first = await chat(conversation_id, "Show my cumulative spending in 2025 as an area chart.")
+    _, second = await chat(conversation_id, "Now compare large and small payments per month as grouped bars.")
+
+    one, two = chart_output(first), chart_output(second)
+    assert (one["rendered"], two["rendered"]) == (True, True)
+    assert one["title"] != two["title"]
+
+    # The summary the model receives on the second turn names the second chart and carries its
+    # own figures, and says the first one is not what it is writing about.
+    assert two["title"] in two["summary"]
+    assert one["title"] not in two["summary"]
+    assert f'is a bar_grouped titled "{two["title"]}"' in two["summary"]
+    assert "topic Gross" in two["summary"] and "topic Klein" in two["summary"]
+    assert "Describe only this chart, never one from an earlier turn." in two["summary"]
+    # And that is what the answer under the card was written from.
+    assert two["title"] in answer(second) and one["title"] not in answer(second)
+
 
 def test_the_chart_benchmark_set_covers_every_shape() -> None:
     """The set the quality pass is measured on: at least twenty prompts, both languages, all

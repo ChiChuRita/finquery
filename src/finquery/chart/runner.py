@@ -17,7 +17,7 @@ from finquery.chart.shapes import MAX_SERIES, MAX_SLICES, SHAPES
 from finquery.chart.subagent import ChartPlan, write_code, write_plan
 from finquery.providers import ModelResolver, ProviderNotAvailable
 from finquery.query import QueryOutcome, load_query_context, run_query
-from finquery.query.runner import figures
+from finquery.query.runner import figures, is_euro_column
 
 # One attempt plus two repair rounds. A third failure is reported instead of looping.
 ATTEMPTS = 3
@@ -87,8 +87,44 @@ NO_PICTURE = (
 )
 
 
+def _summary(plan: ChartPlan, columns: list[str], rows: list[dict[str, Any]]) -> str:
+    """The last thing the model reads before it writes the sentence under a drawn chart.
+
+    It names this chart and carries this chart's own figures, because on 2026-09-05 the prose
+    under a grouped chart was the previous chart's answer repeated word for word. The figures
+    are here so there is nothing to reach back for: the numbers the sentence needs are in the
+    tool result the model just got, already written the German way.
+    """
+    return "\n".join(
+        [
+            f'The chart now on screen is a {plan.shape} titled "{plan.title}", drawn from these '
+            f"{len(rows)} rows of the query it just ran:",
+            *figures(columns, rows),
+            "Write your answer as text now: one or two sentences about this chart, quoting at "
+            "most the two figures that matter, and taking every figure from the rows above. "
+            "Describe only this chart, never one from an earlier turn.",
+        ]
+    )
+
+
 def _failed(request: str, reason: str, **rest: Any) -> ChartOutcome:
     return ChartOutcome(request=request, summary=f"{reason} {NO_PICTURE}", error=reason, **rest)
+
+
+def _euro_last(plan: ChartPlan) -> ChartPlan:
+    """The euro column of a grouped or stacked chart is the last of its three, whatever the plan said.
+
+    Everything downstream reads those columns as position, group and figure: the query hint,
+    the pair rule of the check and the fold. The plan pass asked for `month, total_eur, topic`
+    on 2026-09-05, so all three read the euro column as the group and the chart was refused for
+    carrying "the pair 2025-09 / 36.5 twice". The order is ours to fix, so it is fixed here.
+    """
+    if not SHAPES[plan.shape].crossed or len(plan.columns) != 3:
+        return plan
+    euros = [name for name in plan.columns if is_euro_column(name)]
+    if len(euros) != 1 or plan.columns[-1] == euros[0]:
+        return plan
+    return plan.model_copy(update={"columns": [name for name in plan.columns if name != euros[0]] + euros})
 
 
 def _grouping_columns(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
@@ -177,6 +213,78 @@ def _fold_slices(
     return [*kept, folded], note
 
 
+def _fold_groups(
+    plan: ChartPlan, columns: list[str], rows: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], str | None]:
+    """A grouped or stacked chart over more groups than the palette has colours.
+
+    The same arithmetic as `_fold_slices`, and here for the same reason. Asking the query to
+    keep the largest groups and relabel the rest is what broke the stacked bars three rounds
+    running on 2026-09-05: the statement wrote `CASE ... ELSE 'Other'` but grouped by the month
+    alone, so every month came back with several 'Other' rows and no definition could stack
+    them. So the query is asked for each group as it is named, and the tail is folded here,
+    where summing is a line of code rather than a repair round.
+    """
+    rule = SHAPES[plan.shape]
+    if not rule.crossed or len(columns) < 3:
+        return rows, None
+    position, group, value = columns[0], columns[1], columns[2]
+    if any(not isinstance(row.get(value), (int, float)) or isinstance(row.get(value), bool) for row in rows):
+        return rows, None
+    totals: dict[str, float] = {}
+    for row in rows:
+        name = str(row.get(group))
+        totals[name] = totals.get(name, 0.0) + float(row[value])
+    if len(totals) <= MAX_SERIES:
+        return rows, None
+    largest = sorted(totals.items(), key=lambda item: item[1], reverse=True)[: MAX_SERIES - 1]
+    kept = {name for name, _ in largest}
+    rest_name = REST_NAME.get(plan.language, REST_NAME["en"])
+    folded: list[dict[str, Any]] = []
+    at: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        name = str(row.get(group))
+        name = name if name in kept else rest_name
+        key = (str(row.get(position)), name)
+        if (seen := at.get(key)) is None:
+            fresh = {**row, group: name}
+            at[key] = fresh
+            folded.append(fresh)
+        else:
+            seen[value] = round(float(seen[value]) + float(row[value]), 2)
+    note = (
+        f"The query returned {len(totals)} groups and a chart has {MAX_SERIES} colours, so the "
+        f"{len(totals) - len(kept)} smallest are one '{rest_name}' group per {position}."
+    )
+    return folded, note
+
+
+def _drop_self_loops(
+    plan: ChartPlan, columns: list[str], rows: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], str | None]:
+    """A flow from a name into itself is a total row, and a sankey refuses the whole graph for it.
+
+    "Show me where my income goes as a sankey" returned Income to Income beside the real flows
+    on 2026-09-05, and one row cost the chart. The row carries no flow, so it is left out here
+    and the omission is narrated. Rows that are nothing but self loops are left alone: then
+    there is no flow at all and `data_findings` says so.
+    """
+    if plan.shape != "sankey" or len(columns) < 3:
+        return rows, None
+    source, target = columns[0], columns[1]
+    loops = [row for row in rows if str(row.get(source)) == str(row.get(target))]
+    kept = [row for row in rows if str(row.get(source)) != str(row.get(target))]
+    if not loops or not kept:
+        return rows, None
+    names = ", ".join(dict.fromkeys(str(row.get(source)) for row in loops))
+    flowed = "One row flowed" if len(loops) == 1 else f"{len(loops)} rows flowed"
+    note = (
+        f"{flowed} from {names} into itself, which is a total and not a flow, so it is left out "
+        f"and {len(kept)} flows are drawn."
+    )
+    return kept, note
+
+
 def _rest_share(shape: str, columns: list[str], rows: list[dict[str, Any]]) -> str | None:
     """The share of a doughnut's rest slice, as a percentage, when it holds the majority."""
     if shape != "doughnut" or len(columns) < 2 or len(rows) < 2:
@@ -223,6 +331,7 @@ async def run_chart(
         plan = await write_plan(model, request, context, hints=hints, model_settings=model_settings)
     except Exception as exc:  # noqa: BLE001 - any model or transport failure is one message here
         return _failed(request, f"The chart sub-agent did not return a plan: {exc}")
+    plan = _euro_last(plan)
     say(plan.as_text())
 
     # What the query needs to know on top of whatever the assistant said.
@@ -249,21 +358,17 @@ async def run_chart(
             f"`coalesce(category, 'Needs review') AS {group}` so an uncategorized "
             f"booking is an honest bucket, and never from a CASE over the booking text."
         )
-        # A chart has six colours. More groups than that and two categories are painted the
-        # same, which is what eleven categories over twelve months looked like on 2026-09-04.
-        # It is a ceiling and not an instruction to fold: a question that names two categories
-        # gets those two by name, never one of them relabelled 'Other'.
+        # A chart has six colours, and folding the tail into one group is arithmetic this app
+        # does itself (`_fold_groups`). Asking the statement for it is what cost the stacked
+        # bars three rounds on 2026-09-05: the CASE relabelled the small categories 'Other'
+        # while the statement still grouped by the month alone, so every month came back with
+        # several 'Other' rows and the stack could not be drawn at all.
         shaped += (
-            f" {group} may hold at most {MAX_SERIES} names, because a chart has that many "
-            f"colours. When the question already names the groups it wants, or when the grouping "
-            f"yields {MAX_SERIES} or fewer, group by them as they are and add no 'Other' row. "
-            f"Only when it would yield more: keep the {MAX_SERIES - 1} with the largest total "
-            f"over the whole period and sum the rest into one 'Other' row per {position}, with "
-            f"`WITH ranked AS (SELECT coalesce(category, 'Needs review') AS name, "
-            f"SUM(-amount) AS total FROM transaction_view WHERE amount_cents < 0 GROUP BY 1 "
-            f"ORDER BY total DESC LIMIT {MAX_SERIES - 1})` and then "
-            f"`CASE WHEN coalesce(category, 'Needs review') IN (SELECT name FROM ranked) "
-            f"THEN coalesce(category, 'Needs review') ELSE 'Other' END AS {group}`."
+            f" Return every group under its own name: never rename one to 'Other' or 'Sonstige', "
+            f"never fold the small ones together and never put a LIMIT on the groups. This app "
+            f"keeps the largest {MAX_SERIES - 1} and sums the rest itself, after the query, "
+            f"because a chart has {MAX_SERIES} colours. When the question names the groups it "
+            f"wants, select only those."
         )
     outcome = await run_query(
         resolve_model=resolve_model,
@@ -298,6 +403,19 @@ async def run_chart(
             columns=outcome.columns,
         )
     say(f"Data: {len(outcome.rows)} rows over {', '.join(outcome.columns)}.")
+
+    # Two folds in code, both arithmetic and neither a judgement, so neither is left to the
+    # query or to a repair round. They run before the rows are judged, because the rows they
+    # produce are the rows the chart draws and the card shows.
+    rows, loops = _drop_self_loops(plan, outcome.columns, outcome.rows)
+    rows, grouped = _fold_groups(plan, outcome.columns, rows)
+    for note in (loops, grouped):
+        if note is not None:
+            say(note)
+    if rows is not outcome.rows:
+        outcome = QueryOutcome(
+            request=outcome.request, sql=outcome.sql, columns=outcome.columns, rows=rows, summary=outcome.summary
+        )
 
     # What the rows make impossible, judged before a single line of code is written: no repair
     # round can fold two rows for the same month and category into one, or straighten a
@@ -382,11 +500,7 @@ async def run_chart(
                 rows=outcome.rows,
                 code=code,
                 notes=notes,
-                summary=(
-                    f"A {plan.shape} chart titled \"{plan.title}\" is now shown to the user, drawn "
-                    f"from {len(outcome.rows)} rows of the executed query. Write your answer as "
-                    f"text now: one or two sentences quoting at most the two figures that matter."
-                ),
+                summary=_summary(plan, outcome.columns, outcome.rows),
             )
         findings = result.instructions()
         note = f"Repair {attempt + 1} of {ATTEMPTS - 1}: {'; '.join(result.findings)}"

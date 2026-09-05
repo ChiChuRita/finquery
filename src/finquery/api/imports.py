@@ -354,7 +354,36 @@ async def extract_upload(request: Request, file: UploadFile = File(...)) -> Extr
             or (extraction.errors[0] if extraction.errors else None)
             or "No booking could be read out of this file. It may not be a bank statement.",
         )
+    if _reads_as_a_receipt(extraction):
+        raise HTTPException(status_code=422, detail=NOT_A_STATEMENT)
     return _extraction_out(extraction)
+
+
+NOT_A_STATEMENT = (
+    "This looks like a till receipt rather than a page of a bank statement: nothing on it could "
+    "be checked against a balance. Drop a receipt into a chat instead, where it is read as a "
+    "receipt and becomes a booking or a split."
+)
+
+
+def _reads_as_a_receipt(extraction: Extraction) -> bool:
+    """Whether a photo read as a statement page is really a receipt.
+
+    The reader says so itself on most receipts and then there are no rows at all, but twice in
+    twenty it wrote the articles out as bookings (`Rucolasauce -0,99`), which this door would
+    have handed on as a statement. A page of a statement carries the account's running balance,
+    and that is what makes its figures checkable at all (ADR 0011); a photo with no balance
+    anywhere, nothing that reconciles and not one row either guard could verify is not one.
+
+    A photo of a statement page that prints no balances is refused by this too. That is the case
+    the ADR calls "no proof there is", and the honest answer to it is the sentence above rather
+    than a table of figures nothing checked.
+    """
+    if extraction.kind != "image":
+        return False
+    if any(row.balance_cents is not None for row in extraction.rows):
+        return False
+    return extraction.reconciliation.status != "ok" and all(row.flagged for row in extraction.rows)
 
 
 def _extraction_out(extraction: Extraction) -> ExtractionOut:

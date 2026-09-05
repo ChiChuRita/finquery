@@ -361,6 +361,12 @@ export interface ExtractedBill {
   booked_on: string
   total_cents: number
   total_printed: boolean
+  /** False when the receipt's own date could not be read, so `booked_on` is only today. */
+  date_read: boolean
+  /** `in` for a receipt that pays money back: a Leergutbon, a Retoure, a refund. */
+  direction: 'out' | 'in'
+  /** The currency as printed. Anything but EUR is refused rather than booked at par. */
+  currency: string
   items: { description: string; amount_cents: number }[]
   verified: boolean
   check: string
