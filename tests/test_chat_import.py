@@ -324,9 +324,12 @@ async def test_an_unknown_layout_asks_for_the_mapping_and_the_answer_finishes_th
     card = cards_in(chunks)[0]["input"]
     assert card["title"] == f"Import {UNKNOWN_BANK.name} with this mapping?"
     assert [option["value"] for option in card["options"]] == ["confirm", "reject"]
-    # The card shows what the mapping says and the first bookings it produces.
+    # The card shows what the mapping says and the first bookings it produces, written the way
+    # every other card and table of the app writes a date and an amount (m5).
     assert "money out: Soll" in card["note"]
-    assert "2025-01-01" in card["note"]
+    assert "01.01.2025" in card["note"]
+    assert "-39,90 EUR" in card["note"]
+    assert "2025-01-01" not in card["note"]
 
     pending = (await transcript(client, conversation_id))["messages"][1]
     answers = {"answers": [{"ref": "", "value": "confirm", "text": None}]}
@@ -569,3 +572,89 @@ async def test_a_typed_transaction_never_stores_the_word_null_as_its_counterpart
     rows = await rows_of(client, profile_id)
     assert len(rows) == 1
     assert rows[0]["counterparty"] is None
+
+
+def _mapping_card_the_model_rebuilt(file_name: str):
+    """A chat model that types the mapping card out from memory before it passes the real one.
+
+    The first `ask_user` call is the one the e2e of 2026-09-05 saw stored: the title and the note
+    the tool wrote, and nothing to click. The server refuses it, and what the model does with the
+    refusal is what this scripts: it reads the sentence and sends the tool's own `card` instead.
+    """
+    refusals: list[str] = []
+
+    async def fn(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        imports = _returns(messages, "import_file")
+        if not imports:
+            yield _call(0, "import_file", file_name=file_name)
+            return
+        latest = imports[-1]
+        if latest["status"] != "confirm_mapping":
+            yield latest.get("summary") or "Nothing happened."
+            return
+        told = _retry_prompts(messages, "ask_user")
+        if not told:
+            # A sentence, and then a title with nothing under it: no rows, no options.
+            yield "No preset knows this bank, so I read the columns myself."
+            yield _call(0, "ask_user", title=latest["card"]["title"], note=latest["card"]["note"])
+            return
+        refusals.extend(told)
+        yield _call(0, "ask_user", **latest["card"])
+
+    fn.refusals = refusals  # type: ignore[attr-defined]
+    return fn
+
+
+def _retry_prompts(messages: list[ModelMessage], tool: str) -> list[str]:
+    return [
+        str(part.content)
+        for message in messages
+        if message.kind == "request"
+        for part in message.parts
+        if part.part_kind == "retry-prompt" and part.tool_name == tool
+    ]
+
+
+async def test_a_card_with_nothing_to_answer_is_refused_and_asked_again(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """The blocker of the e2e of 2026-09-05 (B2), at the seam it went wrong at.
+
+    The mapping card is the one card whose whole answer is its `options`, so a model that
+    rebuilds it from the title and the note leaves a dead end that survives a reload. The server
+    refuses to park a run on a card with no rows and no options, and the sentence it refuses
+    with is the instruction.
+    """
+    responder = sub_agents(mapping=UNKNOWN_BANK_MAPPING)
+    rebuilding = _mapping_card_the_model_rebuilt(UNKNOWN_BANK.name)
+    scripts.fast = rebuilding
+    scripts.fast_call = responder  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    response = await client.post(
+        f"/api/conversations/{conversation_id}/chat", json=attach(conversation_id, "import this", UNKNOWN_BANK)
+    )
+    assert response.status_code == 200, response.text
+    chunks = parse_sse(response.text)
+
+    refusals = rebuilding.refusals  # type: ignore[attr-defined]
+    assert len(refusals) == 1, "the empty card was accepted"
+    assert "no rows and no options" in refusals[0]
+
+    # What the browser is left with is one answerable card, not the empty one.
+    cards = [card["input"] for card in cards_in(chunks)]
+    assert len(cards) == 1, cards
+    assert [option["value"] for option in cards[0]["options"]] == ["confirm", "reject"]
+
+    # The refused call leaves nothing behind but what the model said around it: one card in the
+    # transcript, and it is the live one.
+    message = (await transcript(client, conversation_id))["messages"][1]
+    assert [part["type"] for part in message["parts"]] == [
+        "tool-import_file",
+        "text",
+        "tool-ask_user",
+        "data-context",
+    ]
+    assert message["parts"][1]["text"].strip() == "No preset knows this bank, so I read the columns myself."
+    stored = pending_card(message)
+    assert [option["value"] for option in stored["input"]["options"]] == ["confirm", "reject"]

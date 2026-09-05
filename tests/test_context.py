@@ -20,18 +20,18 @@ from .conftest import (
 
 # Two conditions have to hold for compression to fire, and only the second is what this budget
 # is for: there must be something older than the last six turns (so never before the eighth),
-# and the prompt must be over 60 percent of the budget. The system prompt alone is 2792 tokens
+# and the prompt must be over 60 percent of the budget. The system prompt alone is 3145 tokens
 # now, so the token half is already true on the first turn and the turn count is what decides.
 # What the budget has to clear is the floor a compressed prompt cannot go below (the system
-# prompt, the summary and the last six turns), measured at 3710 tokens here. The real default is
+# prompt, the summary and the last six turns), measured at 4063 tokens here. The real default is
 # 32768, far above any floor. Every ticket that adds a prompt block has had to move this: this
-# time for ticket 27's paragraph on cards never being typed, which landed with ticket 28's
-# onboarding lines, on top of ticket 22's prompt rules, ticket 10's duplicates block and ticket
-# 11's two paragraphs about statement PDFs and photos. Both sides of that merge had raised it on
-# their own measurement (4000 and 4500); 4400 is the merged prompt measured again the way this
-# paragraph describes: drive twelve turns with the budget in the settings and take the largest
-# `used` of the turns that compressed. It leaves about 19 percent of headroom over the floor.
-BUDGET = 4400
+# time for ticket 30's minors (a message that is not a question, memories as the only source of
+# a name, the duplicate summary in the model's own words), which cost 261 tokens on top of the
+# 2884 main carried. Measured rather than guessed, the way this paragraph describes: drive
+# twelve turns with the budget in the settings and take the largest `used` of the turns that
+# compressed. 4800 leaves about 18 percent of headroom over the floor, near the margin ticket
+# 27 left.
+BUDGET = 4800
 SUMMARY = "The user asked about groceries and rent in the spring and cares about subscriptions."
 
 # Long enough that a turn is worth about a hundred tokens on either side.

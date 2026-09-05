@@ -11,10 +11,12 @@ from datetime import date
 from typing import Any
 
 import httpx
+import pytest
 from pydantic_ai.messages import ModelMessage, RetryPromptPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall
 from sqlalchemy.orm import Session, sessionmaker
 
+from finquery import changesets
 from finquery.db import create_profile, ensure_account
 
 from .conftest import Chat, Scripts, distilled, is_distillation_request, is_followup_request, new_conversation
@@ -322,6 +324,53 @@ async def test_a_split_from_chat_creates_legs_that_sum_to_the_parent(
     # Queries count the legs and never the parent.
     view = (await client.get("/api/transactions", params={"profile_id": profile_id, "limit": 1})).json()
     assert view["total"] == 434
+
+
+async def test_an_apply_that_writes_nothing_leaves_the_changeset_proposed(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A card never says Applied over an unchanged database (e2e of 2026-09-05, B3).
+
+    The bill split that flipped to Applied and wrote no legs was not reproducible on demand, so
+    the write is taken away here instead: `apply` reads its own effect back inside the same
+    transaction, and a split with no legs behind it is a refusal, not a green badge. The status
+    stays `proposed`, so Apply is still there to press.
+    """
+    await import_synthetic(client, profile_id)
+    row = (await listing(client, profile_id, q="edeka", limit=1))["rows"][0]
+    scripts.fast = call_tool(
+        "propose_changeset",
+        {
+            "kind": "split",
+            "title": "Split the Edeka receipt",
+            "transaction_ids": [row["id"]],
+            "legs": [
+                {"description": "Groceries", "amount_cents": row["amount_cents"] + 500, "category": "Groceries"},
+                {"description": "Household", "amount_cents": -500, "category": "Shopping"},
+            ],
+        },
+    )
+    conversation_id = await new_conversation(client, profile_id)
+    _, chunks = await chat(conversation_id, "Split that Edeka receipt into groceries and household.")
+    changeset_id = tool_output(chunks)["id"]
+
+    # The write silently does nothing, which is exactly what the run of 2026-09-05 saw.
+    monkeypatch.setattr(changesets, "replace_split_legs", lambda *_args, **_kwargs: None)
+    refused = await client.post(f"/api/changesets/{changeset_id}/apply", json={"profile_id": profile_id})
+    assert refused.status_code == 400, refused.text
+    assert "has 0 legs, not 2" in refused.json()["detail"]
+
+    reread = await client.get(f"/api/changesets/{changeset_id}", params={"profile_id": profile_id})
+    assert reread.json()["status"] == "proposed"
+    assert (await client.get(f"/api/transactions/{row['id']}/splits", params={"profile_id": profile_id})).json() == []
+
+    # With the write back, the same Apply goes through.
+    monkeypatch.undo()
+    applied = await client.post(f"/api/changesets/{changeset_id}/apply", json={"profile_id": profile_id})
+    assert applied.status_code == 200, applied.text
+    assert applied.json()["status"] == "applied"
+    legs = (await client.get(f"/api/transactions/{row['id']}/splits", params={"profile_id": profile_id})).json()
+    assert len(legs) == 2
 
 
 async def test_a_split_whose_legs_do_not_sum_is_refused_with_the_reason(

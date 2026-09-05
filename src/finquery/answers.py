@@ -21,6 +21,11 @@ The two kinds ticket 08 brings, `mapping_confirmation` and `transaction_draft`, 
 They have to declare a kind all the same, or the fallback above would offer their Confirm and
 Discard answers to `set_rule` as category names.
 
+An applier answers with `ask_user.Applied`: `line` becomes `applied` on the tool result, which
+is what the card shows the moment the answers are applied, and `say` becomes `say`, which is
+the sentence the model is asked to write instead of copying that line back. An applier with
+nothing better to offer leaves `say` empty.
+
 Every applier is async, because keeping a duplicate or committing an extraction inserts
 bookings and a booking is categorized, which asks the fast slot. `resolve_answers` is therefore
 awaited from the chat endpoint, before the resumed half of the run starts.
@@ -35,7 +40,7 @@ from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.settings import ModelSettings
 from sqlalchemy.orm import Session, sessionmaker
 
-from finquery.ask_user import ASK_USER, ApplyKind, AskAnswer, AskAnswers, AskRow, AskUser, unwrap_card
+from finquery.ask_user import ASK_USER, Applied, ApplyKind, AskAnswer, AskAnswers, AskRow, AskUser, unwrap_card
 from finquery.categorize import apply_answers as apply_category_rules
 from finquery.extract.review import apply_review
 from finquery.ingest.duplicates import apply_answers as apply_duplicate_decisions
@@ -63,15 +68,19 @@ class ApplyContext:
     model_settings: ModelSettings | None = None
 
 
-Applier = Callable[[ApplyContext], Awaitable[str | None]]
-"""Applies one card's answers and returns the line saying what it did, or None for nothing."""
+Applier = Callable[[ApplyContext], Awaitable[Applied | None]]
+"""Applies one card's answers and says what it did, or None for nothing."""
 
 
-async def _category_rules(ctx: ApplyContext) -> str | None:
-    return apply_category_rules(ctx.session, ctx.profile_id, ctx.rows, ctx.answers)
+def _as_applied(line: str | None) -> Applied | None:
+    return Applied(line=line) if line else None
 
 
-async def _duplicate_decisions(ctx: ApplyContext) -> str | None:
+async def _category_rules(ctx: ApplyContext) -> Applied | None:
+    return _as_applied(apply_category_rules(ctx.session, ctx.profile_id, ctx.rows, ctx.answers))
+
+
+async def _duplicate_decisions(ctx: ApplyContext) -> Applied | None:
     return await apply_duplicate_decisions(
         ctx.session,
         ctx.profile_id,
@@ -82,15 +91,17 @@ async def _duplicate_decisions(ctx: ApplyContext) -> str | None:
     )
 
 
-async def _extraction_review(ctx: ApplyContext) -> str | None:
-    return await apply_review(
-        ctx.session,
-        ctx.profile_id,
-        ctx.conversation_id,
-        ctx.rows,
-        ctx.answers,
-        resolve_model=ctx.resolve_model,
-        model_settings=ctx.model_settings,
+async def _extraction_review(ctx: ApplyContext) -> Applied | None:
+    return _as_applied(
+        await apply_review(
+            ctx.session,
+            ctx.profile_id,
+            ctx.conversation_id,
+            ctx.rows,
+            ctx.answers,
+            resolve_model=ctx.resolve_model,
+            model_settings=ctx.model_settings,
+        )
     )
 
 
@@ -120,9 +131,9 @@ async def resolve_answers(
     resolved: dict[str, object] = {}
     for call_id, output in outputs.items():
         call = calls.get(call_id)
-        line = None
+        applied = None
         if call is not None and call.tool_name == ASK_USER and isinstance(output, dict):
-            line = await _apply(
+            applied = await _apply(
                 session_factory,
                 profile_id,
                 conversation_id,
@@ -131,7 +142,12 @@ async def resolve_answers(
                 resolve_model=resolve_model,
                 model_settings=model_settings,
             )
-        resolved[call_id] = {**output, "applied": line} if line and isinstance(output, dict) else output
+        if applied is None or not isinstance(output, dict):
+            resolved[call_id] = output
+            continue
+        # `applied` is what the card shows; `say` is what the model writes, when the applier
+        # has a better sentence for it than its own line.
+        resolved[call_id] = {**output, "applied": applied.line} | ({"say": applied.say} if applied.say else {})
     return resolved
 
 
@@ -144,7 +160,7 @@ async def _apply(
     *,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None = None,
-) -> str | None:
+) -> Applied | None:
     try:
         # Tolerant of a card the model passed as its own `card` argument: see `unwrap_card`.
         card = AskUser.model_validate(unwrap_card(card_input))

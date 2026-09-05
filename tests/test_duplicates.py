@@ -385,6 +385,12 @@ async def test_a_chat_import_asks_about_duplicates_per_batch_and_the_server_appl
     assert answered["output"]["applied"] is not None
     assert "kept 2" in answered["output"]["applied"]
     assert "removed 3" in answered["output"]["applied"]
+    # The sentence the model is asked to write is not the line the card already shows, because
+    # a model handed a finished sentence writes it back word for word (e2e of 2026-09-05, m4).
+    assert answered["output"]["say"] == (
+        "Of 5 bookings that looked like duplicates, 2 were kept and 3 removed."
+    )
+    assert answered["output"]["say"] != answered["output"]["applied"]
     rows = await rows_of(client, profile_id)
     assert len(rows) == 10, "the two kept bookings landed, the three removed ones did not"
     # The eight the REST import brought in were never categorized here, so an enrichment marks

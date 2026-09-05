@@ -189,7 +189,7 @@ export function ImportToolStep({ part, progress }: { part: ImportFilePart; progr
             </p>
           </div>
         ) : part.output.status === 'confirm_mapping' ? (
-          <MessageResponse className="text-sm">{part.output.note}</MessageResponse>
+          <MessageResponse className="text-sm">{part.output.mapping_note}</MessageResponse>
         ) : 'message' in part.output ? (
           <MessageResponse className="text-sm">{part.output.message}</MessageResponse>
         ) : (

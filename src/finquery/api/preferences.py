@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field, model_validator
 from pydantic_ai.settings import ModelSettings
 from sqlalchemy.orm import Session
 
-from finquery.agent import ChatDeps, chat_agent, query
+from finquery.agent import ChatDeps, chart, chat_agent, query
 from finquery.api.chat import load_history
 from finquery.api.profiles import get_profile_or_404
 from finquery.chart import ChartOutcome, run_chart
@@ -32,6 +32,7 @@ from finquery.context import assemble
 from finquery.db import Conversation, PreferenceRecord, Turn
 from finquery.memory import build_memory_block
 from finquery.preferences import (
+    RERUN_TOOLS,
     Kind,
     Rating,
     TurnContent,
@@ -53,6 +54,11 @@ AB_TEMPERATURE = 1.2
 
 The chat agent runs without a temperature otherwise, so this is the only knob the A/B turns.
 """
+
+RERUN_TOOL_FUNCTIONS = [query, chart]
+"""The functions behind `preferences.RERUN_TOOLS`, in the same order and nothing besides."""
+
+assert [tool.__name__ for tool in RERUN_TOOL_FUNCTIONS] == list(RERUN_TOOLS)
 
 ALTERNATIVE_ATTEMPTS = 3
 """How many times Regenerate asks for a second chart before it admits it drew the same one."""
@@ -319,10 +325,10 @@ async def answer_alternative(request: Request, body: AlternativeAnswerBody) -> A
         content = read_turn(turn)
         if not content.prompt:
             raise HTTPException(status_code=409, detail="That turn has no user message to answer again")
-        if content.mutating:
+        if content.beyond_rerun:
             raise HTTPException(
                 status_code=409,
-                detail=f"This turn used {content.mutating[0]}, so it cannot be answered a second time",
+                detail=f"This turn used {content.beyond_rerun[0]}, so it cannot be answered a second time",
             )
         earlier = [t for t in load_history(conversation).turns if t.position < turn.position]
         memory = build_memory_block(session, conversation.profile_id, content.prompt)
@@ -345,9 +351,10 @@ async def answer_alternative(request: Request, body: AlternativeAnswerBody) -> A
         # it, but the deps have to be whole.
         web_client=state.web_client,
     )
-    # Only the read-only tool: `query` writes nothing, and everything that does is gone for
-    # this run, including the Question card (which would park the run waiting for a human).
-    with chat_agent.override(tools=[query], toolsets=[]):
+    # The tools `preferences.RERUN_TOOLS` names, and nothing else: they are read-only, and a
+    # turn that used anything beyond them was refused above rather than run without it. The
+    # Question card goes with the toolsets, because it would park the run waiting for a human.
+    with chat_agent.override(tools=RERUN_TOOL_FUNCTIONS, toolsets=[]):
         result = await chat_agent.run(
             content.prompt,
             message_history=prompt.history,

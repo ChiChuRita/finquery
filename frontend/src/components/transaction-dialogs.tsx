@@ -237,3 +237,55 @@ export function ConfirmDeleteDialog({
     </Dialog>
   )
 }
+
+
+export function ConfirmRecategorizeDialog({
+  count,
+  target,
+  pending,
+  disabled,
+  onConfirm,
+}: {
+  count: number
+  /** Where the rows go, as the bar spells it, including "Needs review". */
+  target: string
+  pending: boolean
+  disabled: boolean
+  onConfirm: () => Promise<unknown>
+}) {
+  const [open, setOpen] = useState(false)
+  const rows = count === 1 ? 'this booking' : `these ${count} bookings`
+
+  return (
+    <Dialog onOpenChange={setOpen} open={open}>
+      <DialogTrigger asChild>
+        <Button disabled={disabled || pending} size="sm" variant="secondary">
+          {pending ? 'Applying...' : 'Recategorize'}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Move {rows} to {target}?</DialogTitle>
+          <DialogDescription>
+            The category each of them has now is replaced, and their subcategory is cleared. There is
+            no Undo on this bar: putting them back means picking the old category again.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="ghost">Leave them</Button>
+          </DialogClose>
+          <Button
+            disabled={pending}
+            onClick={async () => {
+              await onConfirm()
+              setOpen(false)
+            }}
+          >
+            {pending ? 'Applying...' : `Move ${count === 1 ? 'it' : 'them'}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

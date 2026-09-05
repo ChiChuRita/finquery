@@ -43,11 +43,36 @@ def parse_suggestions(text: str) -> list[str]:
     return suggestions[:MAX_SUGGESTIONS]
 
 
-async def suggest_followups(model: Model, settings: ModelSettings, question: str, answer: str) -> list[str]:
+LANGUAGE_NAMES = {"de": "German", "en": "English"}
+"""The two languages a profile can fix its answers to. `follow` is neither and names nothing."""
+
+
+def language_line(language: str) -> str:
+    """What to write the questions in, when the profile has decided.
+
+    The chips are read next to the answer, so they are in the answer's language or they are
+    noise: a profile fixed to English got German suggestions under an English answer (e2e of
+    2026-09-05, m3). On `follow` this says nothing and the exchange decides, as it did before.
+    """
+    name = LANGUAGE_NAMES.get(language)
+    if name is None:
+        return ""
+    return (
+        f"\n\nThis profile has fixed {name} as its answer language, so write the questions in "
+        f"{name} whatever language the exchange below is in."
+    )
+
+
+async def suggest_followups(
+    model: Model, settings: ModelSettings, question: str, answer: str, language: str = "follow"
+) -> list[str]:
     """Three follow-ups at most. A failure here is never allowed to fail the turn."""
     if not answer.strip():
         return []
-    prompt = f"{FOLLOWUP_MARKER} for this exchange.\n\nUser asked: {question}\n\nAssistant answered: {answer}"
+    prompt = (
+        f"{FOLLOWUP_MARKER} for this exchange.{language_line(language)}"
+        f"\n\nUser asked: {question}\n\nAssistant answered: {answer}"
+    )
     try:
         result = await followup_agent.run(prompt, model=model, model_settings=settings)
     except Exception:
