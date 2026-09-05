@@ -367,3 +367,18 @@ reference that answers nothing and one whose rows carry no figure both failing t
 runner scoring a scripted right and a scripted wrong statement, the compare diff, a review sample
 that is stable for its seed, and a split that is about a third of each set and does not move when
 a datapoint is added elsewhere. No test calls a model.
+
+## Check and retry
+
+Ticket 40 put two judgements between a statement and its answer, and ticket 42's prompt work
+went into the same sub-agent: nine worked examples drawn from this set's train split, a
+`reasoning` field the model fills before its SQL, and a retry that shows it its own reading
+instead of starting over. `--no-check` turns the first half off, so a run measures the check
+against the prompt it runs with.
+
+Three runs per model, then, and the third is the baseline above:
+
+- **baseline**: the prompt before ticket 40 and no check. The `--set all` runs of 2026-09-05.
+- **no check**: the new prompt, nothing else. What the examples and the reasoning field are worth.
+- **check**: the new prompt with the degenerate rewrite and the check pass. What the ticket is worth.
+

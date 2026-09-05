@@ -25,6 +25,15 @@ number in an answer to be reproducible and auditable.
   `PRAGMA query_only` makes the connection reject writes whatever the guard let through.
 - A guard or SQLite error goes back to the query sub-agent once, with the refused statement and
   the reason. A second failure is reported to the chat agent as an error instead of a number.
+- A statement that runs can still answer the wrong question, which no guard can see, so the
+  result is judged before it is handed over (ticket 40). In code first: no rows, figures that
+  are all NULL, or a single zero on a question that names a merchant or category the household
+  has are rewritten once with the likely cause named. Then one forced tool call on the fast
+  slot, which reads the question, the statement and up to ten of its rows and answers `ok` or
+  `revise` with a reason and a corrected intent; a revise rewrites once. Only the statement
+  written first is judged, the chart tool skips the pass because its plan already fixed what
+  the statement must return, and a query costs at most three model calls whatever happens. Both
+  steps narrate into the thinking panel, so a rewritten answer says so on screen.
 - Two rules judge what the SQL means, not only what it touches. A `CASE` over the booking text
   that returns a label of its own invents a categorization and is refused (ticket 22). A
   statement with more than eight `LIKE` terms over the booking text is refused too (ticket 17):

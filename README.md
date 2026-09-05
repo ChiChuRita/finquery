@@ -177,7 +177,11 @@ an import into the wrong profile.
 
 Then ask in the chat. The query sub-agent writes the SQL on the fast slot, a guard admits only a
 single read-only SELECT over your own transactions, and the tool step in the transcript shows the
-statement and the rows behind every number.
+statement and the rows behind every number. A statement that runs and answers a different
+question is the failure a guard cannot see, so the result is checked against the question before
+you see it: an empty or degenerate result is rewritten once in code, and a second pass on the
+fast slot says whether the rows answer what was asked. Both say so in the thinking panel
+("Checking the result", "Rewriting: ..."), and a query costs at most three model calls.
 
 Ask for a chart and the chart sub-agent plans it, gets its rows the same way, writes a TanStack
 Charts definition in plain JavaScript and checks it in-process before it is drawn in a sandboxed
