@@ -126,9 +126,11 @@ class ImportOut(BaseModel):
 async def _read(file: UploadFile) -> bytes:
     data = await file.read()
     if not data:
-        raise HTTPException(status_code=422, detail="The file is empty.")
+        raise HTTPException(status_code=422, detail="The file is empty, so there is nothing to import.")
     if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="The file is larger than 20 MB.")
+        raise HTTPException(
+            status_code=413, detail="The file is larger than 20 MB. Export a shorter date range and try again."
+        )
     return data
 
 

@@ -950,3 +950,95 @@ async def test_the_trade_republic_layout_reconciles_per_frame_on_its_running_bal
     assert check["status"] == "failed"
     assert flagged and all(row["flags"] == ["reconciliation"] for row in flagged)
     assert all("a booking is missing or misread" in row["reason"] for row in flagged)
+
+def blank_pdf() -> bytes:
+    """A one page PDF with an image on it and no text layer, which is what a scan is.
+
+    Built here rather than committed: what matters is the absence of a text layer, and Pillow
+    (already a dependency, it is what shrinks a photo) writes that in three lines.
+    """
+    from io import BytesIO
+
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (1240, 1754), "white").save(buffer, format="PDF")
+    return buffer.getvalue()
+
+
+def scanned_reader(rows: Sequence[dict[str, Any]]):
+    """The fast slot for a page that has to be looked at: it answers, and records the images."""
+    images: list[BinaryContent] = []
+    prompts: list[str] = []
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        assert [tool.name for tool in info.output_tools] == ["read_statement"]
+        images.extend(_images_of(messages))
+        prompts.append(_prompt_of(messages))
+        return ModelResponse(parts=[ToolCallPart("read_statement", json.dumps({"rows": list(rows)}))])
+
+    respond.images = images  # type: ignore[attr-defined]
+    respond.prompts = prompts  # type: ignore[attr-defined]
+    return respond
+
+
+async def test_a_page_with_no_text_layer_is_looked_at_and_its_rows_are_flagged(
+    client: httpx.AsyncClient, scripts: Scripts
+) -> None:
+    """A scan has nothing for the verbatim guard, so its rows are never quietly trusted.
+
+    The page goes to the model as a rendered image instead of as text, and a row that comes back
+    with no balance to check it against is flagged rather than imported (ADR 0011).
+    """
+    reader = scanned_reader(
+        [
+            {
+                "line": 1,
+                "date_text": "02.01.2025",
+                "amount_text": "-19,90",
+                "direction": "out",
+                "description": "Eingescannte Buchung",
+                "counterparty": "Laden",
+                "balance_text": None,
+            }
+        ]
+    )
+    scripts.fast_call = reader  # type: ignore[assignment]
+
+    response = await client.post(
+        "/api/imports/extract", files={"file": ("scan.pdf", blank_pdf(), "application/pdf")}
+    )
+    assert response.status_code == 200, response.text
+    extraction = response.json()
+
+    assert extraction["scanned_pages"] == [1]
+    assert reader.images, "the page was rendered and handed over as an image"  # type: ignore[attr-defined]
+    assert reader.images[0].media_type == "image/png"  # type: ignore[attr-defined]
+    assert "as an image, because it has no text layer" in reader.prompts[0]  # type: ignore[attr-defined]
+
+    assert len(extraction["rows"]) == 1
+    row = extraction["rows"][0]
+    assert (row["booked_on"], row["amount_cents"]) == ("2025-01-02", -1990)
+    assert row["flags"] == ["unverified"]
+    assert row["reason"] == "There is no balance or total on this page to check the figures against."
+    assert extraction["flagged"] == 1
+    assert extraction["reconciliation"]["status"] == "not_checkable"
+
+
+async def test_a_photo_that_is_not_a_receipt_says_so_instead_of_previewing_a_booking(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """No total and no line item is not a receipt, and nothing is drafted from it."""
+    output = await read_receipt(
+        client,
+        profile_id,
+        bill_reader(items=(), total=None, date_text="", merchant="", note="This is a photo of a cat."),
+        scripts,
+    )
+
+    assert output["status"] == "nothing_found"
+    assert output["error"] == (
+        "No total and no line item could be read from that photo. Attach a photo of the receipt "
+        "itself, or type the booking and I will add it."
+    )
+    assert "drafts" not in output and "changeset" not in output

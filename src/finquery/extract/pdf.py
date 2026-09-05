@@ -13,12 +13,15 @@ tokens nobody needs.
 """
 
 import io
+import logging
 from dataclasses import dataclass
 from functools import cached_property
 
 import pdfplumber
 import pypdfium2
 from PIL import Image, ImageOps
+
+logger = logging.getLogger(__name__)
 
 RENDER_DPI = 150
 """What a scanned page is rasterized at. Enough for 8 pt German statement type, and about
@@ -128,7 +131,13 @@ def read_pdf(data: bytes) -> Document:
     except PdfUnreadable:
         raise
     except Exception as exc:  # noqa: BLE001 - every failure to open is the same message here
-        raise PdfUnreadable(f"This file could not be opened as a PDF: {exc}") from exc
+        # The library's own words ("No /Root object! - Is this really a PDF?") are for the log,
+        # not for the transcript: what the user needs is what to do next.
+        logger.warning("a PDF could not be opened", exc_info=True)
+        raise PdfUnreadable(
+            "This file could not be opened as a PDF. It may be damaged, or it may not be a PDF "
+            "at all. Try exporting the statement again, or attach the CSV export instead."
+        ) from exc
 
 
 def _png(image: Image.Image) -> bytes:
@@ -159,4 +168,7 @@ def as_image(data: bytes) -> bytes:
             # would otherwise read a receipt turned by 90 degrees.
             return _png(ImageOps.exif_transpose(image) or image)
     except Exception as exc:  # noqa: BLE001 - a photo we cannot open is one message
-        raise PdfUnreadable(f"This image could not be read: {exc}") from exc
+        logger.warning("an image could not be opened", exc_info=True)
+        raise PdfUnreadable(
+            "This image could not be read. Attach the photo again as a JPEG or a PNG."
+        ) from exc
