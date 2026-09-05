@@ -18,7 +18,7 @@ from functools import cached_property
 
 import pdfplumber
 import pypdfium2
-from PIL import Image
+from PIL import Image, ImageOps
 
 RENDER_DPI = 150
 """What a scanned page is rasterized at. Enough for 8 pt German statement type, and about
@@ -155,6 +155,8 @@ def as_image(data: bytes) -> bytes:
     """A photo as a PNG the model can take, shrunk to `MAX_IMAGE_SIDE` if it is bigger."""
     try:
         with Image.open(io.BytesIO(data)) as image:
-            return _png(image)
+            # A phone stores the rotation in EXIF and leaves the pixels sideways; the model
+            # would otherwise read a receipt turned by 90 degrees.
+            return _png(ImageOps.exif_transpose(image) or image)
     except Exception as exc:  # noqa: BLE001 - a photo we cannot open is one message
         raise PdfUnreadable(f"This image could not be read: {exc}") from exc
