@@ -53,7 +53,7 @@ from finquery.memory import MemoryKind, add_memory
 from finquery.onboarding import language_rule
 from finquery.progress import report as report_progress
 from finquery.providers import ModelResolver, ProviderNotAvailable
-from finquery.query import load_query_context, run_query
+from finquery.query import QueryOutcome, load_query_context, run_query
 from finquery.weblookup import MAX_FETCHES, MAX_SEARCHES, WebClient, lookups_for, web_lookup_enabled
 
 logger = logging.getLogger(__name__)
@@ -260,6 +260,11 @@ class ChatDeps:
     """The search and page fetch of `lookup_merchant`. Untouched unless the profile switched
     web lookup on, and replaced by a stub in tests."""
     narrate: Callable[[str], None] = field(default=lambda _text: None)
+    user_message: str = ""
+    """What the user wrote this turn, verbatim. `apply_simple_edit` reads it to tell a field the
+    user named from one the model filled in by itself."""
+    queries_run: int = 0
+    """How many `query` calls this turn has spent, against `QUERY_BUDGET`."""
 
 
 # `ask_user` has no function here: it is a deferred tool, so a run that calls it ends with the
@@ -273,6 +278,22 @@ chat_agent: Agent[ChatDeps, str | DeferredToolRequests] = Agent(
     name="finquery-chat",
 )
 
+
+QUERY_BUDGET = 5
+"""How many `query` calls one turn may spend.
+
+Asked for an average weekly grocery spend, the 9B review wrote fifteen statements over 256
+seconds, four of them about merchants that do not exist, and answered with a category breakdown
+it had invented. A bounded "I could not work this out from the data" is a better answer than
+that, and every turn of that run that was right had used three calls or fewer.
+"""
+
+OVER_BUDGET = (
+    "This turn has already run five queries, which is the limit. Write your answer now from the "
+    "figures you already have, or say in one line that these transactions could not answer the "
+    "question. Do not call `query` or `chart` again in this turn, and state no figure a query "
+    "did not return."
+)
 
 TOOL_FAILED = "tool_failed"
 """The key on a tool result that says the step failed for a reason nobody wrote copy for."""
@@ -398,6 +419,9 @@ async def query(ctx: RunContext[ChatDeps], request: str, hints: str | None = Non
         hints: Optional extra instruction for the SQL, for instance which column to group by or
             which merchants belong to the topic.
     """
+    ctx.deps.queries_run += 1
+    if ctx.deps.queries_run > QUERY_BUDGET:
+        return QueryOutcome(request=request, summary=OVER_BUDGET, error=OVER_BUDGET).payload()
     outcome = await run_query(
         resolve_model=ctx.deps.resolve_model,
         model_settings=ctx.deps.subagent_settings,

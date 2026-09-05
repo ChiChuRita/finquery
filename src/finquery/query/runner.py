@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from finquery.formats import eur
 from finquery.providers import ModelResolver, ProviderNotAvailable
 from finquery.query.guard import MAX_ROWS, Rows, SqlFailed, SqlRejected, execute_read_only, validate_sql
-from finquery.query.subagent import Rejection, load_query_context, write_sql
+from finquery.query.subagent import Rejection, load_query_context, subcategory_parents, write_sql
 
 # The sub-agent writes, the guard judges. A rejected statement is sent back once with the
 # reason; a second refusal is reported to the chat agent instead of looping.
@@ -124,7 +124,9 @@ async def run_query(
             failure = f"The query sub-agent did not return a statement: {exc}"
             return QueryOutcome(request=request, summary=failure, error=failure)
         try:
-            validated = validate_sql(sql)
+            # The taxonomy is what lets the guard answer a `category = 'Supermarket'` with the
+            # category that subcategory belongs to.
+            validated = validate_sql(sql, taxonomy=subcategory_parents(context))
             with session_factory() as session:
                 rows = execute_read_only(session, validated, profile_id)
         except (SqlRejected, SqlFailed) as exc:

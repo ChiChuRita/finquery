@@ -181,7 +181,9 @@ async def test_scripted_sql_executes_and_its_rows_reach_the_transcript(
     prompt = respond.prompts[0]  # type: ignore[attr-defined]
     assert "transaction_view" in prompt
     assert "2025-01-01 to 2025-12-28" in prompt
-    assert "Groceries (Supermarket, Bakery, Drugstore)" in prompt
+    # One line per category, with its subcategories marked as such: a 9B model reads
+    # `Groceries (Supermarket, Bakery)` as a list of category values (ticket 37).
+    assert "category Groceries / subcategories: Supermarket, Bakery, Drugstore" in prompt
     assert "no booking is categorized yet" in prompt
     assert "REWE Markt GmbH" in prompt
     assert "Question: groceries at REWE in May 2025" in prompt
@@ -329,7 +331,7 @@ async def test_the_profile_scope_cannot_be_widened(
     # First a schema prefix, then a predicate that tries to reach past the profile filter.
     respond = scripted_sql(
         "SELECT COUNT(*) AS bookings FROM main.transaction_view",
-        "SELECT COUNT(*) AS bookings, ROUND(SUM(amount_cents)) AS cents FROM transaction_view "
+        "SELECT COUNT(*) AS bookings, ROUND(SUM(amount), 2) AS total_eur FROM transaction_view "
         "WHERE profile_id IS NOT NULL OR 1 = 1",
     )
     scripts.fast = ask_query_then_report("count every booking")
@@ -342,7 +344,7 @@ async def test_the_profile_scope_cannot_be_widened(
     assert "Do not prefix a relation with a schema" in respond.prompts[1]  # type: ignore[attr-defined]
     own = (await client.get("/api/transactions", params={"profile_id": profile_id, "limit": 1000})).json()
     assert output["rows"] == [
-        {"bookings": own["total"], "cents": sum(row["amount_cents"] for row in own["rows"])}
+        {"bookings": own["total"], "total_eur": round(sum(row["amount_cents"] for row in own["rows"]) / 100, 2)}
     ]
     assert output["rows"][0]["bookings"] == 433, "the other profile's booking is not visible"
 

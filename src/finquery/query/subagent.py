@@ -7,7 +7,7 @@ training row is exactly the text the model saw here plus the SQL it wrote.
 """
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, ToolOutput
@@ -33,8 +33,8 @@ The view (the only relation you may name, already filtered to this household):
   {QUERY_VIEW}
     id            text     booking id
     booked_on     text     booking date as 'YYYY-MM-DD'; compare as text or use strftime
-    amount_cents  integer  signed cents, negative is money out, positive is money in
-    amount        real     the same amount in euros (amount_cents / 100.0)
+    amount        real     the amount in euros, negative is money out, positive is money in.
+                           The only money column there is: every figure comes from it.
     description   text     the booking text from the bank, mostly upper case
     counterparty  text     the other party's name, NULL when the export carried none
     title         text     friendly merchant title, NULL until the row is enriched
@@ -54,8 +54,13 @@ Rules:
   no other table or view, and never a schema prefix such as main.
 - Aggregate. At most {MAX_ROWS} rows come back (a LIMIT is added for you), so answer with the
   few rows that carry the answer instead of a dump of bookings.
-- Spending is negative. For a spending question filter `amount_cents < 0` and report a positive
-  figure with `ROUND(-SUM(amount), 2)`. Income is `amount_cents > 0`.
+- Spending is negative. For a spending question filter `amount < 0` and report a positive figure
+  with `ROUND(-SUM(amount), 2)`. Income is `amount > 0`.
+- `amount` is in euros and is the only column a figure may come from. There is no cents column
+  to divide, so never write anything like `/ 100`.
+- Smallest means the smallest amount of money. On spending rows, which are negative, the
+  smallest payment is `ORDER BY amount DESC` and the largest is `ORDER BY amount ASC`. Say which
+  end you meant in the alias, for instance `smallest_eur`.
 - Give every selected column a snake_case alias: total_eur, month, merchant, bookings.
 - The category of a booking is the `category` column and nothing else. Never write a classifier:
   a `CASE WHEN description LIKE '%rewe%' THEN 'Groceries'` invents labels the household never
@@ -66,8 +71,22 @@ Rules:
   and the result silently collapses. Call a computed group `topic` or `group_name` instead.
 - Matching `description` or `counterparty` is how you pick the bookings a question is about, in
   the WHERE clause. It is never how you label them.
+- The names listed under a category are its subcategories. They live in the `subcategory`
+  column, never in `category`: `category IN ('Supermarket', 'Bakery')` matches nothing, and the
+  whole topic is `category = 'Groceries'`.
+- Every merchant you may name is in the busiest-counterparties list below. A merchant that is
+  not on that list does not exist in this data: never invent one, and use the `category` column
+  for a topic instead.
+- Write one branch per distinct question. Two UNION ALL branches with the same WHERE clause and
+  different labels are the same number twice, so delete them.
+- One statement stays short. There is no JOIN to write: the view is read once.
 - A month is `strftime('%Y-%m', booked_on)`. A period is `booked_on BETWEEN '2025-04-01' AND
   '2025-04-30'`. There is no date type, so never call date functions on anything else.
+- The data can end months before today, so a relative period is counted from the latest booking
+  month, never from today's date. The household paragraph below spells out what this month, last
+  month, this quarter and last quarter are; use those dates as they stand.
+- When the question names no period, cover the whole range of the data. Never narrow it to the
+  current year, or to any other period the question did not ask for.
 - Match a merchant or a person on the booking text and the counterparty together,
   case-insensitively: `lower(description || ' ' || coalesce(counterparty, '')) LIKE '%rewe%'`.
   Never on one column alone: a PayPal payment carries PayPal as the counterparty and the
@@ -90,7 +109,7 @@ Question: Wie viel habe ich im Mai 2025 fuer Lebensmittel ausgegeben?
 SQL:
 SELECT ROUND(-SUM(amount), 2) AS total_eur
 FROM transaction_view
-WHERE amount_cents < 0
+WHERE amount < 0
   AND booked_on BETWEEN '2025-05-01' AND '2025-05-31'
   AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%rewe%'
     OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%aldi%'
@@ -103,7 +122,7 @@ Question: How much did I spend per month in 2025?
 SQL:
 SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur
 FROM transaction_view
-WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
+WHERE amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
 GROUP BY month
 ORDER BY month
 
@@ -113,7 +132,7 @@ SELECT coalesce(counterparty, description) AS merchant,
        ROUND(-SUM(amount), 2) AS total_eur,
        COUNT(*) AS bookings
 FROM transaction_view
-WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
+WHERE amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
 GROUP BY merchant
 ORDER BY total_eur DESC
 LIMIT 10
@@ -124,7 +143,7 @@ SELECT coalesce(counterparty, description) AS merchant,
        ROUND(-SUM(amount), 2) AS total_eur,
        COUNT(*) AS bookings
 FROM transaction_view
-WHERE amount_cents < 0
+WHERE amount < 0
   AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
   AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%netflix%'
     OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%spotify%'
@@ -134,7 +153,7 @@ GROUP BY merchant
 UNION ALL
 SELECT 'TOTAL' AS merchant, ROUND(-SUM(amount), 2) AS total_eur, COUNT(*) AS bookings
 FROM transaction_view
-WHERE amount_cents < 0
+WHERE amount < 0
   AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
   AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%netflix%'
     OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%spotify%'
@@ -145,7 +164,7 @@ Question: Wie viel habe ich 2025 pro Kategorie ausgegeben?
 SQL:
 SELECT coalesce(category, 'Needs review') AS topic, ROUND(-SUM(amount), 2) AS total_eur
 FROM transaction_view
-WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
+WHERE amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
 GROUP BY topic
 ORDER BY total_eur DESC
 
@@ -153,7 +172,7 @@ Question: Compare my spending on eating out in April 2025 with May 2025.
 SQL:
 SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur
 FROM transaction_view
-WHERE amount_cents < 0
+WHERE amount < 0
   AND booked_on BETWEEN '2025-04-01' AND '2025-05-31'
   AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%lieferando%'
     OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%vapiano%'
@@ -256,6 +275,27 @@ def load_query_context(session: Session, profile_id: str, *, today: date | None 
     )
 
 
+def subcategory_parents(context: QueryContext) -> dict[str, str]:
+    """Each subcategory name, folded, to the category it belongs to.
+
+    What the guard needs to tell a statement that filtered `category = 'Supermarket'` which
+    category it meant. A name that is also a category, or that two categories share, is left
+    out: there is no single parent to name.
+    """
+    categories = {name.casefold() for name, _ in context.taxonomy}
+    parents: dict[str, str] = {}
+    ambiguous: set[str] = set()
+    for name, subs in context.taxonomy:
+        for sub in subs:
+            key = sub.casefold()
+            if key in categories:
+                continue
+            if key in parents and parents[key] != name:
+                ambiguous.add(key)
+            parents[key] = name
+    return {key: parent for key, parent in parents.items() if key not in ambiguous}
+
+
 def _category_line(context: QueryContext) -> str:
     if context.categorized_count == 0:
         return (
@@ -271,18 +311,66 @@ def _category_line(context: QueryContext) -> str:
     return "- every booking has a category, so filter on `category` or `subcategory` with the names above."
 
 
+def _month_start(day: date) -> date:
+    return day.replace(day=1)
+
+
+def _months_before(month: date, count: int) -> date:
+    """The first of the month `count` months before this one."""
+    index = month.year * 12 + month.month - 1 - count
+    return date(index // 12, index % 12 + 1, 1)
+
+
+def _last_day(month: date) -> date:
+    return _months_before(month, -1) - timedelta(days=1)
+
+
+def periods(last_booked_on: str | None) -> list[str]:
+    """This month, last month, this quarter and last quarter, counted from the newest booking.
+
+    The 9B review read "letztes Quartal" as the quarter today falls in, over data that ended
+    three days earlier, and it never said which months it had used. There is nothing for a model
+    to work out here, so the prompt does the arithmetic and hands it the dates.
+    """
+    if not last_booked_on:
+        return []
+    latest = _month_start(date.fromisoformat(last_booked_on))
+    previous = _months_before(latest, 1)
+    quarter = date(latest.year, (latest.month - 1) // 3 * 3 + 1, 1)
+    before = _months_before(quarter, 3)
+    return [
+        f"- the newest booking is in {latest:%Y-%m}, so this month is "
+        f"{latest.isoformat()} to {_last_day(latest).isoformat()} and last month is "
+        f"{previous.isoformat()} to {_last_day(previous).isoformat()}",
+        f"- this quarter is {quarter.isoformat()} to {_last_day(_months_before(quarter, -2)).isoformat()} "
+        f"and last quarter is {before.isoformat()} to {_last_day(_months_before(before, -2)).isoformat()}",
+    ]
+
+
+def taxonomy_lines(context: QueryContext) -> list[str]:
+    """The categories, one per line, with their subcategories marked as such.
+
+    `Groceries (Supermarket, Bakery, Drugstore)` on one long line is what a 9B model reads as a
+    list of alternative category values, six times in the review of 2026-09-05. One line per
+    category, and the word subcategories in front of the names, cannot be read that way.
+    """
+    lines = ["- categories, one per line. Only the name in front of the colon goes in `category`:"]
+    for name, subs in context.taxonomy:
+        detail = f"subcategories: {', '.join(subs)}" if subs else "no subcategories"
+        lines.append(f"    category {name} / {detail}")
+    return lines
+
+
 def profile_facts(context: QueryContext) -> str:
     """The household paragraph of the prompt. Pure, so training can rebuild it."""
-    taxonomy = "; ".join(
-        f"{name} ({', '.join(subs)})" if subs else name for name, subs in context.taxonomy
-    )
     merchants = ", ".join(f"{merchant} ({count})" for merchant, count in context.counterparties)
     lines = [
         "This household:",
         f"- today is {context.today.isoformat()}",
         f"- {context.transaction_count} bookings from {context.first_booked_on} to {context.last_booked_on}",
+        *periods(context.last_booked_on),
         f"- accounts: {', '.join(context.accounts) or 'none'}",
-        f"- categories: {taxonomy}",
+        *taxonomy_lines(context),
         _category_line(context),
         f"- busiest counterparties: {merchants}",
     ]

@@ -526,7 +526,7 @@ async def test_a_categorized_import_changes_what_the_query_sub_agent_is_told(
     after = respond.queries[-1]  # type: ignore[attr-defined]
 
     assert "only 408 of 433 bookings have a category" in after
-    assert "Groceries (Supermarket, Bakery, Drugstore)" in after
+    assert "category Groceries / subcategories: Supermarket, Bakery, Drugstore" in after
 
 
 
