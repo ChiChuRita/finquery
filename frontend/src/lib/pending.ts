@@ -18,3 +18,9 @@ export function takePendingPrompt(conversationId: string): PendingMessage | unde
   pending.delete(conversationId)
   return message
 }
+
+/** Whether a prompt is still waiting to be sent for this conversation, without consuming it.
+ *
+ * Read by the transcript on its first render: a conversation opened with something to send is a
+ * view that streams its own turn, and must not also ask to reattach to it (ticket 33). */
+export const hasPendingPrompt = (conversationId: string) => pending.has(conversationId)

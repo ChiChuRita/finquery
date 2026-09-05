@@ -231,7 +231,9 @@ merchant token leaves at most once per profile: the result is cached. Search nee
   `extract/` (PDF text and page rendering, statement layouts, the extraction sub-agent, the
   verbatim and reconciliation guards, the bill flow, the review card),
   `api/` (REST and chat endpoints; `api/chat.py` also owns the turn's end marker, which is what
-  says a turn whose run stopped existing was interrupted rather than never asked),
+  says a turn whose run stopped existing was interrupted rather than never asked, and
+  `api/running.py` holds the turns being produced right now, each a task with a buffer its
+  readers subscribe to),
   `local/` (the local provider: catalog, downloads, runtime, model, the Gemma 4 and Qwen3.5
   wire formats, check)
 - `frontend/`: Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router, Query and

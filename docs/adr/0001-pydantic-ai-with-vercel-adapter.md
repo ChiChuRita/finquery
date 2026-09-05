@@ -23,9 +23,12 @@ the project and none of it is a course elective.
 - Thinking maps to reasoning parts, tool calls to tool parts, everything custom travels as named
   data parts (`data-*`). Turn-level facts (interrupted, thinking duration) travel as message
   metadata and are stored on the assistant UI message.
-- The endpoint uses `VercelAIAdapter.from_request` plus `run_stream` and `streaming_response`
-  rather than `dispatch_request`, so the request messages can be trimmed and a per-conversation
-  cancellation token registered.
+- The endpoint uses `VercelAIAdapter.from_request` plus `run_stream` rather than
+  `dispatch_request`, so the request messages can be trimmed and a per-conversation cancellation
+  token registered. Since ticket 33 that stream is consumed by a task rather than by the
+  response, and both the chat endpoint and the reattach endpoint encode the chunks themselves
+  (one line, the adapter's own `encode_event`) because a reattaching client sends no request for
+  an adapter to be built from. See ADR 0012.
 
 ## Consequences
 

@@ -51,7 +51,8 @@ function ImportCard({
   busy: boolean
 }) {
   const undecided = pendingDuplicates(record)
-  const open = undecided > 0 || record.needs_review > 0
+  // Something to do about it, or something to watch: both live in the conversation.
+  const open = undecided > 0 || record.needs_review > 0 || record.running
   return (
     <li className="rounded-xl border bg-card px-4 py-3">
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
@@ -62,6 +63,14 @@ function ImportCard({
             </p>
             <Badge variant="secondary">{KIND_LABELS[record.kind] ?? record.kind}</Badge>
             {record.preset && <Badge variant="outline">{record.preset}</Badge>}
+            {/* The chat is still working on this file: the rows are in, and the categorization
+                behind them is what the counts below are still waiting for. */}
+            {record.running && (
+              <Badge className="font-normal text-muted-foreground" variant="outline">
+                <Spinner className="size-3" />
+                Still importing
+              </Badge>
+            )}
           </div>
           <p className="mt-0.5 truncate text-muted-foreground text-xs">
             {record.account_name} · {formatDateTime(record.created_at)}

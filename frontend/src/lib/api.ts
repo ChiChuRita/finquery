@@ -459,6 +459,12 @@ export interface Conversation {
   profile_id: string
   title: string
   model_slot: ModelSlot
+  /** Whether a turn of this chat is being answered right now, anywhere.
+   *
+   * A turn runs on the server and outlives the request that started it, so this is what the
+   * spinner on the tab and on the sidebar row is drawn from, and what tells a chat being opened
+   * to reattach to the stream instead of showing a finished transcript. */
+  running: boolean
   created_at: string
   updated_at: string
 }
@@ -566,11 +572,17 @@ export const renameProfile = (id: string, name: string) =>
 
 export const deleteProfile = (id: string) => request<void>(`/api/profiles/${id}`, { method: 'DELETE' })
 
+/** How often a list with something running in it is asked again. Nothing running, nothing asked. */
+const RUNNING_POLL_MS = 2_000
+
 export const conversationsQuery = (profileId: string | undefined) =>
   queryOptions({
     queryKey: ['conversations', { profileId }],
     queryFn: () => request<Conversation[]>(`/api/conversations?profile_id=${profileId}`),
     enabled: profileId !== undefined,
+    // The turn that is running is not this browser's, so the only way to see it start or finish
+    // in a chat the user is not looking at is to ask. The interval switches itself off.
+    refetchInterval: (query) => (query.state.data?.some((c) => c.running) ? RUNNING_POLL_MS : false),
   })
 
 export const conversationQuery = (id: string) =>
@@ -754,6 +766,9 @@ export const runSanityCheck = () =>
 
 export const chatUrl = (id: string) => `/api/conversations/${id}/chat`
 
+/** Where `useChat`'s resume reattaches to a turn that is already running. 204 means none is. */
+export const streamUrl = (id: string) => `/api/conversations/${id}/stream`
+
 // Import
 
 /** One past import as the overview page reads it. Importing itself happens in a chat. */
@@ -774,6 +789,8 @@ export interface ImportRecord {
   needs_review: number
   /** The conversation the file was dropped into, or null when it was committed over REST. */
   conversation_id: string | null
+  /** Whether the chat that is importing this file is still working on it. */
+  running: boolean
   created_at: string
 }
 
@@ -796,6 +813,9 @@ export const importsQuery = (profileId: string | undefined) =>
     queryKey: ['imports', { profileId }],
     queryFn: () => request<ImportRecord[]>(`/api/imports?profile_id=${profileId}`),
     enabled: profileId !== undefined,
+    // An import that is still running is still counting: the rows are committed in seconds and
+    // the categorization behind them takes minutes.
+    refetchInterval: (query) => (query.state.data?.some((record) => record.running) ? RUNNING_POLL_MS : false),
   })
 
 /** Candidates of this import nobody has decided yet: the number the overview marks amber. */

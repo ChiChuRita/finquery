@@ -612,35 +612,6 @@ async def test_a_turn_still_running_when_the_server_stops_is_interrupted_on_the_
     turn.cancel()
 
 
-async def test_a_browser_that_hangs_up_mid_answer_leaves_the_turn_marked_not_missing(
-    client: httpx.AsyncClient, scripts: Scripts
-) -> None:
-    """Reload during streaming: the request dies with the page, and neither hook runs.
-
-    A cancelled request never reaches `on_complete` or `on_cancel`, so the whole turn used to
-    vanish: the reloaded transcript ended at the turn before, with the typed question gone. The
-    open turn is closed on the way out instead.
-    """
-    started = asyncio.Event()
-    scripts.fast = _parked(started)
-    conversation_id = await new_conversation(client, await default_profile_id(client))
-
-    turn = asyncio.create_task(
-        client.post(f"/api/conversations/{conversation_id}/chat", json=chat_body("go", conversation_id))
-    )
-    await asyncio.wait_for(started.wait(), timeout=5)
-    turn.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await turn
-
-    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
-    assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
-    assert detail["messages"][0]["parts"][0]["text"] == "go"
-    assert detail["interrupted"] is True
-    # Nothing is left running, so the next message is taken rather than refused.
-    assert client._transport.app.state.running_turns == {}  # type: ignore[attr-defined]
-
-
 async def test_a_failing_post_turn_step_never_costs_the_answer(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, monkeypatch: pytest.MonkeyPatch
 ) -> None:

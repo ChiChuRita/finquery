@@ -24,6 +24,14 @@ class ConversationOut(BaseModel):
     profile_id: str
     title: str
     model_slot: ModelSlot
+    running: bool = False
+    """Whether a turn of this conversation is being answered right now.
+
+    A turn outlives the request that started it (ticket 33), so "is this chat busy" is a fact
+    about the server rather than about the browser that asked. It is what the spinner on the tab
+    and on the sidebar row is drawn from, wherever the user happens to be, and what tells a
+    freshly opened chat to reattach to the stream instead of offering an empty composer.
+    """
     created_at: datetime
     updated_at: datetime
 
@@ -85,18 +93,19 @@ class ConversationPatch(BaseModel):
         return title[:TITLE_LENGTH]
 
 
-def _out(conversation: Conversation) -> ConversationOut:
+def _out(conversation: Conversation, *, running: bool = False) -> ConversationOut:
     return ConversationOut(
         id=conversation.id,
         profile_id=conversation.profile_id,
         title=conversation.title,
         model_slot=conversation.model_slot,  # type: ignore[arg-type]
+        running=running,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
     )
 
 
-def _detail(conversation: Conversation, session: Session) -> ConversationDetail:
+def _detail(conversation: Conversation, session: Session, *, running: bool = False) -> ConversationDetail:
     messages: list[dict[str, Any]] = []
     summarized_turns = 0
     summarized_messages = 0
@@ -119,7 +128,7 @@ def _detail(conversation: Conversation, session: Session) -> ConversationDetail:
         if record.turn_id is not None
     ]
     return ConversationDetail(
-        **_out(conversation).model_dump(),
+        **_out(conversation, running=running).model_dump(),
         messages=messages,
         interrupted=interrupted,
         summary=conversation.summary,
@@ -147,7 +156,8 @@ async def list_conversations(request: Request, profile_id: str) -> list[Conversa
             .order_by(Conversation.updated_at.desc())
             .all()
         )
-        return [_out(row) for row in rows]
+        running = request.app.state.running_turns
+        return [_out(row, running=row.id in running) for row in rows]
 
 
 @router.post("/conversations", response_model=ConversationOut, status_code=201)
@@ -163,7 +173,8 @@ async def create_conversation(request: Request, body: ConversationCreate) -> Con
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
 async def get_conversation(request: Request, conversation_id: str) -> ConversationDetail:
     with request.app.state.session_factory() as session:
-        return _detail(get_conversation_or_404(session, conversation_id), session)
+        conversation = get_conversation_or_404(session, conversation_id)
+        return _detail(conversation, session, running=conversation_id in request.app.state.running_turns)
 
 
 @router.patch("/conversations/{conversation_id}", response_model=ConversationOut)
