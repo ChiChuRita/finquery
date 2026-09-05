@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import {
   BrainIcon,
+  LayoutDashboardIcon,
   MessageSquareIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -36,6 +37,7 @@ const ROW = 'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition
 const ROW_ICON = 'size-4 shrink-0 text-muted-foreground'
 
 const PAGES = [
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboardIcon, title: 'The charts this profile keeps' },
   { to: '/transactions', label: 'Transactions', icon: TableIcon },
   { to: '/import', label: 'Imports', icon: UploadIcon, title: 'What every file you dropped into a chat brought in' },
   { to: '/memory', label: 'Memory', icon: BrainIcon },

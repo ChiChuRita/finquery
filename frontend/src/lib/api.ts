@@ -197,7 +197,10 @@ export interface ChartToolInput {
   hints?: string | null
 }
 
-export interface ChartToolOutput {
+/** Everything a chart card can show about how a chart was made: the plan, the statement, the
+ *  rows and the code. A chart in the transcript and a card on the dashboard both carry it, so
+ *  the details toggle under either of them is the same component. */
+export interface ChartDetails {
   request: string
   title: string
   shape: string
@@ -210,8 +213,11 @@ export interface ChartToolOutput {
   rows: Record<string, QueryValue>[]
   code: string | null
   notes: string[]
-  summary: string
   error: string | null
+}
+
+export interface ChartToolOutput extends ChartDetails {
+  summary: string
   /** Whether a chart really reached the screen. False means the answer gives the figures. */
   rendered: boolean
   /** What the sandboxed frame said when it refused to draw this definition, if it did. */
@@ -1148,4 +1154,102 @@ export const answerAlternative = (profileId: string, turn_id: string) =>
   request<AlternativeAnswer>('/api/preferences/answer-alternative', {
     method: 'POST',
     body: JSON.stringify({ profile_id: profileId, turn_id }),
+  })
+
+// Dashboard: the cards a profile keeps, and the four figures above them.
+
+/** One card. The definition is stored; the rows came from running its statement just now. */
+export interface DashboardChart extends ChartDetails {
+  id: string
+  position: number
+  /** default, chat or dashboard: seeded, pinned from a turn, or asked for on the page. */
+  created_from: string
+  created_at: string
+  refreshed_at: string | null
+}
+
+export interface DashboardTiles {
+  /** The month the three money figures are about: the newest one with bookings in it. */
+  month: string | null
+  spent_eur: number
+  income_eur: number
+  net_eur: number
+  needs_review: number
+  /** The import whose questions the Needs review tile opens in a chat, when one is waiting. */
+  review_import_id: string | null
+}
+
+export interface Dashboard {
+  /** False for a profile with no bookings at all, which is what the empty cards are about. */
+  has_data: boolean
+  tiles: DashboardTiles
+  charts: DashboardChart[]
+}
+
+export const dashboardQuery = (profileId: string | undefined) =>
+  queryOptions({
+    queryKey: ['dashboard', { profileId }],
+    queryFn: () => request<Dashboard>(`/api/dashboard?profile_id=${profileId}`),
+    enabled: profileId !== undefined,
+  })
+
+/** The chat charts that are already on the dashboard, so their cards can say so after a reload. */
+export const dashboardPinsQuery = (profileId: string | undefined) =>
+  queryOptions({
+    queryKey: ['dashboard-pins', { profileId }],
+    queryFn: () => request<{ call_ids: string[] }>(`/api/dashboard/pins?profile_id=${profileId}`),
+    enabled: profileId !== undefined,
+  })
+
+/** Put a chart drawn in a chat on the dashboard. Twice on the same one is once. */
+export const pinChartToDashboard = (profileId: string, turn_id: string, tool_call_id: string) =>
+  request<DashboardChart>('/api/dashboard/charts/from-turn', {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId, turn_id, tool_call_id }),
+  })
+
+/** Draw a chart from a line of words and store nothing: the card that comes back has Keep on it. */
+export const previewDashboardChart = (profileId: string, text: string) =>
+  request<ChartToolOutput>('/api/dashboard/charts/preview', {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId, request: text }),
+  })
+
+/** Keep the chart the preview drew. */
+export const keepDashboardChart = (profileId: string, chart: ChartToolOutput) =>
+  request<DashboardChart>('/api/dashboard/charts', {
+    method: 'POST',
+    body: JSON.stringify({
+      profile_id: profileId,
+      chart: {
+        title: chart.title || chart.request,
+        shape: chart.shape,
+        language: chart.language ?? 'en',
+        request: chart.request,
+        plan: chart.plan,
+        sql: chart.sql,
+        code: chart.code,
+        notes: chart.notes,
+      },
+    }),
+  })
+
+export const patchDashboardChart = (
+  profileId: string,
+  id: string,
+  patch: { title?: string; position?: number },
+) =>
+  request<DashboardChart>(`/api/dashboard/charts/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ profile_id: profileId, ...patch }),
+  })
+
+export const deleteDashboardChart = (profileId: string, id: string) =>
+  request<void>(`/api/dashboard/charts/${id}?profile_id=${profileId}`, { method: 'DELETE' })
+
+/** Run one card's statement again. Every load runs it too; this says when it last happened. */
+export const refreshDashboardChart = (profileId: string, id: string) =>
+  request<DashboardChart>(`/api/dashboard/charts/${id}/refresh`, {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId }),
   })

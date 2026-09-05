@@ -1,9 +1,12 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ChartColumnIcon,
+  CheckIcon,
   ChevronDownIcon,
   ClipboardListIcon,
   Code2Icon,
   DatabaseIcon,
+  LayoutDashboardIcon,
   RefreshCwIcon,
   ShieldCheckIcon,
   WrenchIcon,
@@ -25,6 +28,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import {
   chartAlternative,
   chartRenderFailure,
+  dashboardPinsQuery,
+  dashboardQuery,
+  pinChartToDashboard,
+  type ChartDetails,
   type ChartToolOutput,
   type ChartToolPart,
   type PreferenceRating,
@@ -40,7 +47,7 @@ import {
   type ChartRow,
 } from '@/lib/chart-frame'
 
-const SHAPE_LABELS: Record<string, string> = {
+export const SHAPE_LABELS: Record<string, string> = {
   line: 'Line',
   area: 'Area',
   bar: 'Bars',
@@ -63,7 +70,7 @@ const HEADLINE = 160
  * where the quoted code starts; the whole reason stays under the details toggle, where the plan
  * and the SQL already are.
  */
-function failureLine(error: string): string {
+export function failureLine(error: string): string {
   const parts = error.split(QUOTED_CODE)
   let said = parts[0].trim().replace(/[\s,;:]+$/, '')
   // Cutting the code off can leave half a clause behind (", top_categories"), so a line that
@@ -98,7 +105,7 @@ function readTheme(): ChartFrameTheme {
  * `onError` is what makes a failure more than a red box: the card reports it to the server,
  * which records it on the turn and draws the request once more.
  */
-function ChartFrame({
+export function ChartFrame({
   title,
   language,
   code,
@@ -112,7 +119,11 @@ function ChartFrame({
   onError?: (message: string) => void
 }) {
   const frame = useRef<HTMLIFrameElement>(null)
-  const [ready, setReady] = useState(false)
+  // Every reason to (re)send the render message, counted rather than flagged: a frame that
+  // loaded a second time needs it again, and a flag that is already true changes nothing. A
+  // card the dashboard moves is exactly that case, because a browser reloads an iframe whose
+  // element is re-inserted, and the reloaded document waits for a message that never comes.
+  const [posts, setPosts] = useState(0)
   const [live, setLive] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // The theme toggle flips a class on <html>; watching it is independent of effect ordering.
@@ -134,7 +145,7 @@ function ChartFrame({
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (event.source !== frame.current?.contentWindow || !isFrameMessage(event.data)) return
-      if (event.data.kind === 'hello') setReady(true)
+      if (event.data.kind === 'hello') setPosts((count) => count + 1)
       if (event.data.kind === 'ready') {
         setError(null)
         setLive(true)
@@ -150,12 +161,12 @@ function ChartFrame({
   }, [])
 
   useEffect(() => {
-    if (!ready) return
+    if (posts === 0) return
     frame.current?.contentWindow?.postMessage(
       { source: CARD_SOURCE, kind: 'render', title, language, code, rows, theme: readTheme() },
       '*',
     )
-  }, [ready, title, language, code, rows, themeChanges])
+  }, [posts, title, language, code, rows, themeChanges])
 
   return (
     <div className="relative" style={{ height: CHART_HEIGHT }}>
@@ -163,7 +174,12 @@ function ChartFrame({
         className="h-full w-full border-0"
         // The frame's "hello" can arrive before React has run this component's effects, so the
         // load event is the reliable trigger and the message is only a second chance.
-        onLoad={() => setReady(true)}
+        onLoad={() => {
+          // A reloaded frame is blank until it is told what to draw again, so it says
+          // "Drawing..." rather than showing its own white surface.
+          setLive(false)
+          setPosts((count) => count + 1)
+        }}
         ref={frame}
         sandbox="allow-scripts"
         src={FRAME_URL}
@@ -204,7 +220,7 @@ const repairsLine = (count: number) =>
  * yet, so its rail shows the first step active and the rest pending; once the tool has answered,
  * every step it reached is complete and the ones it never got to stay pending.
  */
-function chartSteps(output?: ChartToolOutput): ChainStep[] {
+function chartSteps(output?: ChartDetails): ChainStep[] {
   if (!output) {
     return [
       { icon: ClipboardListIcon, label: 'Planning the chart', status: 'active' },
@@ -254,7 +270,7 @@ function chartSteps(output?: ChartToolOutput): ChainStep[] {
  * the audit trail of the answer and must stay open on the page; this is the sub-agent's own
  * work, which is worth reading once and then folding away.
  */
-function ChartChain({ output }: { output?: ChartToolOutput }) {
+function ChartChain({ output }: { output?: ChartDetails }) {
   return (
     <ChainOfThought open>
       <ChainOfThoughtContent>
@@ -279,12 +295,12 @@ function ChartChain({ output }: { output?: ChartToolOutput }) {
  * only thing there is to watch while nothing is drawn yet. The finished card starts folded, the
  * way it always did.
  */
-function Footer({
+export function Footer({
   output,
   running = false,
   actions,
 }: {
-  output?: ChartToolOutput
+  output?: ChartDetails
   running?: boolean
   actions?: ReactNode
 }) {
@@ -330,7 +346,7 @@ function Footer({
   )
 }
 
-function Card({ children }: { children: ReactNode }) {
+export function ChartCard({ children }: { children: ReactNode }) {
   return (
     <div className="w-full overflow-hidden rounded-lg border bg-card" data-slot="chart-card">
       {children}
@@ -338,16 +354,33 @@ function Card({ children }: { children: ReactNode }) {
   )
 }
 
-function Header({ title, shape }: { title: string; shape?: string }) {
+/** The top of a chart card: what it shows, what it is, and, on the dashboard, what can be done
+ *  to it. `title` takes a node so a card being renamed can put its input where its title was. */
+export function ChartCardHeader({
+  title,
+  shape,
+  children,
+}: {
+  title: ReactNode
+  shape?: string
+  children?: ReactNode
+}) {
   return (
     <div className="flex items-start justify-between gap-3 px-4 pt-3 pb-2">
-      <h3 className="font-medium text-sm leading-snug">{title}</h3>
+      {typeof title === 'string' ? (
+        <h3 className="line-clamp-2 min-w-0 flex-1 font-medium text-sm leading-snug" title={title}>
+          {title}
+        </h3>
+      ) : (
+        title
+      )}
       {shape && (
         <Badge className="shrink-0 gap-1 font-normal text-muted-foreground" variant="outline">
           <ChartColumnIcon className="size-3" />
           {SHAPE_LABELS[shape] ?? shape}
         </Badge>
       )}
+      {children}
     </div>
   )
 }
@@ -387,6 +420,12 @@ function ChartResult({
   })
   // One report per chart: the server retries once, and a remount must not ask again.
   const reported = useRef(false)
+  // Which charts of this profile are on the dashboard. One cheap request per profile, shared
+  // by every card in the transcript, so a reload still knows this one is pinned.
+  const queryClient = useQueryClient()
+  const { data: pins } = useQuery(dashboardPinsQuery(profile?.id))
+  const [pinning, setPinning] = useState(false)
+  const pinned = pins?.call_ids.includes(toolCallId) ?? false
 
   // What this card shows: the chart of the turn, or the one a retry drew in its place.
   const chart = redrawn ?? output
@@ -409,6 +448,21 @@ function ChartResult({
       // The card already shows the frame's own message; a failed report changes nothing.
     } finally {
       setRetrying(false)
+    }
+  }
+
+  const addToDashboard = async () => {
+    if (!profile || !turnId || pinning) return
+    setPinning(true)
+    setProblem(undefined)
+    try {
+      await pinChartToDashboard(profile.id, turnId, toolCallId)
+      await queryClient.invalidateQueries(dashboardPinsQuery(profile.id))
+      void queryClient.invalidateQueries(dashboardQuery(profile.id))
+    } catch (cause) {
+      setProblem(cause instanceof Error ? cause.message : 'That chart could not be added.')
+    } finally {
+      setPinning(false)
     }
   }
 
@@ -445,8 +499,8 @@ function ChartResult({
   }
 
   return (
-    <Card>
-      <Header shape={chart.shape} title={title} />
+    <ChartCard>
+      <ChartCardHeader shape={chart.shape} title={title} />
       {retrying && (
         <div className="px-4 pb-2">
           <Shimmer className="text-muted-foreground text-sm">
@@ -529,6 +583,19 @@ function ChartResult({
             {feedback.rating === 'pick' && !second && (
               <span className="text-muted-foreground text-xs">Pair collected</span>
             )}
+            {code && turnId && (
+              <Button
+                className="gap-1.5 text-muted-foreground"
+                disabled={pinned || pinning}
+                onClick={() => void addToDashboard()}
+                size="sm"
+                title={pinned ? 'This chart is on the dashboard' : 'Keep this chart on the dashboard'}
+                variant="ghost"
+              >
+                {pinned ? <CheckIcon /> : <LayoutDashboardIcon />}
+                {pinned ? 'On the dashboard' : 'Add to dashboard'}
+              </Button>
+            )}
             {code && (
               <Button
                 className="gap-1.5 text-muted-foreground"
@@ -552,7 +619,7 @@ function ChartResult({
         }
         output={chart}
       />
-    </Card>
+    </ChartCard>
   )
 }
 
@@ -568,23 +635,23 @@ export function ChartToolStep({
 }) {
   if (part.state === 'output-error') {
     return (
-      <Card>
-        <Header title="Chart failed" />
+      <ChartCard>
+        <ChartCardHeader title="Chart failed" />
         <div className="px-4 pb-4">
           <ErrorSection message={part.errorText} />
         </div>
-      </Card>
+      </ChartCard>
     )
   }
   if (part.state !== 'output-available') {
     return (
-      <Card>
-        <Header title={part.input?.request ?? 'Planning the chart'} />
+      <ChartCard>
+        <ChartCardHeader title={part.input?.request ?? 'Planning the chart'} />
         <div className="flex items-center gap-2 px-4 pb-4">
           <Shimmer className="text-muted-foreground text-sm">Planning, querying, drawing...</Shimmer>
         </div>
         <Footer running />
-      </Card>
+      </ChartCard>
     )
   }
   return (

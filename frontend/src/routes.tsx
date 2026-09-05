@@ -9,6 +9,7 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { ChatView } from '@/components/chat-view'
 import { Composer } from '@/components/composer'
 import { ConversationTabs } from '@/components/conversation-tabs'
+import { DashboardPage } from '@/components/dashboard-page'
 import { EmptyState } from '@/components/empty-state'
 import { FeedbackPage } from '@/components/feedback-page'
 import { ImportPage } from '@/components/import-page'
@@ -140,6 +141,12 @@ const conversationRoute = createRoute({
   component: ConversationPage,
 })
 
+const dashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard',
+  component: DashboardPage,
+})
+
 const importRoute = createRoute({ getParentRoute: () => rootRoute, path: '/import', component: ImportPage })
 
 const memoryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/memory', component: MemoryPage })
@@ -180,6 +187,7 @@ export const router = createRouter({
   routeTree: rootRoute.addChildren([
     indexRoute,
     conversationRoute,
+    dashboardRoute,
     importRoute,
     transactionsRoute,
     memoryRoute,
