@@ -9,6 +9,7 @@ The contract the second pass writes against is documented for humans in `docs/ch
 and enforced by `finquery.chart.selfcheck`.
 """
 
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -76,6 +77,36 @@ Rules:
   refuses, and "where does my income go" asked plainly is exactly how one gets written.
 """
 
+# Two worked plans, drawn from the training half of the chart benchmark (13-doughnut-categories-en
+# and 10-quarter-groups-de, both judged correct on 2026-09-05). They are the two decisions the
+# small model gets wrong most: the language of an English request about German data, and a
+# request naming quarters that comes back with months along its axis.
+PLAN_EXAMPLES = """\
+Two worked plans:
+
+Request: Show the share of my 2025 spending by category as a doughnut.
+reasoning:
+the request is written in English, so language en, whatever language the data is in
+it asks how one whole splits up, and it names the doughnut
+the buckets are the household's own categories, so one row per category
+the columns are the name and the euro figure, the figure last
+-> shape doughnut, language en, title "Spending by category in 2025",
+   columns topic, total_eur,
+   question "the five largest spending categories of 2025 with their totals, one row per
+   category, columns topic and total_eur"
+
+Request: Vergleiche Lebensmittel und Essengehen pro Quartal 2025 als gruppierte Balken.
+reasoning:
+the request is German, so language de
+two topics are compared over four quarters, so two dimensions that cross
+grouped bars put the two side by side per quarter, which is what the request names
+the request says quarters, so the position column is a quarter and never a month
+-> shape bar_grouped, language de, title "Lebensmittel und Essengehen pro Quartal",
+   columns quarter, topic, total_eur,
+   question "spending on Groceries and on Dining per quarter of 2025, one row per quarter and
+   category, columns quarter as '2025-Q1', topic and total_eur"
+"""
+
 CONTRACT = """\
 You write the body of one JavaScript function. It receives `data`, an array of row objects that
 a query already returned, and must `return` a TanStack Charts definition. There are no imports,
@@ -128,12 +159,44 @@ House rules, all checked before the user sees the chart:
 - Never set a height, a width, a title or a theme: the card owns all four.
 - Every value is read from `data` through a channel name such as `y: 'total_eur'`. Never type a
   number into the code. A zero baseline is not a value, so `Math.min(0, ...)` is fine.
-- Keep it short: no comments, no helper functions you do not need.
+- Every column a channel names is one of the columns listed under "The query returned" below.
+  The worked examples have columns of their own, and copying a name out of an example that your
+  rows do not carry draws nothing at all.
+- A quarter (`2025-Q1`) or any other label is a name and not a month: no `monthShort` on it, and
+  no label of it may be dropped.
+- Keep it short: no comments, no helper functions you do not need. Answer with the body itself,
+  never wrapped in `function (data) { ... }` and never inside a markdown fence.
 """
 
-EXAMPLES: dict[Shape, str] = {
-    "line": """\
-Columns: month, total_eur
+
+@dataclass(frozen=True)
+class Example:
+    """One worked example of the code pass: the rows it was written for, and what it did.
+
+    `columns` is the first line the model reads, so it sees at once that these column names
+    belong to this example and not to its own rows. `reasoning` is the same short field the
+    answer carries, filled the way the answer should fill it.
+    """
+
+    columns: str
+    reasoning: str
+    code: str
+
+    def as_prompt(self) -> str:
+        return f"Columns: {self.columns}\nreasoning:\n{self.reasoning}\ncode:\n{self.code}"
+
+
+EXAMPLES: dict[Shape, tuple[Example, ...]] = {
+    "line": (
+        Example(
+            columns="month, total_eur",
+            reasoning=(
+                "the shape is line, so the mark is lineY over the rows\n"
+                "the columns are month and total_eur, and total_eur holds the numbers\n"
+                "months on x with monthShort, euros on y\n"
+                "a line brings no baseline of its own, so its euro axis names the domain over the amounts"
+            ),
+            code="""\
 const amounts = data.map((row) => row.total_eur);
 return defineChart({
   marks: [
@@ -156,8 +219,18 @@ return defineChart({
     format: (point) => monthShort(point.datum.month) + ': ' + eur(point.datum.total_eur),
   },
 });""",
-    "area": """\
-Columns: month, cumulative_eur
+        ),
+    ),
+    "area": (
+        Example(
+            columns="month, cumulative_eur",
+            reasoning=(
+                "the shape is area, so areaY draws the band and lineY its edge\n"
+                "the columns are month and cumulative_eur, and cumulative_eur holds the numbers\n"
+                "months on x with monthShort, euros on y\n"
+                "an area rests on zero, so its euro axis is the bare scaleLinear factory"
+            ),
+            code="""\
 return defineChart({
   marks: [
     areaY(data, { x: 'month', y: 'cumulative_eur', fill: palette[0], fillOpacity: 0.18 }),
@@ -175,8 +248,42 @@ return defineChart({
     format: (point) => monthShort(point.datum.month) + ': ' + eur(point.datum.cumulative_eur),
   },
 });""",
-    "bar": """\
-Columns: category, total_eur
+        ),
+        Example(
+            columns="quarter, total_eur",
+            reasoning=(
+                "the shape is area, so areaY draws the band and lineY its edge\n"
+                "the columns are quarter and total_eur, and total_eur holds the numbers\n"
+                "a quarter reads 2025-Q1, which is a name and not a month, so no monthShort and no label dropped\n"
+                "an area rests on zero, so its euro axis is the bare scaleLinear factory"
+            ),
+            code="""\
+return defineChart({
+  marks: [
+    areaY(data, { x: 'quarter', y: 'total_eur', fill: palette[0], fillOpacity: 0.18 }),
+    lineY(data, { x: 'quarter', y: 'total_eur', stroke: palette[0], strokeWidth: 2 }),
+  ],
+  scales: {
+    x: { scale: () => scalePoint().padding(0.06), axis: { tickLabels: { thin: false } } },
+    y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
+  },
+  tooltip: {
+    use: tooltip,
+    format: (point) => point.datum.quarter + ': ' + eur(point.datum.total_eur),
+  },
+});""",
+        ),
+    ),
+    "bar": (
+        Example(
+            columns="category, total_eur",
+            reasoning=(
+                "the shape is bar, so the mark is barY\n"
+                "the columns are category and total_eur, and total_eur holds the numbers\n"
+                "names on x on a band scale, no label dropped, tilted once they are many or long\n"
+                "a bar rests on zero, so its euro axis is the bare scaleLinear factory"
+            ),
+            code="""\
 const names = data.map((row) => String(row.category));
 const tilt = names.length > 6 || names.some((name) => name.length > 9) ? -28 : 0;
 return defineChart({
@@ -192,8 +299,18 @@ return defineChart({
     format: (point) => point.datum.category + ': ' + eur(point.datum.total_eur),
   },
 });""",
-    "bar_horizontal": """\
-Columns: merchant, total_eur
+        ),
+    ),
+    "bar_horizontal": (
+        Example(
+            columns="merchant, total_eur",
+            reasoning=(
+                "the shape is bar_horizontal, so the mark is barX and nothing else\n"
+                "the columns are merchant and total_eur, and total_eur holds the numbers\n"
+                "barX draws sideways, so the euro column is x and the names are y\n"
+                "scales.x is therefore the euro axis and scales.y the band of names, none dropped"
+            ),
+            code="""\
 return defineChart({
   marks: [
     barX(data, { x: 'total_eur', y: 'merchant', fill: palette[0], radius: 4, maxThickness: 32 }),
@@ -207,8 +324,18 @@ return defineChart({
     format: (point) => point.datum.merchant + ': ' + eur(point.datum.total_eur),
   },
 });""",
-    "bar_grouped": """\
-Columns: month, topic, total_eur
+        ),
+    ),
+    "bar_grouped": (
+        Example(
+            columns="month, topic, total_eur",
+            reasoning=(
+                "the shape is bar_grouped, so barY carries a series and layout: group()\n"
+                "the columns are month, topic and total_eur, and total_eur holds the numbers\n"
+                "topic is the series, so it is the z and the color channel and it needs a legend\n"
+                "months on x on a band scale, euros on y from the bare factory"
+            ),
+            code="""\
 const short = (name) => (name.length > 18 ? name.slice(0, 17) + '.' : name);
 return defineChart({
   marks: [
@@ -227,8 +354,18 @@ return defineChart({
     format: (point) => point.datum.topic + ' ' + monthShort(point.datum.month) + ': ' + eur(point.datum.total_eur),
   },
 });""",
-    "bar_stacked": """\
-Columns: month, topic, total_eur
+        ),
+    ),
+    "bar_stacked": (
+        Example(
+            columns="month, topic, total_eur",
+            reasoning=(
+                "the shape is bar_stacked, so barY carries a series and no layout\n"
+                "the columns are month, topic and total_eur, and total_eur holds the numbers\n"
+                "topic is the series, so it is the z and the color channel and it needs a legend\n"
+                "a stack is taller than any single row, so the euro axis names no domain"
+            ),
+            code="""\
 const short = (name) => (name.length > 18 ? name.slice(0, 17) + '.' : name);
 return defineChart({
   marks: [
@@ -247,8 +384,18 @@ return defineChart({
     format: (point) => point.datum.topic + ' ' + monthShort(point.datum.month) + ': ' + eur(point.datum.total_eur),
   },
 });""",
-    "doughnut": """\
-Columns: merchant, total_eur
+        ),
+    ),
+    "doughnut": (
+        Example(
+            columns="merchant, total_eur",
+            reasoning=(
+                "the shape is doughnut, so pie allocates the slices and radialArc draws them\n"
+                "the columns are merchant and total_eur, and total_eur is the value pie reads\n"
+                "the slices are the series, so color and key both name merchant, the column of names\n"
+                "a doughnut has no axes, so scales.x and scales.y are null and the legend is on"
+            ),
+            code="""\
 const short = (name) => (name.length > 18 ? name.slice(0, 17) + '.' : name);
 const slices = pie(data, { value: 'total_eur' });
 return defineChart({
@@ -274,8 +421,52 @@ return defineChart({
     format: (point) => point.datum.merchant + ': ' + eur(point.datum.total_eur),
   },
 });""",
-    "sankey": """\
-Columns: source, target, amount_eur
+        ),
+        Example(
+            columns="label, total_eur",
+            reasoning=(
+                "the shape is doughnut, so pie allocates the slices and radialArc draws them\n"
+                "the columns here are label and total_eur, so nothing reads merchant or category\n"
+                "the slices are the series, so color and key both name label, the column of names\n"
+                "three slices, so no rest slice and no fold: the rows are drawn as they came"
+            ),
+            code="""\
+const slices = pie(data, { value: 'total_eur' });
+return defineChart({
+  marks: [
+    polar({
+      inset: 6,
+      radiusRatio: 0.92,
+      marks: [
+        radialArc(slices, {
+          innerRadius: ({ radius }) => radius * 0.62,
+          cornerRadius: 3,
+          color: (slice) => slice.label,
+          key: 'label',
+        }),
+      ],
+      scales: { angle: null, radius: null },
+    }),
+  ],
+  scales: { x: null, y: null },
+  color: { legend: colorLegend({ placement: 'bottom', itemWidth: 150 }) },
+  tooltip: {
+    use: tooltip,
+    format: (point) => point.datum.label + ': ' + eur(point.datum.total_eur),
+  },
+});""",
+        ),
+    ),
+    "sankey": (
+        Example(
+            columns="source, target, amount_eur",
+            reasoning=(
+                "the shape is sankey, so sankeyDiagram lays the flow out\n"
+                "the columns are source, target and amount_eur, and amount_eur holds the numbers\n"
+                "the nodes are the names of both ends, collected from the rows themselves\n"
+                "the child marks read the layout's own fields (x0, x1, y0, y1, key), never a column of the query"
+            ),
+            code="""\
 const names = [];
 data.forEach((row) => {
   if (names.indexOf(row.source) === -1) names.push(row.source);
@@ -327,8 +518,9 @@ return defineChart({
     format: (point) => point.datum.source + ' to ' + point.datum.target + ': ' + eur(point.datum.amount_eur),
   },
 });""",
+        ),
+    ),
 }
-
 
 
 CODE_INSTRUCTIONS = """\
@@ -339,31 +531,50 @@ answer.
 
 
 class ChartPlan(BaseModel):
-    """The shape of the chart and the data it needs, decided before any SQL is written."""
+    """The shape of the chart and the data it needs, decided before any SQL is written.
 
+    `reasoning` is first on purpose: a small model that writes the shape before it has read the
+    request picks the shape of the last chart it saw, so the field it fills first is the one
+    that makes it read (ticket 42).
+    """
+
+    reasoning: str = Field(
+        description=(
+            "Three to five very short steps, one per line, written before you decide anything "
+            "else: the language of the request, what it compares, the shape that reads that "
+            "comparison, the columns the query has to return, the period it covers. No prose."
+        )
+    )
     shape: Shape = Field(description="One of: " + ", ".join(SHAPE_NAMES))
     language: Language = Field(
         description=(
             "The language of the request itself, 'de' or 'en', never the language of the "
-            "household's data. The title and the chart's month labels are written in it."
+                "household's data. The title and the chart's month labels are written in it."
         )
     )
     title: str = Field(description="A short caption without figures, written in `language`.")
     question: str = Field(description="The data question for the SQL writer, standing on its own.")
     columns: list[str] = Field(description="The column names the query must return, in order.")
-    reason: str = Field(description="One sentence on why this shape answers the request.")
 
     def as_text(self) -> str:
-        """The plan as the reasoning panel shows it."""
+        """The plan as the reasoning panel shows it, its own steps included."""
+        steps = " ".join(line.strip() for line in self.reasoning.splitlines() if line.strip())
         return (
             f"Chart plan: {self.shape}, titled \"{self.title}\", over "
-            f"{', '.join(self.columns)}. {self.reason}"
+            f"{', '.join(self.columns)}. {steps}"
         )
 
 
 class ChartCode(BaseModel):
-    """The chart definition as a JavaScript function body."""
+    """The chart definition as a JavaScript function body, with the steps behind it."""
 
+    reasoning: str = Field(
+        description=(
+            "Three to five very short steps, one per line, written before the code: the shape "
+            "and the mark it needs, the column names from the rows above and which one holds "
+            "the numbers, what each axis is. On a repair, the first step says what you changed."
+        )
+    )
     code: str = Field(description="The body of a function of `data` that returns defineChart(...).")
 
 
@@ -385,6 +596,7 @@ def plan_prompt(request: str, context: QueryContext, *, hints: str | None = None
     sections = [
         f"Shapes:\n{SHAPE_MENU}",
         PLAN_RULES,
+        PLAN_EXAMPLES,
         profile_facts(context),
         f"Request: {request.strip()}",
     ]
@@ -423,25 +635,42 @@ def code_prompt(
     columns: list[str],
     rows: list[dict[str, Any]],
     *,
-    previous_code: str | None = None,
+    previous: ChartCode | None = None,
     findings: str | None = None,
 ) -> str:
     """Everything the code pass sees, including a repair round. Pure function."""
-    examples = [EXAMPLES[plan.shape]]
+    examples = list(EXAMPLES[plan.shape])
     if plan.shape != "line":
-        examples.append(EXAMPLES["line"])
+        examples.extend(EXAMPLES["line"])
     sections = [
         CONTRACT,
-        "Worked examples:\n\n" + "\n\n".join(examples),
+        "Worked examples:\n\n" + "\n\n".join(example.as_prompt() for example in examples),
         _rows_brief(columns, rows),
-        f"Chart to write: shape {plan.shape}, titled \"{plan.title}\". {plan.reason}",
+        f"Chart to write: shape {plan.shape}, titled \"{plan.title}\".",
     ]
-    if previous_code is not None and findings is not None:
-        sections.append(
-            "Your previous code did not pass the checks. Write it again, fixing every point.\n\n"
-            f"Your code:\n{previous_code.strip()}\n\nFindings:\n{findings}"
-        )
+    if previous is not None and findings is not None:
+        sections.append(repair_prompt(previous, findings))
     return "\n\n".join(sections)
+
+
+def repair_prompt(previous: ChartCode, findings: str) -> str:
+    """A repair round: the last answer, what the check found, and the correction asked for.
+
+    A round that only says "it failed, write it again" gets a chart written from scratch, which
+    is how the same finding came back twice in a row on 2026-09-05 (07-top-merchants-en, three
+    rounds, the same domain-in-a-factory finding each time). So the model is shown its own
+    reasoning and its own code, told which lines are wrong, and asked for a correction of them
+    rather than for another chart.
+    """
+    return (
+        "Your last answer did not pass the check. This is a correction of it, not a fresh "
+        "start: keep every line the findings do not mention.\n\n"
+        f"Your reasoning was:\n{previous.reasoning.strip()}\n\n"
+        f"Your code was:\n{previous.code.strip()}\n\n"
+        f"The check found:\n{findings.strip()}\n\n"
+        "Answer again with the corrected reasoning and the corrected code. The first line of "
+        "the reasoning says what you changed and why, one line per finding."
+    )
 
 
 async def write_plan(
@@ -465,14 +694,18 @@ async def write_code(
     columns: list[str],
     rows: list[dict[str, Any]],
     *,
-    previous_code: str | None = None,
+    previous: ChartCode | None = None,
     findings: str | None = None,
     model_settings: ModelSettings | None = None,
-) -> str:
-    """Ask the fast slot for one chart definition, or for a repair of the last one."""
+) -> ChartCode:
+    """Ask the fast slot for one chart definition, or for a repair of the last one.
+
+    Returns the answer whole, reasoning included: the runner narrates those lines into the
+    thinking panel, which is the one place a step already renders them.
+    """
     result = await code_agent.run(
-        code_prompt(plan, columns, rows, previous_code=previous_code, findings=findings),
+        code_prompt(plan, columns, rows, previous=previous, findings=findings),
         model=model,
         model_settings=model_settings,
     )
-    return result.output.code.strip()
+    return result.output.model_copy(update={"code": result.output.code.strip()})

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from finquery.chart.fold import fold_rows
 from finquery.chart.selfcheck import check_chart_code, data_findings
 from finquery.chart.shapes import MAX_SERIES, SHAPES
-from finquery.chart.subagent import ChartPlan, write_code, write_plan
+from finquery.chart.subagent import ChartCode, ChartPlan, write_code, write_plan
 from finquery.providers import ModelResolver, ProviderNotAvailable
 from finquery.query import QueryOutcome, load_query_context, run_query
 from finquery.query.runner import figures, is_euro_column
@@ -348,19 +348,21 @@ async def run_chart(
         say(f"One slice holds {share} of the total, so the title says so.")
 
     notes: list[str] = []
-    code: str | None = None
+    written: ChartCode | None = None
     findings = ""
     for attempt in range(ATTEMPTS):
         try:
-            code = await write_code(
+            written = await write_code(
                 model,
                 plan,
                 outcome.columns,
                 outcome.rows,
-                previous_code=code if attempt else None,
+                previous=written if attempt else None,
                 findings=findings if attempt else None,
                 model_settings=model_settings,
             )
+            code = written.code
+            say(" ".join(line.strip() for line in written.reasoning.splitlines() if line.strip()))
         except Exception as exc:  # noqa: BLE001
             return _failed(
                 request,

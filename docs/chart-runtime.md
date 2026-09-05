@@ -9,8 +9,12 @@ data for the chart adapter, which has to produce exactly this dialect.
 
 ## The code
 
-The sub-agent returns **the body of one function**. It receives `data`, an array of row objects
-that a query already returned, and must `return` a TanStack Charts definition:
+The sub-agent returns a short **reasoning** (three to five one-line steps: the shape and its
+mark, the columns of these rows and which one holds the numbers, what each axis is) and then
+**the body of one function**. The reasoning is filled first, so the model commits to a reading
+of the rows before it writes a channel name, and it is narrated into the thinking panel rather
+than into the answer. The body receives `data`, an array of row objects that a query already
+returned, and must `return` a TanStack Charts definition:
 
 ```js
 const amounts = data.map((row) => row.total_eur);
@@ -192,7 +196,11 @@ and link rows that carry the documented fields (`x0`, `x1`, `y0`, `y1`, `x`, `y`
 browser renders, the check judges intent.
 
 Two repair rounds follow a first failure (`ATTEMPTS = 3`). Each round's findings go back to the
-sub-agent with the refused code, and each is narrated into the transcript's thinking panel.
+sub-agent with the refused code, and each is narrated into the transcript's thinking panel. A
+round is framed as a correction and not as a new request (`subagent.repair_prompt`): the model
+is shown its own reasoning and its own code, then the findings, and is asked for the corrected
+reasoning and code with what changed on the first line. Three rounds that only said "it failed,
+write it again" returned the same finding three times on 2026-09-05.
 
 ## The frame
 
