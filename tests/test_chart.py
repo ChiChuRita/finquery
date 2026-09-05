@@ -31,6 +31,9 @@ from .test_query import import_synthetic
 # The set the chart quality pass is measured on, in the repo so a later run is the same run.
 BENCHMARK = Path(__file__).resolve().parents[1] / "fixtures" / "chart-benchmark.json"
 
+# What the code pass fills its `reasoning` field with before it writes a line of code.
+CODE_REASONING = "the shape is a line, so lineY\nthe columns are month and total_eur"
+
 MONTHLY_SQL = (
     "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur "
     "FROM transaction_view WHERE amount_cents < 0 GROUP BY month ORDER BY month"
@@ -47,7 +50,7 @@ LINE_PLAN = {
     "title": "Ausgaben pro Monat",
     "question": "total spending per month in 2025",
     "columns": ["month", "total_eur"],
-    "reason": "A month series reads best as a line.",
+    "reasoning": "A month series reads best as a line.",
 }
 
 DOUGHNUT_PLAN = {
@@ -56,7 +59,7 @@ DOUGHNUT_PLAN = {
     "title": "Anteil der Haendler",
     "question": "the seven largest merchants by spending in 2025",
     "columns": ["merchant", "total_eur"],
-    "reason": "A share of a whole reads as a doughnut.",
+    "reasoning": "A share of a whole reads as a doughnut.",
 }
 
 LINE_CODE = """\
@@ -165,7 +168,9 @@ def scripted_charts(specs: Sequence[tuple[dict[str, object], str, str]]):
             return ModelResponse(parts=[ToolCallPart("run_sql", json.dumps(written))])
         if name == "chart_code":
             prompts["code"].append(prompt)
-            return ModelResponse(parts=[ToolCallPart("chart_code", json.dumps({"code": specs[turn][2]}))])
+            return ModelResponse(
+                parts=[ToolCallPart("chart_code", json.dumps({"reasoning": CODE_REASONING, "code": specs[turn][2]}))]
+            )
         raise AssertionError(f"unexpected forced tool {name}")
 
     respond.prompts = prompts  # type: ignore[attr-defined]
@@ -202,7 +207,9 @@ def scripted_chart(
         if name == "chart_code":
             prompts["code"].append(prompt)
             code = codes[min(len(prompts["code"]), len(codes)) - 1]
-            return ModelResponse(parts=[ToolCallPart("chart_code", json.dumps({"code": code}))])
+            return ModelResponse(
+                parts=[ToolCallPart("chart_code", json.dumps({"reasoning": CODE_REASONING, "code": code}))]
+            )
         raise AssertionError(f"unexpected forced tool {name}")
 
     respond.prompts = prompts  # type: ignore[attr-defined]
@@ -335,6 +342,34 @@ async def test_a_chart_that_names_an_unknown_column_is_repaired(
     assert "Self-check passed after one repair." in told
 
 
+async def test_a_repair_round_shows_the_previous_answer_and_asks_for_a_correction(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """A repair is a correction of an answer, not a fresh request (ticket 42).
+
+    The second prompt has to carry the reasoning and the code of the first answer, the finding
+    in the check's own words, and the instruction to say what changed. Three rounds of "it
+    failed, write it again" produced the same finding three times on 2026-09-05.
+    """
+    await import_synthetic(client, profile_id)
+    broken = LINE_CODE.replace("y: 'total_eur'", "y: 'spent'")
+    respond = scripted_chart(plan=LINE_PLAN, sql=MONTHLY_SQL, codes=[broken, LINE_CODE])
+    scripts.fast = ask_chart_then_report("spending per month in 2025")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Ausgaben pro Monat als Diagramm bitte.")
+
+    repair = respond.prompts["code"][1]  # type: ignore[attr-defined]
+    assert "Your last answer did not pass the check." in repair
+    assert f"Your reasoning was:\n{CODE_REASONING}" in repair
+    assert broken in repair
+    assert 'reads the column "spent" in its `y` channel' in repair
+    assert "The first line of the reasoning says what you changed and why" in repair
+    # The reasoning of each attempt is narrated, so the panel shows what the model committed to.
+    assert narration(chunks).count("the columns are month and total_eur") == 2
+
+
 async def test_a_chart_over_an_empty_column_is_repaired(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
 ) -> None:
@@ -350,7 +385,7 @@ async def test_a_chart_over_an_empty_column_is_repaired(
         "title": "Ausgaben pro Monat",
         "question": "spending per month in 2025",
         "columns": ["month", "category", "total_eur"],
-        "reason": "Bars per month read well.",
+        "reasoning": "Bars per month read well.",
     }
     blind = BAR_CODE.replace("x: 'month'", "x: 'category'")
     respond = scripted_chart(plan=plan, sql=sql, codes=[blind, BAR_CODE])
@@ -442,7 +477,7 @@ async def test_a_stacked_chart_becomes_plain_bars_when_the_rows_carry_one_series
         "title": "Ausgaben pro Monat und Kategorie",
         "question": "spending per month and category in 2025",
         "columns": ["month", "category", "total_eur"],
-        "reason": "Stacked bars carry both dimensions.",
+        "reasoning": "Stacked bars carry both dimensions.",
     }
     respond = scripted_chart(plan=plan, sql=sql, codes=[BAR_CODE])
     scripts.fast = ask_chart_then_report("spending per month and category in 2025 as stacked bars")
@@ -462,9 +497,25 @@ async def test_a_stacked_chart_becomes_plain_bars_when_the_rows_carry_one_series
     assert "GROUP BY month, category" in respond.prompts["sql"][0]  # type: ignore[attr-defined]
 
 
-# One statement per shape, over the shipped dataset, returning the columns that shape's worked
-# example reads. `GROUP BY 1, 2` and not the aliases, because an alias that reuses a view column
-# name (`category`) would bind to the view's own column.
+# One statement per set of columns a worked example was written for, over the shipped dataset.
+# `GROUP BY 1, 2` and not the aliases, because an alias that reuses a view column name
+# (`category`) would bind to the view's own column.
+EXAMPLE_SQL = {
+    # The area example over quarters: a name axis, not a period one.
+    "quarter, total_eur": (
+        "SELECT '2025-Q' || ((CAST(strftime('%m', booked_on) AS INTEGER) - 1) / 3 + 1) AS quarter, "
+        "ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 "
+        "GROUP BY 1 ORDER BY 1"
+    ),
+    # The doughnut example over a column called `label`, which is not the one the first
+    # doughnut example reads.
+    "label, total_eur": (
+        "SELECT CASE WHEN amount_cents < -20000 THEN 'Gross' ELSE 'Klein' END AS label, "
+        "ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 "
+        "GROUP BY 1 ORDER BY 2 DESC"
+    ),
+}
+
 SHAPE_SQL = {
     "line": MONTHLY_SQL,
     "area": (
@@ -499,34 +550,39 @@ async def test_every_worked_example_in_the_prompt_passes_the_check(
 ) -> None:
     """The few-shot examples are the contract: what the prompt teaches has to pass the rules.
 
-    Each example is written for the columns named in its first line, so the scripted statement
-    returns those columns from the shipped dataset and the code is the example itself. The
-    examples are read from the prompt rather than copied here, because a copy could pass while
-    the prompt taught something the check refuses.
+    Every example of every shape, the second one of a hard shape included. Each is written for
+    the columns it names, so the scripted statement returns those columns from the shipped
+    dataset and the code is the example itself. The examples are read from the prompt rather
+    than copied here, because a copy could pass while the prompt taught something the check
+    refuses.
     """
     await import_synthetic(client, profile_id)
-    for shape, example in EXAMPLES.items():
-        columns, code = example.split("\n", 1)
-        plan = {
-            "shape": shape,
-            "language": "de",
-            "title": f"Beispiel {shape}",
-            "question": f"the {shape} example",
-            "columns": [name.strip() for name in columns.removeprefix("Columns:").split(",")],
-            "reason": "The worked example.",
-        }
-        respond = scripted_chart(plan=plan, sql=SHAPE_SQL[shape], codes=[code])
-        scripts.fast = ask_chart_then_report(f"the {shape} example")
-        scripts.fast_call = respond  # type: ignore[assignment]
-        conversation_id = await new_conversation(client, profile_id)
+    written = 0
+    for shape, examples in EXAMPLES.items():
+        for example in examples:
+            sql = EXAMPLE_SQL.get(example.columns) or SHAPE_SQL[shape]
+            plan = {
+                "shape": shape,
+                "language": "de",
+                "title": f"Beispiel {shape}",
+                "question": f"the {shape} example",
+                "columns": [name.strip() for name in example.columns.split(",")],
+                "reasoning": "The worked example.",
+            }
+            respond = scripted_chart(plan=plan, sql=sql, codes=[example.code])
+            scripts.fast = ask_chart_then_report(f"the {shape} example")
+            scripts.fast_call = respond  # type: ignore[assignment]
+            conversation_id = await new_conversation(client, profile_id)
 
-        _, chunks = await chat(conversation_id, f"Zeig das Beispiel {shape}.")
+            _, chunks = await chat(conversation_id, f"Zeig das Beispiel {shape}.")
 
-        output = chart_output(chunks)
-        assert output["error"] is None, f"{shape}: {output['error']}"
-        assert output["notes"] == [], f"{shape} needed a repair: {output['notes']}"
-        assert output["shape"] == shape, f"{shape} was not drawn as planned"
-        assert output["code"] == code
+            output = chart_output(chunks)
+            assert output["error"] is None, f"{shape} ({example.columns}): {output['error']}"
+            assert output["notes"] == [], f"{shape} ({example.columns}) needed a repair: {output['notes']}"
+            assert output["shape"] == shape, f"{shape} was not drawn as planned"
+            assert output["code"] == example.code
+            written += 1
+    assert written == sum(len(examples) for examples in EXAMPLES.values()) >= len(SHAPE_NAMES)
 
 
 async def test_an_empty_profile_gets_no_chart_and_calls_no_sub_agent(
@@ -561,7 +617,7 @@ STACKED_PLAN = {
     "title": "Ausgaben pro Monat und Kategorie",
     "question": "spending per month and category in 2025",
     "columns": ["month", "topic", "total_eur"],
-    "reason": "Stacked bars carry both dimensions.",
+    "reasoning": "Stacked bars carry both dimensions.",
 }
 
 # Two rows for the same month and topic, which is what a UNION of real and guessed categories
@@ -581,7 +637,7 @@ SANKEY_PLAN = {
     "title": "Geldfluss 2025",
     "question": "the flow from income into the spending groups in 2025",
     "columns": ["source", "target", "amount_eur"],
-    "reason": "A flow reads as a sankey.",
+    "reasoning": "A flow reads as a sankey.",
 }
 
 # Einkommen -> Wohnen and Wohnen -> Einkommen: the layout reports that as "circular link".
@@ -623,7 +679,7 @@ async def test_a_circular_flow_stops_a_sankey_before_any_code_is_written(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
 ) -> None:
     await import_synthetic(client, profile_id)
-    respond = scripted_chart(plan=SANKEY_PLAN, sql=CIRCULAR_SANKEY_SQL, codes=[EXAMPLES["sankey"].split("\n", 1)[1]])
+    respond = scripted_chart(plan=SANKEY_PLAN, sql=CIRCULAR_SANKEY_SQL, codes=[EXAMPLES["sankey"][0].code])
     scripts.fast = ask_chart_then_report("the money flow in 2025 as a sankey")
     scripts.fast_call = respond  # type: ignore[assignment]
     conversation_id = await new_conversation(client, profile_id)
@@ -657,7 +713,7 @@ async def test_a_sankey_self_loop_is_left_out_instead_of_losing_the_chart(
     """A row from a name into itself is a total, not a flow, so it is dropped and narrated."""
     await import_synthetic(client, profile_id)
     respond = scripted_chart(
-        plan=SANKEY_PLAN, sql=SELF_LOOP_SANKEY_SQL, codes=[EXAMPLES["sankey"].split("\n", 1)[1]]
+        plan=SANKEY_PLAN, sql=SELF_LOOP_SANKEY_SQL, codes=[EXAMPLES["sankey"][0].code]
     )
     scripts.fast = ask_chart_then_report("where my income goes in 2025 as a sankey")
     scripts.fast_call = respond  # type: ignore[assignment]
@@ -864,11 +920,11 @@ CATEGORY_PLAN = {
     "title": "Spending per category",
     "question": "spending per category in 2025",
     "columns": ["category", "total_eur"],
-    "reason": "One figure per category reads as bars.",
+    "reasoning": "One figure per category reads as bars.",
 }
 
 # The `bar` worked example, which names every category and tilts the long ones.
-CATEGORY_CODE = EXAMPLES["bar"].split("\n", 1)[1]
+CATEGORY_CODE = EXAMPLES["bar"][0].code
 # The same chart with the label rule dropped, so the layout is free to thin them away.
 THINNED_CODE = CATEGORY_CODE.replace(
     "axis: { tickLabels: { rotate: tilt, thin: false } }", "axis: { tickLabels: { rotate: tilt } }"
@@ -1000,7 +1056,7 @@ SIX_TOPICS_SQL = (
     "GROUP BY 1, 2 ORDER BY 1"
 )
 
-STACKED_CODE = EXAMPLES["bar_stacked"].split("\n", 1)[1]
+STACKED_CODE = EXAMPLES["bar_stacked"][0].code
 
 # The same stack, coloured by the month and the group together, so the code asks for a colour
 # per bar segment however few groups the rows carry.
@@ -1120,7 +1176,7 @@ TWO_FIGURES_PLAN = {
     "title": "Income and spending per month",
     "question": "income and spending per month in 2025",
     "columns": ["month", "income_eur", "spending_eur"],
-    "reason": "Two figures per month.",
+    "reasoning": "Two figures per month.",
 }
 
 TWO_MARKS_CODE = """\
@@ -1298,7 +1354,7 @@ async def test_a_flow_missing_one_end_stops_before_any_code_is_written(
     """Two columns cannot carry a link, and three code passes cannot invent the third."""
     await import_synthetic(client, profile_id)
     respond = scripted_chart(
-        plan=SANKEY_PLAN, sql=HALF_FLOW_SQL, codes=[EXAMPLES["sankey"].split("\n", 1)[1]]
+        plan=SANKEY_PLAN, sql=HALF_FLOW_SQL, codes=[EXAMPLES["sankey"][0].code]
     )
     scripts.fast = ask_chart_then_report("the money flow in 2025 as a sankey")
     scripts.fast_call = respond  # type: ignore[assignment]
@@ -1419,7 +1475,7 @@ ONE_NAME_PLAN = {
     "title": "Ausgaben nach Kategorie",
     "question": "spending per category in 2025",
     "columns": ["topic", "total_eur"],
-    "reason": "One figure per category.",
+    "reasoning": "One figure per category.",
 }
 
 
@@ -1450,7 +1506,7 @@ AREA_TURN_PLAN = {
     "title": "Cumulative spending in 2025",
     "question": "cumulative spending per month in 2025",
     "columns": ["month", "cumulative_eur"],
-    "reason": "A running total reads as an area.",
+    "reasoning": "A running total reads as an area.",
 }
 
 GROUPED_TURN_PLAN = {
@@ -1459,7 +1515,7 @@ GROUPED_TURN_PLAN = {
     "title": "Large and small payments per month",
     "question": "large and small payments per month in 2025",
     "columns": ["month", "topic", "total_eur"],
-    "reason": "Two groups side by side per month.",
+    "reasoning": "Two groups side by side per month.",
 }
 
 
@@ -1474,8 +1530,8 @@ async def test_the_second_chart_in_a_row_is_the_one_the_model_is_told_to_describ
     await import_synthetic(client, profile_id)
     respond = scripted_charts(
         [
-            (AREA_TURN_PLAN, SHAPE_SQL["area"], EXAMPLES["area"].split("\n", 1)[1]),
-            (GROUPED_TURN_PLAN, SHAPE_SQL["bar_grouped"], EXAMPLES["bar_grouped"].split("\n", 1)[1]),
+            (AREA_TURN_PLAN, SHAPE_SQL["area"], EXAMPLES["area"][0].code),
+            (GROUPED_TURN_PLAN, SHAPE_SQL["bar_grouped"], EXAMPLES["bar_grouped"][0].code),
         ]
     )
     scripts.fast = ask_charts_then_echo(

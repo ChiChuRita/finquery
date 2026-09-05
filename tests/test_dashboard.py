@@ -30,7 +30,7 @@ LINE_PLAN = {
     "title": "Groceries per month",
     "question": "spending on groceries per month",
     "columns": ["month", "total_eur"],
-    "reason": "A month series reads as a line.",
+    "reasoning": "A month series reads as a line.",
 }
 
 LINE_CODE = """\

@@ -61,6 +61,30 @@ Kontostand`, `Neuer Kontostand`, `Summe der Buchungen`, `KONTOÜBERSICHT`, `ANFA
 
 If the page is not a bank statement at all (a receipt, a letter, an invoice), return no rows
 and say what it is in `note`.
+
+Fill `reasoning` first, in three to five very short lines: which layout this page is printed
+in, which printed line the first booking starts on, where the date, the amount and the running
+balance stand on such a line, and which lines of this page are headers or balances rather than
+bookings.
+
+A worked page, printed with its line numbers the way you get it:
+
+  12 | 04.01.25  EDEKA SAGT DANKE                              -42,30      4.168,25
+  13 |           KARTENZAHLUNG 04.01. 18:42
+  14 | 06.01.25  MIETE WOHNUNG 12 01/2025                   -1.150,00      3.018,25
+  15 | Alter Kontostand                                                    4.210,55
+
+reasoning:
+a Sparkasse page: date, text, amount, running balance, one booking per printed line
+the first booking is on line 12, and line 13 is its reference line
+the amount stands before the balance, both with a comma, the balance never negative here
+line 15 is a balance line, so it is not a booking
+
+rows:
+  line 12, date_text "04.01.25", amount_text "-42,30", direction out, balance_text "4.168,25",
+  description "EDEKA SAGT DANKE KARTENZAHLUNG 04.01. 18:42", counterparty "EDEKA"
+  line 14, date_text "06.01.25", amount_text "-1.150,00", direction out,
+  balance_text "3.018,25", description "MIETE WOHNUNG 12 01/2025", counterparty null
 """
 
 BILL_INSTRUCTIONS = """\
@@ -111,6 +135,42 @@ printed, minus sign included, because it is the difference between the articles 
 - Copy every figure character by character. Never add up anything, never round and never invent
   a figure you cannot see: the line items are added up and checked against the total, and a
   bill that does not add up is shown to the user instead of being trusted.
+
+Fill `reasoning` first, in three to five very short lines: what kind of receipt this is, where
+the total stands and what it is called, where the date stands, and which printed lines are not
+articles. Only then read the fields.
+
+A worked receipt, of the kind a German discounter prints:
+
+  ALDI Im Brink 8
+  Bananen              1,49
+  2 x 0,49
+  Gemuesemais          0,98
+  ZWI.SUMME            2,47
+  Joghurt              0,75
+  Rabatt              -0,20
+  ZU ZAHLEN            3,02
+  MwSt A 7%  0,20
+  Datum 04.05.2019 14:12
+
+reasoning:
+a discounter receipt: articles, then a total called ZU ZAHLEN
+the date is at the foot, printed 04.05.2019 with the time next to it
+ZWI.SUMME is a running subtotal and the MwSt line is the tax table, so neither is an article
+the 2 x 0,49 line is a quantity line: its number is not a price, the 0,98 under it is
+the Rabatt line is an article with a negative amount, which is what makes the items add up
+
+fields: merchant "ALDI", date_text "04.05.2019 14:12", total_text "3,02", currency_text "",
+tax_text null, direction out, items ("Bananen" 1,49), ("Gemuesemais" 0,98), ("Joghurt" 0,75),
+("Rabatt" -0,20)
+
+`currency_text` is the currency as printed and nothing else. Copy it whenever one is printed
+anywhere near the total, the sign in front of the figure included (`€`, `$`, `12,50 PLN`,
+`SUMA PLN`, `CHF`): a receipt in another currency is refused rather than booked as euros, and a
+`$` that is not copied is a dollar amount booked as euros, which nothing later catches. Leave it
+empty only when the receipt prints no currency at all, which is the ordinary German case, and
+never fill it with a letter of the article line above it or with a guess: that refuses a euro
+receipt as foreign money.
 """
 
 
@@ -127,8 +187,19 @@ class StatementRow(BaseModel):
 
 
 class StatementPage(BaseModel):
-    """Every booking on one page, in the order they are printed."""
+    """Every booking on one page, in the order they are printed.
 
+    `reasoning` is first so the layout is read before the rows are: a model that starts with
+    the rows reads the first line it sees as a booking, header or not (ticket 42).
+    """
+
+    reasoning: str = Field(
+        description=(
+            "Three to five very short lines, one each, written before the rows: the layout of "
+            "this page, where the first booking starts, where the date, the amount and the "
+            "balance stand on a line, and which lines are headers or balances."
+        )
+    )
     rows: list[StatementRow] = Field(default_factory=list)
     note: str | None = Field(default=None, description="Only when the page holds no bookings: what it is instead.")
 
@@ -143,8 +214,19 @@ class BillItem(BaseModel):
 
 
 class Bill(BaseModel):
-    """One receipt as the sub-agent read it."""
+    """One receipt as the sub-agent read it.
 
+    `reasoning` is first for the same reason as on a statement page: the lines that are not
+    articles have to be recognized before the articles are copied (ticket 42).
+    """
+
+    reasoning: str = Field(
+        description=(
+            "Three to five very short lines, one each, written before the fields: what kind of "
+            "receipt this is, where the total stands and what it is called, where the date "
+            "stands, and which printed lines are not articles."
+        )
+    )
     merchant: str = Field(description="The shop's name as printed at the top.")
     date_text: str = Field(
         default="",
@@ -210,6 +292,46 @@ def bill_prompt(today: date) -> str:
     )
 
 
+def statement_retry(previous: StatementPage, findings: list[str]) -> str:
+    """A page whose figures the guards refused, handed back with what they refused (ticket 42).
+
+    Every figure is checked against the printed text of the page it was read from, so a
+    rejection names a span that is not on the page: the row was written rather than read, and
+    the printed line it belongs to is right there to read again.
+    """
+    rows = "\n".join(
+        f"  line {row.line}: {row.date_text} | {row.amount_text} | {row.description[:60]}"
+        for row in previous.rows
+    )
+    return (
+        "\n\nYour last answer was refused by the checks that hold every figure to the page. "
+        "This is a correction of it, not a fresh reading: keep every row the points below do "
+        "not name.\n\n"
+        f"Your reasoning was:\n{previous.reasoning.strip()}\n\n"
+        f"Your rows were:\n{rows}\n\n"
+        "What the checks found:\n" + "\n".join(f"- {line}" for line in findings) + "\n\n"
+        "Read those lines of the page again and answer with the corrected reasoning and the "
+        "full set of rows. The first line of the reasoning says what you changed. Copy every "
+        "figure from the printed line character by character: a figure that is not printed on "
+        "this page is thrown away whatever you send."
+    )
+
+
+def bill_retry(previous: Bill, findings: list[str]) -> str:
+    """A receipt whose arithmetic did not come out, handed back with the sum that did not."""
+    items = "\n".join(f"  {item.description[:40]} | {item.amount_text}" for item in previous.items)
+    return (
+        "\n\nWhat you read off this receipt does not check out. This is a correction of it, not "
+        "a fresh reading: keep every line the points below do not name.\n\n"
+        f"Your reasoning was:\n{previous.reasoning.strip()}\n\n"
+        f"You read the total as {previous.total_text!r} and these items:\n{items}\n\n"
+        "What is wrong with it:\n" + "\n".join(f"- {line}" for line in findings) + "\n\n"
+        "Look at the receipt again and answer with the corrected reasoning and the full set of "
+        "fields. The first line of the reasoning says what you changed. Copy every figure as it "
+        "is printed: never make the items add up by changing one."
+    )
+
+
 async def read_statement_text(
     model: Model,
     *,
@@ -218,14 +340,19 @@ async def read_statement_text(
     layout_hint: str,
     year: int | None,
     lines: str,
+    previous: StatementPage | None = None,
+    findings: list[str] | None = None,
     model_settings: ModelSettings | None = None,
 ) -> StatementPage:
-    """One page of a text PDF through the fast slot."""
-    result = await statement_agent.run(
-        statement_prompt(page=page, pages=pages, layout_hint=layout_hint, year=year, lines=lines),
-        model=model,
-        model_settings=model_settings,
-    )
+    """One page of a text PDF through the fast slot, or a second reading of the same page.
+
+    `previous` and `findings` are what the guards refused about the first reading, which is the
+    one thing that makes a second reading worth asking for.
+    """
+    prompt = statement_prompt(page=page, pages=pages, layout_hint=layout_hint, year=year, lines=lines)
+    if previous is not None and findings:
+        prompt += statement_retry(previous, findings)
+    result = await statement_agent.run(prompt, model=model, model_settings=model_settings)
     return _capped(result.output)
 
 
@@ -262,11 +389,20 @@ async def read_bill(
     *,
     today: date,
     media_type: str = "image/png",
+    previous: Bill | None = None,
+    findings: list[str] | None = None,
     model_settings: ModelSettings | None = None,
 ) -> Bill:
-    """One photo of a receipt through the fast slot's vision path."""
+    """One photo of a receipt through the fast slot's vision path.
+
+    `previous` and `findings` are the arithmetic that did not come out on the first reading, so
+    a second reading is a correction of an answer rather than the same guess again.
+    """
+    prompt = bill_prompt(today)
+    if previous is not None and findings:
+        prompt += bill_retry(previous, findings)
     result = await bill_agent.run(
-        [bill_prompt(today), BinaryContent(data=image, media_type=media_type)],
+        [prompt, BinaryContent(data=image, media_type=media_type)],
         model=model,
         model_settings=model_settings,
     )

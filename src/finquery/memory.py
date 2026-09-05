@@ -180,6 +180,27 @@ Two facts is the most any one exchange leaves behind, and none is the usual numb
 Write every fact in the language of the user's own message: an English exchange leaves English
 facts, a German one German facts. Never translate what the user said into another language,
 because these facts are read back in every later conversation of this profile.
+
+Fill `reasoning` first, one very short line per candidate: what the turn established, and
+whether it will still be true next month. Then answer with the facts that survive it, which is
+usually none.
+
+Three worked exchanges:
+
+  User: How much did I spend at REWE last month?
+  Assistant: You spent 75,20 EUR at REWE in August 2026.
+  reasoning: the turn established one figure, and a figure goes stale with the next booking
+  facts: none
+
+  User: PayPal to Anna is always dinner, by the way.
+  Assistant: Noted, PayPal payments to Anna Weber are now filed as Dining > Restaurant.
+  reasoning: a standing rule about a merchant, stated as one, still true next month
+  facts: rule "PayPal payments to Anna Weber are dinner"
+
+  User: Recategorize all my Netflix bookings as Leisure.
+  Assistant: I have proposed moving 16 Netflix bookings to Leisure.
+  reasoning: an order for this turn, carried out when it was said, not a standing rule
+  facts: none
 """
 
 MAX_DISTILLED = 2
@@ -224,22 +245,56 @@ def absent_names(requests: Sequence[str]) -> set[str]:
     return names
 
 
-def worth_keeping(facts: Sequence["DistilledFact"], absent: Set[str]) -> list["DistilledFact"]:
-    """The facts of one turn that may be stored: durable, about something real, at most two."""
-    kept: list[DistilledFact] = []
+def worth_keeping(
+    facts: Sequence["DistilledFact"], absent: Set[str], known: Sequence[str] = ()
+) -> list["DistilledFact"]:
+    """The facts of one turn that may be stored: durable, about something real, new, at most two."""
+    return [fact for fact, reason in _judged(facts, absent, known) if reason is None][:MAX_DISTILLED]
+
+
+def _judged(
+    facts: Sequence["DistilledFact"], absent: Set[str], known: Sequence[str] = ()
+) -> list[tuple["DistilledFact", str | None]]:
+    """Every fact with the reason it may not be stored, or None when it may."""
+    seen = {normalize(text) for text in known}
+    judged: list[tuple[DistilledFact, str | None]] = []
     for fact in facts:
-        if not clean_text(fact.text):
+        cleaned = clean_text(fact.text)
+        if not cleaned:
+            judged.append((fact, "it is empty"))
             continue
         if not is_durable(fact):
             logger.info("a distilled fact was dropped as a one-off figure or date: %s", fact.text)
+            judged.append((fact, "it carries a figure or a date, which is a snapshot of one moment"))
             continue
         if absent & {word.casefold() for word in _NAME.findall(fact.text)}:
             logger.info("a distilled fact was dropped: this turn found no such row: %s", fact.text)
+            judged.append((fact, "this turn looked that name up in the data and found no row for it"))
             continue
-        kept.append(fact)
-        if len(kept) == MAX_DISTILLED:
-            break
-    return kept
+        if normalize(cleaned) in seen:
+            judged.append((fact, "this profile already knows it, word for word"))
+            continue
+        seen.add(normalize(cleaned))
+        judged.append((fact, None))
+    return judged
+
+
+def refusal_prompt(answer: "DistilledFacts", refused: list[tuple["DistilledFact", str]]) -> str:
+    """A distillation whose every fact was refused, handed back with why (ticket 42).
+
+    Storing nothing is the right answer to most turns, and this is the message that says so
+    with the model's own sentence in front of it, rather than leaving the pass to write the
+    same figure into the profile on the next turn.
+    """
+    lines = "\n".join(f'- "{fact.text}": {reason}' for fact, reason in refused)
+    return (
+        "\n\nNone of what you just answered can be stored. This is a correction of that answer, "
+        "not a new question about the exchange.\n\n"
+        f"Your reasoning was:\n{answer.reasoning.strip()}\n\n"
+        f"What was refused:\n{lines}\n\n"
+        "Answer again with the corrected reasoning and only the facts that are left. An empty "
+        "list is the right answer whenever nothing durable is left, and it is the usual one."
+    )
 
 
 class DistilledFact(BaseModel):
@@ -248,6 +303,19 @@ class DistilledFact(BaseModel):
 
 
 class DistilledFacts(BaseModel):
+    """What one turn leaves behind, and the reading that decided it.
+
+    `reasoning` is first because the decision this pass gets wrong is durability, and a model
+    that writes the fact before it has asked itself the question keeps the figure it just read
+    (ticket 42).
+    """
+
+    reasoning: str = Field(
+        description=(
+            "One very short line per candidate, written before the facts: what the turn "
+            "established, and whether it is still true next month. No prose."
+        )
+    )
     facts: list[DistilledFact] = Field(default_factory=list)
 
 
@@ -286,10 +354,28 @@ async def distill_memories(
 
     `absent` is what this turn's queries looked for and did not find, so a fact about a person
     the data does not have is dropped rather than stored and read back forever.
+
+    A pass whose every fact was refused is handed the refusals once. Nothing waits on this, so
+    the second call costs a turn nothing, and what it buys is the difference between a model
+    that learns "a figure is not a memory" inside the turn and one that writes the next figure
+    the same way.
     """
+    prompt = distill_prompt(question, answer, known)
     try:
-        result = await distill_agent.run(distill_prompt(question, answer, known), model=model, model_settings=settings)
+        result = await distill_agent.run(prompt, model=model, model_settings=settings)
     except Exception:
         logger.warning("memory distillation failed", exc_info=True)
         return []
-    return worth_keeping(result.output.facts, absent)
+    judged = _judged(result.output.facts, absent, known)
+    kept = [fact for fact, reason in judged if reason is None]
+    refused = [(fact, reason) for fact, reason in judged if reason is not None]
+    if kept or not refused:
+        return kept[:MAX_DISTILLED]
+    try:
+        second = await distill_agent.run(
+            f"{prompt}{refusal_prompt(result.output, refused)}", model=model, model_settings=settings
+        )
+    except Exception:
+        logger.warning("the second memory distillation failed", exc_info=True)
+        return []
+    return worth_keeping(second.output.facts, absent, known)

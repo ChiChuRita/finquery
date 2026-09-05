@@ -449,3 +449,50 @@ Two things are worth knowing before reading those numbers, both seen in the brow
   dates are written, and it still invents reasons ("the raw sum is divided by 2"). A rewrite
   whose result is degenerate while the one it replaced was not is thrown away in code, which is
   the floor under that; the benchmark is what says whether the rest of it nets positive.
+
+## Ticket 42: the sub-agent prompts, chart set before and after
+
+The prompts of the chart sub-agent grew a `reasoning` field on both passes, two more worked
+examples and a repair round framed as a correction (ticket 42). Before is the baseline above,
+the `--set all` run of 2026-09-05; after is `--set chart` on the same 63 datapoints, same day,
+same provider.
+
+| google/gemini-3.8-flash | n | figure match | shape match | columns map | language | drawn | first attempt | median s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| before | 63 | 92 % | 98 % | 95 % | 100 % | 98 % | 97 % | 6.3 |
+| **after** | 63 | **97 %** | 98 % | 97 % | 100 % | 98 % | 97 % | 7.2 |
+
+Figure match per shape, same two runs:
+
+| | n | before | after |
+| --- | ---: | ---: | ---: |
+| line | 10 | 90 % | 100 % |
+| area | 6 | 67 % | 100 % |
+| bar | 15 | 87 % | 93 % |
+| bar_horizontal | 6 | 100 % | 100 % |
+| bar_grouped | 6 | 100 % | 100 % |
+| bar_stacked | 6 | 100 % | 100 % |
+| doughnut | 8 | 100 % | 88 % |
+| sankey | 6 | 100 % | 100 % |
+
+Four datapoints turn from wrong to right and one the other way. The area chart is the whole
+story: `04-cumulative-area-de` and `g003-area` were drawn as plain monthly series before, which
+is what the second area example (a `quarter` column, a name axis, no `monthShort`) teaches; the
+one loss, `28-friends-doughnut-de`, is a query that came back with no rows at all.
+`results/20260905T183545Z-google-gemini-3.8-flash-chart.{json,md}`.
+
+**The qwen run is incomplete and its table is not the after number.** The OpenRouter key hit its
+total limit 26 datapoints in, and the remaining 37 are 403s in
+`results/20260905T183542Z-qwen-qwen3.5-9b-chart.json`. On the 26 that ran, all of them
+hand-written, against the same 26 of the baseline:
+
+| qwen/qwen3.5-9b, 26 of 63 | figure match | columns map | drawn | first attempt | median s |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| before | 46 % | 73 % | 73 % | 38 % | 7.9 |
+| after | 50 % | 85 % | 69 % | 46 % | 12.8 |
+
+Twenty-six datapoints on a model this noisy is worth about as much as the paragraph above says
+it is: the README's own reading is that nothing under ten points can be read on Qwen even at 76
+datapoints. What it is not is a regression signal, and the columns-map move is the one the two
+new examples were written for. Run `--set chart --model qwen/qwen3.5-9b` again when the key has
+credit and replace this table.

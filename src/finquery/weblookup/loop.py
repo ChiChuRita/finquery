@@ -81,12 +81,49 @@ Rules:
   this merchant is, finish with the closest category and a low confidence.
 - Money in (a refund, a salary) is never a spending category.
 - If the search says nothing about the merchant, finish and say so in the summary.
+
+Fill `reasoning` first, in two to four very short lines: what the token looks like, what your
+steps have already told you, which of the three actions follows from that, and, on a finish,
+which source says so.
+
+A worked lookup, both of its steps:
+
+  The merchant token: dean david
+  You have taken no step yet, so start with a search.
+  reasoning:
+  the token reads like a chain, not a person
+  nothing known yet, so one search first
+  a plain query, the token and two words, no number and no date
+  -> action search, query "what is dean david restaurant", confidence 0
+
+  Step 1: search "what is dean david restaurant"
+    3 result(s)
+    - dean&david: Salate, Bowls, Sandwiches | https://www.deandavid.de
+      Frische Salate, Bowls und Sandwiches, in ueber 130 Filialen.
+  reasoning:
+  the first result is the chain's own page and names the trade plainly
+  salads and bowls sold over a counter is takeaway, not a restaurant visit
+  the sources say it outright, so a high confidence and no second search
+  -> action finish, summary "German fast casual chain selling salads, bowls and sandwiches",
+     category Dining, subcategory Takeaway, confidence 0.9,
+     sources ["https://www.deandavid.de"]
 """
 
 
 class Decision(BaseModel):
-    """One step of the loop, as the model returns it."""
+    """One step of the loop, as the model returns it.
 
+    `reasoning` is first so the step is decided before it is written down: the observed failure
+    is a second search for what the first one already answered (ticket 42).
+    """
+
+    reasoning: str = Field(
+        description=(
+            "Two to four very short lines, one each, written before the action: what the token "
+            "looks like, what your steps have told you so far, which action follows, and on a "
+            "finish which source says so."
+        )
+    )
     action: Literal["search", "fetch", "finish"] = Field(description="What to do next.")
     query: str | None = Field(default=None, description="The web query, for a search.")
     url: str | None = Field(default=None, description="One of the result URLs, for a fetch.")
@@ -134,6 +171,22 @@ class Step:
 
     def as_prompt(self, index: int) -> str:
         return f'Step {index}: {self.kind} "{self.target}"\n{self.observation}'
+
+
+def refused(decision: "Decision", finding: str, correction: str) -> Step:
+    """A decision our code could not execute, written back as the step it was (ticket 42).
+
+    The model's own reasoning is in front of the finding, because the next prompt is the same
+    prompt again: without it the model reads the refusal as a new question and starts over,
+    which is how a whole budget went on the same malformed decision.
+    """
+    return Step(
+        decision.action,
+        decision.query or decision.url or decision.category or "",
+        f"  refused: {finding}\n"
+        f"  you reasoned: {' '.join(line.strip() for line in decision.reasoning.splitlines() if line.strip())}\n"
+        f"  {correction}",
+    )
 
 
 @dataclass
@@ -246,11 +299,12 @@ async def run_loop(
             if not decision.confidence and not nudged:
                 nudged = True
                 steps.append(
-                    Step(
-                        FINISH,
-                        decision.category or "",
-                        "  refused: a finish needs `confidence` between 0.0 and 1.0. Send the same "
-                        "answer again with one.",
+                    refused(
+                        decision,
+                        "a finish needs `confidence` between 0.0 and 1.0, and a finish with 0 "
+                        "files nothing.",
+                        "Send this same summary and category again with your honest confidence "
+                        "on it, and say in the first line of the reasoning what you changed.",
                     )
                 )
                 continue
@@ -263,7 +317,13 @@ async def run_loop(
 
         if decision.action == SEARCH and decision.query:
             if outcome.searches >= MAX_SEARCHES:
-                steps.append(Step(SEARCH, decision.query, "  refused: no searches left in the budget"))
+                steps.append(
+                    refused(
+                        decision,
+                        "no searches left in the budget, so this one was not made.",
+                        "Finish now with what the steps above already told you.",
+                    )
+                )
                 continue
             query = safe_query(decision.query, token)
             try:
@@ -288,10 +348,22 @@ async def run_loop(
         if decision.action == FETCH and decision.url:
             url = decision.url.strip()
             if url not in seen:
-                steps.append(Step(FETCH, url, "  refused: that URL was not in your results"))
+                steps.append(
+                    refused(
+                        decision,
+                        "that URL was not in your results, so it was not fetched.",
+                        "Send a fetch of one of the URLs above, copied exactly, or finish.",
+                    )
+                )
                 continue
             if outcome.fetches >= MAX_FETCHES:
-                steps.append(Step(FETCH, url, "  refused: no page fetches left in the budget"))
+                steps.append(
+                    refused(
+                        decision,
+                        "no page fetches left in the budget, so this one was not made.",
+                        "Finish now with what the steps above already told you.",
+                    )
+                )
                 continue
             try:
                 handle = journal.before(FETCH, url)
@@ -314,13 +386,15 @@ async def run_loop(
         # A decision without the field its action needs. Logged as it came, because the local
         # fast model has spent a whole budget on these and the transcript only shows the sum.
         logger.warning("web lookup step refused for %s: %s", token.text, decision.model_dump(exclude_none=True))
+        needed = (
+            "query" if decision.action == SEARCH else "url" if decision.action == FETCH else "summary and category"
+        )
         steps.append(
-            Step(
-                decision.action,
-                "",
-                f"  refused: a {decision.action} needs its "
-                f"{'query' if decision.action == SEARCH else 'url' if decision.action == FETCH else 'summary and category'}. "
-                "Send the decision again with it filled in.",
+            refused(
+                decision,
+                f"a {decision.action} needs its {needed}, and yours had none, so nothing was done.",
+                f"Send this same decision again with the {needed} filled in, and say in the "
+                f"first line of the reasoning what you changed.",
             )
         )
 
@@ -329,5 +403,5 @@ async def run_loop(
         if failed_searches and failed_searches == outcome.searches
         else "The lookup spent its budget without reaching a conclusion."
     )
-    outcome.sources = _sources_for(Decision(action=FINISH, confidence=0.0), seen, fetched)
+    outcome.sources = _sources_for(Decision(reasoning="", action=FINISH, confidence=0.0), seen, fetched)
     return outcome

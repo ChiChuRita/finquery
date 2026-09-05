@@ -109,7 +109,13 @@ def is_summary_request(messages: Sequence[ModelMessage]) -> bool:
 
 def distilled(*facts: str, kind: MemoryKind = "fact") -> ToolCallPart:
     """The distillation pass's forced tool call: these facts are durable, none by default."""
-    return ToolCallPart(tool_name=DISTILL_TOOL, args={"facts": [{"text": text, "kind": kind} for text in facts]})
+    return ToolCallPart(
+        tool_name=DISTILL_TOOL,
+        args={
+            "reasoning": "nothing durable" if not facts else "durable, it is about this household",
+            "facts": [{"text": text, "kind": kind} for text in facts],
+        },
+    )
 
 
 def script(

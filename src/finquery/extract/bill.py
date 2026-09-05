@@ -260,6 +260,39 @@ def check_bill(bill: Bill, *, today: date) -> BillExtraction | None:
     return extraction
 
 
+# The flags a second look at the same photo can do something about, and nothing else. A receipt
+# with no total printed has none to find, a photo of three receipts is three whatever is asked,
+# and a date that is not printed must stay unread: the card asks the user for it, and a second
+# reading has nothing to check an invented date against (twenty public receipts, 2026-09-05).
+REREADABLE: tuple[BillFlag, ...] = ("does_not_add_up", "no_items", "foreign_currency")
+
+
+def _rereadable(extraction: BillExtraction) -> list[str]:
+    """What to hand back about this reading, in the words the second one gets."""
+    found: list[str] = []
+    summed = sum(item.amount_cents for item in extraction.items)
+    for flag in extraction.flags:
+        if flag not in REREADABLE:
+            continue
+        if flag == "does_not_add_up":
+            found.append(
+                f"Your {len(extraction.items)} items add up to {eur(summed)} EUR and the total "
+                f"you read is {eur(extraction.total_cents)} EUR, a difference of "
+                f"{eur(abs(extraction.total_cents - summed))} EUR. One article is missing, one "
+                f"is counted twice, a subtotal or a quantity line was taken for an article, or a "
+                f"discount printed as a negative amount was left out."
+            )
+        elif flag == "no_items":
+            found.append("Not one line item came back. A receipt with a total has articles above it.")
+        else:
+            found.append(
+                f"You answered `{extraction.currency}` as the currency, so this receipt is "
+                f"refused as foreign money and nothing is booked from it. Copy the currency "
+                f"printed next to the total, and leave it empty when none is printed there."
+            )
+    return found
+
+
 async def read_bill_image(
     data: bytes,
     *,
@@ -267,10 +300,30 @@ async def read_bill_image(
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None = None,
 ) -> BillExtraction | None:
-    """The vision path for a receipt: the photo to the fast slot, then the total guard."""
+    """The vision path for a receipt: the photo to the fast slot, then the total guard.
+
+    A reading whose arithmetic did not come out is looked at once more with what did not come
+    out written into the prompt, and the better of the two readings is the one that is kept.
+    Eleven of the twenty public receipts were flagged on 2026-09-05, eight of them for a line
+    the reader could have read again: a subtotal counted as an article, a quantity line taken
+    for a price, a discount left out (ticket 42).
+    """
     image = pdf.as_image(data)
-    bill = await read_bill(resolve_model("fast"), image, today=today, model_settings=model_settings)
-    return check_bill(bill, today=today)
+    model = resolve_model("fast")
+    bill = await read_bill(model, image, today=today, model_settings=model_settings)
+    extraction = check_bill(bill, today=today)
+    if extraction is None or not (findings := _rereadable(extraction)):
+        return extraction
+    logger.info("reading a receipt again: %s", "; ".join(findings))
+    second = await read_bill(
+        model, image, today=today, previous=bill, findings=findings, model_settings=model_settings
+    )
+    checked = check_bill(second, today=today)
+    # Strictly better only: a second reading that trades one flag for another is not a repair,
+    # and the first one is the one the guards have already been over.
+    if checked is not None and len(checked.flags) < len(extraction.flags):
+        return checked
+    return extraction
 
 
 def find_match(

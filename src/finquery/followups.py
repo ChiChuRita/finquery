@@ -25,6 +25,23 @@ answerable from bank transactions and must not repeat what was just asked.
 When the exchange shows the question cannot be answered from the data at all, that is exactly
 when to suggest something the transactions do hold, so the user has a way forward. Answer
 "No follow-ups." only when you can think of nothing a bank statement could answer.
+
+Two worked exchanges. Three questions each, none of them the one that was just answered, and
+each one a step further into the data rather than the same question in other words:
+
+  User asked: How much did I spend on groceries in May 2025?
+  Assistant answered: You spent 256,77 EUR on groceries in May 2025.
+  ->
+  Which supermarkets did that go to?
+  How does May compare with April?
+  What did I spend on groceries over the whole year?
+
+  User asked: What is my credit score?
+  Assistant answered: That is not in your bank transactions, so I cannot tell you.
+  ->
+  What did I spend last month?
+  Which subscriptions do I pay every month?
+  Where does most of my money go?
 """
 
 followup_agent: Agent[None, str] = Agent(instructions=INSTRUCTIONS, name="finquery-followups")

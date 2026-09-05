@@ -193,6 +193,49 @@ async def test_distillation_does_not_store_a_fact_the_profile_already_knows(
     assert [m["text"] for m in await memories_of(client, profile_id)] == ["Rewe is groceries", fact]
 
 
+async def test_a_distillation_whose_facts_are_all_refused_is_handed_the_refusals_once(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    """A refused fact is a lesson for the same turn, not a silent drop (ticket 42).
+
+    The pass that filled a profile with 27 one-off figures in one afternoon never learned that
+    a figure is not a memory, because nothing ever told it. Now the refusal goes back with the
+    model's own sentence in front of it, and storing nothing is named as the right answer.
+    """
+    passes: list[str] = []
+
+    async def fn(messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[object]:
+        if is_followup_request(messages):
+            yield "No follow-ups."
+            return
+        if is_distillation_request(messages):
+            prompt = next(
+                part.content
+                for part in reversed(messages[-1].parts)
+                if part.part_kind == "user-prompt" and isinstance(part.content, str)
+            )
+            passes.append(prompt)
+            if len(passes) == 1:
+                yield distilled("The user spent 75,20 EUR at REWE in August 2026")
+            else:
+                yield distilled()
+            return
+        yield "You spent 75,20 EUR at REWE in August 2026."
+
+    scripts.fast = fn
+    profile_id = await default_profile_id(client)
+    await chat(await new_conversation(client, profile_id), "How much did I spend at REWE last month?")
+
+    assert len(passes) == 2, "the refused distillation was handed back exactly once"
+    handed_back = passes[1]
+    assert "None of what you just answered can be stored." in handed_back
+    assert "Your reasoning was:\ndurable, it is about this household" in handed_back
+    assert '"The user spent 75,20 EUR at REWE in August 2026": it carries a figure or a date' in handed_back
+    assert "An empty list is the right answer" in handed_back
+    # And nothing was stored, because the second answer kept nothing.
+    assert await memories_of(client, profile_id) == []
+
+
 async def test_an_edited_memory_is_what_the_next_turn_receives(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat
 ) -> None:
