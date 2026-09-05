@@ -36,6 +36,8 @@ from finquery.providers import ModelResolver
 logger = logging.getLogger(__name__)
 
 PAGE_CONCURRENCY = 4
+"""Pages in flight when nobody says otherwise. `create_app` raises it for a hosted provider
+through `settings.page_concurrency`, since only there the pages really run in parallel."""
 """Pages in flight at once. The local provider serializes the slot anyway; on OpenRouter this
 is what turns a 15 page statement from minutes into under one."""
 
@@ -99,6 +101,7 @@ async def extract_statement(
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None = None,
     report: Reporter = _silent,
+    concurrency: int | None = None,
 ) -> Extraction:
     """Read one statement file into checked rows. Writes nothing.
 
@@ -121,7 +124,7 @@ async def extract_statement(
         pages=len(document.pages),
     )
 
-    semaphore = asyncio.Semaphore(PAGE_CONCURRENCY)
+    semaphore = asyncio.Semaphore(max(1, concurrency or PAGE_CONCURRENCY))
     answers: list[StatementPage | None] = [None] * len(document.pages)
     per_page: list[list[ExtractedRow]] = [[] for _ in document.pages]
     errors: list[str] = []

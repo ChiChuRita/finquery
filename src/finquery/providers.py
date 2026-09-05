@@ -18,19 +18,33 @@ if TYPE_CHECKING:
 ModelSlot = Literal["fast", "quality"]
 MODEL_SLOTS: tuple[ModelSlot, ...] = get_args(ModelSlot)
 
-OPENROUTER_MODELS: dict[ModelSlot, str] = {
-    "fast": "google/gemma-4-26b-a4b-it",
-    "quality": "qwen/qwen3.5-9b",
+KNOWN_LABELS: dict[str, str] = {
+    "google/gemma-4-26b-a4b-it": "Gemma 4 26B",
+    "qwen/qwen3.5-9b": "Qwen3.5 9B",
 }
-"""The hosted half of each slot: the same two models the local provider runs, so a turn does
-not change character with the provider. See docs/adr/0006 for why the quality slot is Qwen."""
+"""What the UI calls the hosted models it ships with. The local labels live on the catalog
+entries; both reach the browser through `GET /api/models`, so a selector never names a model
+that is not running. See docs/adr/0006 for why the quality slot is Qwen."""
 
-OPENROUTER_LABELS: dict[ModelSlot, str] = {
-    "fast": "Gemma 4 26B",
-    "quality": "Qwen3.5 9B",
-}
-"""What the UI calls each hosted model. The local labels live on the catalog entries; both reach
-the browser through `GET /api/models`, so a selector never names a model that is not running."""
+
+def openrouter_models(settings: Settings) -> dict[ModelSlot, str]:
+    """The hosted model id behind each slot, from the settings (defaults match the local pair)."""
+    return {"fast": settings.openrouter_fast_model, "quality": settings.openrouter_quality_model}
+
+
+def openrouter_label(model_id: str) -> str:
+    """A short display name for any OpenRouter id: the known table, else derived from the id.
+
+    `google/gemini-3.8-flash` reads as `Gemini 3.8 Flash`; a `:free` or `:batch` variant tag is
+    kept in lower case so the user sees which one is running.
+    """
+    base, _, variant = model_id.partition(":")
+    if base in KNOWN_LABELS:
+        return f"{KNOWN_LABELS[base]} ({variant})" if variant else KNOWN_LABELS[base]
+    name = base.rsplit("/", 1)[-1]
+    words = [w.upper() if w.isupper() or (len(w) <= 3 and w.isalpha()) else w.capitalize() for w in name.split("-")]
+    label = " ".join(words)
+    return f"{label} ({variant})" if variant else label
 
 ModelResolver = Callable[[ModelSlot], Model]
 
@@ -48,7 +62,8 @@ def _openrouter_resolver(settings: Settings) -> ModelResolver:
     provider = OpenRouterProvider(api_key=settings.openrouter_api_key)
     reasoning = OpenRouterModelSettings(openrouter_reasoning={"enabled": True})
     models = {
-        slot: OpenRouterModel(name, provider=provider, settings=reasoning) for slot, name in OPENROUTER_MODELS.items()
+        slot: OpenRouterModel(name, provider=provider, settings=reasoning)
+        for slot, name in openrouter_models(settings).items()
     }
     return models.__getitem__
 

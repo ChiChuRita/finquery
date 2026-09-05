@@ -53,6 +53,11 @@ def create_app(
     the search and page fetch of the web lookup, which is the only thing here that would
     otherwise leave the machine.
     """
+    # PDF pages are read in parallel only where the model really is parallel (a hosted one).
+    from finquery.extract import statement as extraction_pages
+    from finquery.settings import page_concurrency
+
+    extraction_pages.PAGE_CONCURRENCY = page_concurrency(settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

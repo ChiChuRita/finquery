@@ -38,3 +38,19 @@ class Settings(BaseSettings):
     smaller machine. See docs/adr/0006-local-gemma-4-through-llama-cpp.md."""
     # OpenRouter's own tooling expects this exact name, so it is read without the prefix.
     openrouter_api_key: str | None = Field(default=None, validation_alias="OPENROUTER_API_KEY")
+    extraction_page_concurrency: int | None = None
+    """How many statement pages the extraction sub-agent reads at once. Unset means 4 on the
+    local provider (one model, serialized anyway) and 12 on a hosted one, where the pages really
+    do run in parallel (FINQUERY_EXTRACTION_PAGE_CONCURRENCY)."""
+    openrouter_fast_model: str = "google/gemma-4-26b-a4b-it"
+    openrouter_quality_model: str = "qwen/qwen3.5-9b"
+    """The hosted model behind each slot. The defaults are the same two models the local
+    provider runs; any OpenRouter id works here to try another model without a code change
+    (FINQUERY_OPENROUTER_FAST_MODEL, FINQUERY_OPENROUTER_QUALITY_MODEL)."""
+
+
+def page_concurrency(settings: Settings) -> int:
+    """Pages in flight for PDF extraction: the setting, else 12 hosted, 4 local."""
+    if settings.extraction_page_concurrency is not None:
+        return max(1, settings.extraction_page_concurrency)
+    return 4 if settings.provider == "local" else 12
