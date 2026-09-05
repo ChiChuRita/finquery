@@ -9,7 +9,7 @@ training row is exactly the text the model saw here plus the SQL it wrote.
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_ai import Agent, ToolOutput
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
@@ -17,14 +17,19 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session, selectinload
 
 from finquery.db import QUERY_VIEW, Category
+from finquery.nullish import nullish
 from finquery.query.guard import MAX_ROWS
 
 TOP_COUNTERPARTIES = 30
 
 INSTRUCTIONS = """\
 You write SQLite queries over one household's bank transactions. You are given a question and
-the shape of the data. Call `run_sql` exactly once with a statement that answers the question.
-You never explain, never apologize and never answer the question in words: the SQL is the answer.
+the shape of the data. Call `run_sql` exactly once.
+
+Fill `reasoning` before you write any SQL: one short line each for the period you read out of
+the question, the filters, the sign, and the grouping. Then write `sql` so that it does exactly
+what those lines say. You never explain yourself outside that field, never apologize and never
+answer the question in words: the SQL is the answer.
 """
 
 VIEW_SCHEMA = f"""\
@@ -102,92 +107,142 @@ Rules:
 - Answer the question that was asked and nothing else.
 """
 
-EXAMPLES = """\
-Worked examples:
+EXAMPLE_SOURCES = (
+    "s70-last-quarter-de",
+    "s28-q4-vs-q3-en",
+    "s07-subscriptions-per-month-en",
+    "s08-electricity-de",
+    "g007-breakdown",
+    "s57-refunds-en",
+    "s63-per-week-de",
+    "s49-typo-en",
+    "s38-top-five-en",
+)
+"""Which benchmark datapoints the worked examples below are drawn from.
 
-Question: Wie viel habe ich im Mai 2025 fuer Lebensmittel ausgegeben?
+One per pattern the small models get wrong (a relative period, two periods compared, an average
+over the periods the data covers, a subcategory, the Needs review bucket, the sign of a refund,
+a follow-up that inherits its period, a misspelled merchant, a ranking). Every one of them was
+read by hand on 2026-09-05 (`bench/validation/2026-09-05-opus.json`) and every one is in the
+train split, so nothing here is an answer the benchmark then scores the model on. A statement is
+written the way this prompt's own rules ask for it, in euros, which is why an example can differ
+from the reference in the file. `tests/test_bench.py` runs all nine against the data.
+"""
+
+EXAMPLES = """\
+Worked examples. The reasoning comes first, and the SQL does what it says:
+
+Question: Wie viel habe ich letztes Quartal ausgegeben?
+Reasoning: last quarter is the range the household paragraph spells out, 2025-07-01 to
+2025-09-30; spending, so amount < 0; no topic filter; one figure.
 SQL:
 SELECT ROUND(-SUM(amount), 2) AS total_eur
 FROM transaction_view
-WHERE amount < 0
-  AND booked_on BETWEEN '2025-05-01' AND '2025-05-31'
-  AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%rewe%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%aldi%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%lidl%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%edeka%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%kaufland%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%netto%')
+WHERE amount < 0 AND booked_on BETWEEN '2025-07-01' AND '2025-09-30'
 
-Question: How much did I spend per month in 2025?
+Question: How does this quarter compare with the last one?
+Reasoning: two periods, so one row each and not one number: this quarter is 2025-10-01 to
+2025-12-31, last quarter 2025-07-01 to 2025-09-30; spending; group by the period.
 SQL:
-SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur
+SELECT CASE WHEN booked_on <= '2025-09-30' THEN 'last quarter' ELSE 'this quarter' END AS period,
+       ROUND(-SUM(amount), 2) AS total_eur
 FROM transaction_view
-WHERE amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
-GROUP BY month
-ORDER BY month
+WHERE amount < 0 AND booked_on BETWEEN '2025-07-01' AND '2025-12-31'
+GROUP BY period
+ORDER BY period
 
-Question: Which merchants took the most money in 2025, and how often?
+Question: How much do my subscriptions cost me per month on average?
+Reasoning: no period is named, so the whole range; the average is over the months the data
+really covers, counted with COUNT(DISTINCT), never assumed to be twelve; category Subscriptions.
 SQL:
-SELECT coalesce(counterparty, description) AS merchant,
-       ROUND(-SUM(amount), 2) AS total_eur,
-       COUNT(*) AS bookings
+SELECT ROUND(-SUM(amount) / (COUNT(DISTINCT strftime('%Y-%m', booked_on)) * 1.0), 2) AS per_month_eur
 FROM transaction_view
-WHERE amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
-GROUP BY merchant
-ORDER BY total_eur DESC
-LIMIT 10
+WHERE amount < 0 AND category = 'Subscriptions'
 
-Question: Welche Abos zahle ich 2025 und was kosten sie insgesamt?
+Question: Wie hoch war meine Stromrechnung 2025?
+Reasoning: Strom is the subcategory Electricity, so it belongs in `subcategory` and never in
+`category`; spending; the year as the period.
 SQL:
-SELECT coalesce(counterparty, description) AS merchant,
-       ROUND(-SUM(amount), 2) AS total_eur,
-       COUNT(*) AS bookings
+SELECT ROUND(-SUM(amount), 2) AS total_eur
 FROM transaction_view
-WHERE amount < 0
-  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
-  AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%netflix%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%spotify%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%prime%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%adobe%')
-GROUP BY merchant
-UNION ALL
-SELECT 'TOTAL' AS merchant, ROUND(-SUM(amount), 2) AS total_eur, COUNT(*) AS bookings
-FROM transaction_view
-WHERE amount < 0
-  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
-  AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%netflix%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%spotify%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%prime%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%adobe%')
+WHERE amount < 0 AND subcategory = 'Electricity' AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
 
-Question: Wie viel habe ich 2025 pro Kategorie ausgegeben?
+Question: Aufschluesselung meiner Ausgaben im November 2025 nach Kategorie.
+Reasoning: one row per category; the bookings without one are their own bucket rather than
+dropped or guessed at; November 2025; spending.
 SQL:
 SELECT coalesce(category, 'Needs review') AS topic, ROUND(-SUM(amount), 2) AS total_eur
 FROM transaction_view
-WHERE amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
+WHERE amount < 0 AND booked_on BETWEEN '2025-11-01' AND '2025-11-30'
 GROUP BY topic
 ORDER BY total_eur DESC
 
-Question: Compare my spending on eating out in April 2025 with May 2025.
+Question: Did I get any refunds in 2025?
+Reasoning: a refund is money coming back, so amount > 0; a salary is money in too and is not a
+refund, so leave the large amounts out; one row per booking with its date and text.
 SQL:
-SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur
+SELECT booked_on, description, ROUND(amount, 2) AS amount_eur
 FROM transaction_view
-WHERE amount < 0
-  AND booked_on BETWEEN '2025-04-01' AND '2025-05-31'
-  AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%lieferando%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%vapiano%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%doener%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%cafe%'
-    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%dean and david%')
-GROUP BY month
-ORDER BY month
+WHERE amount > 0 AND amount < 1000 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
+ORDER BY booked_on
+
+Question: Und pro Woche?
+The assistant adds: Earlier in this conversation the user asked: "Wie viel habe ich im Mai 2025
+ausgegeben?" Answer the new question on its own.
+Reasoning: the follow-up keeps May 2025 from the question before it; per week is
+strftime('%Y-%W'); spending; one row per week.
+SQL:
+SELECT strftime('%Y-%W', booked_on) AS week, ROUND(-SUM(amount), 2) AS total_eur
+FROM transaction_view
+WHERE amount < 0 AND booked_on BETWEEN '2025-05-01' AND '2025-05-31'
+GROUP BY week
+ORDER BY week
+
+Question: How much did I spend at Edeak?
+Reasoning: Edeak is EDEKA as the user typed it, and the merchant list carries EDEKA, so match
+the name the data uses over description and counterparty together; spending; no period named,
+so the whole range.
+SQL:
+SELECT ROUND(-SUM(amount), 2) AS total_eur
+FROM transaction_view
+WHERE amount < 0 AND lower(description || ' ' || coalesce(counterparty, '')) LIKE '%edeka%'
+
+Question: Which merchants took the most money in 2025? Show me the top five.
+Reasoning: one row per merchant, never one per booking; spending; sort by the total and cut at
+five.
+SQL:
+SELECT coalesce(counterparty, description) AS merchant,
+       ROUND(-SUM(amount), 2) AS total_eur,
+       COUNT(*) AS bookings
+FROM transaction_view
+WHERE amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
+GROUP BY merchant
+ORDER BY total_eur DESC
+LIMIT 5
 """
 
 
 class GeneratedSql(BaseModel):
-    """The statement the sub-agent wants to run."""
+    """What the sub-agent answers with: how it read the question, then the statement.
 
-    sql: str = Field(description=f"One SQLite SELECT over {QUERY_VIEW}.")
+    `reasoning` comes first so a small model commits to an interpretation before it writes any
+    SQL, and so the retry and the check pass can hold it to what it said. It carries no default
+    obligation on the caller: a model that leaves it empty still gets its statement run.
+    """
+
+    reasoning: str = Field(
+        default="",
+        description=(
+            "First, before any SQL: one short line each for the period you read out of the "
+            "question, the filters, the sign, and the grouping."
+        ),
+    )
+    sql: str = Field(description=f"One SQLite SELECT over {QUERY_VIEW}, doing exactly what the reasoning says.")
+
+    @field_validator("reasoning", mode="before")
+    @staticmethod
+    def _text(value: object) -> str:
+        return "" if nullish(value) is None else str(value)
 
 
 @dataclass(frozen=True)
@@ -219,6 +274,9 @@ class Rejection:
 
     sql: str
     error: str
+    reasoning: str = ""
+    """What the sub-agent said it was doing. Handed back so the retry corrects a reading rather
+    than starting from nothing."""
 
 
 @dataclass(frozen=True)
@@ -233,6 +291,7 @@ class Revision:
     sql: str
     reason: str
     advice: str = ""
+    reasoning: str = ""
 
 
 query_agent = Agent(
@@ -400,6 +459,24 @@ def profile_facts(context: QueryContext) -> str:
     return "\n".join(lines)
 
 
+def _correction(opening: str, *, reasoning: str, sql: str, label: str, problem: str, advice: str = "") -> str:
+    """The retry section: what you said, what you wrote, what is wrong, what to hand back.
+
+    A correction, not a fresh start. The model reads its own reading of the question next to the
+    finding, so the round that follows fixes the line that was wrong instead of writing an
+    unrelated statement, which is what the review of 2026-09-05 saw a 9B model do (ticket 42).
+    """
+    parts = [f"{opening} Correct it: keep what was right and change only what the problem names."]
+    if reasoning.strip():
+        parts.append(f"Your reasoning was:\n{reasoning.strip()}")
+    parts.append(f"{label}:\n{sql.strip()}")
+    parts.append(f"Problem: {problem}")
+    if advice.strip():
+        parts.append(advice.strip())
+    parts.append("Answer with the corrected reasoning and the corrected statement.")
+    return "\n\n".join(parts)
+
+
 def query_prompt(
     request: str,
     context: QueryContext,
@@ -414,14 +491,24 @@ def query_prompt(
         sections.append(f"The assistant adds: {hints.strip()}")
     if rejected is not None:
         sections.append(
-            "Your previous statement did not run. Write a different one that answers the same question.\n\n"
-            f"Refused SQL:\n{rejected.sql.strip()}\n\nProblem: {rejected.error}"
+            _correction(
+                "Your previous statement did not run.",
+                reasoning=rejected.reasoning,
+                sql=rejected.sql,
+                label="Refused SQL",
+                problem=rejected.error,
+            )
         )
     if revised is not None:
-        advice = f"\n\n{revised.advice.strip()}" if revised.advice.strip() else ""
         sections.append(
-            "Your previous statement ran, but it did not answer the question. Write a different "
-            f"one.\n\nPrevious SQL:\n{revised.sql.strip()}\n\nProblem: {revised.reason}{advice}"
+            _correction(
+                "Your previous statement ran, but it did not answer the question.",
+                reasoning=revised.reasoning,
+                sql=revised.sql,
+                label="Previous SQL",
+                problem=revised.reason,
+                advice=revised.advice,
+            )
         )
     return "\n\n".join(sections)
 
@@ -435,11 +522,15 @@ async def write_sql(
     rejected: Rejection | None = None,
     revised: Revision | None = None,
     model_settings: ModelSettings | None = None,
-) -> str:
-    """Ask the fast slot for one statement through the forced `run_sql` tool."""
+) -> GeneratedSql:
+    """Ask the fast slot for one statement through the forced `run_sql` tool.
+
+    Both fields come back: the statement to run, and the reading of the question it says it
+    wrote, which the retry, the rewrite and the check pass all get to see.
+    """
     result = await query_agent.run(
         query_prompt(request, context, hints=hints, rejected=rejected, revised=revised),
         model=model,
         model_settings=model_settings,
     )
-    return result.output.sql
+    return result.output

@@ -80,6 +80,7 @@ def scripted_sql(
     memories: Sequence[str] = (),
     memory_kind: MemoryKind = "fact",
     checks: Sequence[dict[str, str]] = (),
+    reasonings: Sequence[str] = (),
 ):
     """The sub-agent's forced single tool call, one statement per attempt.
 
@@ -88,7 +89,8 @@ def scripted_sql(
 
     The check pass of ticket 40 shares the slot as well and answers `ok` unless the test wrote
     a verdict for it in `checks`, so a scripted statement stands as it is written. Its prompts
-    are on `respond.judgements`, the statements' on `respond.prompts`.
+    are on `respond.judgements`, the statements' on `respond.prompts`. `reasonings` fills the
+    `run_sql` field a model writes before its SQL, one per attempt.
     """
     prompts: list[str] = []
     judgements: list[str] = []
@@ -108,8 +110,11 @@ def scripted_sql(
         assert [tool.name for tool in info.output_tools] == ["run_sql"]
         assert info.allow_text_output is False
         assert info.function_tools == []
-        sql = statements[min(len(prompts), len(statements)) - 1]
-        return ModelResponse(parts=[ToolCallPart("run_sql", json.dumps({"sql": sql}))])
+        attempt = min(len(prompts), len(statements)) - 1
+        written = {"sql": statements[attempt]}
+        if attempt < len(reasonings):
+            written = {"reasoning": reasonings[attempt], **written}
+        return ModelResponse(parts=[ToolCallPart("run_sql", json.dumps(written))])
 
     respond.prompts = prompts  # type: ignore[attr-defined]
     respond.judgements = judgements  # type: ignore[attr-defined]

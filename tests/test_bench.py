@@ -6,6 +6,7 @@ a 0 without OpenRouter.
 """
 
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -15,6 +16,8 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.settings import ModelSettings
 
 from finquery.query.check import CHECK_TOOL
+from finquery.query.guard import execute_read_only, validate_sql
+from finquery.query.subagent import EXAMPLES, EXAMPLE_SOURCES
 from finquery_bench.datapoints import CHART_SET, SQL_SET, load_charts, load_sql, pick, review_sample
 from finquery_bench.dataset import fresh_database
 from finquery_bench.gold import GoldFailed, build, run_reference
@@ -104,6 +107,26 @@ def test_the_split_does_not_move_when_a_datapoint_is_added() -> None:
     before = assign(items, lambda item: item["kind"])
     after = assign([*items, {"id": "s99", "kind": "entity"}], lambda item: item["kind"])
     assert {ident: after[ident] for ident in before} == before
+
+
+def test_every_worked_example_of_the_query_prompt_is_a_train_datapoint_that_runs(database) -> None:
+    """The nine examples in `query_prompt` are real datapoints, and they still answer them.
+
+    An example drawn from a held-out datapoint would teach the model the answer to a question
+    it is then scored on, and one that no longer runs teaches it a broken pattern in the place
+    it copies from hardest. Both are caught here, against the same data the set is gold on.
+    """
+    session_factory, profile_id = database
+    points = {point.id: point for point in load_sql()}
+    statements = re.findall(r"^SQL:\n(.+?)(?=\n\nQuestion:|\s*\Z)", EXAMPLES, re.S | re.M)
+    assert len(statements) == len(EXAMPLE_SOURCES)
+    for ident, sql in zip(EXAMPLE_SOURCES, statements, strict=True):
+        point = points[ident]
+        assert point.split == "train", f"{ident} is held out of training"
+        with session_factory() as session:
+            rows = execute_read_only(session, validate_sql(sql), profile_id)
+        assert rows.rows, ident
+        assert figure_match(point.gold.rows, rows.rows, answer=point.answer), ident
 
 
 def scripted(answers: dict[str, str], judgements: list[str] | None = None) -> FunctionModel:

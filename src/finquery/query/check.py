@@ -119,7 +119,9 @@ check_agent = Agent(
 )
 
 
-def check_prompt(request: str, context: QueryContext, sql: str, figures: list[str]) -> str:
+def check_prompt(
+    request: str, context: QueryContext, sql: str, figures: list[str], *, reasoning: str = ""
+) -> str:
     """The whole prompt the check pass sees. Pure, like `query_prompt`, so training can rebuild it.
 
     The question stands on its own: the chat agent rewrites a follow-up into a request that
@@ -127,16 +129,17 @@ def check_prompt(request: str, context: QueryContext, sql: str, figures: list[st
     pinned the interpretation with a hint instead, `run_query` skips this pass altogether.
     """
     rows = "\n".join(figures[:CHECK_ROWS]) or "(no rows)"
-    return "\n\n".join(
-        [
-            REVISE_WHEN,
-            profile_facts(context),
-            f"Question: {request.strip()}",
-            f"The statement that ran:\n{sql.strip()}",
-            f"What it returned:\n{rows}",
-            f"{CHECK_MARKER}.",
-        ]
-    )
+    sections = [REVISE_WHEN, profile_facts(context), f"Question: {request.strip()}"]
+    if reasoning.strip():
+        # What the sub-agent said it was doing, which is where a misread period or sign is
+        # visible in one line rather than inside the SQL.
+        sections.append(f"How the statement was meant:\n{reasoning.strip()}")
+    sections += [
+        f"The statement that ran:\n{sql.strip()}",
+        f"What it returned:\n{rows}",
+        f"{CHECK_MARKER}.",
+    ]
+    return "\n\n".join(sections)
 
 
 async def check_result(
@@ -146,11 +149,14 @@ async def check_result(
     sql: str,
     figures: list[str],
     *,
+    reasoning: str = "",
     model_settings: ModelSettings | None = None,
 ) -> Verdict:
     """Ask the fast slot whether this result answers the question, through one forced tool."""
     result = await check_agent.run(
-        check_prompt(request, context, sql, figures), model=model, model_settings=model_settings
+        check_prompt(request, context, sql, figures, reasoning=reasoning),
+        model=model,
+        model_settings=model_settings,
     )
     return result.output
 

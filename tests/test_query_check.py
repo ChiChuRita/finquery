@@ -216,3 +216,47 @@ async def test_the_check_is_skipped_when_the_statement_came_from_a_retry(
     assert tool_output(chunks)["rows"][0]["total_eur"] > 0
     assert len(respond.prompts) == 2, "the refusal went back, and the second statement stands"  # type: ignore[attr-defined]
     assert respond.judgements == []  # type: ignore[attr-defined]
+
+
+READING = "period: May 2025. filter: none. sign: spending, amount < 0. grouping: one figure."
+
+
+async def test_the_reading_the_sub_agent_wrote_travels_into_the_check_and_the_rewrite(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """A retry corrects a reading it can see, rather than starting from nothing (ticket 42)."""
+    await import_synthetic(client, profile_id)
+    respond = scripted_sql(MAY_ONLY, WHOLE_YEAR, reasonings=[READING], checks=[REVISE])
+    scripts.fast = ask_query_then_report("total spending")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "How much have I spent in total?")
+
+    prompts, judgements = respond.prompts, respond.judgements  # type: ignore[attr-defined]
+    # The check saw how the statement was meant, which is where a misread period shows first.
+    assert f"How the statement was meant:\n{READING}" in judgements[0]
+    # The rewrite is a correction: its own reading, the statement, the finding, and what to hand back.
+    assert f"Your reasoning was:\n{READING}" in prompts[1]
+    assert "keep what was right and change only what the problem names" in prompts[1]
+    assert "Answer with the corrected reasoning and the corrected statement." in prompts[1]
+    assert tool_output(chunks)["rows"][0]["total_eur"] > 10000
+
+
+async def test_a_refused_statement_goes_back_with_the_reading_that_wrote_it(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    await import_synthetic(client, profile_id)
+    refused = "SELECT ROUND(-SUM(amount_cents), 2) AS total_eur FROM transaction_view WHERE amount < 0"
+    respond = scripted_sql(refused, WHOLE_YEAR, reasonings=[READING])
+    scripts.fast = ask_query_then_report("total spending")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "How much have I spent in total?")
+
+    prompts = respond.prompts  # type: ignore[attr-defined]
+    assert len(prompts) == 2
+    assert f"Your reasoning was:\n{READING}" in prompts[1]
+    assert "Refused SQL:" in prompts[1] and "amount_cents" in prompts[1]
+    assert tool_output(chunks)["error"] is None

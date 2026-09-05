@@ -170,12 +170,12 @@ async def run_query(
     revised: Revision | None = None
     refusals: list[str] = []
     calls = 0
-    written = 0
+    statements = 0
     outcome: QueryOutcome | None = None
 
     while calls < MODEL_CALLS:
         try:
-            sql = await write_sql(
+            written = await write_sql(
                 model, request, context, hints=hints, rejected=rejected, revised=revised, model_settings=model_settings
             )
         except Exception as exc:  # noqa: BLE001 - any model or transport failure is one message here
@@ -183,20 +183,20 @@ async def run_query(
             # A rewrite that never arrived leaves the result that did.
             return outcome or QueryOutcome(request=request, summary=failure, error=failure, notes=notes)
         calls += 1
-        written += 1
+        statements += 1
         try:
             # The taxonomy is what lets the guard answer a `category = 'Supermarket'` with the
             # category that subcategory belongs to.
-            validated = validate_sql(sql, taxonomy=subcategory_parents(context))
+            validated = validate_sql(written.sql, taxonomy=subcategory_parents(context))
             with session_factory() as session:
                 rows = execute_read_only(session, validated, profile_id)
         except (SqlRejected, SqlFailed) as exc:
-            rejected, revised = Rejection(sql=sql, error=str(exc)), None
+            rejected, revised = Rejection(sql=written.sql, error=str(exc), reasoning=written.reasoning), None
             refusals.append(str(exc))
             if len(refusals) >= ATTEMPTS:
                 break
             continue
-        first = written == 1
+        first = statements == 1
         rejected = revised = None
         outcome = QueryOutcome(
             request=request,
@@ -204,7 +204,7 @@ async def run_query(
             columns=rows.columns,
             rows=rows.rows,
             summary=summarize(rows),
-            attempts=written,
+            attempts=statements,
             refusals=list(refusals),
             notes=notes,
         )
@@ -214,7 +214,9 @@ async def run_query(
             return outcome
         if reason := degenerate_reason(request, context, rows.columns, rows.rows):
             note(REWRITING.format(reason=reason))
-            revised = Revision(sql=validated, reason=reason, advice=causes(context))
+            revised = Revision(
+                sql=validated, reason=reason, advice=causes(context), reasoning=written.reasoning
+            )
             continue
         # A hint from the assistant pins what the statement is supposed to mean (which columns,
         # which merchants, which shape the chart needs), so there is nothing left to judge.
@@ -223,7 +225,13 @@ async def run_query(
         note(CHECKING)
         try:
             verdict = await check_result(
-                model, request, context, validated, figures(rows.columns, rows.rows), model_settings=model_settings
+                model,
+                request,
+                context,
+                validated,
+                figures(rows.columns, rows.rows),
+                reasoning=written.reasoning,
+                model_settings=model_settings,
             )
         except Exception:  # noqa: BLE001 - a check that fails leaves the result it was judging
             return outcome
@@ -233,7 +241,10 @@ async def run_query(
         note(REWRITING.format(reason=verdict.why()))
         intent = " ".join(verdict.intent.split())
         revised = Revision(
-            sql=validated, reason=verdict.why(), advice=f"Answer this instead: {intent}" if intent else ""
+            sql=validated,
+            reason=verdict.why(),
+            advice=f"Answer this instead: {intent}" if intent else "",
+            reasoning=written.reasoning,
         )
 
     if outcome is not None:
@@ -245,7 +256,7 @@ async def run_query(
         sql=rejected.sql,
         summary=failure,
         error=failure,
-        attempts=written,
+        attempts=statements,
         refusals=refusals,
         notes=notes,
     )
