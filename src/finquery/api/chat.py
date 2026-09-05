@@ -568,12 +568,17 @@ def _clean_text(messages: Sequence[ModelMessage], check: AnswerCheck) -> None:
     framework's retry sentence back. The answer check runs here for the same reason: a figure
     that was rewritten on the way out must not come back with the transcript.
     """
+    first = True
     for message in messages:
         if message.kind != "response":
             continue
         for part in message.parts:
             if part.part_kind == "text":
                 part.content = check.clean(strip_markers(part.content))
+                if first:
+                    # The answer opens where the model's thought channel closed, which on Qwen is
+                    # two blank lines. The stream drops them, and so does the stored copy.
+                    part.content, first = part.content.lstrip(), False
             elif part.part_kind == "thinking":
                 # The thinking panel survives a reload, so it is cleaned with the same
                 # vocabulary the live stream is filtered with (`ThinkingFilter`).

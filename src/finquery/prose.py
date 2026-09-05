@@ -42,13 +42,15 @@ _DECIMAL = re.compile(rf"(?<![\d.,])(?:{_NUMBER})(?!\d)")
 _NUMERIC = re.compile(r"^-?\d+(?:[.,]\d+)?$")
 
 _ENDS = ".!?"
+_GERMAN_DATE = re.compile(r"\d{1,2}\.\d{1,2}\.$")
 
 
 def sentences(text: str) -> list[str]:
     """The text cut into sentences, each with its terminator and its line break.
 
     Written out rather than a regex because the thing being looked for is a figure: a full stop
-    between two digits is a thousands separator (1.234,56) and ends nothing.
+    between two digits is a thousands separator (1.234,56) and ends nothing, and the one closing
+    a German date ("01.07. bis 30.09.") ends nothing either.
     """
     parts: list[str] = []
     start = 0
@@ -59,7 +61,7 @@ def sentences(text: str) -> list[str]:
         elif character in _ENDS:
             before = text[index - 1] if index else ""
             after = text[index + 1] if index + 1 < len(text) else ""
-            if before.isdigit() and after.isdigit():
+            if before.isdigit() and (after.isdigit() or _GERMAN_DATE.search(text[max(0, index - 5) : index + 1])):
                 continue
             parts.append(text[start : index + 1])
             start = index + 1
