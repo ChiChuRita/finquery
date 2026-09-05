@@ -35,7 +35,7 @@ One rule is enforced rather than asked for: a card with no rows and no options i
 the reason as the model's retry prompt. See `NOTHING_TO_ANSWER` and `AskUserToolset`.
 """
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -162,6 +162,25 @@ class AskAnswer(BaseModel):
     text: str | None = None
 
 
+@dataclass(frozen=True)
+class Applied:
+    """What the server did with a card's answers, for the two readers of it.
+
+    `line` is on the card the moment the answers are applied, before the model has said
+    anything: it is the proof that the work happened in code, and it travels as `applied`.
+    `say` is the sentence the model is asked to write instead, and it exists because a model
+    handed a finished sentence writes it back word for word: the prose after a remove-all
+    repeated "Applied: removed 433 duplicates" (e2e of 2026-09-05, m4). An applier with nothing
+    better to offer leaves `say` empty, and the model summarizes `line` as it always did.
+
+    Filled by `finquery.answers.APPLIERS`; this module owns it because it is part of the wire
+    contract above, and because an applier lives next to the data it writes.
+    """
+
+    line: str
+    say: str | None = None
+
+
 class AskAnswers(BaseModel):
     """The output the browser sends back as the tool result.
 
@@ -171,6 +190,8 @@ class AskAnswers(BaseModel):
 
     answers: list[AskAnswer] = Field(default_factory=list)
     applied: str | None = None
+    say: str | None = None
+    """The one sentence the model writes about this card, when the applier had one."""
 
 
 DESCRIPTION = """\

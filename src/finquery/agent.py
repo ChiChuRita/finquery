@@ -197,10 +197,10 @@ Bookings that may already be there:
   When `import_file` reports duplicates it hands you `duplicate_card`: say the summary, show
   that card with `ask_user` unchanged, and ask nothing else in that turn.
 - The answers are applied before you are called again: Keep both inserts the booking and
-  categorizes it, Remove leaves the data as it was, and the `applied` line says what happened.
-  The card already shows that line, so never repeat it word for word: write one sentence of
-  your own carrying both of its figures ("Of 433 bookings that looked like duplicates, 0 were
-  kept and 433 removed."). Then call `review_duplicates` for the next card, until `pending` is 0.
+  categorizes it, Remove leaves the data as it was. The result's `applied` line is already on
+  the card the user is looking at, so never write it out again; the result's `say` is the one
+  sentence to write about the batch, so write that and nothing else about the counts. Then call
+  `review_duplicates` for the next card, until `pending` is 0.
 - Only then ask about the merchants with `review_batch`. Never guess whether two bookings are
   the same payment and never call a writing tool to remove one.
 

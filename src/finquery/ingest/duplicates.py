@@ -30,7 +30,7 @@ from pydantic_ai.settings import ModelSettings
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from finquery.ask_user import DUPLICATE_DECISION, AskAnswer, AskApply, AskOption, AskRow, AskUser
+from finquery.ask_user import DUPLICATE_DECISION, Applied, AskAnswer, AskApply, AskOption, AskRow, AskUser
 from finquery.categorize import categorize_rows
 from finquery.db import (
     Account,
@@ -438,8 +438,24 @@ class Decided:
     needs_review: int = 0
     error: str | None = None
 
+    def sentence(self) -> str:
+        """What the assistant writes about this batch, which is not what the card says.
+
+        The card already carries `line` the moment the answers are applied, and an answer that
+        repeats it word for word says nothing the second time: the whole prose after a
+        remove-all read "Applied: removed 433 duplicates" back (e2e of 2026-09-05, m4). This is
+        ticket 10's own sentence, counted here, and it rides the tool result as `say`.
+        """
+        total = self.kept + self.removed
+        bookings = "booking" if total == 1 else "bookings"
+        kept = "was" if self.kept == 1 else "were"
+        return (
+            f"Of {total} {bookings} that looked like duplicates, {self.kept} {kept} kept "
+            f"and {self.removed} removed."
+        )
+
     def line(self) -> str:
-        """The one line the card and the tool result say about it."""
+        """The one line the card says about it, written before the model has said anything."""
         said = []
         if self.kept:
             said.append(f"kept {self.kept} booking{'s' if self.kept != 1 else ''}")
@@ -562,7 +578,7 @@ async def apply_answers(
     *,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None = None,
-) -> str | None:
+) -> Applied | None:
     """The `duplicate_decision` applier: a card's answers, applied before the model continues.
 
     An answer on the `ALL_EXACT` row decides every exact candidate at once; every other answer
@@ -589,4 +605,4 @@ async def apply_answers(
     )
     if not decided.kept and not decided.removed:
         return None
-    return decided.line()
+    return Applied(line=decided.line(), say=decided.sentence())

@@ -114,6 +114,8 @@ export interface AskUserOutput {
   answers: AskAnswer[]
   /** What the server applied for these answers before the model saw them, one line. */
   applied?: string | null
+  /** The one sentence the model was asked to write about it, which the card never shows. */
+  say?: string | null
 }
 
 // `set_rule`: a category rule stored and applied to the whole profile.
