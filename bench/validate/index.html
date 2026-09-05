@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FinQuery benchmark validation</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fbfbfa;
+        --card: #ffffff;
+        --ink: #1b1b1a;
+        --muted: #6b6b66;
+        --line: #e3e3df;
+        --ok: #1a7f4b;
+        --wrong: #b3261e;
+        --unsure: #9a6b00;
+        --accent: #2f5bd0;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16171a;
+          --card: #1e2024;
+          --ink: #eceef1;
+          --muted: #9aa0a8;
+          --line: #2e3238;
+          --ok: #52c58a;
+          --wrong: #f2837a;
+          --unsure: #e0b356;
+          --accent: #7ea2ff;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      main { max-width: 62rem; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
+      header { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: baseline; margin-bottom: 1rem; }
+      h1 { font-size: 1.15rem; margin: 0; font-weight: 650; }
+      .muted { color: var(--muted); }
+      .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+      .grow { flex: 1 1 auto; }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 1.1rem 1.25rem;
+        margin-bottom: 1rem;
+      }
+      .tags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.5rem 0 0; }
+      .tag {
+        font-size: 0.75rem;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 0.1rem 0.55rem;
+      }
+      .question { font-size: 1.35rem; font-weight: 620; margin: 0.35rem 0 0; }
+      .why { color: var(--muted); margin: 0.6rem 0 0; }
+      .prefix { margin: 0.6rem 0 0; padding-left: 0.8rem; border-left: 3px solid var(--line); color: var(--muted); }
+      h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 1.1rem 0 0.4rem; font-weight: 620; }
+      pre {
+        margin: 0;
+        padding: 0.75rem 0.9rem;
+        background: color-mix(in srgb, var(--ink) 5%, transparent);
+        border-radius: 8px;
+        overflow-x: auto;
+        font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        white-space: pre-wrap;
+      }
+      table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+      th, td { text-align: left; padding: 0.3rem 0.6rem; border-bottom: 1px solid var(--line); }
+      th { color: var(--muted); font-weight: 600; }
+      td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+      button {
+        font: inherit;
+        border: 1px solid var(--line);
+        background: var(--card);
+        color: var(--ink);
+        border-radius: 8px;
+        padding: 0.4rem 0.8rem;
+        cursor: pointer;
+      }
+      button:hover { border-color: var(--accent); }
+      button.on { color: #fff; border-color: transparent; }
+      button.on.correct { background: var(--ok); }
+      button.on.wrong { background: var(--wrong); }
+      button.on.unsure { background: var(--unsure); }
+      textarea {
+        width: 100%;
+        min-height: 3.4rem;
+        font: inherit;
+        padding: 0.5rem 0.6rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--card);
+        color: var(--ink);
+        resize: vertical;
+      }
+      .dots { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 0.9rem; }
+      .dot { width: 1.55rem; height: 1.55rem; border-radius: 6px; border: 1px solid var(--line); background: var(--card); font-size: 11px; padding: 0; cursor: pointer; }
+      .dot.correct { background: var(--ok); color: #fff; border-color: transparent; }
+      .dot.wrong { background: var(--wrong); color: #fff; border-color: transparent; }
+      .dot.unsure { background: var(--unsure); color: #fff; border-color: transparent; }
+      .dot.here { outline: 2px solid var(--accent); outline-offset: 1px; }
+      kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 0.25rem; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Benchmark validation</h1>
+        <span class="muted" id="meta"></span>
+        <span class="grow"></span>
+        <button id="export">Export JSON</button>
+        <button id="clear">Clear labels</button>
+      </header>
+
+      <div class="card" id="summary"></div>
+
+      <div class="card" id="point"></div>
+
+      <div class="card">
+        <div class="row">
+          <button class="verdict correct" data-verdict="correct">Correct</button>
+          <button class="verdict wrong" data-verdict="wrong">Wrong</button>
+          <button class="verdict unsure" data-verdict="unsure">Unsure</button>
+          <span class="grow"></span>
+          <button id="previous">&larr; Previous</button>
+          <button id="next">Next &rarr;</button>
+        </div>
+        <h2>Note</h2>
+        <textarea id="note" placeholder="What is wrong with this datapoint, or what you checked."></textarea>
+        <div class="dots" id="dots"></div>
+      </div>
+
+      <p class="muted">
+        Labels live in this browser's localStorage. Export writes them as JSON.
+        <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> label, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> move.
+      </p>
+    </main>
+    <script src="validate.js"></script>
+  </body>
+</html>
