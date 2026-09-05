@@ -164,9 +164,13 @@ fields: merchant "ALDI", date_text "04.05.2019 14:12", total_text "3,02", curren
 tax_text null, direction out, items ("Bananen" 1,49), ("Gemuesemais" 0,98), ("Joghurt" 0,75),
 ("Rabatt" -0,20)
 
-`currency_text` is the currency as printed and nothing else. A German receipt printing no
-currency by the total gets an empty string: a letter of the article above it, a stray glyph or
-a guess is what refuses the whole receipt as foreign money.
+`currency_text` is the currency as printed and nothing else. Copy it whenever one is printed
+anywhere near the total, the sign in front of the figure included (`€`, `$`, `12,50 PLN`,
+`SUMA PLN`, `CHF`): a receipt in another currency is refused rather than booked as euros, and a
+`$` that is not copied is a dollar amount booked as euros, which nothing later catches. Leave it
+empty only when the receipt prints no currency at all, which is the ordinary German case, and
+never fill it with a letter of the article line above it or with a guess: that refuses a euro
+receipt as foreign money.
 """
 
 
