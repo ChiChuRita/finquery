@@ -161,7 +161,8 @@ def scripted_charts(specs: Sequence[tuple[dict[str, object], str, str]]):
         turn = max(len(prompts["plan"]) - 1, 0)
         if name == "run_sql":
             prompts["sql"].append(prompt)
-            return ModelResponse(parts=[ToolCallPart("run_sql", json.dumps({"sql": specs[turn][1]}))])
+            written = {"reasoning": "as the plan asks", "sql": specs[turn][1]}
+            return ModelResponse(parts=[ToolCallPart("run_sql", json.dumps(written))])
         if name == "chart_code":
             prompts["code"].append(prompt)
             return ModelResponse(parts=[ToolCallPart("chart_code", json.dumps({"code": specs[turn][2]}))])
@@ -196,7 +197,8 @@ def scripted_chart(
             return ModelResponse(parts=[ToolCallPart("chart_plan", json.dumps(plan))])
         if name == "run_sql":
             prompts["sql"].append(prompt)
-            return ModelResponse(parts=[ToolCallPart("run_sql", json.dumps({"sql": sql}))])
+            written = {"reasoning": "as the plan asks", "sql": sql}
+            return ModelResponse(parts=[ToolCallPart("run_sql", json.dumps(written))])
         if name == "chart_code":
             prompts["code"].append(prompt)
             code = codes[min(len(prompts["code"]), len(codes)) - 1]

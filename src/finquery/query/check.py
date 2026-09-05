@@ -37,6 +37,9 @@ CHECKING = "Checking the result"
 REWRITING = "Rewriting: {reason}"
 """The narration line when the sub-agent is sent back, whatever asked for the rewrite."""
 
+KEPT = "Keeping the first result: the rewrite answered nothing"
+"""The narration line when a rewrite came back empty and the result it replaced did not."""
+
 CHECK_ROWS = 10
 """How many result rows the check sees. A judgement needs the shape of the result, not a dump."""
 
@@ -53,6 +56,10 @@ it answered instead, and write the corrected intent in plain words, never as SQL
 """
 
 REVISE_WHEN = """\
+A relative period ("last month", "letztes Quartal", "this year") is counted from the newest
+booking and never from today, which can be months later. The household paragraph below spells
+those dates out: read them there, and never work them out from today's date yourself.
+
 Revise when:
 - the period is not the one the question names, or the statement narrowed a question that named
   no period to one year or one month of the data;

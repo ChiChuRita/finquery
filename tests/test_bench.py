@@ -129,6 +129,10 @@ def test_every_worked_example_of_the_query_prompt_is_a_train_datapoint_that_runs
         assert figure_match(point.gold.rows, rows.rows, answer=point.answer), ident
 
 
+READING = "period: as the question names it. sign: spending. grouping: as asked."
+"""What a scripted model writes into the required `run_sql.reasoning`."""
+
+
 def scripted(answers: dict[str, str], judgements: list[str] | None = None) -> FunctionModel:
     """A model that writes one prepared statement per question it recognizes.
 
@@ -150,7 +154,7 @@ def scripted(answers: dict[str, str], judgements: list[str] | None = None) -> Fu
             return ModelResponse(parts=[judged()])
         for question, sql in answers.items():
             if question in prompt:
-                return ModelResponse(parts=[ToolCallPart(tool_name="run_sql", args={"sql": sql})])
+                return ModelResponse(parts=[ToolCallPart(tool_name="run_sql", args={"reasoning": READING, "sql": sql})])
         raise AssertionError(f"the scripted model was asked something it has no answer for: {prompt[-200:]}")
 
     return FunctionModel(call, model_name="scripted")

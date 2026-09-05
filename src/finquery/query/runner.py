@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.formats import eur
 from finquery.providers import ModelResolver, ProviderNotAvailable
-from finquery.query.check import CHECKING, REWRITING, causes, check_result, degenerate_reason
+from finquery.query.check import CHECKING, KEPT, REWRITING, causes, check_result, degenerate_reason
 from finquery.query.guard import MAX_ROWS, Rows, SqlFailed, SqlRejected, execute_read_only, validate_sql
 from finquery.query.subagent import (
     QueryContext,
@@ -203,9 +203,8 @@ async def run_query(
             if len(refusals) >= ATTEMPTS:
                 break
             continue
-        first = statements == 1
         rejected = revised = None
-        outcome = QueryOutcome(
+        fresh = QueryOutcome(
             request=request,
             sql=validated,
             columns=rows.columns,
@@ -215,11 +214,20 @@ async def run_query(
             refusals=list(refusals),
             notes=notes,
         )
+        reason = degenerate_reason(request, context, rows.columns, rows.rows) if check else None
         # Only the statement written first is judged. One that already came back once has had
         # its round, and a second opinion on it would cost more than the answer is worth.
-        if not check or not first:
+        if statements > 1:
+            if reason and outcome is not None:
+                # A rewrite that answers nothing is worse than the answer it replaced, and a
+                # check on a small model does ask for one now and then.
+                note(KEPT)
+                return outcome
+            return fresh
+        outcome = fresh
+        if not check:
             return outcome
-        if reason := degenerate_reason(request, context, rows.columns, rows.rows):
+        if reason:
             note(REWRITING.format(reason=reason))
             revised = Revision(
                 sql=validated, reason=reason, advice=causes(context), reasoning=written.reasoning

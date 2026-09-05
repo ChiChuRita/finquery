@@ -8,7 +8,7 @@ many model calls it took and what the thinking panel said.
 
 import httpx
 
-from finquery.query.check import ALL_NULL, CHECKING, NO_ROWS, SINGLE_ZERO
+from finquery.query.check import ALL_NULL, CHECKING, KEPT, NO_ROWS, SINGLE_ZERO
 
 from .conftest import Chat, Scripts, new_conversation
 from .test_chart import narration
@@ -268,3 +268,22 @@ async def test_a_refused_statement_goes_back_with_the_reading_that_wrote_it(
     assert f"Your reasoning was:\n{READING}" in prompts[1]
     assert "Refused SQL:" in prompts[1] and "amount_cents" in prompts[1]
     assert tool_output(chunks)["error"] is None
+
+
+async def test_a_rewrite_that_answers_nothing_leaves_the_first_result_standing(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """A check on a 9B model asks for a rewrite it should not, so a rewrite has to earn it."""
+    await import_synthetic(client, profile_id)
+    respond = scripted_sql(MAY_ONLY, MISSPELLED, checks=[REVISE])
+    scripts.fast = ask_query_then_report("total spending")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "How much have I spent in total?")
+
+    output = tool_output(chunks)
+    assert "2025-05-01" in output["sql"], "the first statement is the one that answered"
+    assert output["rows"][0]["total_eur"] > 0
+    assert len(respond.prompts) == 2, "the rewrite was written and then thrown away"  # type: ignore[attr-defined]
+    assert KEPT in narration(chunks)

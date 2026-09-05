@@ -226,12 +226,13 @@ class GeneratedSql(BaseModel):
     """What the sub-agent answers with: how it read the question, then the statement.
 
     `reasoning` comes first so a small model commits to an interpretation before it writes any
-    SQL, and so the retry and the check pass can hold it to what it said. It carries no default
-    obligation on the caller: a model that leaves it empty still gets its statement run.
+    SQL, and so the retry and the check pass can hold it to what it said. Required, because
+    qwen/qwen3.5-9b left an optional one empty on every call of 2026-09-05 and then wrote the
+    SQL as it always had. A model that still omits it is asked once by the framework, which is
+    the retry a malformed tool call has always had.
     """
 
     reasoning: str = Field(
-        default="",
         description=(
             "First, before any SQL: one short line each for the period you read out of the "
             "question, the filters, the sign, and the grouping."

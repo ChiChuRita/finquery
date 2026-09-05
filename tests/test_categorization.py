@@ -72,7 +72,9 @@ def scripted_categorizer(guesses: dict[str, tuple[str, str | None, float]] = GUE
         prompt = _last_user_prompt(messages)
         if tools == ["run_sql"]:
             queries.append(prompt)
-            return ModelResponse(parts=[ToolCallPart("run_sql", json.dumps({"sql": "SELECT 1 AS one"}))])
+            return ModelResponse(
+                parts=[ToolCallPart("run_sql", json.dumps({"reasoning": "one row", "sql": "SELECT 1 AS one"}))]
+            )
         assert tools == ["categorize"], tools
         assert info.allow_text_output is False
         prompts.append(prompt)

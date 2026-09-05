@@ -111,9 +111,10 @@ def scripted_sql(
         assert info.allow_text_output is False
         assert info.function_tools == []
         attempt = min(len(prompts), len(statements)) - 1
-        written = {"sql": statements[attempt]}
-        if attempt < len(reasonings):
-            written = {"reasoning": reasonings[attempt], **written}
+        # `reasoning` is required, so every scripted call carries one: the test's own where it
+        # wrote one, and otherwise a line that says nothing in particular.
+        reasoning = reasonings[attempt] if attempt < len(reasonings) else "as the question asks"
+        written = {"reasoning": reasoning, "sql": statements[attempt]}
         return ModelResponse(parts=[ToolCallPart("run_sql", json.dumps(written))])
 
     respond.prompts = prompts  # type: ignore[attr-defined]
