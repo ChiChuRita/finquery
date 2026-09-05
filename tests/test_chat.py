@@ -11,6 +11,7 @@ from finquery import agent
 from finquery.api import chat as chat_api
 from finquery.app import create_app
 from finquery.local.runtime import LocalStack
+from finquery.providers import ProviderNotAvailable
 
 from .conftest import (
     Chat,
@@ -537,3 +538,209 @@ async def test_the_reasoning_stream_gets_the_filter_the_answer_gets(
         if part["type"] == "reasoning"
     ]
     assert any("I will query the year." in text for text in reasoning)
+
+
+def _parked(started: asyncio.Event):
+    """A model that answers nothing and never returns, so the turn is running until told."""
+
+    async def fn(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        yield "half an "
+        started.set()
+        await asyncio.sleep(60)
+        yield "answer"
+
+    return fn
+
+
+async def test_a_turn_still_running_when_the_server_stops_is_interrupted_on_the_next_start(
+    scripts: Scripts, tmp_path: Path
+) -> None:
+    """A process that dies mid-turn leaves the turn open; the next one marks it and moves on.
+
+    Nothing writes the turn out when the process is killed, so before this the question simply
+    disappeared: the conversation opened on the transcript it had before the message was typed,
+    with no way to tell whether an answer was still coming. The turn is written down when the
+    run starts and its end marker goes on when the run ends, so what the second process finds
+    open belongs to a process that is not here any more.
+
+    The restart is two apps over one database file: the first one's request is left running,
+    exactly as it is when the process it lives in goes away.
+    """
+    settings = make_settings(db_path=tmp_path / "restart.sqlite")
+    started = asyncio.Event()
+    scripts.fast = _parked(started)
+    first = create_app(settings, resolve_model=scripts.resolve, web_client=NoWeb(), serve_frontend=False)
+
+    async with first.router.lifespan_context(first):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=first), base_url="http://test") as client:
+            profile_id = await default_profile_id(client)
+            conversation_id = await new_conversation(client, profile_id)
+            turn = asyncio.create_task(
+                client.post(
+                    f"/api/conversations/{conversation_id}/chat",
+                    json=chat_body("What did I spend on groceries?", conversation_id),
+                )
+            )
+            await asyncio.wait_for(started.wait(), timeout=5)
+            # While it runs the question is already stored, and it is not marked interrupted:
+            # an answer is still on its way.
+            running = (await client.get(f"/api/conversations/{conversation_id}")).json()
+            assert [m["role"] for m in running["messages"]] == ["user"]
+            assert running["interrupted"] is False
+            assert running["title"] == "What did I spend on groceries?"
+
+    # The second process. The first one's task is still parked, the way a killed process's work
+    # simply stops existing.
+    second = create_app(settings, resolve_model=scripts.resolve, web_client=NoWeb(), serve_frontend=False)
+    async with second.router.lifespan_context(second):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=second), base_url="http://test") as client:
+            detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+            assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
+            assert detail["messages"][0]["parts"][0]["text"] == "What did I spend on groceries?"
+            assert detail["interrupted"] is True
+            assert detail["messages"][1]["metadata"]["interrupted"] is True
+            # The running-turn registry is a fresh dictionary, so the conversation takes a new
+            # message instead of answering 409 for a turn nothing is running.
+            assert second.state.running_turns == {}
+            scripts.fast = script("You spent 403,60 EUR on groceries in May 2025.")
+            again = await client.post(
+                f"/api/conversations/{conversation_id}/chat", json=chat_body("Again please", conversation_id)
+            )
+            assert again.status_code == 200, again.text
+            assert "403,60" in again.text
+
+    turn.cancel()
+
+
+async def test_a_browser_that_hangs_up_mid_answer_leaves_the_turn_marked_not_missing(
+    client: httpx.AsyncClient, scripts: Scripts
+) -> None:
+    """Reload during streaming: the request dies with the page, and neither hook runs.
+
+    A cancelled request never reaches `on_complete` or `on_cancel`, so the whole turn used to
+    vanish: the reloaded transcript ended at the turn before, with the typed question gone. The
+    open turn is closed on the way out instead.
+    """
+    started = asyncio.Event()
+    scripts.fast = _parked(started)
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+
+    turn = asyncio.create_task(
+        client.post(f"/api/conversations/{conversation_id}/chat", json=chat_body("go", conversation_id))
+    )
+    await asyncio.wait_for(started.wait(), timeout=5)
+    turn.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await turn
+
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
+    assert detail["messages"][0]["parts"][0]["text"] == "go"
+    assert detail["interrupted"] is True
+    # Nothing is left running, so the next message is taken rather than refused.
+    assert client._transport.app.state.running_turns == {}  # type: ignore[attr-defined]
+
+
+async def test_a_failing_post_turn_step_never_costs_the_answer(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The suggestions and the distillation are extras. A raise in either is one lost extra.
+
+    Both steps resolve the fast slot themselves, and on the local provider that raises while
+    the models are still downloading, which would have taken the finished answer down with it.
+    """
+
+    async def raises(*_args: object, **_kwargs: object) -> list[str]:
+        raise RuntimeError("the fast slot is not available")
+
+    monkeypatch.setattr(chat_api, "suggest_followups", raises)
+    scripts.fast = script("You spent 403,60 EUR on groceries in May 2025.")
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+
+    response, chunks = await chat(conversation_id, "What did I spend on groceries?")
+
+    assert response.status_code == 200
+    assert "403,60" in response.text
+    assert [c for c in chunks if c["type"] == "data-followups"] == []
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
+    assert detail["messages"][1]["parts"][-2]["text"] == "You spent 403,60 EUR on groceries in May 2025."
+
+
+async def test_a_model_that_says_nothing_at_all_leaves_the_question_and_a_marker(
+    client: httpx.AsyncClient, scripts: Scripts
+) -> None:
+    """A response with no text and no tool call is retried, and then the run gives up.
+
+    Whatever the run does, the user is left with what they typed and the reason it stopped
+    there, not with a transcript that never heard the question.
+    """
+
+    async def says_nothing(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        return
+        yield  # pragma: no cover - never reached, this is what makes the function a generator
+
+    scripts.fast = says_nothing
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+
+    response = await client.post(
+        f"/api/conversations/{conversation_id}/chat", json=chat_body("go", conversation_id)
+    )
+
+    assert response.status_code == 200
+    # One sentence the reader can act on, not the framework's own exception text.
+    errors = [c["errorText"] for c in parse_sse(response.text) if c["type"] == "error"]
+    assert errors == [chat_api.TURN_FAILED]
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert detail["messages"][0]["parts"][0]["text"] == "go"
+    assert detail["interrupted"] is True
+
+
+async def test_a_tool_that_raises_leaves_the_question_and_a_marker(
+    client: httpx.AsyncClient, scripts: Scripts, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A tool blowing up is a turn that cannot finish, not a turn that never happened."""
+
+    async def explodes(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("the query sub-agent fell over")
+
+    monkeypatch.setattr(agent, "run_query", explodes)
+
+    async def asks_a_question(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        yield {0: DeltaToolCall(name="query", json_args='{"request": "groceries in May"}')}
+
+    scripts.fast = asks_a_question
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+
+    response = await client.post(
+        f"/api/conversations/{conversation_id}/chat", json=chat_body("groceries?", conversation_id)
+    )
+
+    assert response.status_code == 200
+    errors = [c["errorText"] for c in parse_sse(response.text) if c["type"] == "error"]
+    assert errors == [chat_api.TURN_FAILED]
+    assert "fell over" not in response.text, "the exception belongs in the log, not the transcript"
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert detail["messages"][0]["parts"][0]["text"] == "groceries?"
+    assert detail["interrupted"] is True
+
+
+async def test_a_slot_the_provider_cannot_give_is_one_sentence_not_a_crash(
+    client: httpx.AsyncClient, scripts: Scripts
+) -> None:
+    """The quality slot missing is the local provider mid-download, and it reads as a sentence."""
+
+    def refuses(slot: str):
+        if slot == "quality":
+            raise ProviderNotAvailable("Qwen3.5 9B is not downloaded yet. Open Settings to fetch it.")
+        return scripts.resolve(slot)
+
+    conversation_id = await new_conversation(client, await default_profile_id(client), slot="quality")
+    client._transport.app.state.resolve_model = refuses  # type: ignore[attr-defined]
+
+    response = await client.post(f"/api/conversations/{conversation_id}/chat", json=chat_body("go", conversation_id))
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Qwen3.5 9B is not downloaded yet. Open Settings to fetch it."
+    # And nothing was left behind: no half a turn to explain away on the next load.
+    assert (await client.get(f"/api/conversations/{conversation_id}")).json()["messages"] == []

@@ -429,18 +429,43 @@ async def _imported(
             "pending_merchants": merchants_pending,
             "questions": [question.payload() for question in questions],
             "card": review_card(questions, merchants_pending).model_dump(mode="json") if questions else None,
+            "say": _what_is_left(held.pending, merchants_pending, committed.file_name),
         }
     )
     if committed.reconciliation:
         payload["reconciliation"] = committed.reconciliation
     if review:
         payload["instruction"] = (
-            "Say the `summary`, then show `duplicate_card` with `ask_user`, unchanged. The "
+            "Write the `say` line, then show `duplicate_card` with `ask_user`, unchanged. The "
             "answers are applied for you; after each one call `review_duplicates` for the next "
             "card until nothing is pending, and only then ask about the merchants with "
             "`review_batch`."
         )
     return payload
+
+
+def _what_is_left(duplicates_pending: int, merchants_pending: int, file_name: str) -> str:
+    """The one line to write under an import step, counted here rather than by a model.
+
+    The step above it already prints the whole counted `summary`, and telling the model not to
+    repeat it did not stop it: the PDF import printed the same sentence twice (e2e of
+    2026-09-05, p3, left by ticket 30). The same treatment the duplicate summary got: the
+    result carries the sentence to write, so there is one to copy that is not the summary.
+    """
+    if duplicates_pending:
+        return (
+            f"{duplicates_pending} bookings look like ones you already have and need your "
+            "decision before they are added."
+            if duplicates_pending != 1
+            else "1 booking looks like one you already have and needs your decision before it is added."
+        )
+    if merchants_pending:
+        return (
+            f"{merchants_pending} merchants still need a category."
+            if merchants_pending != 1
+            else "1 merchant still needs a category."
+        )
+    return f"Everything from {file_name} is categorized, so there is nothing left to decide."
 
 
 async def _import_statement(

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createRootRoute, createRoute, createRouter, Outlet, useNavigate } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, Link, Outlet, useNavigate } from '@tanstack/react-router'
 import type { FileUIPart } from 'ai'
+import { PlusIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Shimmer } from '@/components/ai-elements/shimmer'
@@ -17,6 +18,7 @@ import { clampStep, OnboardingCard, OnboardingPage } from '@/components/onboardi
 import { DocumentPage } from '@/components/page'
 import { TaxonomyCard } from '@/components/taxonomy-card'
 import { TransactionsPage } from '@/components/transactions-page'
+import { Button } from '@/components/ui/button'
 import { WebLookupCard } from '@/components/web-lookup-card'
 import {
   conversationQuery,
@@ -114,9 +116,17 @@ function ConversationPage() {
     )
   }
   if (error || !data) {
+    // Most often it was deleted in another browser tab, which is why this says what to do
+    // rather than only what went wrong: without the link the tab is a dead end.
     return (
-      <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm" role="alert">
-        This conversation could not be loaded.
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm" role="alert">
+        <p className="text-muted-foreground">This chat could not be loaded. It may have been deleted.</p>
+        <Button asChild size="sm" variant="outline">
+          <Link to="/">
+            <PlusIcon data-icon="inline-start" />
+            New chat
+          </Link>
+        </Button>
       </div>
     )
   }

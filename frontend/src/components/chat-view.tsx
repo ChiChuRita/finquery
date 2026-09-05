@@ -1,12 +1,7 @@
 import { useChat } from '@ai-sdk/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import {
-  DefaultChatTransport,
-  lastAssistantMessageIsCompleteWithToolCalls,
-  type FileUIPart,
-  type ToolUIPart,
-} from 'ai'
+import { DefaultChatTransport, type FileUIPart, type ToolUIPart } from 'ai'
 import {
   AlertTriangleIcon,
   BrainIcon,
@@ -47,8 +42,10 @@ import {
   conversationQuery,
   conversationsQuery,
   patchConversation,
+  refusalSentence,
   stopConversation,
   type AskUserOutput,
+  type AskUserPart,
   type ChatMessage,
   type ContextStats,
   type ConversationDetail,
@@ -71,6 +68,26 @@ const SLOT_ICONS: Record<ModelSlot, typeof ZapIcon> = { fast: ZapIcon, quality: 
  */
 const RERUNNABLE_PARTS = new Set(['tool-query', 'tool-chart'])
 
+/** Whether this message is the one a Question card sits on. */
+const holdsCall = (message: ChatMessage, toolCallId: string) =>
+  message.parts.some((part) => part.type === 'tool-ask_user' && part.toolCallId === toolCallId)
+
+/** The same card with the user's answer on it, or null when it was not open to answer.
+ *
+ * Built rather than spread: only these two states carry a whole card to answer, and saying so
+ * is what makes `input` the card it is instead of the half of one a streaming call may have.
+ */
+function withAnswer(part: AskUserPart, output: AskUserOutput): AskUserPart | null {
+  if (part.state !== 'input-available' && part.state !== 'approval-requested') return null
+  return {
+    type: 'tool-ask_user',
+    toolCallId: part.toolCallId,
+    state: 'output-available',
+    input: part.input,
+    output,
+  }
+}
+
 /** Every rating this chat collected, keyed by the turn and the chart inside it. */
 function ratingsByTarget(conversation: ConversationDetail): Map<string, PreferenceRating> {
   return new Map(conversation.ratings.map((rating) => [`${rating.turn_id}:${rating.target ?? ''}`, rating.rating]))
@@ -86,10 +103,15 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
     () =>
       new DefaultChatTransport<ChatMessage>({
         api: chatUrl(conversation.id),
-        // The server owns the history, so only the newest message travels.
-        prepareSendMessagesRequest: ({ id, messages, trigger, messageId }) => ({
-          body: { id, messages: messages.slice(-1), trigger, messageId },
-        }),
+        // The server owns the history, so one message travels: the newest, or the one carrying
+        // the Question card that was just answered. A card the user comes back to after asking
+        // something else is not the newest message, and its answer is what this request is
+        // about (ticket 29), so `answered` names the call and this picks the message it is on.
+        prepareSendMessagesRequest: ({ id, messages, trigger, messageId, body }) => {
+          const answered = (body as { answered?: string } | undefined)?.answered
+          const carried = answered ? messages.filter((m) => holdsCall(m, answered)) : messages.slice(-1)
+          return { body: { id, messages: carried, trigger, messageId } }
+        },
       }),
     [conversation.id],
   )
@@ -97,14 +119,22 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
   // Progress of a running tool, by tool call. Transient parts never reach `messages`, which is
   // the point: the transcript keeps the tool's result, not the counting that led to it.
   const [progress, setProgress] = useState<Record<string, ImportProgress[]>>({})
+  // Bumped to send the caret back to the composer, which is what a Question card answer does.
+  const [focusToken, setFocusToken] = useState(0)
 
-  const { messages, sendMessage, status, stop, error, addToolOutput } = useChat<ChatMessage>({
+  // Set when the card just answered was not the newest message. The stream appends the resumed
+  // half to the newest assistant message, but the server wrote it into the card's own turn, so
+  // the transcript is taken back from the server once the turn ends and the two agree again.
+  const resync = useRef(false)
+
+  const { messages, sendMessage, setMessages, status, stop, error } = useChat<ChatMessage>({
     id: conversation.id,
     messages: conversation.messages,
     transport,
-    // A Question card answers a tool call the server left open. Once the output is in, the next
-    // request goes out by itself and the run picks up where it parked.
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    // No `sendAutomaticallyWhen`: it only ever fires for the newest assistant message, and
+    // `addToolOutput` only ever writes to that message too, so a card the user came back to
+    // after asking something else swallowed its own answer (ticket 29). `answerCard` below
+    // does both jobs for every card, wherever it sits.
     onData: (part) => {
       if (part.type !== 'data-import_progress') return
       const line = part.data
@@ -117,6 +147,12 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
     onFinish: () => {
       void queryClient.invalidateQueries(conversationsQuery(profile?.id))
       void queryClient.invalidateQueries(conversationQuery(conversation.id))
+      if (!resync.current) return
+      resync.current = false
+      void queryClient
+        .fetchQuery(conversationQuery(conversation.id))
+        .then((fresh) => setMessages(fresh.messages))
+        .catch(() => undefined)
     },
   })
 
@@ -136,6 +172,39 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
   const send = (message: Parameters<typeof sendMessage>[0]) => {
     void sendMessage(message)
     scrollContext.current?.scrollToBottom()
+  }
+
+  /** Answer one Question card: put the output on the message the card is on, then send it.
+   *
+   * The SDK's own pair does neither for an older card. `addToolOutput` writes to the newest
+   * message whatever call it was given, and `sendAutomaticallyWhen` only ever looks at the
+   * newest message, so answering a card the user came back to did nothing at all: no request,
+   * no rules, and the answer lost on the next reload (ticket 29).
+   */
+  const answerCard = (toolCallId: string, output: AskUserOutput) => {
+    const target = messages.find((message) => holdsCall(message, toolCallId))
+    if (!target) return
+    // The stream will append the resumed half to the newest message, which is not this one.
+    resync.current = target !== messages.at(-1)
+    setMessages(
+      messages.map((message) =>
+        message === target
+          ? {
+              ...message,
+              parts: message.parts.map((part) =>
+                part.type === 'tool-ask_user' && part.toolCallId === toolCallId
+                  ? (withAnswer(part, output) ?? part)
+                  : part,
+              ),
+            }
+          : message,
+      ),
+    )
+    void sendMessage(undefined, { body: { answered: toolCallId } })
+    scrollContext.current?.scrollToBottom()
+    // The button that was clicked has just disabled itself, so the caret is nowhere. The next
+    // thing to do after answering a card is to type.
+    setFocusToken((token) => token + 1)
   }
 
   const changeSlot = async (next: ModelSlot) => {
@@ -190,7 +259,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
                 <TranscriptMessage
                   isLast={message === lastMessage}
                   message={message}
-                  onAnswer={(toolCallId, output) => void addToolOutput({ tool: 'ask_user', toolCallId, output })}
+                  onAnswer={answerCard}
                   onPickFollowup={(text) => send({ text })}
                   progress={progress}
                   ratings={ratings}
@@ -209,7 +278,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
           )}
           {error && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-destructive text-sm" role="alert">
-              {refusal(error)}
+              {refusalSentence(error)}
             </div>
           )}
         </ConversationContent>
@@ -220,6 +289,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
         <div className="mx-auto w-full max-w-3xl">
           <Composer
             draftId={conversation.id}
+            focusToken={focusToken}
             onSlotChange={changeSlot}
             onStop={handleStop}
             onSubmit={(text, files) => send(text ? { text, files } : { files })}
@@ -398,22 +468,6 @@ function stoppedTool(part: MessagePart, interrupted: boolean): boolean {
   return OPEN_TOOL.has(tool.state)
 }
 
-/** What a refused request says, as a sentence rather than as a response body.
- *
- * `useChat` puts the body of a non-2xx response straight into `error.message`, and every
- * refusal this app writes is a FastAPI `{"detail": "..."}`, so an empty file or a message with
- * nothing in it reached the transcript as JSON.
- */
-function refusal(error: Error): string {
-  try {
-    const body = JSON.parse(error.message) as { detail?: unknown }
-    if (typeof body.detail === 'string' && body.detail) return body.detail
-  } catch {
-    // Not a JSON body, so whatever the transport said is all there is to say.
-  }
-  return error.message || 'Something went wrong. Try that again.'
-}
-
 /** The sentence a tool that failed unexpectedly left behind, or nothing.
  *
  * The server turns any exception inside a tool into `{tool_failed, error}` (`agent.guarded`),
@@ -450,6 +504,21 @@ function StoppedToolStep({ type }: { type: string }) {
         The <span className="font-medium">{type.slice('tool-'.length).replaceAll('_', ' ')}</span> step was
         stopped before it finished, so it has no result.
       </span>
+    </Step>
+  )
+}
+
+/** A turn that was cut off before it wrote anything at all.
+ *
+ * The server marks a turn interrupted when the run behind it stopped existing: the browser
+ * hung up mid-answer, or the process it was running in did. What is left is the question with
+ * nothing under it, and without a word here that reads as an answer that is still coming.
+ */
+function InterruptedTurn() {
+  return (
+    <Step>
+      <CircleStopIcon aria-hidden="true" className="size-3.5 shrink-0" />
+      <span>This turn was interrupted before an answer was written. Ask again to continue.</span>
     </Step>
   )
 }
@@ -566,11 +635,13 @@ function TranscriptMessage({
   // resumed a Question card is one message with one part per round.
   const suggestions = message.parts.filter((p) => p.type === 'data-followups')
   const followups = isLast && !live && !pendingCard ? (suggestions.at(-1)?.data.suggestions ?? []) : []
+  const parts = foldReasoning(message.parts)
 
   return (
     <Message from={message.role}>
       <MessageContent>
-        {foldReasoning(message.parts).map((part, index) => {
+        {interrupted && parts.length === 0 && <InterruptedTurn />}
+        {parts.map((part, index) => {
           // Judged before any card reads the part: neither a failed nor a stopped tool has
           // the result its own renderer would read.
           const failed = failedTool(part)
@@ -683,29 +754,33 @@ function TranscriptMessage({
               Stopped
             </Badge>
           )}
-          <span className="ml-auto flex items-center gap-1">
-            <FeedbackError message={feedback.problem} />
-            {feedback.rating === 'pick' && !feedback.second && <span>Pair collected</span>}
-            {feedback.rating === 'down' && rerunnable && !feedback.second && (
-              <Button
-                className="text-muted-foreground"
-                disabled={feedback.asking || !feedback.ready}
-                onClick={() => void feedback.compare()}
-                size="xs"
-                variant="ghost"
-              >
-                <GitCompareIcon data-icon="inline-start" />
-                {feedback.asking ? 'Answering again...' : 'Compare a second answer'}
-              </Button>
-            )}
-            <Thumbs
-              busy={feedback.busy}
-              disabled={!feedback.ready}
-              onRate={(next) => void feedback.rate(next)}
-              rating={feedback.rating}
-              subject="response"
-            />
-          </span>
+          {/* A turn that was cut off before it wrote anything has nothing to rate, and a thumb
+              on it would go into the preference pairs as an opinion about an empty answer. */}
+          {parts.length > 0 && (
+            <span className="ml-auto flex items-center gap-1">
+              <FeedbackError message={feedback.problem} />
+              {feedback.rating === 'pick' && !feedback.second && <span>Pair collected</span>}
+              {feedback.rating === 'down' && rerunnable && !feedback.second && (
+                <Button
+                  className="text-muted-foreground"
+                  disabled={feedback.asking || !feedback.ready}
+                  onClick={() => void feedback.compare()}
+                  size="xs"
+                  variant="ghost"
+                >
+                  <GitCompareIcon data-icon="inline-start" />
+                  {feedback.asking ? 'Answering again...' : 'Compare a second answer'}
+                </Button>
+              )}
+              <Thumbs
+                busy={feedback.busy}
+                disabled={!feedback.ready}
+                onRate={(next) => void feedback.rate(next)}
+                rating={feedback.rating}
+                subject="response"
+              />
+            </span>
+          )}
         </MessageToolbar>
       )}
 

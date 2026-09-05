@@ -66,7 +66,12 @@ def create_app(
         app.state.context_budget = context_budget(settings, app.state.local)
         # Nothing calls it until a profile switches web lookup on. See finquery.weblookup.
         app.state.web_client = web_client if web_client is not None else HttpWebClient()
+        # Nothing is running yet, so nothing that was running when the last process stopped can
+        # still be: a turn left without its end marker is marked interrupted here, or the
+        # conversation would open on a question with no answer and no way to tell that one is
+        # not still coming. See `finquery.api.chat.close_open_turns`.
         app.state.running_turns = {}
+        chat.close_open_turns(app.state.session_factory)
         yield
 
     app = FastAPI(title="FinQuery", lifespan=lifespan)

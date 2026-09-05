@@ -7,6 +7,7 @@ import httpx
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart
 
+from finquery.api.conversations import TITLE_LENGTH
 from finquery.app import create_app
 
 from .conftest import (
@@ -45,6 +46,11 @@ async def test_conversation_can_be_renamed_and_deleted(client: httpx.AsyncClient
     assert renamed.status_code == 200
     assert renamed.json()["title"] == "Grocery spending"
     assert (await client.patch(f"/api/conversations/{conversation_id}", json={"title": " "})).status_code == 422
+    # A pasted paragraph is a title too long for the sidebar and for the column, so it is cut
+    # rather than refused: nothing about it is a mistake the user has to correct.
+    long = await client.patch(f"/api/conversations/{conversation_id}", json={"title": "Groceries " * 50})
+    assert long.status_code == 200, long.text
+    assert len(long.json()["title"]) == TITLE_LENGTH
 
     assert (await client.delete(f"/api/conversations/{conversation_id}")).status_code == 204
     assert (await client.get(f"/api/conversations/{conversation_id}")).status_code == 404
@@ -89,6 +95,48 @@ async def test_model_slot_switches_mid_conversation_and_every_turn_carries_its_s
     detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
     assert [m["metadata"]["model_slot"] for m in detail["messages"] if m["role"] == "assistant"] == ["fast", "quality"]
     assert detail["model_slot"] == "quality"
+
+
+async def test_switching_the_slot_while_a_turn_runs_lands_on_the_next_turn(
+    client: httpx.AsyncClient, scripts: Scripts
+) -> None:
+    """The model of a running turn was resolved when it started, and it keeps it.
+
+    The picker in the composer writes the conversation's slot, which is read at the top of the
+    next request. Switching it mid-answer must not relabel the turn that is on screen, and must
+    not be refused either: it is a setting, not part of the turn.
+    """
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def waits(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        started.set()
+        await release.wait()
+        yield "answered on the fast slot"
+
+    scripts.fast = waits
+    scripts.quality = script("answered on the quality slot")
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+
+    turn = asyncio.create_task(
+        client.post(f"/api/conversations/{conversation_id}/chat", json=chat_body("first", conversation_id))
+    )
+    await asyncio.wait_for(started.wait(), timeout=5)
+    switched = await client.patch(f"/api/conversations/{conversation_id}", json={"model_slot": "quality"})
+    assert switched.status_code == 200
+    release.set()
+    running = await asyncio.wait_for(turn, timeout=5)
+
+    assert assistant_metadata(parse_sse(running.text))["model_slot"] == "fast"
+    response = await client.post(
+        f"/api/conversations/{conversation_id}/chat", json=chat_body("second", conversation_id)
+    )
+    assert assistant_metadata(parse_sse(response.text))["model_slot"] == "quality"
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert [m["metadata"]["model_slot"] for m in detail["messages"] if m["role"] == "assistant"] == [
+        "fast",
+        "quality",
+    ]
 
 
 async def test_followup_suggestions_travel_as_a_data_part_and_are_persisted(

@@ -37,6 +37,7 @@ from pydantic_ai.ui.vercel_ai.request_types import (
 from pydantic_ai.ui.vercel_ai.response_types import (
     BaseChunk,
     DataChunk,
+    ErrorChunk,
     MessageMetadataChunk,
     ReasoningDeltaChunk,
     ReasoningEndChunk,
@@ -44,6 +45,7 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     TextDeltaChunk,
     ToolInputAvailableChunk,
 )
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.agent import ChatDeps, chat_agent
@@ -159,19 +161,21 @@ class RunningTurn:
 
 @dataclass(frozen=True)
 class History:
-    """The conversation as it is stored: turn by turn, plus what the last turn was made of.
+    """The conversation as it is stored: turn by turn, each with the id it is stored under.
 
     The turns stay separate because the prompt is assembled from them rather than from one flat
-    list: past the threshold the older ones are replaced by the rolling summary.
+    list: past the threshold the older ones are replaced by the rolling summary, and a turn
+    parked on a Question card is resumed from where that turn ended rather than from the end of
+    the conversation.
 
-    The last turn matters because a deferred tool call (`ask_user`) ends a turn with the call
-    still open. When the answer arrives, the same turn continues, so it is rewritten with both
-    halves instead of a second turn being appended.
+    A deferred tool call (`ask_user`) ends a turn with the call still open. When the answer
+    arrives, that same turn continues, so it is rewritten with both halves instead of a second
+    turn being appended. The user may have typed something else in between, so the turn a card
+    belongs to is looked up rather than assumed to be the last one (ticket 29).
     """
 
     turns: list[TurnMessages]
-    last_turn_id: str | None = None
-    last_turn_length: int = 0
+    turn_ids: list[str] = field(default_factory=list)
 
     @property
     def messages(self) -> list[ModelMessage]:
@@ -180,23 +184,41 @@ class History:
 
     @property
     def open_tool_calls(self) -> dict[str, ToolCallPart]:
-        """Tool calls of the last response that never got a result, by call id.
+        """Tool calls of any turn that never got a result, by call id.
 
         The call itself, not just its name: what the answers to a Question card mean is in the
         call's own arguments (`AskUser.apply`), and that is what `finquery.answers` acts on.
+
+        Every turn, not only the newest: a card the user answers after typing something else is
+        an open call two turns back, and the run it parked is still the run that resumes.
         """
-        messages = self.messages
-        answered = {
-            part.tool_call_id
-            for message in messages
-            if message.kind == "request"
-            for part in message.parts
-            if isinstance(part, ToolReturnPart)
-        }
-        last = next((m for m in reversed(messages) if isinstance(m, ModelResponse)), None)
-        if last is None:
-            return {}
-        return {call.tool_call_id: call for call in last.tool_calls if call.tool_call_id not in answered}
+        return {call.tool_call_id: call for _, call in self._open_calls()}
+
+    def turn_of(self, call_id: str) -> int | None:
+        """Which turn holds that open call, as an index into `turns`."""
+        return next((index for index, call in self._open_calls() if call.tool_call_id == call_id), None)
+
+    def _open_calls(self) -> list[tuple[int, ToolCallPart]]:
+        """Every call still waiting for a result, with the turn it was made in.
+
+        A result always lands in the turn its call was made in, so a turn is judged on its own
+        messages. Only the last response of a turn can still be open: an earlier one was
+        answered before the turn could go on.
+        """
+        found: list[tuple[int, ToolCallPart]] = []
+        for index, turn in enumerate(self.turns):
+            answered = {
+                part.tool_call_id
+                for message in turn.messages
+                if message.kind == "request"
+                for part in message.parts
+                if isinstance(part, ToolReturnPart)
+            }
+            last = next((m for m in reversed(turn.messages) if isinstance(m, ModelResponse)), None)
+            if last is None:
+                continue
+            found.extend((index, call) for call in last.tool_calls if call.tool_call_id not in answered)
+        return found
 
 
 CARD_TOOLS = ("review_batch", "review_duplicates", "import_file", "extract_transaction")
@@ -293,19 +315,17 @@ def load_history(conversation: Conversation) -> History:
     Also read by the answer A/B, which reruns one turn against the history it had.
     """
     turns: list[TurnMessages] = []
-    last_id: str | None = None
-    last_length = 0
+    turn_ids: list[str] = []
     for turn in conversation.turns:
-        messages = list(ModelMessagesTypeAdapter.validate_json(turn.model_messages_json))
         turns.append(
             TurnMessages(
                 position=turn.position,
-                messages=messages,
+                messages=list(ModelMessagesTypeAdapter.validate_json(turn.model_messages_json)),
                 ui_count=len(json.loads(turn.ui_messages_json)),
             )
         )
-        last_id, last_length = turn.id, len(messages)
-    return History(turns=turns, last_turn_id=last_id, last_turn_length=last_length)
+        turn_ids.append(turn.id)
+    return History(turns=turns, turn_ids=turn_ids)
 
 
 def _tool_outputs(messages: Sequence[UIMessage], wanted: Mapping[str, ToolCallPart]) -> dict[str, object]:
@@ -322,6 +342,37 @@ def _tool_outputs(messages: Sequence[UIMessage], wanted: Mapping[str, ToolCallPa
         for part in message.parts
         if isinstance(part, ToolOutputAvailablePart) and part.tool_call_id in wanted
     }
+
+
+TURN_FAILED = (
+    "This turn could not be finished. Your message is still here, so ask again, or pick the "
+    "other model in the composer."
+)
+"""What the transcript says when a run ends in an exception rather than an answer.
+
+The framework's own text ("Stream function must return at least one item") is what reached the
+user before, and there is nothing a person can do with it. The detail goes to the server log,
+where it belongs, and the partial turn keeps the question with its interrupted marker.
+"""
+
+ALREADY_ANSWERED = "That question has already been answered. Reload the chat to see what it did."
+"""Why a second answer to the same Question card is refused.
+
+The card disables itself once it is answered, so this is the other tab, or a browser that never
+saw the first answer land. The run it would resume is over: replaying the answers would apply
+them twice (a duplicate inserted again, a rule stored again), which is the one thing worse than
+saying no.
+"""
+
+
+def _carries_tool_output(messages: Sequence[UIMessage]) -> bool:
+    """True when the browser sent this request to answer a tool call rather than to say something."""
+    return any(
+        isinstance(part, ToolOutputAvailablePart)
+        for message in messages
+        if message.role == "assistant"
+        for part in message.parts
+    )
 
 
 def _latest_user_text(messages: Sequence[UIMessage]) -> str:
@@ -352,12 +403,17 @@ def _assistant_text(messages: Sequence[ModelMessage]) -> str:
     )
 
 
+def _shorten(text: str) -> str | None:
+    """A conversation title out of the message that opened it."""
+    text = " ".join(text.split())
+    if not text:
+        return None
+    return text[:TITLE_LENGTH].rstrip() + ("..." if len(text) > TITLE_LENGTH else "")
+
+
 def _title_from(messages: Sequence[ModelMessage]) -> str | None:
     prompts = _user_prompts(messages)
-    if not prompts:
-        return None
-    text = " ".join(prompts[0].split())
-    return text[:TITLE_LENGTH].rstrip() + ("..." if len(text) > TITLE_LENGTH else "")
+    return _shorten(prompts[0]) if prompts else None
 
 
 def _audit_notes(messages: Sequence[ModelMessage]) -> list[dict[str, object]]:
@@ -527,14 +583,20 @@ def persist_turn(
         conversation = session.get(Conversation, conversation_id)
         if conversation is None:
             return turn_id
+        # A rewritten turn keeps its place in the transcript. It is the same turn: the open turn
+        # this run started from, or the turn a Question card parked, which the user may have
+        # typed past before answering it.
+        position = len(conversation.turns)
         if replaces is not None and (previous := session.get(Turn, replaces)) is not None:
+            position = previous.position
             conversation.turns.remove(previous)
         conversation.turns.append(
             Turn(
                 id=turn_id,
-                position=len(conversation.turns),
+                position=position,
                 model_slot=slot,
                 interrupted=interrupted,
+                finished=True,
                 model_messages_json=ModelMessagesTypeAdapter.dump_json(messages).decode(),
                 ui_messages_json=json.dumps([m.model_dump(by_alias=True, mode="json") for m in ui_messages]),
             )
@@ -544,6 +606,124 @@ def persist_turn(
         conversation.updated_at = utcnow()
         session.commit()
     return turn_id
+
+
+def open_turn(
+    session_factory: sessionmaker[Session],
+    conversation_id: str,
+    *,
+    slot: str,
+    ui_messages: Sequence[UIMessage],
+) -> str | None:
+    """Write the turn down before the model is asked anything, without its end marker.
+
+    Two things are lost when a run dies before `persist_turn`: the question the user asked and
+    any sign that it was ever asked. A reload during the answer showed the transcript as it was
+    before the message was typed, and a server restarted mid-turn left the same hole. So the
+    turn exists from the start, holding the user's message, and `finished` is false until the
+    run writes it out. Whatever is still open on the next startup was interrupted by definition:
+    see `close_open_turns`.
+
+    Returns the id of the open turn, which is what `persist_turn(replaces=...)` rewrites, or
+    None when the conversation is gone.
+    """
+    turn_id = new_id()
+    with session_factory() as session:
+        conversation = session.get(Conversation, conversation_id)
+        if conversation is None:
+            return None
+        conversation.turns.append(
+            Turn(
+                id=turn_id,
+                position=len(conversation.turns),
+                model_slot=slot,
+                finished=False,
+                model_messages_json="[]",
+                ui_messages_json=json.dumps([m.model_dump(by_alias=True, mode="json") for m in ui_messages]),
+            )
+        )
+        # The title too, so a conversation whose first turn never finished is still the question
+        # that was asked rather than "New chat" in the sidebar for good.
+        if conversation.title == "New chat" and (title := _shorten(_latest_user_text(ui_messages))):
+            conversation.title = title
+        conversation.updated_at = utcnow()
+        session.commit()
+    return turn_id
+
+
+def reopen_turn(session_factory: sessionmaker[Session], turn_id: str) -> None:
+    """Take the end marker off the turn a Question card answer is about to continue.
+
+    The resumed half rewrites that turn, so from here until it does, the turn is running and is
+    recovered like any other open turn if the process dies first.
+    """
+    with session_factory() as session:
+        if (turn := session.get(Turn, turn_id)) is not None:
+            turn.finished = False
+            session.commit()
+
+
+def _interrupt(turn: Turn) -> None:
+    """Mark one open turn as the interrupted turn it is, so the transcript can say so.
+
+    The assistant side of an interrupted turn may be missing entirely (the run died before it
+    wrote anything), and an assistant message is where the transcript hangs the Stopped marker,
+    so an empty one is appended for it to hang on. The sentence under it is the browser's
+    (`chat-view.InterruptedTurn`), the way a stopped tool step's sentence is.
+    """
+    turn.interrupted = True
+    turn.finished = True
+    ui_messages = json.loads(turn.ui_messages_json)
+    if ui_messages and ui_messages[-1].get("role") == "assistant":
+        last = ui_messages[-1]
+        last["metadata"] = {**(last.get("metadata") or {}), "interrupted": True, "turn_id": turn.id}
+    else:
+        ui_messages.append(
+            {
+                "id": f"interrupted-{turn.id}",
+                "role": "assistant",
+                "parts": [],
+                "metadata": {"model_slot": turn.model_slot, "interrupted": True, "turn_id": turn.id},
+            }
+        )
+    turn.ui_messages_json = json.dumps(ui_messages)
+
+
+def close_open_turns(session_factory: sessionmaker[Session]) -> int:
+    """Every turn still without its end marker was interrupted. Run once, at startup.
+
+    A turn is only open while its run is: the run either writes the turn out or closes it on the
+    way down. So a turn found open when the process starts belongs to a process that is no
+    longer here, and the running-turn registry it was in is empty by construction. Without this
+    the conversation would open on a question with nothing under it and no way to tell whether
+    an answer was still coming.
+    """
+    with session_factory() as session:
+        open_turns = list(session.scalars(select(Turn).where(Turn.finished.is_(False))).all())
+        for turn in open_turns:
+            _interrupt(turn)
+        session.commit()
+    if open_turns:
+        logger.warning("%s turn(s) were interrupted by a restart", len(open_turns))
+    return len(open_turns)
+
+
+def close_turn_if_open(session_factory: sessionmaker[Session], turn_id: str | None) -> None:
+    """The same recovery, for a run that ends without persisting: the browser hung up.
+
+    A client that reloads or navigates away mid-answer has its request cancelled, and neither
+    `on_complete` nor `on_cancel` runs for that: the run is simply dropped. The turn stays as
+    the question with the interrupted marker, which is what the next load of the conversation
+    shows instead of nothing at all.
+    """
+    if turn_id is None:
+        return
+    with session_factory() as session:
+        turn = session.get(Turn, turn_id)
+        if turn is None or turn.finished:
+            return
+        _interrupt(turn)
+        session.commit()
 
 
 def _store_summary(request: Request, conversation_id: str, summary: str, through: int) -> None:
@@ -622,6 +802,17 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # the history, and the pending turn is rewritten with both halves.
     open_calls = stored.open_tool_calls
     answers = _tool_outputs(adapter.run_input.messages, open_calls)
+    # The turn being answered, which is not always the last one: the user may have asked
+    # something else before coming back to the card (ticket 29). Its own run is what resumes,
+    # so the prompt ends where that turn ended and the answers of any older card in the same
+    # request are left for their own turn.
+    card_turn = max((index for call_id in answers if (index := stored.turn_of(call_id)) is not None), default=None)
+    if card_turn is not None:
+        answers = {call_id: output for call_id, output in answers.items() if stored.turn_of(call_id) == card_turn}
+    elif _carries_tool_output(adapter.run_input.messages):
+        # Answers for a call this conversation has already closed: a second browser tab on the
+        # same card, or a card answered twice. Nothing to resume and nothing to apply again.
+        raise HTTPException(status_code=409, detail=ALREADY_ANSWERED)
     if answers:
         # What the answers mean happens here, in code, before the model is asked to continue:
         # the rules of a Question card are stored, a kept duplicate is inserted and
@@ -637,7 +828,6 @@ async def chat(request: Request, conversation_id: str) -> Response:
             model_settings=state.subagent_settings,
         )
     results = DeferredToolResults(calls=dict(answers)) if answers else None
-    replaces = stored.last_turn_id if answers else None
     # The half of a turn that resumes from an answered card has nothing to work out: the answers
     # are applied, so it says what happened and asks the next question. It runs with reasoning
     # off for that reason, and because the fast model collapsed into a repetition loop when it
@@ -650,7 +840,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # stored per conversation and read by `import_file`, and only chips travel into the
     # transcript. The position they are stored under is the turn being written, which a
     # rewritten turn keeps, so answering a card does not lose the chip.
-    turn_position = max(0, len(stored.turns) - 1) if answers else len(stored.turns)
+    turn_position = stored.turns[card_turn].position if card_turn is not None else len(stored.turns)
     try:
         uploads = take_uploads(adapter.run_input.messages)
         # A turn with nothing in it is not a turn: an empty box, a message of only spaces, or a
@@ -668,14 +858,25 @@ async def chat(request: Request, conversation_id: str) -> Response:
     except AttachmentRejected as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    # The turn exists from here on, without its end marker, so a reload or a restart during the
+    # answer still finds the question. Answering a card reopens the turn that card parked
+    # instead, since that is the turn this run rewrites.
+    if card_turn is not None:
+        replaces = stored.turn_ids[card_turn]
+        reopen_turn(state.session_factory, replaces)
+    else:
+        replaces = open_turn(
+            state.session_factory, conversation_id, slot=slot, ui_messages=adapter.run_input.messages
+        )
+
     # Narration is pushed into the same queue the agent's chunks travel through, so a
     # sub-agent's line reaches the client while the tool is still running.
     queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
     narration = Narration(queue=queue)
-    if answers:
+    if card_turn is not None:
         # The pending half of the turn already has tool steps; new narration follows them.
         narration.tools = sum(
-            len(m.tool_calls) for m in stored.turns[-1].messages if isinstance(m, ModelResponse)
+            len(m.tool_calls) for m in stored.turns[card_turn].messages if isinstance(m, ModelResponse)
         )
 
     deps = ChatDeps(
@@ -701,12 +902,31 @@ async def chat(request: Request, conversation_id: str) -> Response:
         # the answer above them is written in (`finquery.followups.language_line`).
         profile = session.get(Profile, profile_id)
         answer_language = profile.answer_language if profile else "follow"
-    prompt = await _prompt_for(request, conversation_id, stored.turns, summary, summary_through, memory_block)
+    # The prompt ends where the turn being written ends. For a typed message that is the whole
+    # conversation; for an answered card it is the turn that card parked, because the run
+    # resumes from the response the call is on and the framework looks for that call on the
+    # last response it is given. Anything the user asked in between stays in the transcript and
+    # in every later prompt, it is simply not part of the run being resumed.
+    if card_turn is None:
+        prompt = await _prompt_for(request, conversation_id, stored.turns, summary, summary_through, memory_block)
+    else:
+        # The rolling summary may already stand in for the turn the card is on, and a prompt
+        # with the pending call summarized away is a prompt the run cannot resume from at all.
+        # So the marker is read one turn short of the card for this run only, and nothing is
+        # compressed here: this run already happened, and moving the marker the rest of the
+        # conversation is assembled from is not its business.
+        through = min(summary_through, stored.turns[card_turn].position - 1)
+        prompt = assemble(stored.turns[: card_turn + 1], summary, through, memory_block)
     history = prompt.history
     # Where the turn being written starts in the run's messages. Answering a deferred call
-    # continues the pending turn, so it starts where that turn started, not at the end of the
-    # prompt. Compression never folds the pending turn away: it is the newest one.
-    turn_start = max(0, len(history) - stored.last_turn_length) if answers else len(history)
+    # continues the turn that parked, so it starts where that turn started, not at the end of
+    # the prompt. That turn is never folded away: it is the last one the assembly was given.
+    turn_start = len(history) if card_turn is None else max(0, len(history) - len(stored.turns[card_turn].messages))
+    # A resumed run streams into the browser's newest message, and a card the user came back to
+    # is not on it. The output chunk for that call would then have nowhere to land ("No tool
+    # invocation found for tool call ID ..."), so it is left out: the browser put the answers on
+    # the card itself before it sent them, and reads the `applied` line back with the stored turn.
+    answered_elsewhere = set(answers) if card_turn is not None and card_turn < len(stored.turns) - 1 else set()
 
     turn = RunningTurn()
     running[conversation_id] = turn
@@ -714,6 +934,10 @@ async def chat(request: Request, conversation_id: str) -> Response:
     metadata: dict[str, object] = {"model_slot": slot}
     thinking_started: float | None = None
     thinking_total = 0.0
+    # Whether this run wrote its turn out. A browser that hangs up mid-answer takes the request
+    # task down with it, so neither `on_complete` nor `on_cancel` gets to run and the open turn
+    # is closed as interrupted instead.
+    written = False
 
     # The adapter feeds the client's message in through message_history, so new_messages() would
     # miss it. Everything after the server-side history is what this request produced; the turn
@@ -727,12 +951,19 @@ async def chat(request: Request, conversation_id: str) -> Response:
         # Two post-turn steps on the fast slot, side by side: neither is worth waiting for twice.
         # Nobody is waiting on either, and a model that loops on one of them would otherwise
         # hold the finished answer hostage, so the whole pair is on a clock.
+        # Neither step is worth an answer either: the suggestions and what was worth
+        # remembering are both extras, and the sentence the user is reading is not. Anything
+        # they raise (a fast slot that is not available, a memory that will not store) is
+        # logged and costs the suggestions, never the turn.
         try:
             followups, _ = await asyncio.wait_for(
                 asyncio.gather(_followups(produced, turn_messages), _distill(produced)), POST_TURN_TIMEOUT
             )
         except TimeoutError:
             logger.warning("post-turn steps timed out after %s s", POST_TURN_TIMEOUT)
+            followups = []
+        except Exception:  # noqa: BLE001 - an extra must never cost the answer
+            logger.warning("a post-turn step failed", exc_info=True)
             followups = []
         # A card a tool built and the model narrated instead of showing is shown here, so the
         # run parks on it exactly as if the model had called `ask_user` itself.
@@ -763,6 +994,8 @@ async def chat(request: Request, conversation_id: str) -> Response:
         yield MessageMetadataChunk(message_metadata=metadata)
 
     def store(turn_messages: list[ModelMessage], data_parts: Sequence[DataUIPart]) -> None:
+        nonlocal written
+        written = True
         # The turn's id goes back to the client in the metadata chunk that follows, so the
         # thumbs on this answer can name the turn they rate without a reload.
         metadata["turn_id"] = persist_turn(
@@ -883,7 +1116,14 @@ async def chat(request: Request, conversation_id: str) -> Response:
                 if kind == "end":
                     return
                 if kind == "error":
-                    raise item
+                    # Whatever went wrong inside the run (a model that returned nothing, a tool
+                    # that fell over, a provider that refused) leaves the framework's own
+                    # exception text as the error the transcript prints. That is never a
+                    # sentence anyone can act on, so it goes to the log and the user gets one
+                    # that is. The question itself is kept: the turn is closed as interrupted.
+                    logger.error("the turn failed", exc_info=item)
+                    yield ErrorChunk(error_text=TURN_FAILED)
+                    return
                 # Reasoning duration is measured here because no model reports it. Narration is
                 # not the model thinking, so it never enters the measurement.
                 if item.type == "reasoning-start" and thinking_started is None:
@@ -899,6 +1139,15 @@ async def chat(request: Request, conversation_id: str) -> Response:
                     if tail := thinking.flush():
                         yield ReasoningDeltaChunk(id=item.id, delta=tail)
                     close_thinking()
+                elif item.type == "error":
+                    # The framework's own exception text, on its way to being printed in the
+                    # transcript ("Stream function must return at least one item"). Nobody can
+                    # act on that, so it goes to the log and one sentence goes to the reader.
+                    # The question itself survives: the open turn is closed as interrupted.
+                    logger.error("the turn failed: %s", item.error_text)
+                    item = ErrorChunk(error_text=TURN_FAILED)
+                elif item.type == "tool-output-available" and item.tool_call_id in answered_elsewhere:
+                    continue
                 elif item.type == "tool-input-available":
                     # Which tool step a narration block belongs to, for the reload.
                     narration.tools += 1
@@ -917,6 +1166,8 @@ async def chat(request: Request, conversation_id: str) -> Response:
         finally:
             pump.cancel()
             running.pop(conversation_id, None)
+            if not written:
+                close_turn_if_open(state.session_factory, replaces)
             turn.finished.set()
 
     return adapter.streaming_response(stream())

@@ -745,3 +745,36 @@ async def test_an_import_of_another_profile_cannot_be_deleted(
 
     assert len(await rows_of(client, profile_id)) == 3
     assert (await import_record(client, profile_id, record["id"]))["id"] == record["id"]
+
+
+async def test_a_duplicate_card_answered_after_its_import_was_deleted_writes_nothing(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """The candidates went with the import, so the answers have nothing to decide about.
+
+    A decision means what the stored candidate says it means, never what the card the model
+    retyped says, so a card whose candidates are gone applies nothing at all rather than
+    inserting bookings out of the row the browser sent back. The turn still finishes.
+    """
+    scripts.fast = script("Those bookings are no longer in this profile.")
+    await commit(client, profile_id, upload_bytes(SIX_FILE, mini_csv(SIX[:3])))
+    waiting = await commit(client, profile_id, upload_bytes(SIX_FILE, mini_csv(SIX[:3])))
+    opened = (
+        await client.post(f"/api/imports/{waiting['id']}/review-conversation", json={"profile_id": profile_id})
+    ).json()
+    card = (await transcript(client, opened["conversation_id"]))["messages"][1]["parts"][1]["input"]
+
+    await delete_import(client, profile_id, waiting["id"])
+
+    answered = await answers_for(
+        client,
+        opened["conversation_id"],
+        {"answers": [{"ref": row["ref"], "value": "keep", "text": None} for row in card["rows"]]},
+    )
+
+    assert answered.status_code == 200, answered.text
+    # Nothing was applied, so nothing is claimed: the output is the answers as they came in.
+    output = outputs_of(parse_sse(answered.text))[0]
+    assert output.get("applied") is None
+    # And no booking was written from the card the browser sent back.
+    assert len(await rows_of(client, profile_id)) == 3

@@ -1,11 +1,14 @@
 """Context compression at the HTTP seam, with a budget small enough to cross in a few turns."""
 
+import json
 from collections.abc import AsyncIterator
 
 import httpx
 import pytest
 from pydantic_ai.messages import ModelMessage
-from pydantic_ai.models.function import AgentInfo
+from pydantic_ai.models.function import AgentInfo, DeltaToolCall
+
+from finquery.context import MAX_SUMMARY_CHARS
 
 from .conftest import (
     Chat,
@@ -215,3 +218,81 @@ async def test_an_empty_summary_is_rejected(client: httpx.AsyncClient) -> None:
     conversation_id = await new_conversation(client, await default_profile_id(client))
     response = await client.patch(f"/api/conversations/{conversation_id}", json={"summary": "   \n "})
     assert response.status_code == 422
+
+
+async def test_a_summary_edited_past_its_ceiling_is_cut_rather_than_refused(
+    client: httpx.AsyncClient,
+) -> None:
+    """The summary exists to save context, so it has a ceiling. Pasting past it is not an error."""
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+
+    response = await client.patch(f"/api/conversations/{conversation_id}", json={"summary": "a" * 5000})
+
+    assert response.status_code == 200, response.text
+    stored = (await client.get(f"/api/conversations/{conversation_id}")).json()["summary"]
+    assert len(stored) == MAX_SUMMARY_CHARS
+
+
+async def test_a_card_the_summary_has_reached_is_still_answerable(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+) -> None:
+    """A Question card left open while the conversation grows past the threshold.
+
+    The rolling summary stands in for the turns older than the last six, and the turn the card
+    is on is one of them by the time the user comes back to it. A prompt with the pending call
+    summarized away is a prompt the run cannot be resumed from at all, so the marker is read
+    one turn short of the card for that one run. The card is answerable however long the user
+    took (ticket 29 with ticket 12 in the way).
+    """
+    recorder = Recorder()
+    card = {"title": "Which category do these belong to?", "options": [{"label": "Dining", "value": "Dining"}]}
+
+    async def asks_then_answers(messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[object]:
+        if not recorder.prompts and not is_followup_request(messages) and not is_distillation_request(messages):
+            recorder.prompts.append(messages)
+            yield {0: DeltaToolCall(name="ask_user", json_args=json.dumps(card))}
+            return
+        async for item in recorder(messages, info):
+            yield item
+
+    scripts.fast = asks_then_answers
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+    await chat(conversation_id, "Categorize what I just imported.")
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    pending = next(part for part in detail["messages"][1]["parts"] if part["type"] == "tool-ask_user")
+
+    # Nine more turns, which takes the summary marker past the turn the card is on.
+    await drive(chat, conversation_id, 9)
+    reloaded = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert reloaded["summarized_turns"] >= 2, "the card's own turn is behind the divider now"
+
+    resumed = await client.post(
+        f"/api/conversations/{conversation_id}/chat",
+        json={
+            "id": conversation_id,
+            "trigger": "submit-message",
+            "messages": [
+                {
+                    "id": detail["messages"][1]["id"],
+                    "role": "assistant",
+                    "parts": [
+                        {
+                            "type": "tool-ask_user",
+                            "toolCallId": pending["toolCallId"],
+                            "state": "output-available",
+                            "input": pending["input"],
+                            "output": {"answers": [{"ref": "", "value": "Dining", "text": None}]},
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+
+    assert resumed.status_code == 200, resumed.text
+    # The card's own turn was in the prompt the resumed run was given, whatever the marker says.
+    assert "Categorize what I just imported." in recorder.user_prompts()
+    # And the marker itself was left alone: the rest of the conversation is assembled from it.
+    after = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    assert after["summarized_turns"] == reloaded["summarized_turns"]
+    assert [m["role"] for m in after["messages"]] == ["user", "assistant"] * 10

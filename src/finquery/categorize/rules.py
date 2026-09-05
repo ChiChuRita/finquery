@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from finquery.ask_user import AskAnswer, AskRow
+from finquery.ask_user import Applied, AskAnswer, AskRow
 from finquery.categorize.merchants import contains, fold, merchant_of
 from finquery.db import Category, CategoryRule, Subcategory, Transaction
 
@@ -237,9 +237,27 @@ def set_rule(
     return outcome
 
 
+def _rules_sentence(applied: int, failed: int, skipped: int) -> str:
+    """The one line to write about a card that has just been applied, counted here.
+
+    Handed to the model as `say`, because a model given a finished line writes it back word for
+    word: the resumed half of a card turn listed every merchant it had applied as a bullet list
+    above the next card, which the card below already said (left by ticket 30). The counts are
+    the same ones the `applied` line is built from, so the two can never disagree.
+    """
+    parts = [f"{applied} merchant now has a rule" if applied == 1 else f"{applied} merchants now have rules"]
+    if failed:
+        parts.append("1 could not be stored" if failed == 1 else f"{failed} could not be stored")
+    if skipped:
+        parts.append("1 is still to decide" if skipped == 1 else f"{skipped} are still to decide")
+    if len(parts) == 1:
+        return f"{parts[0]}."
+    return f"{', '.join(parts[:-1])} and {parts[-1]}."
+
+
 def apply_answers(
     session: Session, profile_id: str, rows: Sequence[AskRow], answers: Sequence[AskAnswer]
-) -> str | None:
+) -> Applied | None:
     """Turn every answered row of a Question card into a category rule, here in code.
 
     This is the whole point of the card: the user's decision is applied by `set_rule` before
@@ -247,8 +265,9 @@ def apply_answers(
     the fast model to make one tool call per answer is what looped for minutes and stored
     nothing (review of 2026-09-04).
 
-    The line it returns goes back as part of the tool result, so the model summarizes what
-    happened instead of working it out. `None` means nothing was decided (every row skipped).
+    `line` goes onto the card the moment the answers are applied and `say` is the one sentence
+    the model is asked to write instead of repeating it. `None` means nothing was decided
+    (every row skipped).
     """
     labels = {row.ref: row.label for row in rows}
     answered: set[str] = set()
@@ -277,4 +296,4 @@ def apply_answers(
         said.append("Could not apply: " + "; ".join(failed))
     if skipped:
         said.append("Left for later: " + ", ".join(skipped))
-    return ". ".join(said) + "."
+    return Applied(line=". ".join(said) + ".", say=_rules_sentence(len(applied), len(failed), len(skipped)))

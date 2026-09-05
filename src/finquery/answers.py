@@ -77,7 +77,7 @@ def _as_applied(line: str | None) -> Applied | None:
 
 
 async def _category_rules(ctx: ApplyContext) -> Applied | None:
-    return _as_applied(apply_category_rules(ctx.session, ctx.profile_id, ctx.rows, ctx.answers))
+    return apply_category_rules(ctx.session, ctx.profile_id, ctx.rows, ctx.answers)
 
 
 async def _duplicate_decisions(ctx: ApplyContext) -> Applied | None:

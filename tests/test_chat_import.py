@@ -114,9 +114,10 @@ def _returns(messages: list[ModelMessage], name: str) -> list[dict[str, Any]]:
 def importing(file_name: str, **extra: Any):
     """A chat model that imports the attached file and then does what the tool asked for.
 
-    It never states a figure of its own: the summary it answers with is the one the tool
-    counted, and the card it asks with is the one the tool built. That is the contract the
-    system prompt describes, scripted.
+    It never states a figure of its own: the sentence it answers with is the `say` line the
+    tool counted (never the `summary`, which the step above already prints), and the card it
+    asks with is the one the tool built. That is the contract the system prompt describes,
+    scripted.
     """
 
     async def fn(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
@@ -139,7 +140,7 @@ def importing(file_name: str, **extra: Any):
             # A card about the merchants follows unless one was already answered about a row:
             # the mapping card is answered with an empty ref, a Question card with a merchant.
             asked = any(a.get("ref") for card in cards for a in card.get("answers", []))
-            yield latest["summary"]
+            yield latest["say"]
             if latest["questions"] and not asked:
                 yield _call(1, "ask_user", **_card_from(latest["questions"]))
             return
@@ -247,9 +248,14 @@ async def test_a_csv_dropped_into_the_chat_is_imported_and_categorized(
     assert output["categorized"]["needs_review"] == 25
     assert f"{TOTAL_ROWS} of {TOTAL_ROWS} bookings" in output["summary"]
     assert [question["pattern"] for question in output["questions"]] == UNCERTAIN
+    # What the assistant is given to write is what is left to do, counted here. The summary is
+    # already printed in the step above it, and writing it out again is what the end-to-end run
+    # of 2026-09-05 saw under the PDF import (p3).
+    assert output["say"] == "4 merchants still need a category."
 
-    # The assistant said the summary the tool counted and asked about the rest in one card.
-    assert f"{TOTAL_ROWS} of {TOTAL_ROWS} bookings" in answer(chunks)
+    # So the prose under the step says what is left, not the summary over again.
+    assert answer(chunks) == "4 merchants still need a category."
+    assert f"{TOTAL_ROWS} of {TOTAL_ROWS} bookings" not in answer(chunks)
     assert [row["ref"] for row in cards_in(chunks)[0]["input"]["rows"]] == UNCERTAIN
 
     assert len(await rows_of(client, profile_id)) == TOTAL_ROWS
