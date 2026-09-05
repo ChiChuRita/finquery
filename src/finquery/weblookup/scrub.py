@@ -89,7 +89,7 @@ class MerchantToken:
 
     text: str
     reason: str | None = None
-    """Why there is no token, in one sentence the assistant can repeat to the user."""
+    """Why there is no token: one whole sentence, because it is what the transcript prints."""
 
     def __bool__(self) -> bool:
         return bool(self.text)
@@ -152,13 +152,18 @@ def scrub(description: str, counterparty: str | None = None) -> MerchantToken:
     if looks_like_a_person(description, counterparty):
         return MerchantToken(
             "",
-            "that looks like a person's name, and a person's name never leaves this machine",
+            "That booking names a person, and a person's name never leaves this machine, so "
+            "nothing was looked up.",
         )
     key = merchant_of(description, counterparty).key
     words = [word for word in key.split() if _informative(word)][:MAX_TOKEN_WORDS]
     token = " ".join(words)[:MAX_TOKEN_CHARS].strip()
     if len(token) < MIN_TOKEN_CHARS:
-        return MerchantToken("", "there is no merchant name in that booking, only numbers and dates")
+        return MerchantToken(
+            "",
+            "There is no merchant name in that booking, only numbers and dates, so there was "
+            "nothing to look up.",
+        )
     return MerchantToken(token)
 
 

@@ -29,7 +29,7 @@ from pydantic_ai.settings import ModelSettings
 from finquery.categorize.subagent import taxonomy_block
 from finquery.weblookup.client import Hit, SearchUnavailable, WebClient
 from finquery.weblookup.scrub import MerchantToken, safe_query
-from finquery.weblookup.store import OK, Source
+from finquery.weblookup.store import OK, Source, WebLookupOff
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +113,11 @@ lookup_agent = Agent(
 
 
 class Journal(Protocol):
-    """Where a request is written before it is made. `finquery.weblookup.store` implements it."""
+    """Where a request is written before it is made. `finquery.weblookup.store` implements it.
+
+    `before` raises `WebLookupOff` when the profile has switched web lookup off since this loop
+    started, which is how a running loop stops sending mid-way.
+    """
 
     def before(self, kind: str, target: str) -> str: ...
 
@@ -211,6 +215,10 @@ async def run_loop(
     # its finish too, where it means nothing can be filed. Handing it back twice would risk
     # losing a good summary, so a second zero is taken as it is: the household is asked.
     nudged = False
+    # The last thing a search backend said, so a lookup that never got a single search through
+    # reports that instead of "spent its budget", which names the wrong cause.
+    search_failure: str | None = None
+    failed_searches = 0
 
     for _ in range(MAX_STEPS):
         prompt = lookup_prompt(
@@ -258,12 +266,17 @@ async def run_loop(
                 steps.append(Step(SEARCH, decision.query, "  refused: no searches left in the budget"))
                 continue
             query = safe_query(decision.query, token)
-            handle = journal.before(SEARCH, query)
+            try:
+                handle = journal.before(SEARCH, query)
+            except WebLookupOff as exc:
+                outcome.error = str(exc)
+                return outcome
             outcome.searches += 1
             try:
                 hits = await client.search(query)
             except SearchUnavailable as exc:
                 journal.after(handle, str(exc)[:120])
+                search_failure, failed_searches = str(exc), failed_searches + 1
                 steps.append(Step(SEARCH, query, f"  failed: {exc}"))
                 continue
             journal.after(handle, OK)
@@ -280,7 +293,11 @@ async def run_loop(
             if outcome.fetches >= MAX_FETCHES:
                 steps.append(Step(FETCH, url, "  refused: no page fetches left in the budget"))
                 continue
-            handle = journal.before(FETCH, url)
+            try:
+                handle = journal.before(FETCH, url)
+            except WebLookupOff as exc:
+                outcome.error = str(exc)
+                return outcome
             outcome.fetches += 1
             try:
                 page = await client.fetch(url)
@@ -307,6 +324,10 @@ async def run_loop(
             )
         )
 
-    outcome.error = "The lookup spent its budget without reaching a conclusion."
+    outcome.error = (
+        f"No web search went through: {search_failure}. Nothing was learned about this merchant."
+        if failed_searches and failed_searches == outcome.searches
+        else "The lookup spent its budget without reaching a conclusion."
+    )
     outcome.sources = _sources_for(Decision(action=FINISH, confidence=0.0), seen, fetched)
     return outcome
