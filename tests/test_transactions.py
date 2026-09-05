@@ -163,10 +163,25 @@ async def test_split_children_must_sum_to_their_parent(client: httpx.AsyncClient
 
     refused = await client.put(
         f"/api/transactions/{parent['id']}/splits",
-        json=scoped(profile_id, children=[{"description": "Groceries", "amount_cents": total + 100}]),
+        json=scoped(
+            profile_id,
+            children=[
+                {"description": "Groceries", "amount_cents": total + 100},
+                {"description": "Household", "amount_cents": -50},
+            ],
+        ),
     )
     assert refused.status_code == 400
     assert "add up to" in refused.json()["detail"]
+    assert (await splits(client, profile_id, parent["id"])).json() == []
+
+    # One leg is not a split, whichever door it arrives through.
+    single = await client.put(
+        f"/api/transactions/{parent['id']}/splits",
+        json=scoped(profile_id, children=[{"description": "Groceries", "amount_cents": total}]),
+    )
+    assert single.status_code == 400
+    assert single.json()["detail"].startswith("A split needs at least two legs.")
     assert (await splits(client, profile_id, parent["id"])).json() == []
 
     household = total // 3

@@ -475,6 +475,8 @@ def _resolve_taxonomy_change(session: Session, profile_id: str, change: Taxonomy
         new_name = (change.new_name or "").strip()
         if not new_name:
             raise TransactionEditError("A rename needs the new name.")
+        if new_name == resolved.name:
+            raise TransactionEditError(f"{resolved.name} is already called that, so there is nothing to rename.")
         clash = (
             find_subcategory(session, category.id, new_name) if subcategory else find_category(session, profile_id, new_name)
         )
@@ -652,6 +654,13 @@ def _preview(session: Session, profile_id: str, title: str, payload: Payload, ro
         )
         summary = f"{parent.description} of {eur(parent.amount_cents)} EUR becomes {len(payload.legs)} legs."
         note = "Queries and charts count the legs of a split, never the booking they came from."
+        # Splitting a booking that is already split replaces its legs rather than adding to
+        # them, so the card says so before Apply instead of after.
+        existing = session.scalar(
+            select(func.count(Transaction.id)).where(Transaction.parent_id == parent.id)
+        )
+        if existing:
+            note = f"This booking is already split, so its {existing} current legs are replaced. {note}"
     else:
         assert payload.taxonomy is not None
         taxonomy = payload.taxonomy

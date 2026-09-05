@@ -722,3 +722,189 @@ async def test_a_subcategory_the_model_wrote_as_the_word_none_is_stored_as_no_su
     assert applied.status_code == 200, applied.text
     rows = (await listing(client, profile_id, q="netflix", limit=500))["rows"]
     assert {row["subcategory"] for row in rows} == {None}
+
+# The awkward corners of a data operation: a second Apply, a second Undo, a card whose rows are
+# already gone, and the taxonomy changes that mean nothing.
+
+
+async def test_a_changeset_can_only_be_applied_discarded_and_undone_once(
+    client: httpx.AsyncClient, profile_id: str
+) -> None:
+    """Every second press says which of the four states the card is in, in one sentence."""
+    await import_synthetic(client, profile_id)
+    preview = await propose(
+        client,
+        profile_id,
+        {"kind": "recategorize", "title": "Netflix", "where": {"q": "netflix"}, "category": "Subscriptions"},
+    )
+    changeset_id = preview["id"]
+
+    applied = await client.post(f"/api/changesets/{changeset_id}/apply", json={"profile_id": profile_id})
+    assert applied.status_code == 200, applied.text
+    twice = await client.post(f"/api/changesets/{changeset_id}/apply", json={"profile_id": profile_id})
+    assert twice.status_code == 400
+    assert twice.json()["detail"] == "This changeset has already been applied, so it cannot be applied."
+
+    undone = await client.post(f"/api/changesets/{changeset_id}/undo", json={"profile_id": profile_id})
+    assert undone.status_code == 200, undone.text
+    assert undone.json()["status"] == "discarded"
+    rows = (await listing(client, profile_id, q="netflix", limit=500))["rows"]
+    assert {row["category"] for row in rows} == {None}, "undo put all twelve rows back"
+
+    for action, verb in (("undo", "undone"), ("apply", "applied"), ("discard", "discarded")):
+        again = await client.post(f"/api/changesets/{changeset_id}/{action}", json={"profile_id": profile_id})
+        assert again.status_code == 400, again.text
+        assert again.json()["detail"] == f"This changeset was discarded, so it cannot be {verb}."
+    # Undoing twice did not move the data a second time either.
+    assert {row["category"] for row in (await listing(client, profile_id, q="netflix", limit=500))["rows"]} == {None}
+
+
+async def test_a_taxonomy_change_that_would_do_nothing_is_refused(
+    client: httpx.AsyncClient, profile_id: str
+) -> None:
+    """A card with nothing on it to decide is never drawn: the refusal says why instead."""
+    for intent, detail in (
+        (
+            {"operation": "merge", "category": "Groceries", "into": "Groceries"},
+            "A category cannot be merged into itself.",
+        ),
+        (
+            {"operation": "merge", "category": "Groceries", "subcategory": "Supermarket", "into": "Supermarket"},
+            "A subcategory cannot be merged into itself.",
+        ),
+        (
+            {"operation": "rename", "category": "Groceries", "new_name": "Groceries"},
+            "Groceries is already called that, so there is nothing to rename.",
+        ),
+        (
+            {"operation": "add", "category": "Groceries"},
+            "This profile already has a category called Groceries.",
+        ),
+    ):
+        refused = await client.post(
+            "/api/changesets",
+            json={"profile_id": profile_id, "intent": {"kind": "taxonomy", "title": "Nothing", "taxonomy": intent}},
+        )
+        assert refused.status_code == 400, refused.text
+        assert refused.json()["detail"] == detail
+
+
+async def test_deleting_a_category_in_use_leaves_its_bookings_needing_review(
+    client: httpx.AsyncClient, profile_id: str
+) -> None:
+    await import_synthetic(client, profile_id)
+    categories = await taxonomy(client, profile_id)
+    row = (await listing(client, profile_id, q="netflix", limit=1))["rows"][0]
+    await client.patch(
+        f"/api/transactions/{row['id']}", json=scoped(profile_id, category_id=categories["Leisure"]["id"])
+    )
+
+    preview = await propose(
+        client,
+        profile_id,
+        {"kind": "taxonomy", "title": "Drop Leisure", "taxonomy": {"operation": "delete", "category": "Leisure"}},
+    )
+    assert preview["summary"] == "Deletes the category Leisure."
+    assert preview["note"] == "1 booking loses it and becomes Needs review."
+    assert after(preview, "category") == {None}
+
+    applied = await client.post(f"/api/changesets/{preview['id']}/apply", json={"profile_id": profile_id})
+    assert applied.status_code == 200, applied.text
+    assert "Leisure" not in await taxonomy(client, profile_id)
+    moved = (await listing(client, profile_id, q="netflix", limit=1))["rows"][0]
+    assert moved["category"] is None, "the booking is Needs review, not deleted"
+
+
+async def test_splitting_a_booking_that_is_already_split_says_its_legs_are_replaced(
+    client: httpx.AsyncClient, profile_id: str
+) -> None:
+    """Applying replaces the legs rather than adding to them, so the card says so before Apply."""
+    await import_synthetic(client, profile_id)
+    row = (await listing(client, profile_id, q="edeka", limit=1))["rows"][0]
+
+    def legs(count: int) -> list[dict[str, Any]]:
+        share = row["amount_cents"] // count
+        rest = row["amount_cents"] - share * (count - 1)
+        return [{"description": f"Teil {index + 1}", "amount_cents": share} for index in range(count - 1)] + [
+            {"description": f"Teil {count}", "amount_cents": rest}
+        ]
+
+    first = await propose(
+        client, profile_id, {"kind": "split", "title": "Zwei Teile", "transaction_ids": [row["id"]], "legs": legs(2)}
+    )
+    assert first["note"] == "Queries and charts count the legs of a split, never the booking they came from."
+    first_applied = await client.post(f"/api/changesets/{first['id']}/apply", json={"profile_id": profile_id})
+    assert first_applied.status_code == 200, first_applied.text
+
+    second = await propose(
+        client, profile_id, {"kind": "split", "title": "Drei Teile", "transaction_ids": [row["id"]], "legs": legs(3)}
+    )
+    assert second["note"].startswith("This booking is already split, so its 2 current legs are replaced.")
+    second_applied = await client.post(f"/api/changesets/{second['id']}/apply", json={"profile_id": profile_id})
+    assert second_applied.status_code == 200, second_applied.text
+
+    children = (await client.get(f"/api/transactions/{row['id']}/splits", params={"profile_id": profile_id})).json()
+    assert len(children) == 3, "the legs were replaced, not added to"
+    assert sum(child["amount_cents"] for child in children) == row["amount_cents"]
+
+
+async def test_a_split_of_one_leg_is_refused_wherever_it_is_asked_for(
+    client: httpx.AsyncClient, profile_id: str
+) -> None:
+    await import_synthetic(client, profile_id)
+    row = (await listing(client, profile_id, q="edeka", limit=1))["rows"][0]
+
+    refused = await client.post(
+        "/api/changesets",
+        json={
+            "profile_id": profile_id,
+            "intent": {
+                "kind": "split",
+                "title": "Ein Teil",
+                "transaction_ids": [row["id"]],
+                "legs": [{"description": "Alles", "amount_cents": row["amount_cents"]}],
+            },
+        },
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "A split needs at least two legs."
+
+
+async def test_deleting_an_import_takes_the_legs_of_its_split_bookings_with_it(
+    client: httpx.AsyncClient, profile_id: str
+) -> None:
+    """The way back out of an import into the wrong profile, after the rows were worked on."""
+    await import_synthetic(client, profile_id)
+    categories = await taxonomy(client, profile_id)
+    row = (await listing(client, profile_id, q="edeka", limit=1))["rows"][0]
+    split = await propose(
+        client,
+        profile_id,
+        {
+            "kind": "split",
+            "title": "Zwei Teile",
+            "transaction_ids": [row["id"]],
+            "legs": [
+                {"description": "Lebensmittel", "amount_cents": row["amount_cents"] + 500},
+                {"description": "Haushalt", "amount_cents": -500},
+            ],
+        },
+    )
+    applied = await client.post(f"/api/changesets/{split['id']}/apply", json={"profile_id": profile_id})
+    assert applied.status_code == 200, applied.text
+    other = (await listing(client, profile_id, q="netflix", limit=1))["rows"][0]
+    await client.patch(
+        f"/api/transactions/{other['id']}", json=scoped(profile_id, category_id=categories["Leisure"]["id"])
+    )
+
+    imports = (await client.get("/api/imports", params={"profile_id": profile_id})).json()
+    assert len(imports) == 1
+    deleted = await client.delete(f"/api/imports/{imports[0]['id']}", params={"profile_id": profile_id})
+    assert deleted.status_code == 200, deleted.text
+    assert (await listing(client, profile_id, limit=1))["total"] == 0
+    assert (await listing(client, profile_id, include_parents=True, limit=1))["total"] == 0
+
+    # The card of a change whose rows are gone says so rather than pretending it can be undone.
+    stale = await client.post(f"/api/changesets/{split['id']}/undo", json={"profile_id": profile_id})
+    assert stale.status_code == 400
+    assert stale.json()["detail"] == "This change cannot be undone."
