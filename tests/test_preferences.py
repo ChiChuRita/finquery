@@ -221,8 +221,8 @@ async def test_the_answer_ab_reruns_the_turn_read_only_and_the_pick_stores_the_p
     assert second["text"].startswith("Ausfuehrlich")
     assert second["model_slot"] == "fast"
     assert second["temperature"] > 1
-    # A second answer may look figures up and may change nothing.
-    assert seen["tools"] == ["query"]
+    # A second answer may look figures up and draw, and may change nothing.
+    assert seen["tools"] == ["query", "chart"]
     assert seen["temperature"] == second["temperature"]
     assert seen["messages"] == 1, "the same history and the same user message, nothing else"
     # The rerun is not a turn: no follow-ups, nothing remembered, nothing in the transcript.
@@ -384,3 +384,38 @@ async def test_regenerate_asks_again_until_the_second_chart_differs(
     ).json()
     assert third["code"] == LINE_CODE
     assert len(same.prompts["code"]) == 3  # type: ignore[attr-defined]
+
+
+async def test_a_second_answer_for_a_chart_turn_draws_rather_than_calling_a_tool_it_lacks(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The A/B under a thumbs down on a chart turn (e2e of 2026-09-05, M2).
+
+    It answered `500 Internal Server Error`, printed into the transcript, because the rerun
+    declared only `query` while the prompt still told the model to draw. The rerun now has the
+    tools `preferences.RERUN_TOOLS` names, and they are the same ones the refusal is derived
+    from, so the two cannot disagree again.
+    """
+    await import_synthetic(client, profile_id)
+    respond = scripted_chart(plan=LINE_PLAN, sql=MONTHLY_SQL, codes=[LINE_CODE])
+    scripts.fast = ask_chart_then_report("spending per month in 2025 as a line chart")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+    _, chunks = await chat(conversation_id, "Zeig mir die Ausgaben pro Monat als Liniendiagramm.")
+    turn_id = turn_of(chunks)
+
+    offered: dict[str, Any] = {}
+
+    async def hotter(_messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[object]:
+        offered["tools"] = [tool.name for tool in info.function_tools]
+        yield "Die Ausgaben steigen zum Jahresende hin an."
+
+    scripts.fast = hotter
+    scripts.fast_call = None
+    response = await client.post(
+        "/api/preferences/answer-alternative", json={"profile_id": profile_id, "turn_id": turn_id}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["text"].startswith("Die Ausgaben")
+    # The tool the turn used is on the rerun, which is the whole of the fix.
+    assert offered["tools"] == ["query", "chart"]

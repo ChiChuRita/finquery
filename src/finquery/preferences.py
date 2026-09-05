@@ -27,19 +27,21 @@ Rating = Literal["up", "down", "pick"]
 CHART_TOOL = "chart"
 QUERY_TOOL = "query"
 
-MUTATING_TOOLS = (
-    "propose_changeset",
-    "apply_simple_edit",
-    "set_rule",
-    "ask_user",
-    "import_file",
-    "add_transaction",
-)
-"""Tools a rerun must not repeat: they write, or they wait for a human.
+RERUN_TOOLS = ("query", "chart")
+"""The only tools a second answer may call, and therefore the only ones its turn may have used.
 
-A turn that used one of them gets no answer A/B. `query`, `chart` and `lookup_merchant` are
-read-only, so a second answer may call them again. `extract_transaction` writes only inert
-drafts and its card is an `ask_user` call, which is already in this list.
+An A/B rerun answers the same message again with a hotter model
+(`api.preferences.answer_alternative`), which declares exactly these: both are read-only, both
+draw no card, and both are what an answer's figures come from.
+
+Everything else disqualifies the turn, and the endpoint says which tool it was. That used to be
+a second, separate list of tools to refuse, and a chart turn fell straight through the gap
+between them: the rerun kept only `query` while the system prompt still named `chart`, so the
+model called a tool that was not there and the run died as a 500 whose body the transcript
+printed (e2e of 2026-09-05, M2). One list, so the two cannot drift apart again.
+
+`lookup_merchant` is read-only too and is still left out on purpose: a rerun of it would send a
+merchant token out of the machine because someone pressed a thumbs down.
 """
 
 
@@ -57,8 +59,8 @@ class TurnContent:
     """The `chart` tool outputs of the turn, by tool call id."""
     chart_hints: dict[str, str | None] = field(default_factory=dict)
     """The hints each chart call was made with, so a rerun asks for the same thing."""
-    mutating: list[str] = field(default_factory=list)
-    """Which writing or deferred tools it used, which is what disables the A/B."""
+    beyond_rerun: list[str] = field(default_factory=list)
+    """The tools it used that a rerun does not have, which is what disables the A/B."""
 
 
 def turn_messages(turn: Turn) -> list[ModelMessage]:
@@ -93,13 +95,13 @@ def read_turn(turn: Turn) -> TurnContent:
     prompts: list[str] = []
     charts: dict[str, dict[str, Any]] = {}
     hints: dict[str, str | None] = {}
-    mutating: list[str] = []
+    beyond_rerun: list[str] = []
     for message in messages:
         for part in message.parts:
             if part.part_kind == "user-prompt" and isinstance(part.content, str):
                 prompts.append(part.content)
-            elif part.part_kind == "tool-call" and part.tool_name in MUTATING_TOOLS:
-                mutating.append(part.tool_name)
+            elif part.part_kind == "tool-call" and part.tool_name not in RERUN_TOOLS:
+                beyond_rerun.append(part.tool_name)
             elif part.part_kind == "tool-call" and part.tool_name == CHART_TOOL:
                 arguments = part.args_as_dict()
                 hint = arguments.get("hints")
@@ -113,7 +115,7 @@ def read_turn(turn: Turn) -> TurnContent:
         tools=answer["tools"],
         charts=charts,
         chart_hints=hints,
-        mutating=mutating,
+        beyond_rerun=beyond_rerun,
     )
 
 
