@@ -14,15 +14,21 @@ app (ADR 0004).
 
 | File | What is in it |
 | --- | --- |
-| `sql-benchmark.json` | 76 questions: German and English, kind and difficulty, an optional conversation prefix, the reference SQL and its rows |
-| `chart-benchmark.json` | 32 chart requests: the 24 of `fixtures/chart-benchmark.json` that ticket 25 measured, plus eight more, each with the shape it should get, the shapes that would do as well, the column roles, the reference SQL and its rows |
+| `sql-benchmark.json` | 152 questions: German and English, kind and difficulty, an optional conversation prefix, the reference SQL and its rows |
+| `chart-benchmark.json` | 63 chart requests: each with the shape it should get, the shapes that would do as well, the column roles, the reference SQL and its rows |
+
+Half of each set was written by hand and half was drafted by a model and then judged one by one
+(`source: "hand"` or `"generated"`, and the generated ones also carry a `generated` tag). Every
+datapoint of both halves has been read against the data, question by question and figure by
+figure. What that found is in `validation/`, below.
 
 The questions are the ones a household really asks, and they are hard where the review of
 2026-09-05 found the models weak: relative periods ("letztes Quartal", "seit Maerz"), two periods
 compared, averages per week and per month, rankings with ties, merchants spelled the way people
-type them (`Edeak`, `dm`), categories against subcategories (Groceries against Supermarket),
-Needs review as a bucket, refunds, income and spending in one answer, follow-ups that only mean
-something after the turn before them, Denglisch, and one name the data does not carry at all.
+type them (`Edeak`, `dm`, `Gesammtbetrag`, umlauts written both ways), categories against
+subcategories (Groceries against Supermarket), Needs review as a bucket, refunds, income and
+spending in one answer, follow-ups that only mean something after the turn before them,
+Denglisch, and one name the data does not carry at all.
 
 The database is the same every time: `fixtures/synthetic/sparkasse-2025.csv` imported through
 the Sparkasse preset and categorized by the profile's rules and the merchant dictionary only,
@@ -33,6 +39,56 @@ while it is built, which is why a gold row never moves.
 `today` in each file is `2025-12-31`, and the runner builds the query prompt with it, so this
 month is December 2025, last month is November, this quarter is the fourth and last quarter is
 the third. Without that pin every relative period would ask about a year with no data in it.
+
+### What is in them
+
+The SQL set, by kind, with how many of each are hand-written, German, and held out of training:
+
+| kind | n | hand | generated | German | heldout |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| entity | 28 | 14 | 14 | 14 | 9 |
+| total | 24 | 12 | 12 | 10 | 10 |
+| breakdown | 18 | 9 | 9 | 9 | 7 |
+| period | 18 | 9 | 9 | 9 | 6 |
+| ranking | 18 | 9 | 9 | 8 | 5 |
+| comparison | 16 | 8 | 8 | 7 | 5 |
+| follow-up | 16 | 8 | 8 | 7 | 5 |
+| trend | 14 | 7 | 7 | 6 | 3 |
+| difficulty 1 | 23 | 13 | 10 | 9 | 6 |
+| difficulty 2 | 76 | 36 | 40 | 33 | 24 |
+| difficulty 3 | 53 | 27 | 26 | 28 | 20 |
+| **all** | **152** | 76 | 76 | 70 | 50 |
+
+The chart set, by shape:
+
+| shape | n | hand | generated | German | heldout |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| bar | 15 | 8 | 7 | 8 | 6 |
+| line | 10 | 5 | 5 | 5 | 4 |
+| doughnut | 8 | 4 | 4 | 5 | 2 |
+| area | 6 | 3 | 3 | 4 | 1 |
+| bar_horizontal | 6 | 3 | 3 | 2 | 2 |
+| bar_grouped | 6 | 3 | 3 | 3 | 1 |
+| bar_stacked | 6 | 3 | 3 | 2 | 1 |
+| sankey | 6 | 3 | 3 | 3 | 3 |
+| difficulty 1 | 4 | 4 | 0 | 2 | 1 |
+| difficulty 2 | 39 | 18 | 21 | 21 | 13 |
+| difficulty 3 | 20 | 10 | 10 | 9 | 6 |
+| **all** | **63** | 32 | 31 | 32 | 20 |
+
+No generated chart came out at difficulty 1: a request the drafter wrote always carried a period
+and a grouping, and calling one of those easy would have been flattery.
+
+### Train and heldout
+
+Every datapoint carries `split`, `train` or `heldout`. A model fine-tuned on examples drawn from
+the set it is then scored on is scored on its memory, so about a third of each set is kept out of
+the examples: 50 of the 152 questions and 20 of the 63 charts. The rule is
+`finquery_bench.splits`, run through `uv run python bench/split.py`, and it is written into the
+files rather than drawn at run time, so a number from the held-out half means the same thing in
+six months as it does today. It is stratified over kind (shape for charts), hand against
+generated, language and difficulty, and inside a stratum the choice is a hash of the id, so
+adding a datapoint somewhere else never moves it.
 
 ### What a datapoint holds
 
@@ -46,7 +102,8 @@ the third. Without that pin every relative period would ask about a year with no
   "prefix": [],               // earlier questions of the conversation, for a follow-up
   "tags": ["relative period", "quarter", "German"],
   "why": "Letztes Quartal is the quarter before the one today falls in, so July to September.",
-  "source": "hand",           // or "generated"
+  "source": "hand",           // or "generated", drafted by a model and then judged
+  "split": "train",           // or "heldout", about a third of each set
   "sql": "SELECT ...",        // the reference statement
   "gold": { "columns": [...], "rows": [...] }   // written by build_gold.py, never by hand
 }
@@ -105,101 +162,162 @@ Everything is reported overall, per kind (per shape for charts) and per difficul
 
 ## The baseline
 
-Both sets on OpenRouter on 2026-09-05, one datapoint after another, reasoning off. The result
-files are in `results/`.
+Both grown sets on OpenRouter on 2026-09-05, `--set all`, one datapoint after another, reasoning
+off. The result files are in `results/`, one per model, and they hold every statement, every row
+and every refusal.
 
 | set | model | n | figure match | SQL valid | shape match | columns map | language | drawn | first attempt | median s | p90 s | run |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| sql | google/gemini-3.8-flash | 76 | **92 %** | 99 % | - | - | - | - | 97 % | 2.3 | 13.0 | 5m 20s |
-| sql | qwen/qwen3.5-9b | 76 | **45 %** | 91 % | - | - | - | - | 75 % | 2.2 | 7.0 | 4m 48s |
-| chart | google/gemini-3.8-flash | 32 | **94 %** | 100 % | 97 % | 94 % | 100 % | 97 % | 97 % | 6.3 | 7.9 | 3m 26s |
-| chart | qwen/qwen3.5-9b | 32 | **41 %** | 100 % | 94 % | 69 % | 97 % | 53 % | 34 % | 9.6 | 33.2 | 7m 55s |
+| sql | google/gemini-3.8-flash | 152 | **93 %** | 98 % | - | - | - | - | 97 % | 1.9 | 3.5 | 7m 23s |
+| sql | qwen/qwen3.5-9b | 152 | **57 %** | 92 % | - | - | - | - | 79 % | 1.7 | 4.7 | 6m 38s |
+| chart | google/gemini-3.8-flash | 63 | **92 %** | 100 % | 98 % | 95 % | 100 % | 98 % | 97 % | 6.3 | 7.5 | 6m 53s |
+| chart | qwen/qwen3.5-9b | 63 | **40 %** | 100 % | 94 % | 71 % | 89 % | 60 % | 38 % | 7.5 | 11.9 | 8m 51s |
 
 Figure match per kind of question, and per difficulty:
 
 | | n | gemini-3.8-flash | qwen3.5-9b |
 | --- | ---: | ---: | ---: |
-| breakdown | 9 | 89 % | 11 % |
-| comparison | 8 | 100 % | 50 % |
-| entity | 14 | 93 % | 57 % |
-| follow-up | 8 | 88 % | 38 % |
-| period | 9 | 100 % | 44 % |
-| ranking | 9 | 100 % | 44 % |
-| total | 12 | 92 % | 50 % |
-| trend | 7 | 71 % | 57 % |
-| difficulty 1 | 13 | 100 % | 77 % |
-| difficulty 2 | 36 | 89 % | 31 % |
-| difficulty 3 | 27 | 93 % | 48 % |
+| entity | 28 | 96 % | 54 % |
+| total | 24 | 96 % | 62 % |
+| breakdown | 18 | 94 % | 67 % |
+| period | 18 | 100 % | 83 % |
+| ranking | 18 | 83 % | 67 % |
+| comparison | 16 | 100 % | 56 % |
+| follow-up | 16 | 81 % | 19 % |
+| trend | 14 | 86 % | 43 % |
+| difficulty 1 | 23 | 100 % | 78 % |
+| difficulty 2 | 76 | 91 % | 57 % |
+| difficulty 3 | 53 | 92 % | 49 % |
 
 Figure match per shape:
 
 | | n | gemini-3.8-flash | qwen3.5-9b |
 | --- | ---: | ---: | ---: |
-| line | 5 | 100 % | 80 % |
-| area | 3 | 100 % | 0 % |
-| bar | 8 | 88 % | 50 % |
-| bar_horizontal | 3 | 100 % | 33 % |
-| bar_grouped | 3 | 100 % | 0 % |
-| bar_stacked | 3 | 100 % | 67 % |
-| doughnut | 4 | 75 % | 50 % |
-| sankey | 3 | 100 % | 0 % |
+| line | 10 | 90 % | 80 % |
+| area | 6 | 67 % | 0 % |
+| bar | 15 | 87 % | 47 % |
+| bar_horizontal | 6 | 100 % | 50 % |
+| bar_grouped | 6 | 100 % | 33 % |
+| bar_stacked | 6 | 100 % | 33 % |
+| doughnut | 8 | 100 % | 12 % |
+| sankey | 6 | 100 % | 33 % |
+
+And by where a datapoint came from and which half it is in, which is the check that the grown
+half is a real measurement and not filler:
+
+| | n | gemini-3.8-flash | qwen3.5-9b |
+| --- | ---: | ---: | ---: |
+| hand-written | 108 | 92 % | 56 % |
+| generated | 107 | 93 % | 49 % |
+| train | 145 | 92 % | 57 % |
+| heldout | 70 | 94 % | 43 % |
 
 What the two runs say, beyond the headline:
 
-- **Qwen3.5 9B should not write the SQL.** 45 of 100 figures right, and difficulty 2 (a period
-  and a category at once) is worse than difficulty 3 for it, which is what a model that guesses
-  the shape of an answer looks like. The capability read of 2026-09-05 said the same after 46
-  questions through the UI; this set says it in five minutes.
-- Half of Qwen's charts never reach the screen (53 % drawn, 34 % first attempt), and the two it
-  cannot do at all are the ones that need a second dimension: every grouped bar and every
-  sankey failed. Its queries are valid SQL (100 %) and answer the wrong question.
-- Gemini's six SQL misses are worth reading, because none of them is sloppiness: it answers
-  "groceries" with a list of supermarket names instead of the profile's own `Groceries`
-  category four times (`s16`, `s32`, `s33`, `s62`), it divides a weekly average by 52 rather
-  than by the weeks the data covers (`s06`), and it once narrowed a PayPal question with a
-  category filter that matches nothing (`s58`). Every one of those is a prompt fix, not a
-  weights problem.
-- The doughnut is the only shape Gemini drops (75 %), which is the same weakness ticket 25
-  measured.
+- **The generated half is as hard as the hand-written half.** Gemini is within a point of itself
+  on both (92 % against 93 %) and Qwen is seven points worse on the generated one, so growing the
+  set did not water it down. The held-out third is not a soft third either: Qwen scores 43 % on
+  it against 57 % on the training two thirds, which is the number to watch once an adapter has
+  been trained on the training half.
+- **Qwen3.5 9B still should not write the SQL**, and the bigger set is what makes that
+  sentence worth anything. On the 76 questions of the old set it scored 45 %, then 58 %, then
+  50 % on three runs of the same weights, so nothing under about ten points could be read there
+  at all. 57 % of 152 is the same model with half the error bar. Its follow-ups are the collapse
+  (19 % of 16): three words that inherit a period and a filter are the thing a 9B model cannot
+  carry.
+- **Half of Qwen's charts still never reach the screen** (60 % drawn, 38 % first attempt, 2.08
+  model calls per chart against Gemini's 1.02), and the doughnut is now its worst shape (12 %),
+  where the area chart is the one it cannot do at all.
+- **Gemini's sixteen misses are one habit and a handful of slips.** Six of them answer a topic
+  the household has a category for with a list of merchant names it wrote itself: `s06`, `s16`,
+  `s32`, `s62`, `g002-follow-up` and `g007-follow-up` all match `%rewe%`, `%aldi%` or
+  `%dm drogerie%` where `category = 'Groceries'` or the `Drugstore` subcategory was asked for,
+  and each one silently loses the drugstore, the bakery or Rossmann. Two more filter on a
+  category the data does not carry (`category = 'Income'`, `category = 'Transfers'`) and get no
+  rows at all. Three ran out of output tokens before writing a statement. The last five are real
+  slips: one statement with no sign filter, so the salary came back as the largest expense
+  (`s46`), two cumulative charts drawn as plain monthly series (`04`, `g003-area`), one
+  two-month comparison answered with a category breakdown (`18`), and one chart that folded its
+  own tail into an `Other` row the prompt tells it never to ask for (`g007-bar`).
+- Every one of those is a prompt fix rather than a weights problem, and the set now measures it
+  on 215 datapoints instead of 108.
 
 ### What a full run costs
 
 | | gemini-3.8-flash | qwen3.5-9b |
 | --- | ---: | ---: |
-| SQL set, 76 datapoints | 5m 20s, 4.2 s each | 4m 48s, 3.8 s each |
-| chart set, 32 datapoints | 3m 26s, 6.4 s each | 7m 55s, 14.8 s each |
-| both sets | **8m 46s** | **12m 43s** |
+| SQL set, 152 datapoints | 7m 23s, 2.9 s each | 6m 38s, 2.6 s each |
+| chart set, 63 datapoints | 6m 53s, 6.6 s each | 8m 51s, 8.4 s each |
+| both sets, wall clock | **14m 16s** | **15m 30s** |
 
-A SQL datapoint is one model call (1.01 on average for Gemini, 1.24 for Qwen, which pays for
-its refused statements), a chart is three to five. The query prompt is about 9.000 characters, so the SQL set is roughly 190k input tokens
-and the chart set two to three times that: a full run on a hosted flash model is cents, not
-euros. The runner does not meter tokens, so that is arithmetic over the prompts and not a bill.
-Running the four combinations above as four processes at once takes about as long as the
-slowest one.
+A SQL datapoint is one model call (1.01 on average for Gemini, 1.21 for Qwen, which pays for its
+refused statements), a chart is three to five (1.02 and 2.08 repair rounds on top). OpenRouter's
+credit meter moved 1,27 USD over both runs together, and that figure also carries the forty or so
+datapoints of two aborted starts, so a full run of both sets is around fifty to sixty cents per
+model: cents, not euros. Running the two models as two processes at once takes about as long as
+the slower one.
 
-## Validate, then grow
+## Validated, then grown
 
-A set nobody has read is not gold, it is a guess with a schema. The loop is:
+A set nobody has read is not gold, it is a guess with a schema. On 2026-09-05 every datapoint of
+both sets was read against the data, one at a time, by a judge who was told to be unforgiving:
 
-1. **Cut a sample**: `uv run finquery-bench sample --seed 7` writes
-   `bench/validate/sample.json`, a stratified 30: 20 SQL datapoints spread over the eight kinds
-   and 10 charts spread over the shapes.
-2. **Read them by hand** on the validation page (below). Each one shows the question, its tags,
-   what makes it hard, the reference SQL and the expected rows as a table, and for a chart its
-   shape and column roles. Mark **Correct**, **Wrong** or **Unsure** and leave a note.
-   Labels live in the browser's localStorage under a key that carries the seed, and **Export
-   JSON** writes them out.
-3. **Fix what the review found** in the JSON, then `uv run python bench/build_gold.py` to
-   recompute the rows. The build fails loudly on a statement the guard refuses, one SQLite
-   cannot run and one that answers nothing, with the datapoint's id.
-4. **Grow the set** only then: `uv run python bench/generate.py --n 10 --kind entity` drafts
-   more datapoints with a hosted model (`google/gemini-3.8-flash` by default) against the same
-   view schema and household facts the query sub-agent gets. Nothing it writes is trusted: each
-   candidate statement goes through the guard and is executed, and only one that runs and
-   returns rows is appended, tagged `generated` with the rows it returned as its gold. Use
-   `--dry-run` to look first.
-5. **Read the generated ones too**, with a fresh sample, before anybody quotes a number that
-   rests on them.
+1. read the question the way a user would (period, sign, category against subcategory, ties,
+   singular against plural, the language it is in);
+2. write down the figure that reading expects, and compute it in Python from the raw
+   transactions, without running the reference statement;
+3. only then run the reference statement through the guard and compare the rows and the figure;
+4. record **correct**, **fixed** (with what was wrong) or **dropped** (with why it cannot be
+   made unambiguous).
+
+The verdicts are `validation/2026-09-05-opus.json`, in the shape the validation page exports
+(`id`, `set`, `kind`, `question`, `verdict`, `note`), so a later review on the page can be read
+beside them.
+
+| | correct | fixed | dropped |
+| --- | ---: | ---: | ---: |
+| the 76 hand-written questions | 69 | 7 | 0 |
+| the 32 hand-written charts | 31 | 1 | 0 |
+| the 107 generated datapoints kept | 105 | 2 | 0 |
+| the generated candidates refused | - | - | 40 |
+
+All 108 hand-written figures reproduced from the raw transactions, to the cent. What was wrong
+was never the arithmetic, it was the question: the eight fixes are in the notes, and they are
+about a divisor a question never named (s06 divided by the 49 weeks that carry a grocery booking,
+which made an honest division by 52 count as a miss), a word that names a subcategory over a
+figure that sums the category (s16, s32 and chart 10), a column the question never asked for
+(s20, s41), a count over the spending rows where the same words count every row elsewhere (s22),
+and a "who got the most" answered with five names (s45).
+
+Then the sets were grown. `bench/generate.py` drafted 190 candidates with
+`google/gemini-3.8-flash`, in batches per kind and per shape; the guard and the database threw
+out the ones whose statement did not run or returned nothing; the judge read every survivor the
+same way and kept 107. Of the 83 it did not keep, 40 were wrong (the reasons are in the
+validation file: an exclusion of a subcategory no booking carries, "letztes Quartal" read as
+October, a top three of a category with one subcategory, a doughnut of one slice, a grouped bar
+against a category with no bookings) and 43 were right but surplus, a figure the set already had
+or one more of a kind that was full.
+
+One refusal was worth a code change: a statement that filtered on a `Salary` subcategory nobody
+carries returned a single NULL, which is a gold with no figure in it, so every answer would have
+matched it. `run_reference` now refuses rows with no figure the same way it refuses no rows.
+
+### Growing it further
+
+```sh
+uv run python bench/generate.py --set sql   --n 10 --kind entity   --dry-run
+uv run python bench/generate.py --set chart --n 8  --shape doughnut
+uv run python bench/build_gold.py
+uv run python bench/split.py
+```
+
+A drafted datapoint is a question, its statement and, for a chart, the shape, the shapes that
+would answer it as well and the column roles. Nothing it writes is trusted: every statement goes
+through the guard and is executed, a chart's claimed roles are checked against the columns the
+statement really returned, and only what survives is appended, tagged `generated`. `--dry-run`
+prints what would be kept and writes nothing, which is how the drafts of a batch are read before
+any of them enters a set. Then rebuild the gold rows and the split, and judge the new ones by
+the four steps above before anybody quotes a number that rests on them.
 
 ### Opening the validation page
 
@@ -207,8 +325,8 @@ No build step and no server of ours:
 
 ```sh
 cd bench/validate
-uv run python -m http.server 8123      # any free port, not 8000, 5173, 8111 or 8112
-open http://127.0.0.1:8123/
+uv run python -m http.server 8124      # any free port, not 8000, 5173, 8111, 8112 or 8123
+open http://127.0.0.1:8124/
 ```
 
 `1`, `2`, `3` label the datapoint, the arrow keys move, the numbered squares jump. The summary
@@ -236,12 +354,16 @@ a laptop that is also serving a demo.
 | --- | --- |
 | `sql-benchmark.json`, `chart-benchmark.json` | the sets, gold included |
 | `build_gold.py` | recomputes every gold row through the guard; run it after any edit |
+| `split.py` | marks every datapoint train or heldout; run it after adding datapoints |
 | `generate.py` | drafts more datapoints with a hosted model, keeps only the ones that run |
-| `finquery_bench/` | the runner: the database, the sets, the scoring, the tables, the CLI |
+| `finquery_bench/` | the runner: the database, the sets, the scoring, the splits, the tables, the CLI |
 | `validate/` | the validation page and its sample |
+| `validation/` | what a review of the whole set found, one file per review |
 | `results/` | one JSON and one markdown table per run |
 | `pyproject.toml` | makes this folder a small package so `uv run finquery-bench` finds it |
 
-The tests are `tests/test_bench.py` in the main suite: gold that rebuilds identically, a runner
-scoring a scripted right and a scripted wrong statement, the compare diff, and a review sample
-that is stable for its seed. No test calls a model.
+The tests are `tests/test_bench.py` in the main suite: gold that rebuilds identically, a
+reference that answers nothing and one whose rows carry no figure both failing the build, a
+runner scoring a scripted right and a scripted wrong statement, the compare diff, a review sample
+that is stable for its seed, and a split that is about a third of each set and does not move when
+a datapoint is added elsewhere. No test calls a model.

@@ -79,6 +79,7 @@ function renderPoint() {
     tag(`difficulty ${point.difficulty}`),
     tag(point.language),
     ...point.tags.map(tag),
+    tag(point.split),
     point.answer === 'none' ? tag('the data holds none') : null,
   ].filter(Boolean);
 

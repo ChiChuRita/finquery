@@ -1,0 +1,2047 @@
+{
+  "seed": null,
+  "about": "Every datapoint of both sets judged by hand on 2026-09-05, not a sample: the question read as a user would read it, the figure recomputed in Python from the raw transactions, and only then the reference statement run through the guard and compared. correct, fixed (what was wrong is in the note) or dropped. The ids that begin with draft: are generated candidates the judging refused, so they are in no set; every other id is in one.",
+  "exported_at": "2026-09-05T17:38:46+00:00",
+  "labels": [
+    {
+      "id": "s01-may-total-de",
+      "set": "sql",
+      "kind": "total",
+      "question": "Wie viel habe ich im Mai 2025 ausgegeben?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s02-year-total-en",
+      "set": "sql",
+      "kind": "total",
+      "question": "How much did I spend in total in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s03-groceries-half-en",
+      "set": "sql",
+      "kind": "total",
+      "question": "What did I spend on groceries in the second half of 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s04-rent-total-de",
+      "set": "sql",
+      "kind": "total",
+      "question": "Wie viel Miete habe ich 2025 insgesamt gezahlt?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s05-income-total-en",
+      "set": "sql",
+      "kind": "total",
+      "question": "What was my total income in 2025?",
+      "verdict": "correct",
+      "note": "Income is every positive amount, so the Amazon refund of 34,90 EUR is in it beside the twelve salaries. That is the rule the sub-agent is given, and there is no Income category on any booking to read instead."
+    },
+    {
+      "id": "s06-groceries-per-week-de",
+      "set": "sql",
+      "kind": "total",
+      "question": "Was habe ich 2025 im Schnitt pro Woche fuer Lebensmittel ausgegeben, auf 52 Wochen gerechnet?",
+      "verdict": "fixed",
+      "note": "The reference divided by the 49 weeks that carry a grocery booking, which is neither of the two readings a person means by 'pro Woche' and made Gemini's honest division by 52 a miss. The question now names the 52 weeks and the statement divides by them: 86,06 EUR."
+    },
+    {
+      "id": "s07-subscriptions-per-month-en",
+      "set": "sql",
+      "kind": "total",
+      "question": "How much do my subscriptions cost me per month on average?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s08-electricity-de",
+      "set": "sql",
+      "kind": "total",
+      "question": "Wie hoch war meine Stromrechnung 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s09-this-quarter-en",
+      "set": "sql",
+      "kind": "total",
+      "question": "What did I spend this quarter?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s10-since-march-de",
+      "set": "sql",
+      "kind": "total",
+      "question": "Wie viel habe ich seit Maerz ausgegeben?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s11-supermarket-october-en",
+      "set": "sql",
+      "kind": "total",
+      "question": "How much did I spend at the supermarket in October?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s12-cash-total-en",
+      "set": "sql",
+      "kind": "total",
+      "question": "How much cash did I take out in 2025, and how often?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s13-per-category-de",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Wie viel habe ich 2025 pro Kategorie ausgegeben?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s14-dining-subcategories-en",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Break my dining spending down by subcategory.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s16-supermarkets-de",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Wie verteilen sich meine Lebensmittelausgaben auf die einzelnen Laeden?",
+      "verdict": "fixed",
+      "note": "The question asked how the spending spreads over the Supermaerkte while the reference grouped the whole Groceries category, so dm, Rossmann and the bakery were listed as supermarkets. The question now asks about the Laeden and the gold is unchanged."
+    },
+    {
+      "id": "s17-income-vs-spending-en",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Show me income and spending for each month of 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s18-needs-review-merchants-de",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Welche Haendler stecken in 'Needs review', und wie viele Buchungen sind das jeweils?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s19-per-quarter-en",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "How much did I spend per quarter in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s20-weekday-de",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "An welchen Wochentagen gebe ich am meisten Geld aus?",
+      "verdict": "fixed",
+      "note": "The question asks which weekdays cost the most, and the reference also selected a booking count, so an answer with only the euro figure failed the figure match. The count is gone; the seven euro figures are unchanged."
+    },
+    {
+      "id": "s21-categorized-share-en",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "How much of my 2025 spending is categorized and how much still needs review?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s22-account-months-de",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Zeig mir pro Monat, wie viele Ausgaben ich hatte und was sie zusammen gekostet haben.",
+      "verdict": "fixed",
+      "note": "'Wie viele Buchungen' was counted over the spending rows only, while s36 counts every row for the same words. The question now asks how many Ausgaben, which is what the reference and the second half of the sentence mean."
+    },
+    {
+      "id": "s23-may-vs-april-en",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "Compare my spending in May 2025 with April 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s24-jan-vs-feb-de",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "War der Januar oder der Februar teurer?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s25-halves-en",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "Compare the first half of 2025 with the second half.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s26-groceries-vs-dining-de",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "Vergleiche meine Ausgaben fuer Lebensmittel und fuers Essengehen, pro Quartal.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s27-transport-vs-subscriptions-en",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "Did I spend more on transport or on subscriptions in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s28-q4-vs-q3-en",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "How does this quarter compare with the last one?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s29-rent-constant-de",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "Ist meine Miete im Laufe des Jahres gestiegen?",
+      "verdict": "correct",
+      "note": "A false premise answered with the twelve monthly rents. Gold holds 1.150,00 EUR twelve times and the match is a multiset, so an answer that collapses them to one DISTINCT row misses. That is the shape the prompt asks for on a question about a development."
+    },
+    {
+      "id": "s30-anna-vs-max-en",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "Compare what I sent Anna with what I sent Max.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s31-per-month-en",
+      "set": "sql",
+      "kind": "trend",
+      "question": "How much did I spend per month in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s32-dining-trend-de",
+      "set": "sql",
+      "kind": "trend",
+      "question": "Wie haben sich meine Ausgaben fuers Essengehen ueber das Jahr entwickelt?",
+      "verdict": "fixed",
+      "note": "The question named Restaurants und Cafes, two of the four Dining subcategories, and the reference summed the whole category, delivery and takeaway included. The question now says 'fuers Essengehen', the same words s26 uses for the same category."
+    },
+    {
+      "id": "s33-groceries-trend-en",
+      "set": "sql",
+      "kind": "trend",
+      "question": "Is my grocery spending going up?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s34-cumulative-de",
+      "set": "sql",
+      "kind": "trend",
+      "question": "Zeig mir meine kumulierten Ausgaben pro Monat.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s35-net-per-month-en",
+      "set": "sql",
+      "kind": "trend",
+      "question": "What is my net per month, income minus spending?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s36-bookings-per-month-de",
+      "set": "sql",
+      "kind": "trend",
+      "question": "Wie viele Buchungen hatte ich pro Monat?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s37-march-weeks-en",
+      "set": "sql",
+      "kind": "trend",
+      "question": "Show me my spending per week in March 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s38-top-five-en",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Which merchants took the most money in 2025? Show me the top five.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s39-top-ten-de",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Zeig mir meine zehn groessten Haendler 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s40-biggest-expense-en",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "What was my biggest single expense in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s41-smallest-recurring-de",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Was ist meine kleinste wiederkehrende Zahlung?",
+      "verdict": "fixed",
+      "note": "The question asks for the smallest recurring payment and the reference also returned how often it recurs, so an answer of 'Amazon Prime, 8,99 EUR' failed on a missing 12. The count still does the HAVING and is no longer selected."
+    },
+    {
+      "id": "s42-biggest-category-en",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Which category did I spend the most on in 2025, leaving the uncategorized bookings aside?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s43-worst-grocery-month-de",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "In welchem Monat habe ich am meisten fuer Lebensmittel ausgegeben?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s44-most-visited-supermarkets-en",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Which three supermarkets did I shop at most often?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s45-biggest-without-rent-de",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Wer hat 2025 am meisten Geld von mir bekommen, ohne die Miete?",
+      "verdict": "fixed",
+      "note": "'Wer hat am meisten bekommen' asks for one name and the reference returned a top five, so only an answer that also ranked four more passed. Now LIMIT 1, which a longer ranking still contains; s67 keeps the five."
+    },
+    {
+      "id": "s46-top-expenses-en",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "What are the five largest single bookings that are neither rent nor a cash withdrawal?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s47-edeka-en",
+      "set": "sql",
+      "kind": "entity",
+      "question": "How much did I spend at Edeka in 2025?",
+      "verdict": "correct",
+      "note": "The same figure as s49, which asks it with a typo. Two datapoints, one number, both worth having: the second measures whether the counterparty list repairs the spelling."
+    },
+    {
+      "id": "s48-rewe-and-edeka-de",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Wie viel bei REWE und wie viel bei EDEKA?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s49-typo-en",
+      "set": "sql",
+      "kind": "entity",
+      "question": "How much did I spend at Edeak?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s50-dm-de",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Wie viel habe ich bei dm ausgegeben?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s51-anna-de",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Wie viel habe ich Anna Weber ueberwiesen?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s52-unknown-person-en",
+      "set": "sql",
+      "kind": "entity",
+      "question": "How much did I pay Klaus Meier?",
+      "verdict": "correct",
+      "note": "Nobody of that name is in the data and the datapoint is marked answer: none, so no rows or a count of zero both pass. This is the one that catches a widened match."
+    },
+    {
+      "id": "s53-amazon-de",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Wie viel habe ich 2025 insgesamt an Amazon gezahlt, inklusive Prime?",
+      "verdict": "correct",
+      "note": "'Gezahlt' is the gross figure, so the 34,90 EUR refund of 2025-04-03 is not netted off: 1.377,48 EUR is Amazon EU plus Prime."
+    },
+    {
+      "id": "s54-last-rent-en",
+      "set": "sql",
+      "kind": "entity",
+      "question": "When was my last rent payment and how much was it?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s55-netflix-de",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Was kostet mich Netflix im Jahr?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s56-all-subscriptions-en",
+      "set": "sql",
+      "kind": "entity",
+      "question": "What do all my subscriptions cost me per year?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s57-refunds-en",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Did I get any refunds in 2025?",
+      "verdict": "correct",
+      "note": "The one refund, 34,90 EUR. The reference keeps the salaries out with a ceiling on the amount rather than a text match, which is crude but returns the honest row and the figure is what is scored."
+    },
+    {
+      "id": "s58-friends-total-de",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Wie viel Geld habe ich 2025 insgesamt an Freunde per PayPal geschickt?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s59-bakery-de",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Wie oft war ich 2025 beim Baecker und was habe ich dort gelassen?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s60-uncategorized-count-en",
+      "set": "sql",
+      "kind": "entity",
+      "question": "How many transactions have no category?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s61-and-june-en",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "And in June?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s62-only-groceries-en",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Only groceries.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s63-per-week-de",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Und pro Woche?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s64-just-supermarkets-en",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Show me just the supermarkets.",
+      "verdict": "correct",
+      "note": "Six supermarkets and no LIMIT, because the turn before it named no number either. An answer cut to five misses Netto's 425,50 EUR, which is the right outcome: the follow-up narrows the ranking, it does not shorten it."
+    },
+    {
+      "id": "s65-of-that-kaufland-de",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Und wie viel davon bei Kaufland?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s66-cheapest-month-en",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Which of those months was the cheapest?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s67-without-rent-de",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Und ohne die Miete?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s68-by-merchant-en",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Break that down by merchant.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s69-last-month-en",
+      "set": "sql",
+      "kind": "period",
+      "question": "How much did I spend last month?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s70-last-quarter-de",
+      "set": "sql",
+      "kind": "period",
+      "question": "Wie viel habe ich letztes Quartal ausgegeben?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s71-last-three-months-en",
+      "set": "sql",
+      "kind": "period",
+      "question": "What did I spend in total in the last three months of the year?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s72-first-half-de",
+      "set": "sql",
+      "kind": "period",
+      "question": "Wie viel habe ich im ersten Halbjahr ausgegeben?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s73-march-to-may-en",
+      "set": "sql",
+      "kind": "period",
+      "question": "How much did I spend between March and May?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s74-this-month-de",
+      "set": "sql",
+      "kind": "period",
+      "question": "Was habe ich diesen Monat bisher ausgegeben?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s75-summer-en",
+      "set": "sql",
+      "kind": "period",
+      "question": "How much did I spend over the summer?",
+      "verdict": "correct",
+      "note": "Summer has no calendar definition. Gold is June to August, the meteorological reading and the one a German household means, and the datapoint exists to measure whether a model picks a period at all rather than answering about the year."
+    },
+    {
+      "id": "s76-denglisch-en",
+      "set": "sql",
+      "kind": "period",
+      "question": "Wie viel habe ich last month fuer Groceries ausgegeben, also im November?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "s77-rambling-en",
+      "set": "sql",
+      "kind": "period",
+      "question": "I am trying to work out where the money went last year, so could you tell me what I spent in each of the last three months of 2025, just the spending, not the salary?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-total",
+      "set": "sql",
+      "kind": "total",
+      "question": "Wie viel habe ich im September 2025 insgesamt ausgegeben?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-total",
+      "set": "sql",
+      "kind": "total",
+      "question": "How much did I spend in August 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-total",
+      "set": "sql",
+      "kind": "total",
+      "question": "Was habe ich im gesamten Jahr 2025 fuer oeffentliche Verkehrsmittel ausgegeben?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g004-total",
+      "set": "sql",
+      "kind": "total",
+      "question": "What was my total spending on fitness in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g005-total",
+      "set": "sql",
+      "kind": "total",
+      "question": "What was my total spending at Lidl in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g006-total",
+      "set": "sql",
+      "kind": "total",
+      "question": "How much did I spend at Aldi in the first quarter of 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g007-total",
+      "set": "sql",
+      "kind": "total",
+      "question": "Wie viel habe ich 2025 fuer Versicherungen bezahlt?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g008-total",
+      "set": "sql",
+      "kind": "total",
+      "question": "How much did I spend on Lieferando in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g009-total",
+      "set": "sql",
+      "kind": "total",
+      "question": "Was habe ich 2025 fuer Mobilfunk ausgegeben, also reine Handykosten ohne Festnetz?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g010-total",
+      "set": "sql",
+      "kind": "total",
+      "question": "What was my total spending on Spotify and Netflix combined in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g011-total",
+      "set": "sql",
+      "kind": "total",
+      "question": "Wie hoch waren meine Gesamtausgaben bei der BVG im Jahr 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g012-total",
+      "set": "sql",
+      "kind": "total",
+      "question": "How much did I spend in November 2025 on dining out?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-breakdown",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Wie teilen sich meine Ausgaben fuer Health auf die Subkategorien auf?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-breakdown",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Break down my transport spending by subcategory in 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-breakdown",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Zeige mir eine Aufschluesselung meiner Einnahmen im Jahr 2025 nach Subkategorie inklusive Anzahl der Buchungen.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g004-breakdown",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Aufschluesselung meiner Ausgaben fuer Subscriptions im Jahr 2025 nach Haendler.",
+      "verdict": "fixed",
+      "note": "Aufschluesselung nach Haendler asks for the euro figure per merchant, and the drafted statement also returned a booking count nobody asked for: four twelves an answer would have had to reproduce."
+    },
+    {
+      "id": "g005-breakdown",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Break down my Shopping expenses in 2025 by subcategory, with total amount and number of purchases.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g006-breakdown",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Break down my spending last month by category.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g007-breakdown",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Aufschluesselung meiner Ausgaben im November 2025 nach Kategorie.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g008-breakdown",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Give me a breakdown of all spending in August 2025 by category.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g009-breakdown",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Break down my spending on utilities (Electricity and Heating) in 2025 by month.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-comparison",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "Compare my spending on Dining between Q1 and Q2 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-comparison",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "Habe ich diesen Monat oder letzten Monat mehr ausgegeben?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-comparison",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "Compare my spending on Public transport versus Ride hailing in 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g004-comparison",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "Vergleiche die Supermarkt-Ausgaben im dritten Quartal mit dem vierten Quartal 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g005-comparison",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "Vergleiche meine Gesamteinnahmen mit meinen Gesamtausgaben im Jahr 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g006-comparison",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "Compare my spending on Restaurant vs Delivery under Dining in 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g007-comparison",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "Habe ich im ersten oder im zweiten Quartal 2025 mehr fuer Transport ausgegeben?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g008-comparison",
+      "set": "sql",
+      "kind": "comparison",
+      "question": "Compare my spending on Groceries in this quarter with last quarter.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-trend",
+      "set": "sql",
+      "kind": "trend",
+      "question": "Wie viel habe ich 2025 pro Monat fuer Shopping ausgegeben?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-trend",
+      "set": "sql",
+      "kind": "trend",
+      "question": "Wie haben sich meine Ausgaben fuer Transport monatlich im zweiten Halbjahr 2025 entwickelt?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-trend",
+      "set": "sql",
+      "kind": "trend",
+      "question": "Show my monthly spending across 2025 excluding Housing.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g004-trend",
+      "set": "sql",
+      "kind": "trend",
+      "question": "Wie hoch waren meine monatlichen Ausgaben fuer Drogerien im Jahr 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g005-trend",
+      "set": "sql",
+      "kind": "trend",
+      "question": "Show my monthly total income for each month of 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g006-trend",
+      "set": "sql",
+      "kind": "trend",
+      "question": "How did my monthly spending on dining out develop in the second quarter of 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g007-trend",
+      "set": "sql",
+      "kind": "trend",
+      "question": "How much did I spend each month at Lidl in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-ranking",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Welche 3 Monate im Jahr 2025 hatten die hoechsten Gesamtausgaben? Zeig Monat und Betrag.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-ranking",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "What were my top 3 dining places by total spend in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-ranking",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Bei welchen 5 Geschaeften oder Dienstleistern hatte ich 2025 die meisten Abbuchungen?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g004-ranking",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Which 3 merchants did I spend the most at in Groceries during 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g005-ranking",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "What were my 3 smallest spending transactions in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g006-ranking",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Which 3 months had the lowest total spending in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g007-ranking",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Welche 5 Haendler hatten 2025 den hoechsten Durchschnittsbetrag pro Buchung, bei mindestens 3 Einkaeufen?",
+      "verdict": "fixed",
+      "note": "The question asks which five merchants have the highest average per booking with at least three bookings, and the drafted statement also returned the booking count, so an answer with only the averages would have missed five figures. The count still does the HAVING and is no longer selected."
+    },
+    {
+      "id": "g008-ranking",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Was waren meine 3 groessten Ausgaben im November 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g009-ranking",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "What were my top 3 largest supermarket purchases in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-entity",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Wie viel habe ich 2025 fuer Fitness First ausgegeben?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-entity",
+      "set": "sql",
+      "kind": "entity",
+      "question": "How much did I pay to Deutsche Bahn in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-entity",
+      "set": "sql",
+      "kind": "entity",
+      "question": "How much did I spend on Spotify in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g004-entity",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Wie oft war ich 2025 bei ALDI SÜD einkaufen und was war der Gesammtbetrag?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g005-entity",
+      "set": "sql",
+      "kind": "entity",
+      "question": "How many times did I order from Lieferando in 2025, and what was the average order amount?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g006-entity",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Was habe ich im letzten Quartal fuer Uber bezahlt?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g007-entity",
+      "set": "sql",
+      "kind": "entity",
+      "question": "How much did I spend at Cafe Milchbart in 2025, and when was the last visit?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g008-entity",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Was habe ich 2025 insgesamt bei Vattenfall und Vodafone bezahlt, aufgeschluesselt nach Anbieter?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g009-entity",
+      "set": "sql",
+      "kind": "entity",
+      "question": "How much did I spend at Dean and David per month in 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g010-entity",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Was war mein teuerster und mein guenstigster Einkauf bei Lidl im Jahr 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g011-entity",
+      "set": "sql",
+      "kind": "entity",
+      "question": "What did I spend each month at Vapiano in Berlin Mitte during 2025, and how many visits was that?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g012-entity",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Wie viel habe ich im vierten Quartal 2025 bei Baeckerei Steinecke ausgegeben im Vergleich zum dritten Quartal?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g013-entity",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Wie viel habe ich 2025 monatlich fuer die Allianz Versicherung bezahlt? Zeig mir die einzelnen Monate und die jeweilige Summe.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g014-entity",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Compare how much I spent at Doener Haus Kreuzberg between the first half of 2025 and the second half.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-follow-up",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Und fuer Fitness?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-follow-up",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Und im Dezember?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-follow-up",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Break it down by subcategory.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g004-follow-up",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "And on Groceries?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g005-follow-up",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Welche drei Haendler waren da am teuersten?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g006-follow-up",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "What was the single biggest one?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g007-follow-up",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Und wie oft war ich dort einkaufen?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g008-follow-up",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Split that by month.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-period",
+      "set": "sql",
+      "kind": "period",
+      "question": "Wie hoch waren meine Gesamtausgaben im ersten Quartal 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-period",
+      "set": "sql",
+      "kind": "period",
+      "question": "Wie viel Geld habe ich im Oktober 2025 bei ALDI SÜD gelassen?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-period",
+      "set": "sql",
+      "kind": "period",
+      "question": "What did I spend at dm drogerie markt between 2025-06-01 and 2025-08-31?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g004-period",
+      "set": "sql",
+      "kind": "period",
+      "question": "Wie viel habe ich im Dezember 2025 fuer die Subkategorie Supermarket bezahlt?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g005-period",
+      "set": "sql",
+      "kind": "period",
+      "question": "What was my total spending on Subscriptions in the second quarter of 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g006-period",
+      "set": "sql",
+      "kind": "period",
+      "question": "What was my daily average spending in November 2025, calculated across all 30 days?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g007-period",
+      "set": "sql",
+      "kind": "period",
+      "question": "Wie viel habe ich in den letzten beiden Monaten des Jahres 2025 insgesamt eingenommen?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g008-period",
+      "set": "sql",
+      "kind": "period",
+      "question": "Wie hoch waren meine Ausgaben im Zeitraum vom 15. August 2025 bis zum 15. September 2025?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g009-period",
+      "set": "sql",
+      "kind": "period",
+      "question": "How much did I spend in total between 2025-02-01 and 2025-04-30 excluding Housing?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "01-monthly-line-en",
+      "set": "chart",
+      "kind": "line",
+      "question": "Show me my total spending per month in 2025 as a line chart.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "02-monthly-line-de",
+      "set": "chart",
+      "kind": "line",
+      "question": "Wie haben sich meine Ausgaben pro Monat 2025 entwickelt? Zeig es als Liniendiagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "03-cumulative-area-en",
+      "set": "chart",
+      "kind": "area",
+      "question": "Chart my cumulative spending over 2025 as an area chart.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "04-cumulative-area-de",
+      "set": "chart",
+      "kind": "area",
+      "question": "Zeig die kumulierten Ausgaben 2025 als Flaechendiagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "05-category-bars-en",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Show my spending per category in 2025 as a bar chart.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "06-category-bars-de",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Ausgaben pro Kategorie 2025 als Balkendiagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "07-top-merchants-en",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "question": "Which merchants took the most money in 2025? Show the top ten as a horizontal bar chart.",
+      "verdict": "correct",
+      "note": "Grouped by the enriched title, so the four friends behind PayPal are four small merchants and Allianz is tenth. That is the chart prompt's own rule; the SQL set groups the same question by counterparty, which is what its prompt asks for, and the two golds differ on purpose."
+    },
+    {
+      "id": "08-top-merchants-de",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "question": "Zeig die zehn groessten Haendler 2025 als liegendes Balkendiagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "09-quarter-groups-en",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "question": "Compare what I spent on groceries and on dining per quarter in 2025 as grouped bars.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "10-quarter-groups-de",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "question": "Vergleiche Lebensmittel und Essengehen pro Quartal 2025 als gruppierte Balken.",
+      "verdict": "fixed",
+      "note": "The request said 'Lebensmittel und Restaurants' while the gold is the whole Dining category. Now 'Lebensmittel und Essengehen', the same words as s26 and s32, and the eight figures are unchanged."
+    },
+    {
+      "id": "11-stacked-months-en",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "question": "Show my monthly spending split by category in 2025 as a stacked bar chart.",
+      "verdict": "correct",
+      "note": "Gold is the five largest categories by month, not because the statement should fold but because the app folds: eleven groups over a palette of six become the five largest plus one rest group, so these 60 figures come back either way."
+    },
+    {
+      "id": "12-stacked-months-de",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "question": "Monatliche Ausgaben nach Kategorie 2025 als gestapelte Balken.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "13-doughnut-categories-en",
+      "set": "chart",
+      "kind": "doughnut",
+      "question": "Show the share of my 2025 spending by category as a doughnut.",
+      "verdict": "correct",
+      "note": "The five largest of eleven, for the same reason: a doughnut holds six slices and the app keeps five plus a rest."
+    },
+    {
+      "id": "14-doughnut-merchants-de",
+      "set": "chart",
+      "kind": "doughnut",
+      "question": "Zeig den Anteil der groessten Haendler an meinen Ausgaben 2025 als Donut.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "15-sankey-income-en",
+      "set": "chart",
+      "kind": "sankey",
+      "question": "Draw a sankey of my 2025 income flowing into the spending categories.",
+      "verdict": "correct",
+      "note": "One source into eleven targets, and the flows add up to the spending rather than to the income, which is what the chart prompt asks for: a link needs both ends and a total row would be a flow into itself."
+    },
+    {
+      "id": "16-sankey-income-de",
+      "set": "chart",
+      "kind": "sankey",
+      "question": "Zeig als Sankey, wie mein Einkommen 2025 in die Ausgabenkategorien fliesst.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "17-two-halves-en",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Compare my total spending in the first half of 2025 with the second half in a chart.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "18-two-months-de",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Vergleiche meine Ausgaben im Januar 2025 mit denen im Juli 2025 als Diagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "19-quarters-en",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Chart my spending per quarter in 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "20-daily-march-en",
+      "set": "chart",
+      "kind": "line",
+      "question": "Show my spending per day in March 2025 as a line chart.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "21-groceries-months-en",
+      "set": "chart",
+      "kind": "line",
+      "question": "Show what I spent on groceries per month in 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "22-all-categories-de",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Zeig die Ausgaben aller Kategorien 2025 als Balkendiagramm, auch die kleinen.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "23-income-versus-spending-en",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "question": "Chart my income and my spending per month in 2025 side by side.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "24-net-per-month-de",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Zeig den monatlichen Saldo 2025, also Einnahmen minus Ausgaben, als Diagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "25-doughnut-supermarkets-de",
+      "set": "chart",
+      "kind": "doughnut",
+      "question": "Zeig als Donut, wie sich meine Lebensmittelausgaben 2025 auf die einzelnen Maerkte verteilen.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "26-sankey-subcategories-en",
+      "set": "chart",
+      "kind": "sankey",
+      "question": "Draw a sankey of how my 2025 spending flows from its categories into their subcategories.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "27-needs-review-bar-de",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Zeig mir als Diagramm, wie viel von meinen Ausgaben 2025 kategorisiert ist und wie viel noch in Needs review liegt.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "28-friends-doughnut-de",
+      "set": "chart",
+      "kind": "doughnut",
+      "question": "Wie verteilen sich meine PayPal-Zahlungen an Freunde 2025? Zeig es als Donut.",
+      "verdict": "correct",
+      "note": "Four people behind one counterparty, so only the enriched title splits them. A doughnut grouped by the counterparty is one slice of 619,50 EUR and answers nothing."
+    },
+    {
+      "id": "29-daily-december-line-de",
+      "set": "chart",
+      "kind": "line",
+      "question": "Zeig meine taeglichen Ausgaben im Dezember 2025 als Liniendiagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "30-groceries-stacked-quarters-en",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "question": "Show my grocery spending per quarter in 2025, split into supermarket, bakery and drugstore, as a stacked bar chart.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "31-groceries-area-de",
+      "set": "chart",
+      "kind": "area",
+      "question": "Zeig die kumulierten Lebensmittelausgaben 2025 als Flaechendiagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "32-top-merchants-half-en",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "question": "Which five merchants took the most money in the second half of 2025? Show them as horizontal bars.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-bar",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Vergleiche meine Ausgaben in diesem Quartal nach Kategorie als Balkendiagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-bar",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Give me a breakdown of what I spent at supermarkets in 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-bar",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Show how much each subscription service cost me in 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g004-bar",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Vergleiche meine Dining-Ausgaben 2025 nach Subkategorie als Balkendiagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g005-bar",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Compare my spending across categories in November 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g006-bar",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Wie viel habe ich 2025 fuer Transport ausgegeben, aufgeteilt nach Unterkategorien? Bitte als Balkendiagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g007-bar",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Give me a breakdown of my spending across categories in Q3 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-line",
+      "set": "chart",
+      "kind": "line",
+      "question": "Show my monthly income across 2025 as a line chart.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-line",
+      "set": "chart",
+      "kind": "line",
+      "question": "Plot my daily spending in November 2025 as a line chart.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-line",
+      "set": "chart",
+      "kind": "line",
+      "question": "Zeig mir den Verlauf meiner Fahrt- und Transportkosten pro Quartal im Jahr 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g004-line",
+      "set": "chart",
+      "kind": "line",
+      "question": "Stelle meine Monatsausgaben bei Amazon 2025 als Liniengrafik dar.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g005-line",
+      "set": "chart",
+      "kind": "line",
+      "question": "Wie haben sich meine Ausgaben im Oktober 2025 von Tag zu Tag entwickelt?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-area",
+      "set": "chart",
+      "kind": "area",
+      "question": "Plot my cumulative income over 2025 month by month as an area chart.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-area",
+      "set": "chart",
+      "kind": "area",
+      "question": "Wie haben sich meine Ausgaben im Jahr 2025 Quartal fuer Quartal aufsummiert? Zeig mir den Verlauf.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-area",
+      "set": "chart",
+      "kind": "area",
+      "question": "Zeig die aufgelaufenen Ausgaben fuer Wohnen ueber das Jahr 2025 als Flaechendiagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-doughnut",
+      "set": "chart",
+      "kind": "doughnut",
+      "question": "Wie teilen sich meine Ausgaben fuer Gastronomie im vierten Quartal 2025 auf? Bitte als Donut.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-doughnut",
+      "set": "chart",
+      "kind": "doughnut",
+      "question": "Stelle meine Transportausgaben 2025 nach Unterkategorien als Ringdiagramm dar.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-doughnut",
+      "set": "chart",
+      "kind": "doughnut",
+      "question": "How was my spending split across my top categories last month?",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g004-doughnut",
+      "set": "chart",
+      "kind": "doughnut",
+      "question": "Show the breakdown of my 2025 grocery spending by subcategory as a doughnut chart.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-bar_horizontal",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "question": "Show my top 8 merchants by spending in Q4 2025 as a horizontal bar chart.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-bar_horizontal",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "question": "Welche Streaming- und Abo-Dienste haben mich 2025 am meisten gekostet? Zeig mir die Rangliste im Diagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-bar_horizontal",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "question": "Rank my top 5 merchants in November 2025 by total spending.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-bar_grouped",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "question": "Zeig mir die Ausgaben fuer Housing und Insurance pro Monat im ersten Halbjahr 2025 als gruppiertes Balkendiagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-bar_grouped",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "question": "Compare my quarterly expenses for Groceries, Dining, and Transport across 2025 side by side.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-bar_grouped",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "question": "Vergleiche meine Barauszahlungen mit den Shopping-Ausgaben in den Monaten von Oktober bis Dezember 2025 als gruppierte Balken.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-bar_stacked",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "question": "Show what I spent on Housing and Subscriptions per quarter in 2025 as a stacked bar chart.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-bar_stacked",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "question": "Stacked bar chart of my Transport spending by subcategory for each month in the first half of 2025.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-bar_stacked",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "question": "Zeig meine Restaurant- und Lieferdienstausgaben (Dining) nach Unterkategorie pro Monat im vierten Quartal 2025 als gestapeltes Balkendiagramm.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g001-sankey",
+      "set": "chart",
+      "kind": "sankey",
+      "question": "Zeig mir fuer Q4 2025 als Sankey-Diagramm, wie mein Einkommen in die einzelnen Ausgabenkategorien geflossen ist.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g002-sankey",
+      "set": "chart",
+      "kind": "sankey",
+      "question": "Where did my income go in November 2025? Give me a visual breakdown of the flows.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "g003-sankey",
+      "set": "chart",
+      "kind": "sankey",
+      "question": "Stelle als Sankey dar, wie sich meine Ausgaben fuer Subscriptions 2025 auf die einzelnen Abos und Dienste aufteilen.",
+      "verdict": "correct",
+      "note": ""
+    },
+    {
+      "id": "draft:sql-total-g013",
+      "set": "sql",
+      "kind": "total",
+      "question": "Wie viel habe ich 2025 insgesamt fuer Telekommunikation ausgegeben, also fuer Handy und Festnetz?",
+      "verdict": "dropped",
+      "note": "The gloss names Mobile and Landline. Only the Vodafone bookings carry Mobile and the Telekom ones carry no subcategory at all, so the two readings are 239,88 and 719,76 EUR."
+    },
+    {
+      "id": "draft:sql-total-g023",
+      "set": "sql",
+      "kind": "total",
+      "question": "How much did I spend in total in 2025 excluding rent payments?",
+      "verdict": "dropped",
+      "note": "The exclusion filters a Rent subcategory no booking carries, so it excludes nothing and the statement answers the whole year, 13.800 EUR too much."
+    },
+    {
+      "id": "draft:sql-period-g021",
+      "set": "sql",
+      "kind": "period",
+      "question": "Wie viel habe ich im dritten Quartal 2025 ohne Miete ausgegeben?",
+      "verdict": "dropped",
+      "note": "The same inert exclusion: the rent is Needs review, not a Rent subcategory, so the figure is the quarter with the rent still in it."
+    },
+    {
+      "id": "draft:sql-ranking-g013",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Zeig mir die 3 groessten Ausgaben im letzten Quartal, ausser Miete.",
+      "verdict": "dropped",
+      "note": "Letztes Quartal is July to September for this data and the statement took October to December."
+    },
+    {
+      "id": "draft:sql-ranking-g021",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Welche 3 Haendler hatten im letzten Quartal die hoechsten Ausgaben bei mir?",
+      "verdict": "dropped",
+      "note": "The same wrong quarter."
+    },
+    {
+      "id": "draft:sql-ranking-g001",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "Was waren meine 3 teuersten Ausgaben im gesamten Jahr 2025?",
+      "verdict": "dropped",
+      "note": "The three largest bookings are the rent three times over, and which three of the twelve identical ones come back is arbitrary. s40 asks this properly, with the figure as the answer."
+    },
+    {
+      "id": "draft:sql-ranking-g011",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "What are my top 3 subcategories under Housing by total spend in 2025?",
+      "verdict": "dropped",
+      "note": "Housing carries one subcategory, so a top three is a false premise the question does not own up to."
+    },
+    {
+      "id": "draft:sql-ranking-g017",
+      "set": "sql",
+      "kind": "ranking",
+      "question": "In welchen 3 Unterkategorien von Shopping habe ich 2025 am meisten ausgegeben?",
+      "verdict": "dropped",
+      "note": "Shopping carries two, same false premise."
+    },
+    {
+      "id": "draft:sql-breakdown-g007",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Can you give me a breakdown of my spending across Housing subcategories in 2025?",
+      "verdict": "dropped",
+      "note": "One subcategory, so the breakdown is the total again."
+    },
+    {
+      "id": "draft:sql-breakdown-g017",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Break down my spending on insurance in 2025 by subcategory.",
+      "verdict": "dropped",
+      "note": "No Insurance booking carries a subcategory, so the breakdown is one row labelled Other."
+    },
+    {
+      "id": "draft:sql-breakdown-g015",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Wie verteilen sich meine Ausgaben fuer Telekommunikation im Jahr 2025 auf Mobilfunk und Festnetz?",
+      "verdict": "dropped",
+      "note": "The question asks for two subcategories and the data has one, so 479,88 EUR come back under Sonstiges as if that were Festnetz."
+    },
+    {
+      "id": "draft:sql-follow-up-g017",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Wie verteilt sich das auf Mobilfunk und Festnetz?",
+      "verdict": "dropped",
+      "note": "The same, as a follow-up."
+    },
+    {
+      "id": "draft:sql-breakdown-g026",
+      "set": "sql",
+      "kind": "breakdown",
+      "question": "Wie verteilen sich meine Ausgaben fuer Lieferdienste und Restaurants bei Dining 2025 auf die einzelnen Haendler?",
+      "verdict": "dropped",
+      "note": "The question names two subcategories and the statement takes three, Takeaway included."
+    },
+    {
+      "id": "draft:sql-entity-g027",
+      "set": "sql",
+      "kind": "entity",
+      "question": "Which was my highest single payment to Telekom Deutschland GmbH in 2025, and on which date?",
+      "verdict": "dropped",
+      "note": "Every Telekom payment is 39,99 EUR, so the date the question asks for is one of twelve."
+    },
+    {
+      "id": "draft:sql-follow-up-g021",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Aufgeschluesselt nach Unterkategorie mit Gesamtsumme bitte.",
+      "verdict": "dropped",
+      "note": "Insurance has no subcategories, so the answer is a row with no label beside a TOTAL of the same figure."
+    },
+    {
+      "id": "draft:sql-follow-up-g029",
+      "set": "sql",
+      "kind": "follow-up",
+      "question": "Nur Gehalt.",
+      "verdict": "dropped",
+      "note": "Filtered on a Salary subcategory no booking carries: the statement returned one row holding a single NULL, which is a gold with no figure in it, so every answer would have matched it. This is the one `run_reference` now refuses."
+    },
+    {
+      "id": "draft:sql-trend-g027",
+      "set": "sql",
+      "kind": "trend",
+      "question": "What was my average spending per month in 2025 across all 12 months?",
+      "verdict": "dropped",
+      "note": "Right, and not a trend: an average over the year is one figure. The set measures averages under total, where s06 and s07 are."
+    },
+    {
+      "id": "draft:sql-trend-g029",
+      "set": "sql",
+      "kind": "trend",
+      "question": "Wie viel habe ich im Schnitt pro Monat fuer Dining ausgegeben in 2025, gerechnet auf 12 Monate?",
+      "verdict": "dropped",
+      "note": "The same, and the same kind."
+    },
+    {
+      "id": "draft:chart-bar-g005",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Wieviel habe ich 2025 bei welchen Restaurants und Lieferdiensten ausgegeben? Zeig mir das als Bar Chart.",
+      "verdict": "dropped",
+      "note": "Five LIKE terms that leave Hans im Glueck out, so one restaurant is missing from a chart that claims to show them all."
+    },
+    {
+      "id": "draft:chart-bar_horizontal-g007",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "question": "Wo habe ich 2025 beim Essengehen und Bestellen das meiste Geld gelassen? Erstelle ein Ranking der Lokale.",
+      "verdict": "dropped",
+      "note": "The same missing restaurant."
+    },
+    {
+      "id": "draft:chart-bar-g011",
+      "set": "chart",
+      "kind": "bar",
+      "question": "What did I spend across different mobility providers in 2025?",
+      "verdict": "dropped",
+      "note": "Leaves Shell out of Transport without the question saying so, and mobility provider is not a set this data defines."
+    },
+    {
+      "id": "draft:chart-bar_horizontal-g009",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "question": "Zeig mir die Ausgaben fuer meine Mobilitaets- und Transportanbieter 2025 als horizontales Balkendiagramm.",
+      "verdict": "dropped",
+      "note": "The same."
+    },
+    {
+      "id": "draft:chart-bar_horizontal-g015",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "question": "Which contract partners and utilities cost me the most in 2025? Chart the breakdown.",
+      "verdict": "dropped",
+      "note": "Contract partner is not a category, a subcategory or a merchant: the five names in the statement are the drafter's own list."
+    },
+    {
+      "id": "draft:chart-bar_horizontal-g013",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "question": "Fuer welche Unterkategorien habe ich 2025 am meisten bezahlt? Bitte die Top 10.",
+      "verdict": "dropped",
+      "note": "The tallest bar is 15.409,38 EUR of bookings that have no subcategory, which is not a subcategory and drowns the nine that are."
+    },
+    {
+      "id": "draft:chart-line-g003",
+      "set": "chart",
+      "kind": "line",
+      "question": "Wie haben sich meine Ausgaben fuer Restaurants und Essen im Verlauf von 2025 monatlich entwickelt?",
+      "verdict": "dropped",
+      "note": "Restaurants is one of the four Dining subcategories and the statement sums the category, which is the wording s32 had to be fixed for."
+    },
+    {
+      "id": "draft:chart-area-g011",
+      "set": "chart",
+      "kind": "area",
+      "question": "Stelle meine kumulierten Ausgaben fuer Restaurants und Essen 2025 als Flaechendiagramm dar.",
+      "verdict": "dropped",
+      "note": "The same wording."
+    },
+    {
+      "id": "draft:chart-sankey-g013",
+      "set": "chart",
+      "kind": "sankey",
+      "question": "Wie verteilt sich mein Dining-Budget 2025 auf Restaurants, Lieferdienste und Cafes?",
+      "verdict": "dropped",
+      "note": "Names three of the four subcategories and the flow carries all four."
+    },
+    {
+      "id": "draft:chart-sankey-g007",
+      "set": "chart",
+      "kind": "sankey",
+      "question": "Show the flow of my 2025 grocery budget into the individual supermarkets and bakeries as a sankey.",
+      "verdict": "dropped",
+      "note": "The flow also carries dm and Rossmann, which are neither."
+    },
+    {
+      "id": "draft:chart-sankey-g001",
+      "set": "chart",
+      "kind": "sankey",
+      "question": "Draw a sankey showing where my money came from by income subcategory and into the top spending categories.",
+      "verdict": "dropped",
+      "note": "Labels the salary Other income, a category name the household never assigned, and the two levels do not balance: 34.234,90 EUR in and 28.535,89 EUR out with no third node."
+    },
+    {
+      "id": "draft:chart-bar_grouped-g001",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "question": "Vergleiche meine monatlichen Ausgaben fuer Transport und Shopping im letzten Quartal 2025 als gruppierte Balken.",
+      "verdict": "dropped",
+      "note": "Im letzten Quartal 2025 reads both as the final quarter of the year and as the quarter before this one, which are different three months."
+    },
+    {
+      "id": "draft:chart-bar_stacked-g003",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "question": "Stell meine monatlichen Ausgaben fuer Groceries und Dining im letzten Quartal 2025 gegenueber.",
+      "verdict": "dropped",
+      "note": "The same two readings."
+    },
+    {
+      "id": "draft:chart-bar_grouped-g003",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "question": "Compare my spending on Health versus Leisure each month in the second half of 2025 side by side.",
+      "verdict": "dropped",
+      "note": "Leisure carries no bookings, so a grouped bar has one group and nothing to compare."
+    },
+    {
+      "id": "draft:chart-bar_grouped-g009",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "question": "Stelle meine Ausgaben fuer Dining, Leisure und Shopping pro Quartal 2025 gegenueber.",
+      "verdict": "dropped",
+      "note": "The same empty category."
+    },
+    {
+      "id": "draft:chart-bar_stacked-g007",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "question": "Wie teilen sich meine Ausgaben fuer Transport und Leisure im zweiten Halbjahr 2025 monatlich auf?",
+      "verdict": "dropped",
+      "note": "The same."
+    },
+    {
+      "id": "draft:chart-bar_stacked-g013",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "question": "Staple meine Wohnkosten nach Unterkategorie fuer jedes Quartal 2025 in einem Balkendiagramm.",
+      "verdict": "dropped",
+      "note": "Housing has one subcategory, so nothing stacks."
+    },
+    {
+      "id": "draft:chart-doughnut-g001",
+      "set": "chart",
+      "kind": "doughnut",
+      "question": "Zeig mir die Aufteilung meiner Wohnkosten 2025 als Donut-Diagramm.",
+      "verdict": "dropped",
+      "note": "One slice is not a share of a whole."
+    },
+    {
+      "id": "draft:chart-doughnut-g012",
+      "set": "chart",
+      "kind": "doughnut",
+      "question": "Wie verteilt sich mein Versicherungsaufwand im Jahr 2025 auf die verschiedenen Policen?",
+      "verdict": "dropped",
+      "note": "One slice, and it is the unlabelled rest."
+    },
+    {
+      "id": "draft:chart-sankey-g005",
+      "set": "chart",
+      "kind": "sankey",
+      "question": "Wohin fliesst das Geld fuer Wohnen? Zeig den Geldfluss von Housing in die Unterkategorien fuer 2025.",
+      "verdict": "dropped",
+      "note": "One link."
+    },
+    {
+      "id": "draft:chart-bar-g013",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Welche Kostenpunkte hatte ich 2025 beim Wohnen? Zeig mir die Unterkategorien als Balkendiagramm.",
+      "verdict": "dropped",
+      "note": "One bar."
+    },
+    {
+      "id": "draft:chart-bar-g015",
+      "set": "chart",
+      "kind": "bar",
+      "question": "Show my shopping expenses by subcategory for the first half of 2025.",
+      "verdict": "dropped",
+      "note": "One bar."
+    }
+  ]
+}
