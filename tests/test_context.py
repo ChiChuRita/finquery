@@ -23,18 +23,17 @@ from .conftest import (
 
 # Two conditions have to hold for compression to fire, and only the second is what this budget
 # is for: there must be something older than the last six turns (so never before the eighth),
-# and the prompt must be over 60 percent of the budget. The system prompt alone is 3765 tokens
+# and the prompt must be over 60 percent of the budget. The system prompt alone is 3920 tokens
 # now, so the token half is already true on the first turn and the turn count is what decides.
 # What the budget has to clear is the floor a compressed prompt cannot go below (the system
-# prompt, the summary and the last six turns), measured at 4500 tokens here. The real default is
+# prompt, the summary and the last six turns), measured at 4838 tokens here. The real default is
 # 32768, far above any floor. Every ticket that adds a prompt block has had to move this;
-# ticket 37 added the arithmetic rule, the period rule, the changed-fields rule and the chart
-# narration rule, 599 tokens on top of the 3166 ticket 32 measured, and the floor went from 4110
-# to 4500, so the constant moves with it. Measured rather than guessed, the way this paragraph
-# describes: drive twelve turns with the budget in the settings and take the largest `used` of
-# the turns that compressed. 5300 leaves about 18 percent of headroom over the floor, the margin
-# ticket 27 left. Ninth ticket to move it.
-BUDGET = 5300
+# ticket 42 added one paragraph on reading a tool result, 328 tokens on top of the 3592 that
+# stood after ticket 37, and the floor went from 4500 to 4838, so the constant moves with it.
+# Measured rather than guessed, the way this paragraph describes: drive twelve turns with the
+# budget in the settings and take the largest `used` of the turns that compressed. 5700 leaves
+# about 18 percent of headroom over the floor, the margin ticket 27 left. Tenth ticket to move it.
+BUDGET = 5700
 SUMMARY = "The user asked about groceries and rent in the spring and cares about subscriptions."
 
 # Long enough that a turn is worth about a hundred tokens on either side.
