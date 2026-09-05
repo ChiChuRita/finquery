@@ -32,6 +32,11 @@ function unwrap(input: WrappedInput | undefined): AskUserInput | undefined {
   if (!current) return current
   return {
     ...current,
+    // The mapping card writes its columns and its sample bookings over several lines, and a
+    // model retyping that note escapes the newlines twice, so the card printed a wall of
+    // literal `\n` (seen on unknown-bank-2025.csv, 2026-09-05). The note is the one field with
+    // real line breaks in it, so it is the one field read back as they were meant.
+    note: current.note?.replaceAll('\\n', '\n'),
     // `"false"` is a string a model wrote, and a card that asked for no free text should not
     // grow one because of it.
     allow_free_text: String(current.allow_free_text ?? true) !== 'false',
