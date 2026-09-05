@@ -126,3 +126,27 @@ projectors read the red square); `FINQUERY_SMOKE=1` green.
   beforehand (24 minutes locally, see the script).
 - Keep the doughnut out of the live script on the fast slot; horizontal bars are the second
   shape. Answer a Question card before typing the next question.
+
+### The script was refreshed on 2026-09-05
+
+`docs/demo-script.md` now matches main at ticket 42. What was added, in the order it happens:
+the Dashboard opened straight after the sample year (four tiles, four charts, nothing stored),
+the check narration in the thinking panel ("Checking the result", "Rewriting: ..."), the chart
+card's details as a chain of thought, "Add to dashboard" and the Dashboard's own Add line, the
+attachment thumbnails in the composer and on the sent message, switching away from a running
+import and coming back to it, and the conversation download. The measured timings of this ticket
+stand as they are, with the caveat now written at the top of the script: a query costs one more
+fast-slot call since ticket 40 and every sub-agent prompt grew since ticket 42, so those numbers
+are a floor.
+
+Still to time on the local provider, every one of them driven only on OpenRouter so far:
+
+- the Dashboard's first load (no model, queries only) and a card refresh
+- a query the check rewrites once, against a query it merely confirms
+- "Add chart" from the Dashboard line (about 30 s hosted, expect a chart turn locally)
+- the conversation download and "Add to dashboard" (both instant hosted, no model)
+
+The fallback list and the troubleshooting list were rewritten with them: a reload is a real
+recovery now, the composer closing mid-turn is expected rather than a fault, the PDF stays
+hosted or pre-imported, the doughnut stays out on the fast slot, and answering the open Question
+card before the next question is written down where the demo driver will see it.

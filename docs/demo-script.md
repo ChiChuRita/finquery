@@ -1,21 +1,35 @@
 # Demo script
 
-The live demo of Monday 2026-09-07, on the local provider, from a clean database. Every step
-below was run on 2026-09-05 on the 24 GB M4 Pro with `FINQUERY_PROVIDER=local`, and the time
-next to it is what that step took there, measured on the chat request itself (from Send to the
-last byte of the stream, so it includes the follow-up suggestions and the memory distillation
-that close every turn). Budget about 35 minutes of talking for the whole script, of which
-roughly 20 are the models working.
+The live demo of Monday 2026-09-07, on the local provider, from a clean database. The timed
+steps below were run on 2026-09-05 on the 24 GB M4 Pro with `FINQUERY_PROVIDER=local`, and the
+time next to such a step is what it took there, measured on the chat request itself (from Send
+to the last byte of the stream, so it includes the follow-up suggestions and the memory
+distillation that close every turn). Steps added after that measurement say **to time on the
+local provider** instead of a number: they were driven on OpenRouter, not on the laptop.
+Budget about 40 minutes of talking for the whole script, of which roughly 20 are the models
+working.
+
+Two numbers moved under the timed steps and neither has been re-measured locally. A query now
+checks its own result (ticket 40), which is one more fast-slot call on most questions, so a
+question with one query runs a little longer than the table says. The sub-agent prompts grew
+worked examples and a reasoning field (tickets 40 and 42), which is a few hundred more tokens to
+evaluate per call. Read the table as a floor, not a promise.
 
 Two slots, two speeds. **Fast** is Gemma 4 E4B, which also runs every sub-agent (SQL, chart,
-categorizer, extraction, memory). **Quality** is Qwen3.5 9B, which thinks for a long time
-before it answers. The script stays on the fast slot and switches to Qwen for exactly one
-prepared question, because a Qwen turn is two to three minutes. A fast turn with one query is
-about a minute, most of it prompt evaluation: llama.cpp's multimodal handler re-reads the whole
-prompt on every request and a turn is three to five requests (the chat model, the sub-agent,
-the chat model again, then follow-ups and distillation).
+categorizer, extraction, memory, and the result check). **Quality** is Qwen3.5 9B, which thinks
+for a long time before it answers. The script stays on the fast slot and switches to Qwen for
+exactly one prepared question, because a Qwen turn is two to three minutes. A fast turn with one
+query is about a minute, most of it prompt evaluation: llama.cpp's multimodal handler re-reads
+the whole prompt on every request and a turn is four to six requests (the chat model, the query
+sub-agent, the check, the chat model again, then follow-ups and distillation).
 
 Both models resident take 13.5 GB. Close everything else heavy before you start.
+
+On OpenRouter the same two slots are the same two models by default, and either can be pointed
+somewhere else without a code change (`FINQUERY_OPENROUTER_FAST_MODEL`,
+`FINQUERY_OPENROUTER_QUALITY_MODEL`). That is the escape hatch behind the fallbacks at the end
+of this script: a laptop that will not cooperate can run the whole thing hosted, and a step that
+needs a stronger model than E4B can run hosted for that one step.
 
 ## Before you start
 
@@ -44,7 +58,9 @@ Times are for the fast slot unless the step says Qwen. "Instant" means no model 
 
 ### 1. Onboarding (no model, about 2 minutes of talking)
 
-A fresh database opens `/onboarding`.
+A fresh database opens `/onboarding`. It is skippable on every step, resumable (the step is in
+the URL, so a reload lands back on it) and reopenable later from Settings; a profile sees it
+once.
 
 1. **Step 1, categories.** Fifteen default categories, all on. Turn one off (Education),
    rename a subcategory inline, add one ("Pets"). Every toggle is a real taxonomy change; say
@@ -58,138 +74,201 @@ A fresh database opens `/onboarding`.
    `import_file` tool uses, categorizes them (384 by the merchant dictionary, 24 by the
    categorizer sub-agent, 25 left for you) and lands in a chat with the import step and the
    first Question card. Point at the counted summary: 433 read, 433 imported, 408 categorized.
+   The CSV sits on the first message as a file chip, the same chip a dropped file gets.
 
-### 2. Question cards (fast, two turns)
+### 2. The Dashboard, straight after the import (no model)
 
-4. **Answer three rows** of the card (Jonas Keller: Dining, Max Schulz: Transfers, Anna Weber:
+4. **Open the Dashboard** in the sidebar. To time on the local provider; no model runs, it is
+   queries only. Four tiles of the newest month of the data (Spent, Income, Net, Needs review
+   with a link that opens the review chat) and four charts that were there from the first
+   visit: spending per month, spending by category over the last three months, income against
+   spending, and the top ten merchants of the year. The line worth saying out loud: **nothing
+   on this page is a stored number**. Every tile and every card ran its statement through the
+   same guard a chat question goes through, just now, on load. That is also why the defaults
+   cost no model call: their SQL and their chart code are written in the repo, not by a model.
+   Say that a card can be renamed, moved, refreshed and removed, and come back here in step 12
+   with a chart from the chat.
+
+### 3. Question cards (fast, two turns)
+
+5. **Answer three rows** of the card (Jonas Keller: Dining, Max Schulz: Transfers, Anna Weber:
    Dining), leave Lea Hoffmann open, press **Send 3 answers**. The `Applied:` line appears on
    the card within a second: the rules were written by the server before the model spoke. The
    model then summarizes and asks the next card by itself. 67 s.
-5. **Answer the last row** (Lea Hoffmann: Dining), **Send 1 answer**. "Nothing left to
+6. **Answer the last row** (Lea Hoffmann: Dining), **Send 1 answer**. "Nothing left to
    review." 54 s. Open Transactions in a new tab if you like: 0 rows Needs review.
 
-### 3. Three questions with the query step (fast)
+### 4. Three questions with the query step (fast)
 
 Press **New chat** first: a fresh conversation keeps the prompt short and every turn faster.
 
-6. **"How much did I spend on groceries in May 2025?"** 63 s. Open the Query step: the
-   request the model wrote, the SQL a sub-agent produced, the guard's `LIMIT 200`, the one row.
-   The figure in the sentence is the figure in the row (440,72 EUR).
-7. **"Und im Vergleich zum April?"** 72 s. A German follow-up in the same chat; the model
+7. **"How much did I spend on groceries in May 2025?"** 63 s. Watch the thinking panel while
+   it runs: after the statement comes **"Checking the result"**, which is a second fast-slot
+   pass asking whether those rows answer that question. Then open the Query step: the request
+   the model wrote, the SQL a sub-agent produced, the guard's `LIMIT 200`, the one row. The
+   figure in the sentence is the figure in the row (440,72 EUR).
+8. **"Und im Vergleich zum April?"** 72 s. A German follow-up in the same chat; the model
    rewrites it into a standalone request ("April 2025 compared with May 2025") because the SQL
    sub-agent sees no history. Two rows, two figures (252,70 EUR and 440,72 EUR).
-8. **"Which merchants took the most money in 2025? Show me the top five."** 73 s. A five row
+9. **"Which merchants took the most money in 2025? Show me the top five."** 73 s. A five row
    table; the landlord first (13.800,00 EUR). Every number is one of the five rows.
+10. **The check catching one**, if there is time: **"Was ist meine kleinste wiederkehrende
+    Zahlung?"** To time on the local provider. This is the question that used to answer with
+    the largest payment. When the check disagrees the panel says **"Rewriting: ..."** with its
+    one-sentence reason, and the sub-agent writes the statement again with that reason in front
+    of it. A query costs at most three model calls whatever happens: the statement, the check,
+    one rewrite. If the first statement was already right, the panel says only "Checking the
+    result", which is the honest outcome and still worth pointing at.
 
-### 4. Two chart shapes (fast)
+### 5. Two chart shapes, and one goes on the Dashboard (fast)
 
-9. **"Show me my monthly spending in 2025 as a chart."** 96 s. Open the thinking panel while
-   it runs: the plan ("area, titled ..."), the data line, "Self-check passed". The card carries
-   the shape badge, the SQL and its 12 rows, Regenerate and thumbs. Hover a month.
-10. **"Show my five biggest merchants of 2025 as horizontal bars."** 86 s. A ranking with
+11. **"Show me my monthly spending in 2025 as a chart."** 96 s. Open the card's **Details**
+    while it runs: the chart sub-agent's work is a chain of thought there, one step at a time
+    (planned, queried, wrote, a step per repair round, checked), the current one active and the
+    rest pending, and it stays as the finished chain afterwards. The card carries the shape
+    badge, the SQL and its 12 rows, Regenerate and thumbs. Hover a month.
+12. **"Show my five biggest merchants of 2025 as horizontal bars."** 86 s. A ranking with
     long labels reads as horizontal bars; five bars, the landlord longest. Toggle the theme
     once here: the chart repaints in the other palette. (Not the doughnut, see below.)
+13. **Press "Add to dashboard"** on the monthly spending card. Instant. The button turns into
+    "On the dashboard" and stays that way after a reload. Go to the Dashboard: the chart is the
+    fifth card, drawn from its own statement re-run just now, not from a picture.
+14. **Type into the Dashboard's Add line:** "spending on groceries per month". To time on the
+    local provider (about 30 s hosted; expect a chart turn locally, so nearer the 96 s of step
+    11). It runs the same chart sub-agent a chat runs, shows the same chain of thought in the
+    card's details, and offers **Keep** and **Discard**. Keep it, rename it inline, move it left
+    once, press Refresh (the card stamps "Refreshed ..."), then remove it through its
+    confirmation if you want the page tidy again.
 
-### 5. A bulk changeset (fast)
+### 6. A bulk changeset (fast)
 
-11. **"Recategorize all Amazon Prime bookings as Shopping."** 66 s. A changeset card with the
+15. **"Recategorize all Amazon Prime bookings as Shopping."** 66 s. A changeset card with the
     12 affected rows, old category struck through, "A preview. Nothing is written until you
     press Apply." Press **Apply**: instant, the card turns to Applied with an Undo.
 
-### 6. A bill photo becomes a split (fast, vision)
+### 7. A bill photo becomes a split (fast, vision)
 
-12. Drop `bill-edeka-2025-03-14.png` on the composer and send **"Here is the receipt for this
-    payment."** 100 s. The fast slot reads the photo: seven line items that add up to the
-    printed total of 20,73 EUR, matched against the EDEKA booking of 14.03.2025. A split
-    proposal appears inside the import step: two legs, Groceries 11,75 EUR and Shopping
-    8,98 EUR. Press **Apply**. Say the rule: queries count the legs, never the parent.
+16. Drop `bill-edeka-2025-03-14.png` on the composer. Before you send, point at the chip: a
+    photo is a **thumbnail** you can hover for the picture at readable size, with a remove
+    button that is always visible; a CSV or a PDF is an icon chip with its name. Send **"Here is
+    the receipt for this payment."** 100 s. The sent message keeps the thumbnail, and it is a
+    link to the copy the server stored, so the transcript still shows what was read a week
+    later. The fast slot reads the photo: seven line items that add up to the printed total of
+    20,73 EUR, matched against the EDEKA booking of 14.03.2025. A split proposal appears inside
+    the import step: two legs, Groceries 11,75 EUR and Shopping 8,98 EUR. Press **Apply**. Say
+    the rule: queries count the legs, never the parent.
 
-### 7. Memory across two conversations (fast, two turns)
+### 8. Memory across two conversations (fast, two turns)
 
-13. Still in this chat: **"Remember: my flatmate is Max Schulz."** 49 s to 84 s. A `remember`
+17. Still in this chat: **"Remember: my flatmate is Max Schulz."** 49 s to 84 s. A `remember`
     step and a one-line confirmation. Keep the sentence this short: the fast model stores a
     short fact nearly word for word, and it is the word "flatmate" in the stored fact that the
     next step needs. A longer sentence came back stored without that word, and the next
     question then missed.
-14. **New chat.** **"How much did I send my flatmate in 2025?"** 59 s. "The total amount sent
+18. **New chat.** **"How much did I send my flatmate in 2025?"** 59 s. "The total amount sent
     to your flatmate, Max Schulz, was 137,50 EUR", with "5 memories used" under it: the model
     wrote "Max Schulz" into its request, and the SQL matched the PayPal description. Open
-    `/memory` in a tab: the fact, "you asked for it", edit and delete.
+    `/memory` in a tab: the fact, "you asked for it", edit and delete. Worth a sentence: a turn
+    leaves at most two facts behind and never one carrying an amount or a date, which is why
+    this list is short rather than a diary.
 
-### 8. A model switch to Qwen for one prepared question (quality)
+### 9. A model switch to Qwen for one prepared question (quality)
 
-15. In the composer, pick **Qwen3.5 9B** and ask **"What was my largest single expense in
+19. In the composer, pick **Qwen3.5 9B** and ask **"What was my largest single expense in
     2025, and what was it for?"** 138 s, of which the first is the model loading and about 12
     are visible thinking. The answer names the rent (1.150,00 EUR, 01.01.2025). The turn chip
     reads "Qwen3.5 9B model" while every earlier turn keeps "Gemma 4 E4B model".
 
-### 9. Stop mid-generation (quality)
+### 10. A turn keeps running when you walk away, then Stop (quality)
 
-16. Ask Qwen something long: **"Explain in detail how my spending developed over 2025, month
+20. Ask Qwen something long: **"Explain in detail how my spending developed over 2025, month
     by month, and what might explain each change."** While it thinks, click another chat in the
-    sidebar: that chat's row and its tab keep a small spinner, because the turn is running on
-    the server and not in this tab. Come back to it; the answer has carried on and the
-    transcript picks it up mid-sentence. Then press **Stop**. The partial thinking, tool steps
-    and text stay, chipped "Stopped": Stop is the only thing that ends a turn. Switch the
-    composer back to **Gemma 4 E4B**.
+    sidebar: that chat's row and its tab keep a small spinner, because the turn is a task on the
+    server and not something this tab owns. The composer of that chat is closed while it
+    answers, in every tab, and its line reads "This chat is answering. It keeps going if you
+    switch chats or close the tab." Come back to it; the answer has carried on and the
+    transcript picks it up mid-sentence. Reload the page for the same point twice as loudly: the
+    question, the thinking and the tool steps are all still there and the stream reattaches.
+    Then press **Stop**. The partial thinking, tool steps and text stay, chipped "Stopped": Stop
+    is the only thing that ends a turn. Switch the composer back to **Gemma 4 E4B**.
 
-### 10. The context badge, thumbs, a Regenerate pair (fast)
+### 11. The context badge, the download, thumbs, a Regenerate pair (fast)
 
-17. Click the percentage in the conversation header: used tokens over the 32k budget, the
+21. Click the percentage in the conversation header: used tokens over the 32k budget, the
     model, memories in the prompt, and the note that past 60 percent the older turns are
     summarized.
-18. **Thumbs up** the Qwen answer: instant, "This response was useful" stays pressed.
-19. Back in the charts conversation (its tab), press **Regenerate** on the area chart. 28 s.
+22. **Download this conversation** from the button next to that badge. Instant. It writes
+    markdown, and it is not only the text: the query steps come with their SQL and row counts,
+    the charts with their plan and SQL, the changesets with their status and rows, the Question
+    cards with the answers given, the attachments as links. Open the file: the audit trail
+    leaves the machine as a file you can read.
+23. **Thumbs up** the Qwen answer: instant, "This response was useful" stays pressed.
+24. Back in the charts conversation (its tab), press **Regenerate** on the area chart. 28 s.
     Two charts side by side, "Both charts drew the rows of the same query. Pick the better
     one." Press **Pick** under one: "Stored as a preference pair". Open `/feedback`: the
     records, and Export JSONL.
 
-### 11. Web lookup with the outbound log (fast)
+### 12. Web lookup with the outbound log (fast)
 
-20. Settings, **Web lookup** on. The card says "Off" turned to "On" and the outbound log is
+25. Settings, **Web lookup** on. The card says "Off" turned to "On" and the outbound log is
     still empty: "nothing has ever left this machine for this profile".
-21. New chat: **"What is dean&david on my statement?"** 53 s. The lookup step shows the
+26. New chat: **"What is dean&david on my statement?"** 53 s. The lookup step shows the
     merchant token that left, the searches, the category it suggests and the sources under the
     answer.
-22. Back to Settings: the outbound log lists the request, its target and the token, and
+27. Back to Settings: the outbound log lists the request, its target and the token, and
     nothing else. Switch web lookup off again.
 
-### 12. The Imports overview with Continue in chat and Delete (fast)
+### 13. A second import, in the background, then the Imports overview (fast)
 
-23. Drop `sparkasse-2025.csv` on the composer a second time and send it. 58 s. Every one
-    of its 433 bookings is already there, so the import writes nothing and asks about the
-    duplicates on a card. Leave the card unanswered.
-24. Open `/import`. Two imports: the first with 433 imported, the second with "433 undecided"
-    in amber and a **Continue in chat** link. Click it: the conversation with the open card.
-    Back on `/import`, **Delete** the second import: the confirmation names what goes with
-    it, and the list is back to one.
+28. Drop `sparkasse-2025.csv` on the composer a second time and send it. 58 s. **While it
+    runs, switch to another conversation**: the spinner on its tab and its sidebar row is the
+    import carrying on without you, and `/import` shows that row as **Still importing** with a
+    Continue in chat button. Come back and watch the rest arrive. Every one of its 433 bookings
+    is already there, so the import writes nothing and asks about the duplicates on a card.
+    Leave the card unanswered.
+29. Open `/import`. It imports nothing itself, it is the overview of what every past import
+    produced. Two rows: the first with 433 imported, the second with "433 undecided" in amber
+    and a **Continue in chat** link. Click it: the conversation with the open card. Back on
+    `/import`, **Delete** the second import: the confirmation names what goes with it (its
+    bookings, its candidates and the decisions on them), and the list is back to one. That is
+    the way back from an import into the wrong profile.
 
-### 13. The Transactions page with the split (no model)
+### 14. The Transactions page with the split (no model)
 
-25. Open `/transactions`. 433 rows. Type "edeka" into the search, set From 01.03.2025 to
+30. Open `/transactions`. 433 rows. Type "edeka" into the search, set From 01.03.2025 to
     31.03.2025: the EDEKA row of 14.03.2025 has a chevron. Expand it: the two legs from step
-    12, summing to the parent. Edit one category inline (click the cell, pick, click away: it
+    16, summing to the parent. Edit one category inline (click the cell, pick, click away: it
     saves). Clear the filters.
 
 ## What runs where, and how long
 
+Measured on 2026-09-05 on the local provider, before the result check and the grown prompts.
+"To time" means the step was driven on OpenRouter and has no local number yet.
+
 | Step | Slot | Measured |
 | --- | --- | --- |
 | Load the sample year (import, categorizer) | fast | 32 s |
+| The Dashboard: four tiles and four cards, every one a query | none | to time |
 | Answer a Question card (3 rows, next card drawn) | fast | 67 s |
 | Answer the last card row | fast | 54 s |
 | Query question, import conversation | fast | 63 s |
 | German follow-up, same conversation | fast | 72 s |
 | Query question, fresh conversation | fast | 73 s |
+| A query the check rewrites once | fast | to time |
 | Area chart | fast | 96 s |
 | Horizontal bars, five merchants | fast | 86 s |
+| Add to dashboard, from a chat chart card | none | instant |
+| Add chart from the Dashboard's own line | fast | to time (about 30 s hosted) |
+| Refresh a dashboard card (re-runs its SQL) | none | to time |
 | Doughnut per category (folded to six slices, then failed its check, not in the live script) | fast | 118 s |
 | Bulk changeset proposal | fast | 66 s |
 | Bill photo, split proposal (vision) | fast | 100 s |
 | `remember` | fast | 49 s to 84 s |
 | Question answered from memory, fresh conversation | fast | 59 s |
 | Prepared question | Qwen | 138 s |
+| Switch chat mid-turn and come back, reload mid-turn | either | instant, the turn is untouched |
 | Stop | either | under a second after the click |
+| Download the conversation as markdown | none | instant |
 | Regenerate a chart | fast | 28 s |
 | Thumbs, Pick, Apply, Undo | none | instant |
 | Web lookup (one search, one page read) | fast | 53 s |
@@ -201,35 +280,52 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 - **The PDF statement.** It works locally: `sparkasse-kontoauszug-2025.pdf` extracted all 433
   bookings with 0 flagged rows and reconciled to the printed closing balance, in 24 minutes
   (1458 s, about 97 s per page: one bounded extraction call per page on the fast slot, and
-  the local provider runs the pages one after another). That is a coffee break, not a demo
-  step. Show it on OpenRouter (131 s for the same file in ticket 11, four pages in flight)
-  or open a profile where it was imported beforehand and show the reconciliation sentence on
-  the Imports overview. Before ticket 17 the same extraction ran away until the context was
-  full; the sub-agent output ceiling is what makes it finish at all.
-- **The doughnut.** Asked for one, the fast model's code pass never gives `radialArc` its
+  the local provider asks for four pages at a time but one model answers them in turn). That is
+  a coffee break, not a demo step. Show it on OpenRouter (131 s for the same file in ticket 11
+  with four pages in flight; a hosted provider now runs twelve, and
+  `FINQUERY_EXTRACTION_PAGE_CONCURRENCY` turns that down) or
+  open a profile where it was imported beforehand and show the reconciliation sentence on the
+  Imports overview. Before ticket 17 the same extraction ran away until the context was full;
+  the sub-agent output ceiling is what makes it finish at all.
+- **The doughnut, asked for in chat.** The fast model's code pass never gives `radialArc` its
   `color` channel, three rounds running, so the card says the chart could not be drawn and the
   answer gives the six figures instead (the twelve categories are folded to five plus "Other"
   in code first). It is honest and it costs two minutes, so it is not in the script. On
-  OpenRouter the same request draws (ticket 25's benchmark), and Qwen was not tried on it.
+  OpenRouter the same request draws (88 to 100 percent on the chart benchmark), and Qwen is
+  worst of all on this shape (12 percent). The Dashboard's own doughnut is a different thing
+  and does draw: its code is in the repo, not written by a model, which is a point worth making
+  if somebody asks why one works and the other does not.
 - **Context compression.** It starts at 60 percent of the 32k budget, about 20k tokens of
   conversation. On the local provider that is a quarter of an hour of turns, so the script
   shows the badge and says what happens past 60 percent instead of getting there. To show the
   divider live, start the server with `FINQUERY_CONTEXT_BUDGET=6000` for one conversation.
 - **The A/B on a thumbs down.** It works (a second answer at a higher temperature with only
   the query tool, then a pick), and it costs another minute. Mention it, do it if time allows.
+- **The benchmarks.** They are numbers, not a screen: 152 SQL questions and 63 chart requests
+  with gold rows computed from reference SQL. If somebody asks how good the models really are,
+  the answer is `bench/README.md`, not a live run.
 
 ## If something goes wrong
 
 - A turn is slow but the thinking panel moves: wait. The first token of a late turn in a long
-  conversation can be 20 seconds behind Send, because the whole prompt is re-read. Nothing is
-  stuck until Stop stops moving too.
-- The browser gets into a bad state mid-turn: reload the page. The turn is a task on the server,
-  so reloading, switching chat or closing the tab costs nothing: the transcript reattaches to
-  the same stream and the answer carries on where it was. The composer stays closed for that
-  chat while it answers, in every tab.
+  conversation can be 20 seconds behind Send, because the whole prompt is re-read. A query also
+  pauses at "Checking the result" for one more model call now. Nothing is stuck until Stop
+  stops moving too.
+- The browser gets into a bad state mid-turn: **reload the page**. That is a real recovery, not
+  a gamble. The turn is a task on the server, so reloading, switching chat or closing the tab
+  costs nothing: the transcript reattaches to the same stream and the answer carries on where it
+  was, in one message rather than two.
+- The composer is closed and you wanted to type: that chat is still answering, in every tab.
+  Wait for it or press Stop. Whatever you typed stays in the box as a draft.
 - A chart card says it could not be drawn: the answer under it gives the figures instead, by
   design. Press Regenerate once; the second attempt usually draws.
 - The model answers in the wrong language: onboarding's answer language (Settings, Setup, or
   the language rule in the prompt) is what fixes it, not repeating the question.
-- The doughnut, the flatmate question or the lookup misfires: every one has a fallback in the
-  same words one step earlier (the area chart, the rent question on Qwen, the second import).
+- **Answer the open Question card before typing the next question.** A card left open while
+  the conversation moves on still works, but the demo reads better in order.
+- A step misfires: every one has a fallback in the same words one step earlier. The doughnut
+  falls back to the horizontal bars of step 12, the flatmate question to the rent question on
+  Qwen (step 19), the lookup to the second import (step 28), the Dashboard's Add line to the
+  chart already pinned in step 13, and the PDF to the pre-imported profile. If the laptop itself
+  gives up, `FINQUERY_PROVIDER=openrouter` runs the identical script hosted, and
+  `FINQUERY_OPENROUTER_FAST_MODEL` points the fast slot at a stronger model for one step.
