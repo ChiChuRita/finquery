@@ -120,6 +120,13 @@ class ImportOut(BaseModel):
     reconciliation: str | None
     needs_review: int = 0
     conversation_id: str | None = None
+    running: bool = False
+    """Whether the chat this file was dropped into is still working on it.
+
+    An import is a chat turn: the rows are committed within seconds and the categorization that
+    follows takes minutes, so the counts on this row are still moving. The turn survives a
+    closed tab (ticket 33), which is exactly why the page has to say so rather than look
+    finished."""
     created_at: datetime
 
 
@@ -255,7 +262,12 @@ async def create_import(
 
 
 def _out(
-    record: Import, account_name: str, *, needs_review: int = 0, conversation_id: str | None = None
+    record: Import,
+    account_name: str,
+    *,
+    needs_review: int = 0,
+    conversation_id: str | None = None,
+    running: bool = False,
 ) -> ImportOut:
     return ImportOut(
         id=record.id,
@@ -272,6 +284,7 @@ def _out(
         reconciliation=record.reconciliation,
         needs_review=needs_review,
         conversation_id=conversation_id,
+        running=running,
         created_at=record.created_at,
     )
 
@@ -471,8 +484,15 @@ async def list_imports(request: Request, profile_id: str) -> list[ImportOut]:
             .where(Import.profile_id == profile_id)
             .order_by(Import.created_at.desc())
         ).all()
+        running = request.app.state.running_turns
         return [
-            _out(record, account_name, needs_review=review, conversation_id=conversation_id)
+            _out(
+                record,
+                account_name,
+                needs_review=review,
+                conversation_id=conversation_id,
+                running=conversation_id in running,
+            )
             for record, account_name, review, conversation_id in rows
         ]
 

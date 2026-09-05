@@ -15,7 +15,6 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import ValidationError
-from pydantic_ai import CancellationToken
 from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.exceptions import RunCancelled
 from pydantic_ai.messages import (
@@ -52,6 +51,7 @@ from finquery.agent import ChatDeps, chat_agent
 from finquery.answers import resolve_answers
 from finquery.api.attachments import store_uploads, take_uploads, turn_chips
 from finquery.api.conversations import get_conversation_or_404
+from finquery.api.running import SDK_VERSION, RunningTurn, partial_parts, stream_response
 from finquery.ask_user import ASK_USER
 from finquery.attachments import AttachmentRejected
 from finquery.context import (
@@ -73,7 +73,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-SDK_VERSION = 7
 TITLE_LENGTH = 60
 FOLLOWUPS_PART = "data-followups"
 CONTEXT_PART = "data-context"
@@ -151,12 +150,6 @@ class ThinkingFilter:
     def flush(self) -> str:
         held, self._held = self._held + self._markers.flush(), ""
         return strip_retry_feedback(held)
-
-
-@dataclass
-class RunningTurn:
-    token: CancellationToken = field(default_factory=CancellationToken)
-    finished: asyncio.Event = field(default_factory=asyncio.Event)
 
 
 @dataclass(frozen=True)
@@ -663,6 +656,50 @@ def reopen_turn(session_factory: sessionmaker[Session], turn_id: str) -> None:
             session.commit()
 
 
+PARTIAL_SECONDS = 3.0
+"""How long a turn may stream before the open turn row is brought up to date again.
+
+Every tool boundary is written whatever the clock says; between them this is the ceiling, so a
+process that dies in the middle of a long answer leaves the paragraph it had written rather
+than the question alone. One row, one write: the whole turn is a single column.
+"""
+
+
+def persist_partial(
+    session_factory: sessionmaker[Session],
+    turn_id: str,
+    *,
+    message_id: str,
+    slot: str,
+    parts: Sequence[dict[str, Any]],
+) -> None:
+    """Write the turn so far into the open turn, replacing what was written for it before.
+
+    Only the UI messages: the model messages of a turn are what the next prompt is assembled
+    from, and half a run is not something to assemble a prompt from. `persist_turn` writes both
+    families when the run ends.
+
+    The assistant message keeps `message_id` from the first write to the last, which is the id
+    the stream names in its `start` chunk. A browser that reloads mid-turn therefore has the
+    same message the reattached stream is about, and replaces it rather than drawing the turn
+    twice.
+    """
+    if not parts:
+        return
+    with session_factory() as session:
+        turn = session.get(Turn, turn_id)
+        if turn is None or turn.finished:
+            return
+        messages = [m for m in json.loads(turn.ui_messages_json) if m.get("id") != message_id]
+        messages.append(
+            {"id": message_id, "role": "assistant", "parts": list(parts), "metadata": {"model_slot": slot}}
+        )
+        # `default=str` for the one thing a tool result can carry that JSON cannot: a date. The
+        # wire encoder handles those itself, and this is the same objects taking the other road.
+        turn.ui_messages_json = json.dumps(messages, default=str)
+        session.commit()
+
+
 def _interrupt(turn: Turn) -> None:
     """Mark one open turn as the interrupted turn it is, so the transcript can say so.
 
@@ -792,8 +829,13 @@ async def chat(request: Request, conversation_id: str) -> Response:
     except ProviderNotAvailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    # The id of the assistant message this run streams under, chosen here because the partial
+    # turn is stored under it too: see `persist_partial`.
+    message_id = f"turn-{new_id()}"
     try:
-        adapter = await VercelAIAdapter.from_request(request, agent=chat_agent, sdk_version=SDK_VERSION)
+        adapter = await VercelAIAdapter.from_request(
+            request, agent=chat_agent, sdk_version=SDK_VERSION, server_message_id=message_id
+        )
     except ValidationError as exc:
         return Response(content=exc.json(), media_type="application/json", status_code=422)
 
@@ -928,8 +970,13 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # the card itself before it sent them, and reads the `applied` line back with the stored turn.
     answered_elsewhere = set(answers) if card_turn is not None and card_turn < len(stored.turns) - 1 else set()
 
-    turn = RunningTurn()
+    turn = RunningTurn(message_id=message_id)
     running[conversation_id] = turn
+    # The turn so far is written into its own row as it goes, so a process that stops mid-answer
+    # leaves what it had. A turn being rewritten from a Question card further up the transcript
+    # is the one exception: its partial half would be drawn in the middle of the transcript,
+    # where the reattached stream (which lands on the newest message) would draw it again.
+    partials = card_turn is None or card_turn == len(stored.turns) - 1
     # Stored on the assistant UI message and echoed to the client at the end of the turn.
     metadata: dict[str, object] = {"model_slot": slot}
     thinking_started: float | None = None
@@ -1165,12 +1212,55 @@ async def chat(request: Request, conversation_id: str) -> Response:
                 yield item
         finally:
             pump.cancel()
+
+    async def run() -> None:
+        """The turn, as a task the app owns rather than as the request that asked for it.
+
+        Nothing here is tied to the response: it appends what it produces to the turn's buffer,
+        writes the turn down as it goes, and closes it. A client that hangs up stops reading the
+        buffer, which is all a client can do to a turn. Stop is the one thing that ends a run.
+        """
+        written_at = time.monotonic()
+        try:
+            async for chunk in stream():
+                turn.push(chunk)
+                if not partials or written or replaces is None:
+                    continue
+                # Every tool boundary, and otherwise no more than every few seconds of text.
+                boundary = chunk.type in ("tool-input-available", "tool-output-available")
+                if not boundary and time.monotonic() - written_at < PARTIAL_SECONDS:
+                    continue
+                if parts := partial_parts(turn.chunks):
+                    persist_partial(
+                        state.session_factory, replaces, message_id=message_id, slot=slot, parts=parts
+                    )
+                    written_at = time.monotonic()
+        finally:
             running.pop(conversation_id, None)
             if not written:
                 close_turn_if_open(state.session_factory, replaces)
-            turn.finished.set()
+            turn.close()
 
-    return adapter.streaming_response(stream())
+    turn.task = asyncio.create_task(run(), name=f"turn-{conversation_id}")
+    return stream_response(turn.follow())
+
+
+@router.get("/conversations/{conversation_id}/stream")
+async def reattach(request: Request, conversation_id: str) -> Response:
+    """Watch the turn this conversation is running: what it has produced, then what it produces.
+
+    `useChat`'s own resume asks for exactly this URL when a chat is opened while a turn of it is
+    running: a reload, a switch to another conversation and back, or a browser tab that was
+    closed and opened again. 204 means nothing is running, which is what the SDK reads as "carry
+    on with what you have".
+
+    Reading a turn never changes it: hanging up here is one subscriber leaving.
+    """
+    running: dict[str, RunningTurn] = request.app.state.running_turns
+    turn = running.get(conversation_id)
+    if turn is None:
+        return Response(status_code=204)
+    return stream_response(turn.follow())
 
 
 @router.post("/conversations/{conversation_id}/stop")
