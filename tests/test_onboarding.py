@@ -8,11 +8,22 @@ afterwards: the categories the profile has, the language rule in the prompt of t
 the bookings in the profile and the parts of the seeded transcript.
 """
 
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
+from pydantic_ai.messages import ModelMessage
+from pydantic_ai.models.function import AgentInfo
 
-from .conftest import Chat, Scripts, default_profile_id, new_conversation
+from .conftest import (
+    Chat,
+    Scripts,
+    default_profile_id,
+    distilled,
+    is_distillation_request,
+    is_followup_request,
+    new_conversation,
+)
 from .test_categorization import scripted_categorizer
 from .test_memory import Recorder
 
@@ -200,3 +211,50 @@ async def test_the_welcome_names_the_data_and_speaks_the_chosen_language(
 async def test_the_seeded_conversations_belong_to_the_profile_that_asked(client: httpx.AsyncClient) -> None:
     for path in ("/api/onboarding/sample", "/api/onboarding/welcome"):
         assert (await client.post(path, json={"profile_id": "nope"})).status_code == 404
+
+
+async def test_the_follow_up_chips_are_written_in_the_language_the_profile_fixed(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """Chips are read next to the answer, so they follow the same rule the answer does.
+
+    A profile fixed to English got German suggestions under an English answer (e2e of
+    2026-09-05, m3), because the follow-up step was only ever told "the language of the
+    exchange" and the exchange it saw had been German.
+    """
+    asked: list[str] = []
+
+    async def fn(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
+        if is_followup_request(messages):
+            asked.append(_prompt_of(messages))
+            yield "What did I spend on groceries in May?"
+            return
+        if is_distillation_request(messages):
+            yield distilled()
+            return
+        yield "You spent 440,72 EUR on groceries in May 2025."
+
+    scripts.fast = fn
+    conversation = await new_conversation(client, profile_id)
+
+    await patch_settings(client, profile_id, answer_language="en")
+    await chat(conversation, "Wie viel habe ich im Mai fuer Lebensmittel ausgegeben?")
+    assert "write the questions in English" in asked[-1]
+
+    await patch_settings(client, profile_id, answer_language="de")
+    await chat(conversation, "And in June?")
+    assert "write the questions in German" in asked[-1]
+
+    # On `follow` nothing is named and the exchange decides, as it always did.
+    await patch_settings(client, profile_id, answer_language="follow")
+    await chat(conversation, "And in July?")
+    assert "write the questions in" not in asked[-1]
+
+
+def _prompt_of(messages: list[ModelMessage]) -> str:
+    return "\n".join(
+        part.content
+        for message in messages
+        for part in message.parts
+        if part.part_kind == "user-prompt" and isinstance(part.content, str)
+    )

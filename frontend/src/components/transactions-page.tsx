@@ -6,7 +6,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { PageBar } from '@/components/page'
 import { TransactionsTable, type Patch } from '@/components/transactions-table'
-import { AddTransactionDialog, ConfirmDeleteDialog } from '@/components/transaction-dialogs'
+import {
+  AddTransactionDialog,
+  ConfirmDeleteDialog,
+  ConfirmRecategorizeDialog,
+} from '@/components/transaction-dialogs'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
@@ -34,6 +38,10 @@ import { formatEur } from '@/lib/format'
 import { useWorkspace } from '@/lib/workspace'
 
 const ALL = '__all__'
+/** The bulk bar starts on nothing chosen. Its select used to default to Needs review, which is
+ *  one stray click away from taking the category off every selected row, and three rows lost
+ *  theirs that way in the e2e of 2026-09-05 (p2). */
+const NOTHING_CHOSEN = ''
 /** The two native date fields, sized and lettered like the shadcn selects beside them. Their
  *  calendar button is toned down to match the select chevrons in `index.css`. */
 const DATE_FIELD = 'w-36 text-sm tabular-nums'
@@ -200,7 +208,7 @@ export function TransactionsPage() {
   const [filters, setFilters] = useState<Filters>(NO_FILTERS)
   const [selection, setSelection] = useState<RowSelectionState>({})
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [target, setTarget] = useState(ALL)
+  const [target, setTarget] = useState(NOTHING_CHOSEN)
 
   // Everything on this page is read for the profile the sidebar is showing.
   const list = useInfiniteQuery(transactionsQuery(profile?.id, filters))
@@ -250,9 +258,12 @@ export function TransactionsPage() {
     },
     onSuccess: async () => {
       setSelection({})
+      setTarget(NOTHING_CHOSEN)
       await refresh()
     },
   })
+  const targetName =
+    target === ALL ? 'Needs review' : (categories.find((category) => category.id === target)?.name ?? '')
 
   const remove = useMutation({
     mutationFn: () => {
@@ -363,7 +374,7 @@ export function TransactionsPage() {
           <div className="flex items-center gap-2">
             <Select onValueChange={setTarget} value={target}>
               <SelectTrigger aria-label="Category to move them to" className="w-56" size="sm">
-                <SelectValue />
+                <SelectValue placeholder="Move them to..." />
               </SelectTrigger>
               {/* Anchored to the trigger rather than to the chosen item, because the bar it
                   hangs off sits at the bottom of the window. Categories only: the subcategory
@@ -378,14 +389,13 @@ export function TransactionsPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              disabled={recategorize.isPending}
-              onClick={() => recategorize.mutate()}
-              size="sm"
-              variant="secondary"
-            >
-              {recategorize.isPending ? 'Applying...' : 'Recategorize'}
-            </Button>
+            <ConfirmRecategorizeDialog
+              count={selectedIds.length}
+              disabled={target === NOTHING_CHOSEN}
+              onConfirm={() => recategorize.mutateAsync()}
+              pending={recategorize.isPending}
+              target={targetName}
+            />
           </div>
 
           <ConfirmDeleteDialog
