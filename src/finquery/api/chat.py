@@ -66,7 +66,16 @@ from finquery.context import (
 from finquery.db import Conversation, Profile, Turn, new_id, utcnow
 from finquery.followups import suggest_followups
 from finquery.local.gemma import MarkerFilter, strip_channel_lines, strip_markers
-from finquery.memory import MemoryBlock, add_memory, build_memory_block, distill_memories, list_memories
+from finquery.memory import (
+    MemoryBlock,
+    absent_names,
+    add_memory,
+    build_memory_block,
+    distill_memories,
+    list_memories,
+)
+from finquery.onboarding import detect_language
+from finquery.prose import AnswerCheck, Figures
 from finquery.providers import ProviderNotAvailable
 
 logger = logging.getLogger(__name__)
@@ -111,22 +120,25 @@ class TextFilter:
     """`MarkerFilter` plus the bare channel-name lines OpenRouter leaves in an answer.
 
     A line has to be judged whole, so a delta is released only up to its last newline and the
-    tail waits for the next one; `flush` releases it when the text part ends.
+    tail waits for the next one; `flush` releases it when the text part ends. That whole line is
+    also what the answer check judges, so a figure no query returned never reaches the reader
+    (`finquery.prose`).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, check: AnswerCheck | None = None) -> None:
         self._markers = MarkerFilter()
         self._held = ""
+        self._check = check or AnswerCheck()
 
     def feed(self, delta: str) -> str:
         buffer = self._held + self._markers.feed(delta)
         cut = buffer.rfind("\n") + 1
         ready, self._held = buffer[:cut], buffer[cut:]
-        return strip_channel_lines(ready)
+        return self._check.clean(strip_channel_lines(ready))
 
     def flush(self) -> str:
         held, self._held = self._held + self._markers.flush(), ""
-        return strip_channel_lines(held)
+        return self._check.clean(strip_channel_lines(held))
 
 
 class ThinkingFilter:
@@ -395,6 +407,31 @@ def _user_prompts(messages: Sequence[ModelMessage]) -> list[str]:
     ]
 
 
+def _found_nothing(messages: Sequence[ModelMessage]) -> list[str]:
+    """The requests of this turn whose query came back with no rows at all.
+
+    What the turn proved absent. A memory about a person the data does not have survives every
+    later conversation and steers it (§10 of the 9B review), so it is never written.
+    """
+    return [
+        str(part.content.get("request") or "")
+        for message in messages
+        if message.kind == "request"
+        for part in message.parts
+        if part.part_kind == "tool-return"
+        and part.tool_name in ("query", "chart")
+        and isinstance(part.content, dict)
+        and _held_nothing(part.content.get("rows"))
+    ]
+
+
+def _held_nothing(rows: object) -> bool:
+    """No rows at all, or the one row a SUM over nothing returns, whose every value is NULL."""
+    if not isinstance(rows, list) or not rows:
+        return True
+    return all(value is None for row in rows if isinstance(row, dict) for value in row.values())
+
+
 def _assistant_text(messages: Sequence[ModelMessage]) -> str:
     return "\n".join(
         part.content
@@ -496,19 +533,36 @@ def _renderable(messages: list[ModelMessage]) -> list[ModelMessage]:
     return kept
 
 
-def _clean_text(messages: Sequence[ModelMessage]) -> None:
+def collect_figures(messages: Sequence[ModelMessage], figures: Figures | None = None) -> Figures:
+    """Every figure these messages carry: what their tools returned, what the user wrote.
+
+    The conversation, not only the turn: quoting back the total of the question before this one
+    is reading a figure a query did produce, and a follow-up does it all the time.
+    """
+    figures = figures or Figures()
+    for message in messages:
+        for part in message.parts:
+            if part.part_kind == "tool-return":
+                figures.add_result(part.content)
+            elif part.part_kind == "user-prompt" and isinstance(part.content, str):
+                figures.add_message(part.content)
+    return figures
+
+
+def _clean_text(messages: Sequence[ModelMessage], check: AnswerCheck) -> None:
     """Take the chat template's own tokens out of what a response carries, text and thinking.
 
     The stream is filtered on its way to the browser (`MarkerFilter`, `ThinkingFilter`); this is
     the same vocabulary applied to what gets stored, so a reload does not bring `<turn|>` or the
-    framework's retry sentence back.
+    framework's retry sentence back. The answer check runs here for the same reason: a figure
+    that was rewritten on the way out must not come back with the transcript.
     """
     for message in messages:
         if message.kind != "response":
             continue
         for part in message.parts:
             if part.part_kind == "text":
-                part.content = strip_markers(part.content)
+                part.content = check.clean(strip_markers(part.content))
             elif part.part_kind == "thinking":
                 # The thinking panel survives a reload, so it is cleaned with the same
                 # vocabulary the live stream is filtered with (`ThinkingFilter`).
@@ -540,6 +594,8 @@ def persist_turn(
     attachments: Sequence[FileUIPart] = (),
     replaces: str | None = None,
     narration: Sequence[tuple[int, str]] = (),
+    language: str = "en",
+    figures: Figures | None = None,
 ) -> str:
     """Store one turn as both message families: what the model sees and what the UI renders.
 
@@ -565,7 +621,18 @@ def persist_turn(
     if notes := _audit_notes(messages):
         metadata["audit_notes"] = notes
     interrupted = bool(metadata.get("interrupted"))
-    _clean_text(messages)
+    # The same figures the stream judged against (the caller passes them when it has them), plus
+    # whatever this turn produced, so the stored answer and the streamed one agree.
+    check = AnswerCheck(figures=collect_figures(messages, figures), language=language)
+    _clean_text(messages, check)
+    if check.rewritten:
+        logger.warning(
+            "%s figure(s) in the stored answer of conversation %s came from no query and were "
+            "replaced with what the tools returned",
+            check.rewritten,
+            conversation_id,
+        )
+        metadata["figures_rewritten"] = check.rewritten
     ui_messages = _one_assistant_message(
         VercelAIAdapter.dump_messages(_renderable(messages), sdk_version=SDK_VERSION)
     )
@@ -994,6 +1061,13 @@ async def chat(request: Request, conversation_id: str) -> Response:
     partials = card_turn is None or card_turn == len(stored.turns) - 1
     # Stored on the assistant UI message and echoed to the client at the end of the turn.
     metadata: dict[str, object] = {"model_slot": slot}
+    # The language a replaced figure is explained in: the profile's own choice when it made one,
+    # otherwise the language of the question, the same rule the answer itself follows.
+    prose_language = answer_language if answer_language in ("de", "en") else (detect_language(question) or "en")
+    # What this turn's answer may state. It is fed the tool results as they come back, so a
+    # figure that is in none of them never reaches the reader.
+    check = AnswerCheck(figures=collect_figures(stored.messages), language=prose_language)
+    check.figures.add_message(question)
     thinking_started: float | None = None
     thinking_total = 0.0
     # Whether this run wrote its turn out. A browser that hangs up mid-answer takes the request
@@ -1058,6 +1132,9 @@ async def chat(request: Request, conversation_id: str) -> Response:
     def store(turn_messages: list[ModelMessage], data_parts: Sequence[DataUIPart]) -> None:
         nonlocal written
         written = True
+        # What the reader was spared, on the turn, so the badge and a test can see it happened.
+        if check.rewritten:
+            metadata["figures_rewritten"] = check.rewritten
         # The turn's id goes back to the client in the metadata chunk that follows, so the
         # thumbs on this answer can name the turn they rate without a reload.
         metadata["turn_id"] = persist_turn(
@@ -1070,6 +1147,8 @@ async def chat(request: Request, conversation_id: str) -> Response:
             attachments=chips,
             replaces=replaces,
             narration=narration.texts(),
+            language=prose_language,
+            figures=check.figures,
         )
 
     def _context_stats(produced: Sequence[ModelMessage]) -> dict[str, object]:
@@ -1114,7 +1193,12 @@ async def chat(request: Request, conversation_id: str) -> Response:
         with state.session_factory() as session:
             known = [memory.text for memory in list_memories(session, profile_id)]
         facts = await distill_memories(
-            state.resolve_model("fast"), state.subagent_settings, prompts[-1], answer, known
+            state.resolve_model("fast"),
+            state.subagent_settings,
+            prompts[-1],
+            answer,
+            known,
+            absent_names(_found_nothing(turn_messages)),
         )
         if not facts:
             return
@@ -1150,7 +1234,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
         nonlocal thinking_started
         # Gemma's own template tokens are text on OpenRouter, and the answer is what the user
         # reads, so they are taken out here for both providers.
-        markers = TextFilter()
+        markers = TextFilter(check)
         thinking = ThinkingFilter()
         source = adapter.run_stream(
             message_history=history,
@@ -1208,8 +1292,11 @@ async def chat(request: Request, conversation_id: str) -> Response:
                     # The question itself survives: the open turn is closed as interrupted.
                     logger.error("the turn failed: %s", item.error_text)
                     item = ErrorChunk(error_text=TURN_FAILED)
-                elif item.type == "tool-output-available" and item.tool_call_id in answered_elsewhere:
-                    continue
+                elif item.type == "tool-output-available":
+                    # Every figure this tool returned is a figure the answer may quote.
+                    check.figures.add_result(item.output)
+                    if item.tool_call_id in answered_elsewhere:
+                        continue
                 elif item.type == "tool-input-available":
                     # Which tool step a narration block belongs to, for the reload.
                     narration.tools += 1

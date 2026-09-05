@@ -122,8 +122,12 @@ class Figures:
             for item in output:
                 self.add_result(item)
         elif isinstance(output, str):
+            # A preview row carries its amount as "-7.90"; a tool that answers in a sentence
+            # carries it as "120.00 EUR". Both are figures the answer may quote.
             if _NUMERIC.match(output.strip()) and (cents := to_cents(output)) is not None:
                 self.cents.add(cents)
+            else:
+                self.cents.update(cents for _, cents in money_in(output))
 
     def add_message(self, text: str) -> None:
         """The amounts the user wrote themselves. Quoting those back is not inventing them."""
@@ -176,7 +180,13 @@ class AnswerCheck:
         """The text with every unsupported figure replaced and every stray token dropped."""
         if not text:
             return text
-        return "".join(self._sentence(part) for part in _SENTENCE.findall(strip_foreign_tokens(text)))
+        cleaned = strip_foreign_tokens(text)
+        if not self.figures.lines:
+            # No query has produced a figure in this conversation, so there is nothing to judge
+            # a figure against: the prompt's rule (no figure without a query) is the only guard,
+            # and a number here may as easily be the user's own or a date as an invention.
+            return cleaned
+        return "".join(self._sentence(part) for part in _SENTENCE.findall(cleaned))
 
     def _sentence(self, sentence: str) -> str:
         amounts = money_in(sentence)
@@ -232,11 +242,19 @@ def strip_foreign_tokens(text: str) -> str:
     if not foreign or len(foreign) > max(1, len(words) * MAX_FOREIGN_SHARE):
         return text
     kept: list[str] = []
+    drop_next_space = False
     for index, part in enumerate(parts):
         if index in foreign:
-            # The space in front of the word goes with it, so no double space is left behind.
+            # One space goes with the word, so no double space is left behind: the one in front
+            # of it, or the one after it when the word opened a line.
             if kept and kept[-1] == " ":
                 kept.pop()
+            else:
+                drop_next_space = True
             continue
+        if drop_next_space and part == " ":
+            drop_next_space = False
+            continue
+        drop_next_space = False
         kept.append(part)
     return "".join(kept)

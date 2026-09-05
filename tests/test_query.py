@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.db import create_profile, ensure_account
 from finquery.formats import eur
+from finquery.memory import MemoryKind
 
 from .conftest import (
     SYNTHETIC,
@@ -71,7 +72,12 @@ def ask_query_then_report(request: str, hints: str | None = None):
     return fn
 
 
-def scripted_sql(*statements: str, followups: Sequence[str] = (), memories: Sequence[str] = ()):
+def scripted_sql(
+    *statements: str,
+    followups: Sequence[str] = (),
+    memories: Sequence[str] = (),
+    memory_kind: MemoryKind = "fact",
+):
     """The sub-agent's forced single tool call, one statement per attempt.
 
     Both post-turn steps run on the same slot and are not streamed either, so they land here
@@ -83,7 +89,7 @@ def scripted_sql(*statements: str, followups: Sequence[str] = (), memories: Sequ
         if is_followup_request(messages):
             return ModelResponse(parts=[TextPart(content="\n".join(followups) if followups else "No follow-ups.")])
         if is_distillation_request(messages):
-            return ModelResponse(parts=[distilled(*memories)])
+            return ModelResponse(parts=[distilled(*memories, kind=memory_kind)])
         prompts.append(_last_user_prompt(messages))
         assert [tool.name for tool in info.output_tools] == ["run_sql"]
         assert info.allow_text_output is False

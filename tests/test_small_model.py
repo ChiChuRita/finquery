@@ -11,14 +11,14 @@ Every test drives the HTTP seam, the way the rest of the suite does.
 
 import json
 from collections.abc import AsyncIterator, Sequence
-from datetime import date
 
 import httpx
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall
 from sqlalchemy.orm import Session, sessionmaker
 
-from finquery.db import Memory, Transaction
+from finquery.db import Transaction
+from finquery.formats import eur
 from finquery.query.guard import MAX_STATEMENT_CHARS
 
 from .conftest import (
@@ -513,3 +513,204 @@ async def test_an_edit_that_names_the_amount_still_writes_it(
     with session_factory() as session:
         row = session.get(Transaction, ids[0])
         assert row is not None and row.amount_cents == -4230
+
+
+# --------------------------------------------------------------------------- 7: prose figures
+
+
+def metadata_of(chunks: list[dict[str, object]]) -> dict[str, object]:
+    """Everything the turn's metadata chunks carried, merged the way the client merges them."""
+    merged: dict[str, object] = {}
+    for chunk in chunks:
+        if chunk["type"] == "message-metadata":
+            merged.update(chunk["messageMetadata"])  # type: ignore[arg-type]
+    return merged
+
+
+async def test_a_total_the_model_added_up_itself_is_replaced_by_the_queried_figures(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """A7: nine rows in the table, and a total in prose that none of them add up to."""
+    await import_synthetic(client, profile_id)
+    monthly = (
+        "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(SUM(amount), 2) AS net_eur "
+        "FROM transaction_view GROUP BY month ORDER BY month"
+    )
+    scripts.fast = ask_query_then_say(
+        "net savings per month",
+        "Here is the month by month table.\n"
+        "Total net balance change for the period: 83,64 EUR.\n"
+        "That is the picture.",
+    )
+    scripts.fast_call = scripted_sql(monthly)  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "What are my net savings per month?")
+
+    text = answer(chunks)
+    assert "83,64" not in text, "the invented total never reaches the reader"
+    assert "did not come from any query" in text
+    assert "net_eur" in text, "the sentence quotes what the query did return"
+    # The sentences around it are untouched.
+    assert text.startswith("Here is the month by month table.")
+    assert text.endswith("That is the picture.")
+    assert metadata_of(chunks)["figures_rewritten"] == 1
+    # And a reload shows the same answer, not the figure the stream took out.
+    detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
+    stored = [p["text"] for m in detail["messages"] for p in m["parts"] if p["type"] == "text"]
+    assert "83,64" not in " ".join(stored)
+    assert detail["messages"][-1]["metadata"]["figures_rewritten"] == 1
+
+
+async def test_a_figure_that_is_in_the_rows_is_left_alone(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The check is about a figure nothing returned, not about quoting one."""
+    await import_synthetic(client, profile_id)
+    listing = (
+        await client.get("/api/transactions", params={"profile_id": profile_id, "q": "rewe", "limit": 500})
+    ).json()
+    total = -sum(row["amount_cents"] for row in listing["rows"])
+    scripts.fast = ask_query_then_say(
+        "total spending at REWE", f"You spent {eur(total)} EUR at REWE."
+    )
+    scripts.fast_call = scripted_sql(  # type: ignore[assignment]
+        "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view "
+        "WHERE amount < 0 AND lower(description || ' ' || coalesce(counterparty, '')) LIKE '%rewe%'"
+    )
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "How much did I spend at REWE?")
+
+    assert answer(chunks) == f"You spent {eur(total)} EUR at REWE."
+    assert "figures_rewritten" not in metadata_of(chunks)
+
+
+async def test_the_replacement_is_written_in_the_language_of_the_question(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """B4: "ca. 1.056 EUR/Jahr" was an estimate in an otherwise German answer."""
+    await import_synthetic(client, profile_id)
+    scripts.fast = ask_query_then_say(
+        "subscriptions in 2025", "Ihre Abos kosten ungefaehr 1.056,00 EUR im Jahr."
+    )
+    scripts.fast_call = scripted_sql(  # type: ignore[assignment]
+        "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view "
+        "WHERE amount < 0 AND lower(description || ' ' || coalesce(counterparty, '')) LIKE '%netflix%'"
+    )
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Welche Abos habe ich und was kosten die im Jahr?")
+
+    text = answer(chunks)
+    assert "1.056,00" not in text
+    assert "keiner Abfrage" in text, text
+
+
+async def test_a_stray_token_of_another_script_is_dropped(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """B4 and B6: "Gesamth" in Greek letters and the Russian "pravit" inside German sentences."""
+    await import_synthetic(client, profile_id)
+    scripts.fast = ask_query_then_say(
+        "spending in 2025",
+        "Die Gesamτή Ausgaben liegen im Rahmen.\nправить Die Zahlung ist klein.",
+    )
+    scripts.fast_call = scripted_sql(  # type: ignore[assignment]
+        "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount < 0"
+    )
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Wie viel habe ich 2025 ausgegeben?")
+
+    assert answer(chunks) == "Die Ausgaben liegen im Rahmen.\nDie Zahlung ist klein."
+
+
+# --------------------------------------------------------------------------- 10: memory
+
+
+async def memories_of(client: httpx.AsyncClient, profile_id: str) -> list[dict[str, object]]:
+    return list((await client.get("/api/memories", params={"profile_id": profile_id})).json())
+
+
+async def test_a_distilled_figure_or_date_is_not_kept(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """Three of the review's 27 memories, verbatim. None of them is true next month."""
+    await import_synthetic(client, profile_id)
+    scripts.fast = ask_query_then_say("net savings per month", "Here is the table.")
+    scripts.fast_call = scripted_sql(  # type: ignore[assignment]
+        "SELECT ROUND(SUM(amount), 2) AS net_eur FROM transaction_view",
+        memories=[
+            "The user's total spending at REWE was 75.20 EUR.",
+            "The user's largest single expense was a transfer to Wise Europe SA of 10,560.00 EUR on 04.09.2025.",
+            "The user's dining spending exceeded their income for five months in 2026.",
+        ],
+    )
+    conversation_id = await new_conversation(client, profile_id)
+
+    await chat(conversation_id, "What are my net savings per month?")
+
+    assert await memories_of(client, profile_id) == []
+
+
+async def test_a_rule_may_carry_a_figure(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """"Over 100 EUR always needs a receipt" is a standing instruction, not a snapshot."""
+    await import_synthetic(client, profile_id)
+    rule = "Every payment over 100 EUR should be checked against a receipt."
+    scripts.fast = ask_query_then_say("spending in 2025", "Noted.")
+    scripts.fast_call = scripted_sql(  # type: ignore[assignment]
+        "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount < 0",
+        memories=[rule],
+        memory_kind="rule",
+    )
+    conversation_id = await new_conversation(client, profile_id)
+
+    await chat(conversation_id, "Check every payment over 100 EUR against a receipt from now on.")
+
+    assert [m["text"] for m in await memories_of(client, profile_id)] == [rule]
+
+
+async def test_a_fact_about_someone_the_turn_did_not_find_is_not_kept(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """E1: a memory about a person written in the very turn that proved he is not in the data."""
+    await import_synthetic(client, profile_id)
+    scripts.fast = ask_query_then_say(
+        "payments to Elias Brandt", "There are no transactions to Elias Brandt."
+    )
+    scripts.fast_call = scripted_sql(  # type: ignore[assignment]
+        "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view "
+        "WHERE lower(description || ' ' || coalesce(counterparty, '')) LIKE '%elias brandt%'",
+        memories=["Elias Brandt is a person the user pays, possibly for flat rent or shared expenses."],
+    )
+    conversation_id = await new_conversation(client, profile_id)
+
+    await chat(conversation_id, "How much did I pay Elias Brandt?")
+
+    assert await memories_of(client, profile_id) == []
+
+
+async def test_at_most_two_facts_survive_one_turn(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """27 memories in one afternoon is what an uncapped pass does to a profile."""
+    await import_synthetic(client, profile_id)
+    scripts.fast = ask_query_then_say("spending in 2025", "Noted.")
+    scripts.fast_call = scripted_sql(  # type: ignore[assignment]
+        "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount < 0",
+        memories=[
+            "The user shops at Kaufland for groceries",
+            "The user prefers short answers",
+            "The user cycles to work",
+            "The user likes tables",
+        ],
+    )
+    conversation_id = await new_conversation(client, profile_id)
+
+    await chat(conversation_id, "Tell me about my spending.")
+
+    kept = {str(m["text"]) for m in await memories_of(client, profile_id)}
+    assert kept == {"The user shops at Kaufland for groceries", "The user prefers short answers"}

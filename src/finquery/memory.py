@@ -14,7 +14,7 @@ Three things live here, all profile-scoped:
 
 import logging
 import re
-from collections.abc import Sequence
+from collections.abc import Sequence, Set
 from dataclasses import dataclass
 from typing import Literal
 
@@ -169,10 +169,77 @@ One short sentence per fact, phrased so it makes sense in a different conversati
 later. Use kind "rule" for something the assistant should apply, "preference" for what the user
 cares about or how they want answers, "fact" for everything else.
 
+Store only what will still be true next month: what a merchant is, who a person is, how the
+household wants something categorized. Never store a figure, a total, a month's spending, a
+count, a date, or a restatement of the question that was just asked. If the only durable content
+of the turn is a number, store nothing. Never store anything about a person or a merchant this
+turn could not find in the data: a query that returned no rows proves there is nothing to know.
+
+Two facts is the most any one exchange leaves behind, and none is the usual number.
+
 Write every fact in the language of the user's own message: an English exchange leaves English
 facts, a German one German facts. Never translate what the user said into another language,
 because these facts are read back in every later conversation of this profile.
 """
+
+MAX_DISTILLED = 2
+"""How many facts one turn may leave behind.
+
+The 9B review of 2026-09-05 distilled 27 memories in one afternoon, most of them one-off
+figures, several of them wrong, and they steered later turns for the rest of the run. A turn
+that really establishes three durable things can say the third one again.
+"""
+
+# A figure, a decimal, a year or a written date: all of them are a snapshot of one moment, and a
+# memory is read back months later.
+_NOT_DURABLE = re.compile(
+    r"\d{1,3}(?:[.,]\d{3})+|\d+[.,]\d+|\b\d{4}\b|\d{1,2}[./]\d{1,2}[./]\d{2,4}|\d+\s*(?:EUR|€|Euros?)",
+    re.IGNORECASE,
+)
+_NAME = re.compile(r"\b[^\W\d_][^\W\d_-]{2,}", re.UNICODE)
+
+
+def is_durable(fact: "DistilledFact") -> bool:
+    """Whether this fact will still be true next month.
+
+    An amount or a date makes it a snapshot: "the user's net savings ... amount to 83.64 EUR"
+    was wrong the moment the next booking landed, and was wrong when it was written. A rule is
+    the exception, because "over 100 EUR always needs a receipt" is a standing instruction.
+    """
+    return fact.kind == "rule" or _NOT_DURABLE.search(fact.text) is None
+
+
+def absent_names(requests: Sequence[str]) -> set[str]:
+    """The names a query asked about and found nothing for, folded.
+
+    A capitalized word of the request, which is how a person or a merchant is written in both
+    languages, minus the word the request opens with. The chat model wrote an explicit memory
+    about "Max Schulz" in the very turn that proved this household has never paid anyone of that
+    name, and then cited it as evidence two turns later.
+    """
+    names: set[str] = set()
+    for request in requests:
+        words = _NAME.findall(request.strip())
+        names.update(word.casefold() for word in words[1:] if word[:1].isupper())
+    return names
+
+
+def worth_keeping(facts: Sequence["DistilledFact"], absent: Set[str]) -> list["DistilledFact"]:
+    """The facts of one turn that may be stored: durable, about something real, at most two."""
+    kept: list[DistilledFact] = []
+    for fact in facts:
+        if not clean_text(fact.text):
+            continue
+        if not is_durable(fact):
+            logger.info("a distilled fact was dropped as a one-off figure or date: %s", fact.text)
+            continue
+        if absent & {word.casefold() for word in _NAME.findall(fact.text)}:
+            logger.info("a distilled fact was dropped: this turn found no such row: %s", fact.text)
+            continue
+        kept.append(fact)
+        if len(kept) == MAX_DISTILLED:
+            break
+    return kept
 
 
 class DistilledFact(BaseModel):
@@ -208,12 +275,21 @@ def distill_prompt(question: str, answer: str, known: Sequence[str]) -> str:
 
 
 async def distill_memories(
-    model: Model, settings: ModelSettings, question: str, answer: str, known: Sequence[str]
+    model: Model,
+    settings: ModelSettings,
+    question: str,
+    answer: str,
+    known: Sequence[str],
+    absent: Set[str] = frozenset(),
 ) -> list[DistilledFact]:
-    """What this exchange is worth remembering. A failure here is never allowed to fail the turn."""
+    """What this exchange is worth remembering. A failure here is never allowed to fail the turn.
+
+    `absent` is what this turn's queries looked for and did not find, so a fact about a person
+    the data does not have is dropped rather than stored and read back forever.
+    """
     try:
         result = await distill_agent.run(distill_prompt(question, answer, known), model=model, model_settings=settings)
     except Exception:
         logger.warning("memory distillation failed", exc_info=True)
         return []
-    return [fact for fact in result.output.facts if clean_text(fact.text)]
+    return worth_keeping(result.output.facts, absent)

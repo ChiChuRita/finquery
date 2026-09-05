@@ -10,6 +10,9 @@ from collections.abc import AsyncIterator, Sequence
 import httpx
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall
+from sqlalchemy.orm import Session, sessionmaker
+
+from finquery.memory import add_memory
 
 from .conftest import (
     Chat,
@@ -53,6 +56,18 @@ def memories_in_prompt(chunks: list[dict[str, object]]) -> object:
 
 def answer_of(chunks: list[dict[str, object]]) -> str:
     return "".join(str(c["delta"]) for c in chunks if c["type"] == "text-delta").strip()
+
+
+def seed_memories(session_factory: "sessionmaker[Session]", profile_id: str, facts: Sequence[str]) -> None:
+    """Put memories in the profile without going through a turn.
+
+    A turn leaves at most `memory.MAX_DISTILLED` facts behind (ticket 37), and what these tests
+    are about is what a prompt carries once a profile has many, not how they got there.
+    """
+    with session_factory() as session:
+        for text in facts:
+            add_memory(session, profile_id, text, source="distilled")
+        session.commit()
 
 
 async def memories_of(client: httpx.AsyncClient, profile_id: str) -> list[dict[str, object]]:
@@ -117,12 +132,10 @@ async def test_a_deleted_memory_is_not_sent_to_the_model_again(
 
 
 async def test_at_most_five_memories_travel_with_a_turn(
-    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, session_factory: "sessionmaker[Session]"
 ) -> None:
-    facts = [f"Merchant number {n} is a supermarket" for n in range(7)]
-    scripts.fast = script("Got it.", memories=facts)
     profile_id = await default_profile_id(client)
-    await chat(await new_conversation(client, profile_id), "here are my supermarkets")
+    seed_memories(session_factory, profile_id, [f"Merchant number {n} is a supermarket" for n in range(7)])
     assert len(await memories_of(client, profile_id)) == 7
 
     asking = Recorder("Seven of them.")
@@ -261,7 +274,7 @@ async def test_memories_in_another_language_do_not_decide_the_answer_language(
 
 
 async def test_a_profile_with_two_hundred_memories_still_sends_five_and_lists_them_all(
-    client: httpx.AsyncClient, scripts: Scripts, chat: Chat
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, session_factory: "sessionmaker[Session]"
 ) -> None:
     """The cap is what keeps the prompt small, and the page is what makes the rest reachable.
 
@@ -269,12 +282,9 @@ async def test_a_profile_with_two_hundred_memories_still_sends_five_and_lists_th
     stays a matter of milliseconds at the size a household actually reaches.
     """
     profile_id = await default_profile_id(client)
-    facts = [f"Merchant number {n} is a supermarket in Kreuzberg" for n in range(200)]
-    # Twenty turns of ten, because one distillation pass returning two hundred facts is not a
-    # thing that happens; what is being set up is the profile, not the pass.
-    for batch in range(0, 200, 10):
-        scripts.fast = script("Got it.", memories=facts[batch : batch + 10])
-        await chat(await new_conversation(client, profile_id), f"batch {batch}")
+    seed_memories(
+        session_factory, profile_id, [f"Merchant number {n} is a supermarket in Kreuzberg" for n in range(200)]
+    )
     assert len(await memories_of(client, profile_id)) == 200
 
     asking = Recorder("Kreuzberg.")
