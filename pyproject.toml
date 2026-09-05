@@ -27,6 +27,7 @@ dependencies = [
 [project.scripts]
 finquery = "finquery.main:main"
 finquery-check = "finquery.local.check:main"
+finquery-bench = "finquery_bench.cli:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -36,8 +37,13 @@ testpaths = ["tests"]
 requires = ["uv_build>=0.12.9,<0.13.0"]
 build-backend = "uv_build"
 
+[tool.uv.sources]
+# The benchmarks are their own little package so that `uv run finquery-bench` finds them.
+finquery-bench = { path = "bench", editable = true }
+
 [dependency-groups]
 dev = [
+    "finquery-bench",
     "fpdf2>=2.8.8",
     "httpx>=0.28.1",
     "pytest>=9.1.1",

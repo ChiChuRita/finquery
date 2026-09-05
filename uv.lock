@@ -398,6 +398,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "finquery-bench" },
     { name = "fpdf2" },
     { name = "httpx" },
     { name = "pytest" },
@@ -425,11 +426,17 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "finquery-bench", editable = "bench" },
     { name = "fpdf2", specifier = ">=2.8.8" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
 ]
+
+[[package]]
+name = "finquery-bench"
+version = "0.1.0"
+source = { editable = "bench" }
 
 [[package]]
 name = "fonttools"

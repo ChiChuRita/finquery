@@ -1,0 +1,14 @@
+[project]
+name = "finquery-bench"
+version = "0.1.0"
+description = "The SQL and chart benchmarks of FinQuery, and the runner that scores a model on them"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv.build-backend]
+module-root = ""
+module-name = "finquery_bench"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
