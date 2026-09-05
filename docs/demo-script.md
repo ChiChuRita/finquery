@@ -126,9 +126,12 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 ### 9. Stop mid-generation (quality)
 
 16. Ask Qwen something long: **"Explain in detail how my spending developed over 2025, month
-    by month, and what might explain each change."** Let it think and write for 20 seconds,
-    press **Stop**. The partial thinking, tool steps and text stay, chipped "Stopped". Switch
-    the composer back to **Gemma 4 E4B**.
+    by month, and what might explain each change."** While it thinks, click another chat in the
+    sidebar: that chat's row and its tab keep a small spinner, because the turn is running on
+    the server and not in this tab. Come back to it; the answer has carried on and the
+    transcript picks it up mid-sentence. Then press **Stop**. The partial thinking, tool steps
+    and text stay, chipped "Stopped": Stop is the only thing that ends a turn. Switch the
+    composer back to **Gemma 4 E4B**.
 
 ### 10. The context badge, thumbs, a Regenerate pair (fast)
 
@@ -217,13 +220,13 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 
 ## If something goes wrong
 
-- Answer a Question card before you type the next question. A card answered after a newer
-  message has gone out does not resume its run (the browser only re-sends for the newest
-  assistant message), so its buttons then do nothing. Found on the clean-checkout run, left
-  for a ticket; it never happens when the card is answered first.
 - A turn is slow but the thinking panel moves: wait. The first token of a late turn in a long
   conversation can be 20 seconds behind Send, because the whole prompt is re-read. Nothing is
   stuck until Stop stops moving too.
+- The browser gets into a bad state mid-turn: reload the page. The turn is a task on the server,
+  so reloading, switching chat or closing the tab costs nothing: the transcript reattaches to
+  the same stream and the answer carries on where it was. The composer stays closed for that
+  chat while it answers, in every tab.
 - A chart card says it could not be drawn: the answer under it gives the figures instead, by
   design. Press Regenerate once; the second attempt usually draws.
 - The model answers in the wrong language: onboarding's answer language (Settings, Setup, or

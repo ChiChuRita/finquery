@@ -223,7 +223,7 @@ async def test_a_second_message_while_the_turn_runs_is_refused_rather_than_inter
         f"/api/conversations/{conversation_id}/chat", json=chat_body("and again", conversation_id)
     )
     assert second.status_code == 409
-    assert second.json()["detail"] == "A turn is already running for this conversation"
+    assert second.json()["detail"] == chat_api.ALREADY_RUNNING
 
     release.set()
     await asyncio.wait_for(turn, timeout=5)

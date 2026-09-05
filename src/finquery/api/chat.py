@@ -348,6 +348,15 @@ user before, and there is nothing a person can do with it. The detail goes to th
 where it belongs, and the partial turn keeps the question with its interrupted marker.
 """
 
+ALREADY_RUNNING = "This chat is still answering. Wait for that turn to finish, or press Stop first."
+"""Why a second message is refused while a turn of the same conversation runs.
+
+One turn per conversation: two would interleave in one transcript and the second would be
+assembled from a history the first is still writing. The composer is closed while a chat is
+answering, in the tab that started the turn and in any other, so this is the tab that has not
+noticed yet, and it reaches the reader as this sentence (`lib/api.refusalSentence`).
+"""
+
 ALREADY_ANSWERED = "That question has already been answered. Reload the chat to see what it did."
 """Why a second answer to the same Question card is refused.
 
@@ -822,7 +831,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
 
     running: dict[str, RunningTurn] = state.running_turns
     if conversation_id in running:
-        raise HTTPException(status_code=409, detail="A turn is already running for this conversation")
+        raise HTTPException(status_code=409, detail=ALREADY_RUNNING)
 
     try:
         model = state.resolve_model(slot)
@@ -1235,7 +1244,13 @@ async def chat(request: Request, conversation_id: str) -> Response:
                         state.session_factory, replaces, message_id=message_id, slot=slot, parts=parts
                     )
                     written_at = time.monotonic()
+        except Exception:  # noqa: BLE001 - a task nobody awaits reports nothing by itself
+            # `stream()` turns everything the run itself can do wrong into a chunk, so this is
+            # the plumbing around it. The turn is closed either way, in the `finally` below.
+            logger.exception("the turn task failed outside the stream")
         finally:
+            # Out of the registry before the buffer closes, so a client whose stream has just
+            # ended and asks to reattach is told 204 rather than handed a finished turn.
             running.pop(conversation_id, None)
             if not written:
                 close_turn_if_open(state.session_factory, replaces)

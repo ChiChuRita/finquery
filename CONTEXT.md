@@ -125,6 +125,14 @@ A turn is one agent run: the user's message plus everything the assistant produc
 stored both as Pydantic AI message history and as AI SDK UI messages. A turn can be marked
 interrupted when Stop cut it short. Avoid: chat, thread, session.
 
+**Running turn**: the turn a conversation is producing right now. It is a task the app owns, not
+the request that asked for it, so it survives a reload, a switch of conversation and a closed
+tab; a browser that comes back subscribes to the same stream from its first chunk. At most one
+per conversation, and Stop is the only thing that ends one early. A conversation, a conversation
+list row and an import row all report whether one is running, which is what the spinner and the
+closed composer are drawn from. See ADR 0012. Avoid: job, background task (the task is how it is
+built, the running turn is what it is).
+
 **Question card**: the card in the transcript that asks the user for a decision only they can
 make, with buttons per row and a free text field. It is the `ask_user` tool: the run ends with
 the call pending and resumes from the answer, so no model slot waits for a human. Used for
