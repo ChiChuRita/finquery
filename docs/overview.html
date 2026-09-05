@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FinQuery at a glance</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: oklch(0.17 0 0); --panel: oklch(0.21 0 0); --line: oklch(0.30 0 0);
+    --fg: oklch(0.96 0 0); --muted: oklch(0.70 0 0);
+    --primary: oklch(0.72 0.14 165); --c2: oklch(0.70 0.13 264); --c3: oklch(0.76 0.14 70);
+    --c4: oklch(0.70 0.16 305); --c5: oklch(0.72 0.15 18); --c6: oklch(0.72 0.11 215);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 "Geist Variable", Geist, ui-sans-serif, system-ui, sans-serif; }
+  main { max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 6px; }
+  h2 { font-size: 18px; margin: 48px 0 12px; letter-spacing: -0.01em; }
+  p.lead { color: var(--muted); margin: 0 0 8px; max-width: 70ch; }
+  .invariant { display: inline-block; margin-top: 10px; padding: 6px 12px; border: 1px solid var(--primary); border-radius: 999px; color: var(--primary); font-size: 13px; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .card h3 { margin: 0 0 6px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .card ul { margin: 0; padding-left: 16px; color: var(--muted); font-size: 13.5px; }
+  .card li { margin: 2px 0; }
+  .card li b { color: var(--fg); font-weight: 600; }
+  .mermaid { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  .tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .steps { counter-reset: s; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .step { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; color: var(--muted); }
+  .step::before { counter-increment: s; content: counter(s); display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--primary); color: var(--bg); font-weight: 700; font-size: 12px; margin-right: 8px; }
+  .step b { color: var(--fg); }
+  @media (max-width: 640px) { main { padding: 24px 14px 60px; } h1 { font-size: 22px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>FinQuery at a glance</h1>
+  <p class="lead">A local-first personal-finance analyst. You drop bank statements, receipts and CSVs into a chat, the assistant imports and categorizes them, and every question is answered from a SQL query it ran, never from the model's memory.</p>
+  <span class="invariant">Invariant: numbers come only from executed queries</span>
+
+  <h2>1. The system in one picture</h2>
+  <div class="mermaid">
+flowchart LR
+  subgraph Browser["Browser (Vite, React 19, AI Elements, shadcn, TanStack)"]
+    Chat["Chat + Question cards"]
+    Dash["Dashboard"]
+    Tx["Transactions, Imports, Memory, Feedback, Settings"]
+    Frame["Sandboxed chart iframe (TanStack Charts)"]
+  end
+  subgraph API["FastAPI, one Python process"]
+    Stream["AI SDK stream adapter\n(Pydantic AI, background turns)"]
+    Agent["Chat agent + tools"]
+    Sub["Sub-agents\nquery, chart, categorizer, extraction, memory, web lookup"]
+    Guard["SQL guard (sqlglot, read-only, profile scoped)"]
+    DB[("SQLite\nprofiles, transactions, splits, taxonomy,\nrules, memories, conversations, changesets,\nimports, dashboards, preferences")]
+  end
+  subgraph Models["Two model slots"]
+    Fast["fast: Gemma 4 E4B\n(all sub-agents, adapters attach here)"]
+    Quality["quality: Qwen3.5 9B"]
+    Prov["provider switch\nlocal llama-cpp or OpenRouter"]
+  end
+  Chat --> Stream --> Agent --> Sub
+  Agent --> Guard --> DB
+  Sub --> Guard
+  Agent --> Frame
+  Dash --> Guard
+  Tx --> DB
+  Sub --> Fast
+  Agent --> Quality
+  Fast --- Prov
+  Quality --- Prov
+  </div>
+
+  <h2>2. What happens in one turn</h2>
+  <div class="mermaid">
+sequenceDiagram
+  participant U as User
+  participant A as Chat agent (quality or fast slot)
+  participant Q as Query sub-agent (fast slot)
+  participant G as Guard + SQLite
+  participant C as Chart sub-agent (fast slot)
+  U->>A: "Wie viel habe ich im Mai fuer Lebensmittel ausgegeben?"
+  A->>Q: query(request)
+  Q->>Q: reasoning, then SQL
+  Q->>G: SELECT over transaction_view
+  G-->>Q: rows (guard refuses writes, cents, invented categories)
+  Q->>Q: check: does this answer the question? revise once if not
+  Q-->>A: rows + figures
+  A-->>U: "440,72 EUR" (prose figures verified against the rows)
+  U->>A: "als Diagramm"
+  A->>C: chart(request)
+  C->>C: plan, SQL via query, code, self-check, up to 2 repairs
+  C-->>U: chart card, narration in the thinking panel
+  </div>
+
+  <h2>3. Ingestion, from file to categorized bookings</h2>
+  <div class="steps">
+    <div class="step"><b>Drop a file in chat</b> or load the sample year. CSV, PDF, photo. Files never enter the prompt.</div>
+    <div class="step"><b>Read it.</b> CSV presets or a model-proposed mapping confirmed on a card. PDF pages read by the extraction sub-agent with a verbatim guard and balance reconciliation. Receipts read by vision.</div>
+    <div class="step"><b>Duplicates held aside.</b> Exact and near matches become a card: Keep both or Remove, with a remove-all shortcut.</div>
+    <div class="step"><b>Categorize.</b> Profile rules, then a merchant dictionary, then the categorizer sub-agent per merchant with a confidence.</div>
+    <div class="step"><b>Ask what is unsure.</b> Question cards in the same chat. Answers become rules and apply in code before the model speaks.</div>
+    <div class="step"><b>Fix anything later.</b> Transactions page, splits, changesets with Apply and Discard, Undo on simple edits.</div>
+  </div>
+
+  <h2>4. Required features and the four electives</h2>
+  <div class="grid">
+    <div class="card"><h3><span class="dot" style="background:var(--primary)"></span>Required</h3><ul>
+      <li><b>uv run finquery</b>, one process, models download on first run</li>
+      <li>Chat with history, stop, resume, tabs, create and delete</li>
+      <li>Two selectable models, thinking visible</li>
+      <li>Memory across all chats of a profile</li>
+      <li>Two fine-tuned adapters (query, chart) on the fast slot</li>
+      <li>Video demo</li></ul></div>
+    <div class="card"><h3><span class="dot" style="background:var(--c2)"></span>Context management</h3><ul>
+      <li>Profiles as isolation</li><li>Per-turn assembly: summary, memories, taxonomy</li><li>Rolling summary at 60 percent, editable divider</li><li>Token badge</li></ul></div>
+    <div class="card"><h3><span class="dot" style="background:var(--c3)"></span>Sub-agents</h3><ul>
+      <li>Query, chart, categorizer, extraction, memory, web lookup</li><li>Forced single tool, reasoning first</li><li>Self-check and visible repairs</li></ul></div>
+    <div class="card"><h3><span class="dot" style="background:var(--c4)"></span>Preference optimization</h3><ul>
+      <li>Thumbs on answers and charts</li><li>Regenerate pair and A/B compare with Pick</li><li>Feedback page, JSONL export, DPO script</li></ul></div>
+    <div class="card"><h3><span class="dot" style="background:var(--c5)"></span>Self-directed web search</h3><ul>
+      <li>Only a scrubbed merchant token leaves</li><li>The model decides search, fetch or finish within a budget</li><li>Outbound log, cache, off by default</li></ul></div>
+  </div>
+
+  <h2>5. How we know it works</h2>
+  <div class="mermaid">
+flowchart LR
+  T["Tests at one seam\n311 HTTP-seam tests, scripted models"] --> R["Browser reviews\nheadful agents, screenshots, both themes"]
+  R --> E["End-to-end run\n57 pass, 4 partial, 2 fail, then fixed"]
+  E --> B["Benchmarks\n152 SQL + 63 chart datapoints,\ngold rows from reference SQL,\nheld-out split"]
+  B --> M["Measured models\nGemini 3.8 Flash 93 / 92\nQwen3.5 9B 57 / 40\nGemma 4 E4B 51 / pending"]
+  M --> F["Fine-tuning next\ntrain split as examples,\nheld-out as the score,\nlabeling page for chart samples"]
+  </div>
+
+  <h2>6. Where the numbers stand (figure match on the grown sets)</h2>
+  <table>
+    <tr><th>Model</th><th>Where</th><th class="num">SQL</th><th class="num">Charts</th><th>Note</th></tr>
+    <tr><td>Gemini 3.8 Flash</td><td>OpenRouter, dev only</td><td class="num">93 %</td><td class="num">92 %</td><td>the reference for what the prompts allow</td></tr>
+    <tr><td>Qwen3.5 9B</td><td>OpenRouter and local quality slot</td><td class="num">57 %</td><td class="num">40 %</td><td>valid SQL 92 %, wrong reading often; ticket 40 adds check and retry</td></tr>
+    <tr><td>Gemma 4 E4B</td><td>local fast slot, all sub-agents</td><td class="num">51 %</td><td class="num">pending</td><td>the adapters target this model</td></tr>
+  </table>
+
+  <h2>7. Repo map</h2>
+  <div class="mermaid">
+flowchart TB
+  src["src/finquery/"] --> a1["agent.py, api/  chat, tools, endpoints"]
+  src --> a2["query/, chart/, categorize/, extract/, memory.py, weblookup/  sub-agents"]
+  src --> a3["ingest/, changesets.py, edits.py, dashboard.py  data"]
+  src --> a4["local/  llama-cpp models, Gemma and Qwen wire formats, adapters"]
+  fe["frontend/src/"] --> f1["components/  pages and cards"]
+  fe --> f2["components/ai-elements/  vendored, with local edits"]
+  fe --> f3["chart-runtime/  the sandboxed frame"]
+  bench["bench/"] --> b1["sql-benchmark.json, chart-benchmark.json, results/, validate/"]
+  docs["docs/  ADRs, chart-runtime.md, demo-script.md"]
+  scratch[".scratch/finquery/  spec, 42 tickets, reviews"]
+  </div>
+</main>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'dark', themeVariables: {
+    fontFamily: '"Geist Variable", Geist, ui-sans-serif, system-ui, sans-serif', fontSize: '13px',
+    primaryColor: '#262626', primaryBorderColor: '#4d4d4d', primaryTextColor: '#f5f5f5',
+    lineColor: '#8a8a8a', secondaryColor: '#1f1f1f', tertiaryColor: '#1f1f1f',
+    actorBkg: '#262626', actorBorder: '#4d4d4d', signalColor: '#a3a3a3', signalTextColor: '#e5e5e5',
+    noteBkgColor: '#262626', clusterBkg: '#1c1c1c', clusterBorder: '#3a3a3a', edgeLabelBackground: '#1c1c1c'
+  }});
+</script>
+</body>
+</html>
