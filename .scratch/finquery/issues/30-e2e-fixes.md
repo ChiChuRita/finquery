@@ -16,7 +16,7 @@
 - [x] M5 Sankey: a self-loop (Income to Income) is folded or refused before the code pass, with a query hint that the source and target columns must differ
 - [x] Receipt date: the bill extraction reads the printed date (the real Edeka receipt prints 04.09.26 20:00 and the model fell back to today); prompt the date field explicitly with German short formats and verify against the text spans; the real receipt at fixtures/private/edeka-bill-real.jpeg is the manual check (never commit it)
 - [x] Minors: remember confirms in one line; a deleted memory is not resolved from history; follow-up chips follow the profile's fixed language; the duplicate summary is not a copy of the Applied line; mapping preview uses German dates and decimals; a second Stop keeps the partial tool step; thinking panel order; bulk Recategorize never defaults to Needs review and confirms before applying
-- [ ] Suite green, typecheck and build clean; browser verification of every blocker and major in both themes
+- [x] Suite green, typecheck and build clean; browser verification of every blocker and major in both themes (209 passed on the merged main, both halves verified in the browser in both themes)
 
 ## Comments
 
