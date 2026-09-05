@@ -3,6 +3,7 @@ import {
   ChartColumnIcon,
   CheckIcon,
   ChevronDownIcon,
+  CircleAlertIcon,
   ClipboardListIcon,
   Code2Icon,
   DatabaseIcon,
@@ -21,7 +22,8 @@ import {
 } from '@/components/ai-elements/chain-of-thought'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { FeedbackError, PairGrid, PairSide, Thumbs, useFeedback } from '@/components/feedback'
-import { ErrorSection, RowsTable, Section, SqlSection, rowLabel } from '@/components/query-result'
+import { RowsTable, Section, SqlSection, rowLabel } from '@/components/query-result'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -36,6 +38,7 @@ import {
   type ChartToolPart,
   type PreferenceRating,
 } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 import {
   CARD_SOURCE,
@@ -171,7 +174,9 @@ export function ChartFrame({
   return (
     <div className="relative" style={{ height: CHART_HEIGHT }}>
       <iframe
-        className="h-full w-full border-0"
+        // Invisible until the runtime says it painted, then a short fade: the frame's own
+        // surface is the card's colour, so what appears is the drawing and not a white flash.
+        className={cn('h-full w-full border-0 transition-opacity duration-300', live ? 'opacity-100' : 'opacity-0')}
         // The frame's "hello" can arrive before React has run this component's effects, so the
         // load event is the reliable trigger and the message is only a second chance.
         onLoad={() => {
@@ -191,13 +196,42 @@ export function ChartFrame({
         </div>
       )}
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center px-6">
-          <p className="rounded-md bg-destructive/10 px-3 py-2 text-center text-destructive text-sm">
-            This chart could not be drawn: {error}
-          </p>
+        <div className="absolute inset-0 flex items-center justify-center px-4">
+          <FailedBody reason={`This chart could not be drawn: ${error}`} />
         </div>
       )}
     </div>
+  )
+}
+
+/** The frame's place while a chart is still being made, at the frame's own height.
+ *
+ * The transcript must not jump when the drawing arrives, so the running card is already as tall
+ * as the card it becomes. The chat and the dashboard's Add line show the same thing. */
+export function RunningBody() {
+  return (
+    <div className="flex items-center justify-center px-4" style={{ height: CHART_HEIGHT }}>
+      <Shimmer className="text-muted-foreground text-sm">Planning, querying, drawing...</Shimmer>
+    </div>
+  )
+}
+
+/** Why there is no drawing, in one quiet block: the reason, and where the rest is.
+ *
+ * One component for the chat card, the dashboard card and the frame's own refusal, so a failure
+ * looks the same wherever it happens. `note` carries the one thing a state has to add. */
+export function FailedBody({ reason, hint, note }: { reason: string; hint?: string; note?: ReactNode }) {
+  return (
+    <Alert className="border-destructive/25 bg-destructive/5 text-destructive">
+      <CircleAlertIcon />
+      <AlertTitle className="text-sm leading-snug">{reason}</AlertTitle>
+      {(hint || note) && (
+        <AlertDescription className="text-muted-foreground text-xs">
+          {hint}
+          {note}
+        </AlertDescription>
+      )}
+    </Alert>
   )
 }
 
@@ -213,6 +247,32 @@ interface ChainStep {
 const repairsLine = (count: number) =>
   count === 0 ? 'Self-check passed' : `Self-check passed after ${count === 1 ? 'one repair' : `${count} repairs`}`
 
+/** The steps a chart still being made has reached, read off the sub-agent's narration.
+ *
+ * `chart/runner.py` narrates "Chart plan: ...", "Data: N rows over ...", "Repair k of 2: ..." and
+ * "Self-check passed" into the turn's thinking as it goes, so the rail can move with it rather
+ * than sit on "Planning" for the whole half minute. Nothing is guessed: a step is complete when
+ * its own line has arrived. */
+function runningSteps(narration: string): ChainStep[] {
+  const planned = narration.includes('Chart plan:')
+  const queried = /\bData: \d+ rows?\b/.test(narration)
+  const repairs = narration.match(/^Repair \d+ of \d+: .*$/gm) ?? []
+  const checked = /Self-check passed/.test(narration)
+  const wrote = checked || repairs.length > 0
+  const at = (done: boolean, active: boolean): ChainStatus => (done ? 'complete' : active ? 'active' : 'pending')
+  return [
+    { icon: ClipboardListIcon, label: planned ? 'Planned the chart' : 'Planning the chart', status: at(planned, true) },
+    { icon: DatabaseIcon, label: queried ? 'Queried the rows' : 'Querying the rows', status: at(queried, planned) },
+    {
+      icon: Code2Icon,
+      label: wrote ? 'Wrote the chart definition' : 'Writing the chart definition',
+      status: at(wrote, queried),
+    },
+    ...repairs.map((note): ChainStep => ({ icon: WrenchIcon, label: note, status: 'complete' })),
+    { icon: ShieldCheckIcon, label: checked ? repairsLine(repairs.length) : 'Checking it', status: at(checked, wrote) },
+  ]
+}
+
 /** The four things the chart sub-agent does, plus one step per repair round it needed.
  *
  * The words are the ones it narrates while it works (`chart/runner.py`): the plan, the data
@@ -220,15 +280,8 @@ const repairsLine = (count: number) =>
  * yet, so its rail shows the first step active and the rest pending; once the tool has answered,
  * every step it reached is complete and the ones it never got to stay pending.
  */
-function chartSteps(output?: ChartDetails): ChainStep[] {
-  if (!output) {
-    return [
-      { icon: ClipboardListIcon, label: 'Planning the chart', status: 'active' },
-      { icon: DatabaseIcon, label: 'Querying the rows', status: 'pending' },
-      { icon: Code2Icon, label: 'Writing the chart definition', status: 'pending' },
-      { icon: ShieldCheckIcon, label: 'Checking it', status: 'pending' },
-    ]
-  }
+function chartSteps(output?: ChartDetails, narration = ''): ChainStep[] {
+  if (!output) return runningSteps(narration)
   const reached = (done: boolean): ChainStatus => (done ? 'complete' : 'pending')
   const drawn = Boolean(output.code) && !output.error
   // One note per repair round, and, for a chart shown with a rule it could not satisfy, the
@@ -270,12 +323,12 @@ function chartSteps(output?: ChartDetails): ChainStep[] {
  * the audit trail of the answer and must stay open on the page; this is the sub-agent's own
  * work, which is worth reading once and then folding away.
  */
-function ChartChain({ output }: { output?: ChartDetails }) {
+function ChartChain({ output, narration }: { output?: ChartDetails; narration?: string }) {
   return (
     <ChainOfThought open>
       <ChainOfThoughtContent>
         {/* Keyed by position: two repair rounds can leave the same note behind. */}
-        {chartSteps(output).map((step, index) => (
+        {chartSteps(output, narration).map((step, index) => (
           <ChainOfThoughtStep
             description={step.description}
             icon={step.icon}
@@ -298,10 +351,13 @@ function ChartChain({ output }: { output?: ChartDetails }) {
 export function Footer({
   output,
   running = false,
+  narration,
   actions,
 }: {
   output?: ChartDetails
   running?: boolean
+  /** The turn's thinking so far, while the chart is being made: the rail advances on it. */
+  narration?: string
   actions?: ReactNode
 }) {
   const [open, setOpen] = useState(running)
@@ -325,7 +381,7 @@ export function Footer({
           </Section>
         )}
         <Section label="How this chart was made">
-          <ChartChain output={output} />
+          <ChartChain narration={narration} output={output} />
         </Section>
         {output?.error && (
           // The card says the failure in one line; what was quoted into it, code and all, is here.
@@ -559,20 +615,22 @@ function ChartResult({
           title={title}
         />
       ) : (
-        <div className="space-y-2 px-4 pb-3">
-          <ErrorSection message={failureLine(chart.error ?? '')} />
-          <p className="text-muted-foreground text-xs">
-            Nothing was drawn. The whole reason, the plan and the query it tried are under Details.
-          </p>
-          {/* A chart that passed the check and then failed in the browser was `rendered: true`
-              when the model read the tool result, so the answer under this card describes a
-              picture that is not here. Re-running the turn is a bigger change than saying so. */}
-          {chart.render_error && (
-            <p className="text-muted-foreground text-xs">
-              This one passed the check and failed in the browser, after the answer below was
-              written: read the rows rather than what it says about the picture.
-            </p>
-          )}
+        <div className="px-4 pb-3">
+          <FailedBody
+            hint="Nothing was drawn. The whole reason, the plan and the query it tried are under Details."
+            // A chart that passed the check and then failed in the browser was `rendered: true`
+            // when the model read the tool result, so the answer under this card describes a
+            // picture that is not here. Re-running the turn is a bigger change than saying so.
+            note={
+              chart.render_error && (
+                <span className="mt-1 block">
+                  This one passed the check and failed in the browser, after the answer below was
+                  written: read the rows rather than what it says about the picture.
+                </span>
+              )
+            }
+            reason={failureLine(chart.error ?? '')}
+          />
         </div>
       )}
       <Footer
@@ -628,17 +686,20 @@ export function ChartToolStep({
   part,
   turnId,
   rating,
+  narration,
 }: {
   part: ChartToolPart
   turnId?: string
   rating?: PreferenceRating
+  /** The turn's thinking so far, which is where the sub-agent narrates its steps. */
+  narration?: string
 }) {
   if (part.state === 'output-error') {
     return (
       <ChartCard>
         <ChartCardHeader title="Chart failed" />
-        <div className="px-4 pb-4">
-          <ErrorSection message={part.errorText} />
+        <div className="px-4 pb-3">
+          <FailedBody reason={part.errorText} />
         </div>
       </ChartCard>
     )
@@ -647,10 +708,8 @@ export function ChartToolStep({
     return (
       <ChartCard>
         <ChartCardHeader title={part.input?.request ?? 'Planning the chart'} />
-        <div className="flex items-center gap-2 px-4 pb-4">
-          <Shimmer className="text-muted-foreground text-sm">Planning, querying, drawing...</Shimmer>
-        </div>
-        <Footer running />
+        <RunningBody />
+        <Footer narration={narration} running />
       </ChartCard>
     )
   }

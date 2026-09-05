@@ -161,21 +161,29 @@ to July says something about the five months the query did not return.
 
 A fourth is folded rather than repaired. Folding is arithmetic, so it is not left to a repair
 round and never to the SQL: the rows the card shows are the rows the chart drew, and every fold
-is narrated. Three of them, all before a line of code is written:
+is narrated. `chart.fold.fold_rows(shape, columns, rows, language=...)` is all three of them, one
+per shape and keyed by what the columns are for, and it runs before a line of code is written:
 
 - a **doughnut** over more rows than it has slices keeps the five largest and sums the rest into
-  one slice named `Other` or `Sonstige`, in the request's language (`runner._fold_slices`). The
-  local fast model lost a twelve-category doughnut three rounds running before this existed;
+  one slice named `Other` or `Sonstige`, in the request's language. The local fast model lost a
+  twelve-category doughnut three rounds running before this existed;
 - a **grouped or stacked bar** over more groups than the palette has colours keeps the five
-  largest by total and sums the rest into one such group per position (`runner._fold_groups`).
-  The query is therefore asked for each group under its own name and told not to fold: asking
-  the statement for it is what produced `CASE ... 'Other'` beside `GROUP BY month`, so every
-  month came back carrying several 'Other' rows and no definition could stack them;
+  largest by total and sums the rest into one such group per position. The query is therefore
+  asked for each group under its own name and told not to fold: asking the statement for it is
+  what produced `CASE ... 'Other'` beside `GROUP BY month`, so every month came back carrying
+  several 'Other' rows and no definition could stack them;
 - a **sankey** row flowing from a name into itself is a total and not a flow, so it is left out
-  and the omission is narrated (`runner._drop_self_loops`). One such row, which "show me where
-  my income goes" produces readily, otherwise refuses the whole graph. Rows that are nothing
-  but self loops are left alone, because then there is no flow to draw and the rule above says
-  so in one sentence.
+  and the omission is narrated. One such row, which "show me where my income goes" produces
+  readily, otherwise refuses the whole graph. Rows that are nothing but self loops are left
+  alone, because then there is no flow to draw and the rule above says so in one sentence.
+
+The fold is a function of its own because it happens twice for the same chart. A chart pinned to
+the dashboard stores the statement and not the figures, so `dashboard.run_card` re-runs the SQL
+through the guard on every load and refresh and folds what comes back with the same call
+(ticket 39): before that, a stack that showed six series in the chat showed eleven on the
+dashboard and cycled the palette. The column roles are read off the order the query was asked
+for its columns in, which `runner._euro_last` fixes before the statement is written and a stored
+statement keeps.
 
 The stub mimics the parts of the library the rules need: `pie` allocates real angles and rejects
 a negative value, `sankeyDiagram` validates the graph and calls the `marks` callback with node
@@ -219,10 +227,51 @@ variables (`--foreground`, `--muted-foreground`, `--border`, `--card`, `--chart-
 The frame owns what the code may not: `height: 280`, the responsive width, the palette,
 `svgAnimation: { duration: 320, easing: 'ease-out' }`, the `ariaLabel` (the chart's title) and
 the language the month labels are written in. It also decides how finely a `nice: true` axis
-rounds its end: TanStack Charts rounds to the tick count it will draw, one tick per 92 pixels,
-so a 300 pixel frame in a Regenerate pair took 13.800 EUR to an axis ending at 20.000 EUR. The
-frame rewrites `nice: true` to `nice: 5` before it renders, so the end stays near the data
-whatever the width, and the labels drawn are still the width's count.
+rounds its end: TanStack Charts rounds to the tick count it will draw, one tick per 48 pixels of
+plot height, so a 300 pixel frame in a Regenerate pair took 13.800 EUR to an axis ending at
+20.000 EUR, and a legend under the plot left the top gridline without a label. The frame
+rewrites `nice: true` to `nice: 4` and gives that axis `ticks: { count: 4 }` before it renders,
+so the end stays near the data and the last gridline is always labelled: 0, 5.000, 10.000,
+15.000 EUR for 13.800 EUR, whatever the width.
+
+### What the frame's theme sets
+
+Everything visual that the dataviz method fixes across charts lives in the frame
+(`chart-runtime/main.tsx`, `chart-runtime/globals.ts`, `chart-runtime.html`), never in the
+generated code, so a definition stored months ago on the dashboard gets today's look without
+being regenerated (ticket 36):
+
+- **Type.** The runtime page loads the app's face (Geist) and sets one size, 11 px, on every
+  axis tick label; the legend and the doughnut's centre share it. Figures are tabular.
+- **Axis chrome.** No axis line and no tick stubs on either axis (`axis.line: false`,
+  `ticks.size: 0`, `ticks.padding: 8`): the euro axis's hairline grid is the only line, and the
+  zero gridline is the baseline. What the code set on a label (format, thinning, rotation) is
+  kept.
+- **Room.** The page keeps 12 px at the sides and 6 px at the top around the plot, so no label
+  or sankey node touches the frame's edge.
+- **Surface gaps.** `barY` and `barX` with a series (`z` or `color`) get a 1 px stroke in the
+  card's surface colour, `radialArc` a 2 px one, so stacked segments, grouped bars and doughnut
+  slices are told apart by a hairline of surface rather than by touching. The code's own
+  `stroke` wins when it names one.
+- **The doughnut's centre.** `pie` records the total of the slices it allocated, and the frame
+  writes it into the hole ("28.535,89 €" over "Total" or "Gesamt", by language). The figure
+  is the query's rows added up, never typed.
+- **Tooltip.** The code's `format` text is shown as one row of the app's tooltip: the series
+  swatch, the label and the figure right-aligned, split at the text's last ": ". The surface,
+  border, radius, shadow and type are the card's own (`--ts-chart-tooltip-*`), and the focus
+  marker's inner fill is the surface, so a focused point reads as a dot with a surface ring.
+- **Euro ticks.** `eurShort` writes whole euros with the German grouping ("5.000 €",
+  "10.000 €") and only turns compact ("1,2 Mio. €") from a million.
+- **Motion.** The 320 ms entrance plays on the first draw only: a theme switch updates the
+  mounted chart in place instead of remounting it.
+- **Palette.** Both palettes (`--chart-1` to `--chart-6` in `index.css`) pass the dataviz
+  method's palette validator for their own surface, the dark set stepped into its darker band
+  rather than lifted. The card resolves them and posts them; the frame paints with them in
+  that order.
+
+The card around the frame reserves the frame's height while a chart is being made, fades the
+frame in when the runtime says it painted, and advances the plan, query, code and check steps of
+its details from the sub-agent's narration as the lines arrive.
 
 ## The tool result
 

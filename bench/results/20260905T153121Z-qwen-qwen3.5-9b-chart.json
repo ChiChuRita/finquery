@@ -1,0 +1,2796 @@
+{
+  "model": "qwen/qwen3.5-9b",
+  "set": "chart",
+  "started_at": "2026-09-05T15:31:21+00:00",
+  "seconds": 475.1,
+  "seed": 7,
+  "n": 32,
+  "summary": {
+    "n": 32,
+    "figure_match": 0.406,
+    "sql_valid": 1.0,
+    "first_attempt": 0.344,
+    "shape_match": 0.938,
+    "columns_map": 0.688,
+    "language_ok": 0.969,
+    "drawn": 0.531,
+    "median_seconds": 9.6,
+    "p90_seconds": 33.2,
+    "total_seconds": 475.1,
+    "by_kind": {
+      "area": {
+        "n": 3,
+        "figure_match": 0.0,
+        "sql_valid": 1.0,
+        "first_attempt": 0.333,
+        "shape_match": 1.0,
+        "columns_map": 0.667,
+        "language_ok": 1.0,
+        "drawn": 0.333,
+        "median_seconds": 4.7
+      },
+      "bar": {
+        "n": 8,
+        "figure_match": 0.5,
+        "sql_valid": 1.0,
+        "first_attempt": 0.5,
+        "shape_match": 1.0,
+        "columns_map": 0.75,
+        "language_ok": 1.0,
+        "drawn": 0.75,
+        "median_seconds": 9.6
+      },
+      "bar_grouped": {
+        "n": 3,
+        "figure_match": 0.0,
+        "sql_valid": 1.0,
+        "first_attempt": 0.0,
+        "shape_match": 0.667,
+        "columns_map": 0.333,
+        "language_ok": 1.0,
+        "drawn": 0.0,
+        "median_seconds": 14.7
+      },
+      "bar_horizontal": {
+        "n": 3,
+        "figure_match": 0.333,
+        "sql_valid": 1.0,
+        "first_attempt": 0.0,
+        "shape_match": 1.0,
+        "columns_map": 1.0,
+        "language_ok": 0.667,
+        "drawn": 0.333,
+        "median_seconds": 12.0
+      },
+      "bar_stacked": {
+        "n": 3,
+        "figure_match": 0.667,
+        "sql_valid": 1.0,
+        "first_attempt": 0.333,
+        "shape_match": 1.0,
+        "columns_map": 0.667,
+        "language_ok": 1.0,
+        "drawn": 0.667,
+        "median_seconds": 9.2
+      },
+      "doughnut": {
+        "n": 4,
+        "figure_match": 0.5,
+        "sql_valid": 1.0,
+        "first_attempt": 0.0,
+        "shape_match": 1.0,
+        "columns_map": 0.5,
+        "language_ok": 1.0,
+        "drawn": 0.25,
+        "median_seconds": 31.5
+      },
+      "line": {
+        "n": 5,
+        "figure_match": 0.8,
+        "sql_valid": 1.0,
+        "first_attempt": 0.8,
+        "shape_match": 0.8,
+        "columns_map": 1.0,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 5.8
+      },
+      "sankey": {
+        "n": 3,
+        "figure_match": 0.0,
+        "sql_valid": 1.0,
+        "first_attempt": 0.333,
+        "shape_match": 1.0,
+        "columns_map": 0.333,
+        "language_ok": 1.0,
+        "drawn": 0.333,
+        "median_seconds": 9.2
+      }
+    },
+    "by_difficulty": {
+      "1": {
+        "n": 4,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 0.5,
+        "shape_match": 1.0,
+        "columns_map": 1.0,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 9.6
+      },
+      "2": {
+        "n": 18,
+        "figure_match": 0.333,
+        "sql_valid": 1.0,
+        "first_attempt": 0.278,
+        "shape_match": 0.944,
+        "columns_map": 0.667,
+        "language_ok": 0.944,
+        "drawn": 0.444,
+        "median_seconds": 9.7
+      },
+      "3": {
+        "n": 10,
+        "figure_match": 0.3,
+        "sql_valid": 1.0,
+        "first_attempt": 0.4,
+        "shape_match": 0.9,
+        "columns_map": 0.6,
+        "language_ok": 1.0,
+        "drawn": 0.5,
+        "median_seconds": 9.2
+      }
+    },
+    "by_language": {
+      "de": {
+        "n": 16,
+        "figure_match": 0.438,
+        "sql_valid": 1.0,
+        "first_attempt": 0.312,
+        "shape_match": 0.938,
+        "columns_map": 0.625,
+        "language_ok": 1.0,
+        "drawn": 0.375,
+        "median_seconds": 14.7
+      },
+      "en": {
+        "n": 16,
+        "figure_match": 0.375,
+        "sql_valid": 1.0,
+        "first_attempt": 0.375,
+        "shape_match": 0.938,
+        "columns_map": 0.75,
+        "language_ok": 0.938,
+        "drawn": 0.688,
+        "median_seconds": 9.2
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "01-monthly-line-en",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 1,
+      "language": "en",
+      "question": "Show me my total spending per month in 2025 as a line chart.",
+      "seconds": 5.8,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 2265.34
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 2290.77
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 2310.46
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 2301.04
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 2760.8
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 2278.84
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 2552.44
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 2420.14
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "02-monthly-line-de",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 1,
+      "language": "de",
+      "question": "Wie haben sich meine Ausgaben pro Monat 2025 entwickelt? Zeig es als Liniendiagramm.",
+      "seconds": 9.19,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 2,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 2265.34
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 2290.77
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 2310.46
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 2301.04
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 2760.8
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 2278.84
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 2552.44
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 2420.14
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": [
+        "Repair 1 of 2: The code does not compile: SyntaxError: expecting '}'"
+      ]
+    },
+    {
+      "id": "03-cumulative-area-en",
+      "set": "chart",
+      "kind": "area",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Chart my cumulative spending over 2025 as an area chart.",
+      "seconds": 4.67,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 2265.34
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 2290.77
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 2310.46
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 2301.04
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 2760.8
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 2278.84
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 2552.44
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 2420.14
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "area",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "04-cumulative-area-de",
+      "set": "chart",
+      "kind": "area",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig die kumulierten Ausgaben 2025 als Flaechendiagramm.",
+      "seconds": 38.59,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 4,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  STRFTIME('%Y-%m', booked_on)\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 2265.34
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 2290.77
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 2310.46
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 2301.04
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 2760.8
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 2278.84
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 2552.44
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 2420.14
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": "The chart could not be drawn: 3 attempts failed the self-check, last reason: - The code does not compile: SyntaxError: expecting ','",
+      "refusals": [],
+      "shape": "area",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": false,
+      "notes": [
+        "Repair 1 of 2: The code does not compile: SyntaxError: expecting ','",
+        "Repair 2 of 2: The code does not compile: SyntaxError: expecting ','",
+        "Gave up after 3 attempts: The code does not compile: SyntaxError: expecting ','"
+      ]
+    },
+    {
+      "id": "05-category-bars-en",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 1,
+      "language": "en",
+      "question": "Show my spending per category in 2025 as a bar chart.",
+      "seconds": 9.64,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 2,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount_cents) / 100.0, 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "total_eur": 14419.5
+        },
+        {
+          "topic": "Groceries",
+          "total_eur": 4474.95
+        },
+        {
+          "topic": "Cash",
+          "total_eur": 2400.0
+        },
+        {
+          "topic": "Transport",
+          "total_eur": 1426.3
+        },
+        {
+          "topic": "Shopping",
+          "total_eur": 1311.36
+        },
+        {
+          "topic": "Dining",
+          "total_eur": 965.7
+        },
+        {
+          "topic": "Housing",
+          "total_eur": 936.0
+        },
+        {
+          "topic": "Communication",
+          "total_eur": 719.76
+        },
+        {
+          "topic": "Health",
+          "total_eur": 691.2
+        },
+        {
+          "topic": "Subscriptions",
+          "total_eur": 681.12
+        },
+        {
+          "topic": "Insurance",
+          "total_eur": 510.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": [
+        "Repair 1 of 2: The code does not compile: SyntaxError: unexpected end of string"
+      ]
+    },
+    {
+      "id": "06-category-bars-de",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 1,
+      "language": "de",
+      "question": "Ausgaben pro Kategorie 2025 als Balkendiagramm.",
+      "seconds": 34.02,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Unbekannt') AS category,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  COALESCE(category, 'Unbekannt')\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "category",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "category": "Unbekannt",
+          "total_eur": 14419.5
+        },
+        {
+          "category": "Groceries",
+          "total_eur": 4474.95
+        },
+        {
+          "category": "Cash",
+          "total_eur": 2400.0
+        },
+        {
+          "category": "Transport",
+          "total_eur": 1426.3
+        },
+        {
+          "category": "Shopping",
+          "total_eur": 1311.36
+        },
+        {
+          "category": "Dining",
+          "total_eur": 965.7
+        },
+        {
+          "category": "Housing",
+          "total_eur": 936.0
+        },
+        {
+          "category": "Communication",
+          "total_eur": 719.76
+        },
+        {
+          "category": "Health",
+          "total_eur": 691.2
+        },
+        {
+          "category": "Subscriptions",
+          "total_eur": 681.12
+        },
+        {
+          "category": "Insurance",
+          "total_eur": 510.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "07-top-merchants-en",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Which merchants took the most money in 2025? Show the top ten as a horizontal bar chart.",
+      "seconds": 8.29,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 2,
+      "sql": "SELECT\n  COALESCE(title, counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0\nGROUP BY\n  COALESCE(title, counterparty, description)\nORDER BY\n  total_eur DESC\nLIMIT 10",
+      "columns": [
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "merchant": "Hausverwaltung Bergmann",
+          "total_eur": 13800.0
+        },
+        {
+          "merchant": "Cash withdrawal",
+          "total_eur": 2400.0
+        },
+        {
+          "merchant": "Amazon",
+          "total_eur": 1269.6
+        },
+        {
+          "merchant": "Kaufland",
+          "total_eur": 1098.5
+        },
+        {
+          "merchant": "Vattenfall",
+          "total_eur": 936.0
+        },
+        {
+          "merchant": "REWE",
+          "total_eur": 732.0
+        },
+        {
+          "merchant": "ALDI",
+          "total_eur": 642.7
+        },
+        {
+          "merchant": "Lidl",
+          "total_eur": 599.3
+        },
+        {
+          "merchant": "BVG",
+          "total_eur": 588.0
+        },
+        {
+          "merchant": "Allianz",
+          "total_eur": 510.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_horizontal",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": [
+        "Repair 1 of 2: `barX` reads the column \"merchant\" as its figure, but that column holds no numbers. The euro column is the one with numbers in it.; `scales.x` must use `scaleLinear` for euros.; Set `grid: true` on `scales.x`, the euro axis.; The euro axis needs `axis: { ticks: { format: eurShort } }` on `scales.x`.; Only the euro axis carries a grid. Remove `grid` from `scales.y`.; Every bar is named by its own label and none may be dropped, so `scales.y` needs `axis: { tickLabels: { thin: false } }`."
+      ]
+    },
+    {
+      "id": "08-top-merchants-de",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig die zehn groessten Haendler 2025 als liegendes Balkendiagramm.",
+      "seconds": 12.02,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 4,
+      "sql": "SELECT\n  COALESCE(title, counterparty, description) AS Händler,\n  ROUND(-SUM(amount), 2) AS Betrag\nFROM transaction_view\nWHERE\n  amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  COALESCE(title, counterparty, description)\nORDER BY\n  Betrag DESC\nLIMIT 200",
+      "columns": [
+        "Händler",
+        "Betrag"
+      ],
+      "rows": [
+        {
+          "Händler": "Hausverwaltung Bergmann",
+          "Betrag": 13800.0
+        },
+        {
+          "Händler": "Cash withdrawal",
+          "Betrag": 2400.0
+        },
+        {
+          "Händler": "Amazon",
+          "Betrag": 1269.6
+        },
+        {
+          "Händler": "Kaufland",
+          "Betrag": 1098.5
+        },
+        {
+          "Händler": "Vattenfall",
+          "Betrag": 936.0
+        },
+        {
+          "Händler": "REWE",
+          "Betrag": 732.0
+        },
+        {
+          "Händler": "ALDI",
+          "Betrag": 642.7
+        },
+        {
+          "Händler": "Lidl",
+          "Betrag": 599.3
+        },
+        {
+          "Händler": "BVG",
+          "Betrag": 588.0
+        },
+        {
+          "Händler": "Allianz",
+          "Betrag": 510.0
+        },
+        {
+          "Händler": "Deutsche Telekom",
+          "Betrag": 479.88
+        },
+        {
+          "Händler": "Fitness First",
+          "Betrag": 478.8
+        },
+        {
+          "Händler": "EDEKA",
+          "Betrag": 445.83
+        },
+        {
+          "Händler": "Netto",
+          "Betrag": 425.5
+        },
+        {
+          "Händler": "dm",
+          "Betrag": 401.7
+        },
+        {
+          "Händler": "Lieferando",
+          "Betrag": 393.2
+        },
+        {
+          "Händler": "Shell",
+          "Betrag": 386.2
+        },
+        {
+          "Händler": "Deutsche Bahn",
+          "Betrag": 300.2
+        },
+        {
+          "Händler": "Adobe",
+          "Betrag": 285.48
+        },
+        {
+          "Händler": "Vodafone",
+          "Betrag": 239.88
+        },
+        {
+          "Händler": "Jonas Keller",
+          "Betrag": 204.5
+        },
+        {
+          "Händler": "Zahnarztpraxis DR Lorenz",
+          "Betrag": 189.0
+        },
+        {
+          "Händler": "Vapiano",
+          "Betrag": 188.6
+        },
+        {
+          "Händler": "dean&david",
+          "Betrag": 181.5
+        },
+        {
+          "Händler": "Netflix",
+          "Betrag": 155.88
+        },
+        {
+          "Händler": "Uber",
+          "Betrag": 151.9
+        },
+        {
+          "Händler": "Lea Hoffmann",
+          "Betrag": 144.0
+        },
+        {
+          "Händler": "Max Schulz",
+          "Betrag": 137.5
+        },
+        {
+          "Händler": "Anna Weber",
+          "Betrag": 133.5
+        },
+        {
+          "Händler": "Spotify",
+          "Betrag": 131.88
+        },
+        {
+          "Händler": "Doener Haus Kreuzberg",
+          "Betrag": 114.5
+        },
+        {
+          "Händler": "Steinecke",
+          "Betrag": 110.5
+        },
+        {
+          "Händler": "Amazon Prime",
+          "Betrag": 107.88
+        },
+        {
+          "Händler": "Cafe Milchbart",
+          "Betrag": 62.0
+        },
+        {
+          "Händler": "OBI",
+          "Betrag": 41.76
+        },
+        {
+          "Händler": "Hans im Glueck",
+          "Betrag": 25.9
+        },
+        {
+          "Händler": "Apotheke",
+          "Betrag": 23.4
+        },
+        {
+          "Händler": "Rossmann",
+          "Betrag": 18.92
+        }
+      ],
+      "error": "The chart could not be drawn: 3 attempts failed the self-check, last reason: - `scales.x` configures a domain inside a zero-argument factory, and the chart infers the domain again from the data, so yours is thrown away. Pass the scale itself: `scale: scaleLinear().domain([...])`, without the `() =>`.\n- Every bar is named by its own label and none may be dropped, so `scales.y` needs `axis: { tickLabels: { thin: false } }`.",
+      "refusals": [],
+      "shape": "bar_horizontal",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": false,
+      "notes": [
+        "Repair 1 of 2: `barY` reads the column \"Händler\" as its figure, but that column holds no numbers. The euro column is the one with numbers in it.; The plan asks for bar_horizontal, so `barX` has to be the mark.; `barY` does not belong in a bar_horizontal chart. Remove that mark.; This mark rests on zero by itself and the chart works out how high to go, so `scales.x` takes the bare factory `scale: scaleLinear` and names no domain. A domain over the row values caps the axis below a stack's own total.",
+        "Repair 2 of 2: The code does not compile: SyntaxError: expecting '}'",
+        "Gave up after 3 attempts: `scales.x` configures a domain inside a zero-argument factory, and the chart infers the domain again from the data, so yours is thrown away. Pass the scale itself: `scale: scaleLinear().domain([...])`, without the `() =>`.; Every bar is named by its own label and none may be dropped, so `scales.y` needs `axis: { tickLabels: { thin: false } }`."
+      ]
+    },
+    {
+      "id": "09-quarter-groups-en",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Compare what I spent on groceries and on dining per quarter in 2025 as grouped bars.",
+      "seconds": 29.47,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND (\n    category IN ('Supermarket', 'Bakery', 'Drugstore')\n    OR category IN ('Restaurant', 'Cafe', 'Takeaway', 'Delivery')\n    OR COALESCE(category, 'Needs review') IS NULL\n  )\nGROUP BY\n  STRFTIME('%Y-%m', booked_on),\n  COALESCE(category, 'Needs review')\nORDER BY\n  STRFTIME('%Y-%m', booked_on),\n  COALESCE(category, 'Needs review')\nLIMIT 200",
+      "columns": [
+        "month",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [],
+      "error": "The query behind the chart returned no rows, so there is nothing to draw.",
+      "refusals": [],
+      "shape": "bar_grouped",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": []
+    },
+    {
+      "id": "10-quarter-groups-de",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Vergleiche Lebensmittel und Restaurants pro Quartal 2025 als gruppierte Balken.",
+      "seconds": 14.69,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 4,
+      "sql": "SELECT\n  STRFTIME('%Y-%Q', booked_on) AS quarter,\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND (\n    category = 'Groceries' OR category = 'Dining'\n  )\nGROUP BY\n  quarter,\n  topic\nORDER BY\n  quarter,\n  topic\nLIMIT 200",
+      "columns": [
+        "quarter",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "quarter": null,
+          "topic": "Dining",
+          "total_eur": 965.7
+        },
+        {
+          "quarter": null,
+          "topic": "Groceries",
+          "total_eur": 4474.95
+        }
+      ],
+      "error": "The chart could not be drawn: 3 attempts failed the self-check, last reason: - `barY` was given an empty array, so it would draw nothing. Pass the rows it should draw.\n- One series needs no legend. Drop the `color.legend` option.",
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": false,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": false,
+      "notes": [
+        "Repair 1 of 2: The code does not compile: SyntaxError: expecting ']'",
+        "Repair 2 of 2: `barX` was given an empty array, so it would draw nothing. Pass the rows it should draw.; The plan asks for bar, so `barY` has to be the mark.; `barX` does not belong in a bar chart. Remove that mark.; One series needs no legend. Drop the `color.legend` option.",
+        "Gave up after 3 attempts: `barY` was given an empty array, so it would draw nothing. Pass the rows it should draw.; One series needs no legend. Drop the `color.legend` option."
+      ]
+    },
+    {
+      "id": "11-stacked-months-en",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Show my monthly spending split by category in 2025 as a stacked bar chart.",
+      "seconds": 9.24,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 2,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0\nGROUP BY\n  month,\n  topic\nORDER BY\n  month,\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "month",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "topic": "Needs review",
+          "total_eur": 1181.5
+        },
+        {
+          "month": "2025-01",
+          "topic": "Groceries",
+          "total_eur": 550.0
+        },
+        {
+          "month": "2025-01",
+          "topic": "Cash",
+          "total_eur": 300.0
+        },
+        {
+          "month": "2025-01",
+          "topic": "Other",
+          "total_eur": 373.44
+        },
+        {
+          "month": "2025-01",
+          "topic": "Transport",
+          "total_eur": 78.0
+        },
+        {
+          "month": "2025-01",
+          "topic": "Shopping",
+          "total_eur": 61.1
+        },
+        {
+          "month": "2025-02",
+          "topic": "Needs review",
+          "total_eur": 1184.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Groceries",
+          "total_eur": 413.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Shopping",
+          "total_eur": 156.4
+        },
+        {
+          "month": "2025-02",
+          "topic": "Other",
+          "total_eur": 375.74
+        },
+        {
+          "month": "2025-02",
+          "topic": "Transport",
+          "total_eur": 86.2
+        },
+        {
+          "month": "2025-02",
+          "topic": "Cash",
+          "total_eur": 50.0
+        },
+        {
+          "month": "2025-03",
+          "topic": "Needs review",
+          "total_eur": 1212.0
+        },
+        {
+          "month": "2025-03",
+          "topic": "Groceries",
+          "total_eur": 320.13
+        },
+        {
+          "month": "2025-03",
+          "topic": "Cash",
+          "total_eur": 200.0
+        },
+        {
+          "month": "2025-03",
+          "topic": "Shopping",
+          "total_eur": 137.1
+        },
+        {
+          "month": "2025-03",
+          "topic": "Transport",
+          "total_eur": 97.2
+        },
+        {
+          "month": "2025-03",
+          "topic": "Other",
+          "total_eur": 324.34
+        },
+        {
+          "month": "2025-04",
+          "topic": "Needs review",
+          "total_eur": 1175.0
+        },
+        {
+          "month": "2025-04",
+          "topic": "Groceries",
+          "total_eur": 252.7
+        },
+        {
+          "month": "2025-04",
+          "topic": "Shopping",
+          "total_eur": 227.7
+        },
+        {
+          "month": "2025-04",
+          "topic": "Cash",
+          "total_eur": 150.0
+        },
+        {
+          "month": "2025-04",
+          "topic": "Transport",
+          "total_eur": 120.4
+        },
+        {
+          "month": "2025-04",
+          "topic": "Other",
+          "total_eur": 338.94
+        },
+        {
+          "month": "2025-05",
+          "topic": "Needs review",
+          "total_eur": 1204.0
+        },
+        {
+          "month": "2025-05",
+          "topic": "Groceries",
+          "total_eur": 440.72
+        },
+        {
+          "month": "2025-05",
+          "topic": "Transport",
+          "total_eur": 118.4
+        },
+        {
+          "month": "2025-05",
+          "topic": "Other",
+          "total_eur": 381.54
+        },
+        {
+          "month": "2025-05",
+          "topic": "Cash",
+          "total_eur": 100.0
+        },
+        {
+          "month": "2025-05",
+          "topic": "Shopping",
+          "total_eur": 65.8
+        },
+        {
+          "month": "2025-06",
+          "topic": "Needs review",
+          "total_eur": 1185.0
+        },
+        {
+          "month": "2025-06",
+          "topic": "Groceries",
+          "total_eur": 384.2
+        },
+        {
+          "month": "2025-06",
+          "topic": "Shopping",
+          "total_eur": 179.9
+        },
+        {
+          "month": "2025-06",
+          "topic": "Cash",
+          "total_eur": 100.0
+        },
+        {
+          "month": "2025-06",
+          "topic": "Transport",
+          "total_eur": 84.2
+        },
+        {
+          "month": "2025-06",
+          "topic": "Other",
+          "total_eur": 367.74
+        },
+        {
+          "month": "2025-07",
+          "topic": "Needs review",
+          "total_eur": 1208.0
+        },
+        {
+          "month": "2025-07",
+          "topic": "Groceries",
+          "total_eur": 406.4
+        },
+        {
+          "month": "2025-07",
+          "topic": "Cash",
+          "total_eur": 400.0
+        },
+        {
+          "month": "2025-07",
+          "topic": "Shopping",
+          "total_eur": 201.86
+        },
+        {
+          "month": "2025-07",
+          "topic": "Transport",
+          "total_eur": 150.6
+        },
+        {
+          "month": "2025-07",
+          "topic": "Other",
+          "total_eur": 393.94
+        },
+        {
+          "month": "2025-08",
+          "topic": "Needs review",
+          "total_eur": 1214.0
+        },
+        {
+          "month": "2025-08",
+          "topic": "Groceries",
+          "total_eur": 294.3
+        },
+        {
+          "month": "2025-08",
+          "topic": "Cash",
+          "total_eur": 250.0
+        },
+        {
+          "month": "2025-08",
+          "topic": "Transport",
+          "total_eur": 127.3
+        },
+        {
+          "month": "2025-08",
+          "topic": "Shopping",
+          "total_eur": 84.4
+        },
+        {
+          "month": "2025-08",
+          "topic": "Other",
+          "total_eur": 308.84
+        },
+        {
+          "month": "2025-09",
+          "topic": "Needs review",
+          "total_eur": 1186.5
+        },
+        {
+          "month": "2025-09",
+          "topic": "Groceries",
+          "total_eur": 520.1
+        },
+        {
+          "month": "2025-09",
+          "topic": "Cash",
+          "total_eur": 300.0
+        },
+        {
+          "month": "2025-09",
+          "topic": "Other",
+          "total_eur": 412.44
+        },
+        {
+          "month": "2025-09",
+          "topic": "Transport",
+          "total_eur": 96.9
+        },
+        {
+          "month": "2025-09",
+          "topic": "Shopping",
+          "total_eur": 36.5
+        },
+        {
+          "month": "2025-10",
+          "topic": "Needs review",
+          "total_eur": 1223.0
+        },
+        {
+          "month": "2025-10",
+          "topic": "Groceries",
+          "total_eur": 273.2
+        },
+        {
+          "month": "2025-10",
+          "topic": "Cash",
+          "total_eur": 200.0
+        },
+        {
+          "month": "2025-10",
+          "topic": "Transport",
+          "total_eur": 106.1
+        },
+        {
+          "month": "2025-10",
+          "topic": "Shopping",
+          "total_eur": 90.7
+        },
+        {
+          "month": "2025-10",
+          "topic": "Other",
+          "total_eur": 307.94
+        },
+        {
+          "month": "2025-11",
+          "topic": "Needs review",
+          "total_eur": 1212.0
+        },
+        {
+          "month": "2025-11",
+          "topic": "Groceries",
+          "total_eur": 339.5
+        },
+        {
+          "month": "2025-11",
+          "topic": "Other",
+          "total_eur": 554.44
+        },
+        {
+          "month": "2025-11",
+          "topic": "Cash",
+          "total_eur": 150.0
+        },
+        {
+          "month": "2025-11",
+          "topic": "Transport",
+          "total_eur": 107.0
+        },
+        {
+          "month": "2025-11",
+          "topic": "Shopping",
+          "total_eur": 57.2
+        },
+        {
+          "month": "2025-12",
+          "topic": "Needs review",
+          "total_eur": 1234.5
+        },
+        {
+          "month": "2025-12",
+          "topic": "Groceries",
+          "total_eur": 280.7
+        },
+        {
+          "month": "2025-12",
+          "topic": "Transport",
+          "total_eur": 254.0
+        },
+        {
+          "month": "2025-12",
+          "topic": "Cash",
+          "total_eur": 200.0
+        },
+        {
+          "month": "2025-12",
+          "topic": "Other",
+          "total_eur": 364.44
+        },
+        {
+          "month": "2025-12",
+          "topic": "Shopping",
+          "total_eur": 12.7
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_stacked",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": [
+        "Repair 1 of 2: The code threw ReferenceError: 'xCOUNTS' is not defined"
+      ]
+    },
+    {
+      "id": "12-stacked-months-de",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Monatliche Ausgaben nach Kategorie 2025 als gestapelte Balken.",
+      "seconds": 32.78,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME(\"%Y-%m\", booked_on) AS month,\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month,\n  topic\nORDER BY\n  month,\n  topic\nLIMIT 200",
+      "columns": [
+        "month",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "topic": "Cash",
+          "total_eur": 300.0
+        },
+        {
+          "month": "2025-01",
+          "topic": "Sonstige",
+          "total_eur": 373.44
+        },
+        {
+          "month": "2025-01",
+          "topic": "Groceries",
+          "total_eur": 550.0
+        },
+        {
+          "month": "2025-01",
+          "topic": "Needs review",
+          "total_eur": 1181.5
+        },
+        {
+          "month": "2025-01",
+          "topic": "Shopping",
+          "total_eur": 61.1
+        },
+        {
+          "month": "2025-01",
+          "topic": "Transport",
+          "total_eur": 78.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Cash",
+          "total_eur": 50.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Sonstige",
+          "total_eur": 375.74
+        },
+        {
+          "month": "2025-02",
+          "topic": "Groceries",
+          "total_eur": 413.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Needs review",
+          "total_eur": 1184.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Shopping",
+          "total_eur": 156.4
+        },
+        {
+          "month": "2025-02",
+          "topic": "Transport",
+          "total_eur": 86.2
+        },
+        {
+          "month": "2025-03",
+          "topic": "Cash",
+          "total_eur": 200.0
+        },
+        {
+          "month": "2025-03",
+          "topic": "Sonstige",
+          "total_eur": 324.34
+        },
+        {
+          "month": "2025-03",
+          "topic": "Groceries",
+          "total_eur": 320.13
+        },
+        {
+          "month": "2025-03",
+          "topic": "Needs review",
+          "total_eur": 1212.0
+        },
+        {
+          "month": "2025-03",
+          "topic": "Shopping",
+          "total_eur": 137.1
+        },
+        {
+          "month": "2025-03",
+          "topic": "Transport",
+          "total_eur": 97.2
+        },
+        {
+          "month": "2025-04",
+          "topic": "Cash",
+          "total_eur": 150.0
+        },
+        {
+          "month": "2025-04",
+          "topic": "Sonstige",
+          "total_eur": 338.94
+        },
+        {
+          "month": "2025-04",
+          "topic": "Groceries",
+          "total_eur": 252.7
+        },
+        {
+          "month": "2025-04",
+          "topic": "Needs review",
+          "total_eur": 1175.0
+        },
+        {
+          "month": "2025-04",
+          "topic": "Shopping",
+          "total_eur": 227.7
+        },
+        {
+          "month": "2025-04",
+          "topic": "Transport",
+          "total_eur": 120.4
+        },
+        {
+          "month": "2025-05",
+          "topic": "Cash",
+          "total_eur": 100.0
+        },
+        {
+          "month": "2025-05",
+          "topic": "Sonstige",
+          "total_eur": 381.54
+        },
+        {
+          "month": "2025-05",
+          "topic": "Groceries",
+          "total_eur": 440.72
+        },
+        {
+          "month": "2025-05",
+          "topic": "Needs review",
+          "total_eur": 1204.0
+        },
+        {
+          "month": "2025-05",
+          "topic": "Shopping",
+          "total_eur": 65.8
+        },
+        {
+          "month": "2025-05",
+          "topic": "Transport",
+          "total_eur": 118.4
+        },
+        {
+          "month": "2025-06",
+          "topic": "Cash",
+          "total_eur": 100.0
+        },
+        {
+          "month": "2025-06",
+          "topic": "Sonstige",
+          "total_eur": 367.74
+        },
+        {
+          "month": "2025-06",
+          "topic": "Groceries",
+          "total_eur": 384.2
+        },
+        {
+          "month": "2025-06",
+          "topic": "Needs review",
+          "total_eur": 1185.0
+        },
+        {
+          "month": "2025-06",
+          "topic": "Shopping",
+          "total_eur": 179.9
+        },
+        {
+          "month": "2025-06",
+          "topic": "Transport",
+          "total_eur": 84.2
+        },
+        {
+          "month": "2025-07",
+          "topic": "Cash",
+          "total_eur": 400.0
+        },
+        {
+          "month": "2025-07",
+          "topic": "Sonstige",
+          "total_eur": 393.94
+        },
+        {
+          "month": "2025-07",
+          "topic": "Groceries",
+          "total_eur": 406.4
+        },
+        {
+          "month": "2025-07",
+          "topic": "Needs review",
+          "total_eur": 1208.0
+        },
+        {
+          "month": "2025-07",
+          "topic": "Shopping",
+          "total_eur": 201.86
+        },
+        {
+          "month": "2025-07",
+          "topic": "Transport",
+          "total_eur": 150.6
+        },
+        {
+          "month": "2025-08",
+          "topic": "Cash",
+          "total_eur": 250.0
+        },
+        {
+          "month": "2025-08",
+          "topic": "Sonstige",
+          "total_eur": 308.84
+        },
+        {
+          "month": "2025-08",
+          "topic": "Groceries",
+          "total_eur": 294.3
+        },
+        {
+          "month": "2025-08",
+          "topic": "Needs review",
+          "total_eur": 1214.0
+        },
+        {
+          "month": "2025-08",
+          "topic": "Shopping",
+          "total_eur": 84.4
+        },
+        {
+          "month": "2025-08",
+          "topic": "Transport",
+          "total_eur": 127.3
+        },
+        {
+          "month": "2025-09",
+          "topic": "Cash",
+          "total_eur": 300.0
+        },
+        {
+          "month": "2025-09",
+          "topic": "Sonstige",
+          "total_eur": 412.44
+        },
+        {
+          "month": "2025-09",
+          "topic": "Groceries",
+          "total_eur": 520.1
+        },
+        {
+          "month": "2025-09",
+          "topic": "Needs review",
+          "total_eur": 1186.5
+        },
+        {
+          "month": "2025-09",
+          "topic": "Shopping",
+          "total_eur": 36.5
+        },
+        {
+          "month": "2025-09",
+          "topic": "Transport",
+          "total_eur": 96.9
+        },
+        {
+          "month": "2025-10",
+          "topic": "Cash",
+          "total_eur": 200.0
+        },
+        {
+          "month": "2025-10",
+          "topic": "Sonstige",
+          "total_eur": 307.94
+        },
+        {
+          "month": "2025-10",
+          "topic": "Groceries",
+          "total_eur": 273.2
+        },
+        {
+          "month": "2025-10",
+          "topic": "Needs review",
+          "total_eur": 1223.0
+        },
+        {
+          "month": "2025-10",
+          "topic": "Shopping",
+          "total_eur": 90.7
+        },
+        {
+          "month": "2025-10",
+          "topic": "Transport",
+          "total_eur": 106.1
+        },
+        {
+          "month": "2025-11",
+          "topic": "Cash",
+          "total_eur": 150.0
+        },
+        {
+          "month": "2025-11",
+          "topic": "Sonstige",
+          "total_eur": 554.44
+        },
+        {
+          "month": "2025-11",
+          "topic": "Groceries",
+          "total_eur": 339.5
+        },
+        {
+          "month": "2025-11",
+          "topic": "Needs review",
+          "total_eur": 1212.0
+        },
+        {
+          "month": "2025-11",
+          "topic": "Shopping",
+          "total_eur": 57.2
+        },
+        {
+          "month": "2025-11",
+          "topic": "Transport",
+          "total_eur": 107.0
+        },
+        {
+          "month": "2025-12",
+          "topic": "Cash",
+          "total_eur": 200.0
+        },
+        {
+          "month": "2025-12",
+          "topic": "Sonstige",
+          "total_eur": 364.44
+        },
+        {
+          "month": "2025-12",
+          "topic": "Groceries",
+          "total_eur": 280.7
+        },
+        {
+          "month": "2025-12",
+          "topic": "Needs review",
+          "total_eur": 1234.5
+        },
+        {
+          "month": "2025-12",
+          "topic": "Shopping",
+          "total_eur": 12.7
+        },
+        {
+          "month": "2025-12",
+          "topic": "Transport",
+          "total_eur": 254.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_stacked",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "13-doughnut-categories-en",
+      "set": "chart",
+      "kind": "doughnut",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Show the share of my 2025 spending by category as a doughnut.",
+      "seconds": 9.71,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 3,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS category,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  category\nORDER BY\n  total_eur DESC\nLIMIT 6",
+      "columns": [
+        "category",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "category": "Needs review",
+          "total_eur": 14419.5
+        },
+        {
+          "category": "Groceries",
+          "total_eur": 4474.95
+        },
+        {
+          "category": "Cash",
+          "total_eur": 2400.0
+        },
+        {
+          "category": "Transport",
+          "total_eur": 1426.3
+        },
+        {
+          "category": "Shopping",
+          "total_eur": 1311.36
+        },
+        {
+          "category": "Dining",
+          "total_eur": 965.7
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": [
+        "Repair 1 of 2: `radialArc` reads the column \"merchant\" in its `key` channel, which does not exist. The columns are: category, total_eur, value, index, fraction, startAngle, endAngle, angle, padAngle, source, sourceIndexes.; `polar` needs both `scales.angle` and `scales.radius`; use `null` for each when the arcs carry their own geometry.; A doughnut chart separates its data by colour, so the mark needs `color` pointing at the column that names the groups.",
+        "Repair 2 of 2: The code threw Error: pie needs a finite number in \"category\", got \"Needs review\""
+      ]
+    },
+    {
+      "id": "14-doughnut-merchants-de",
+      "set": "chart",
+      "kind": "doughnut",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig den Anteil der groessten Haendler an meinen Ausgaben 2025 als Donut.",
+      "seconds": 33.23,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 4,
+      "sql": "WITH ranked_spending AS (\n  SELECT\n    COALESCE(title, counterparty, description) AS merchant,\n    ROUND(-SUM(amount), 2) AS total_eur\n  FROM transaction_view\n  WHERE\n    amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY\n    merchant\n  ORDER BY\n    total_eur DESC,\n    merchant\n  LIMIT 5\n), total_calc AS (\n  SELECT\n    SUM(total_eur) AS grand_total\n  FROM ranked_spending\n)\nSELECT\n  rs.merchant,\n  rs.total_eur,\n  (\n    rs.total_eur / tc.grand_total * 100\n  ) AS percentage\nFROM ranked_spending AS rs\nCROSS JOIN total_calc AS tc\nLIMIT 200",
+      "columns": [
+        "merchant",
+        "total_eur",
+        "percentage"
+      ],
+      "rows": [
+        {
+          "merchant": "Hausverwaltung Bergmann",
+          "total_eur": 13800.0,
+          "percentage": 70.754354212704
+        },
+        {
+          "merchant": "Cash withdrawal",
+          "total_eur": 2400.0,
+          "percentage": 12.30510508047026
+        },
+        {
+          "merchant": "Amazon",
+          "total_eur": 1269.6,
+          "percentage": 6.509400587568767
+        },
+        {
+          "merchant": "Kaufland",
+          "total_eur": 1098.5,
+          "percentage": 5.632149137873576
+        },
+        {
+          "merchant": "Vattenfall",
+          "total_eur": 936.0,
+          "percentage": 4.798990981383402
+        }
+      ],
+      "error": "The chart could not be drawn: 3 attempts failed the self-check, last reason: - Call `defineChart` exactly once and return what it gives you; it was called 0 times.\n- The function body must `return defineChart({ ... })`.\n- The code never reads `data`. Hand those rows to the mark itself, `barY(data, { ... })`, and read every value through a channel name. The columns are: merchant, total_eur, percentage.",
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": [
+        "Repair 1 of 2: The plan asks for doughnut, so `radialArc` has to be the mark.; `radialArc` only works inside `polar({ ... })`.; A doughnut chart separates its data by colour, so the mark needs `color` pointing at the column that names the groups.",
+        "Repair 2 of 2: The plan asks for doughnut, so `radialArc` has to be the mark.; `radialArc` only works inside `polar({ ... })`.; A doughnut chart separates its data by colour, so the mark needs `color` pointing at the column that names the groups.",
+        "Gave up after 3 attempts: Call `defineChart` exactly once and return what it gives you; it was called 0 times.; The function body must `return defineChart({ ... })`.; The code never reads `data`. Hand those rows to the mark itself, `barY(data, { ... })`, and read every value through a channel name. The columns are: merchant, total_eur, percentage."
+      ]
+    },
+    {
+      "id": "15-sankey-income-en",
+      "set": "chart",
+      "kind": "sankey",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Draw a sankey of my 2025 income flowing into the spending categories.",
+      "seconds": 29.9,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  source,\n  COALESCE(category, 'Needs review') AS target,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  source = 'import'\n  AND amount_cents < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-28'\n  AND (\n    LOWER(source) NOT LIKE '%income%'\n    AND LOWER(description || ' ' || COALESCE(counterparty, '')) NOT LIKE '%salary%'\n    AND LOWER(description || ' ' || COALESCE(counterparty, '')) NOT LIKE '%interest%'\n    AND LOWER(description || ' ' || COALESCE(counterparty, '')) NOT LIKE '%refund%'\n    AND LOWER(category) NOT LIKE '%income%'\n    AND NOT category IN ('Salary', 'Interest', 'Refunds', 'Other income')\n  )\nGROUP BY\n  source,\n  COALESCE(category, 'Needs review')\nHAVING\n  source <> COALESCE(category, 'Needs review')\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "source",
+        "target",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "source": "import",
+          "target": "Groceries",
+          "total_eur": 4474.95
+        },
+        {
+          "source": "import",
+          "target": "Cash",
+          "total_eur": 2400.0
+        },
+        {
+          "source": "import",
+          "target": "Transport",
+          "total_eur": 1426.3
+        },
+        {
+          "source": "import",
+          "target": "Shopping",
+          "total_eur": 1311.36
+        },
+        {
+          "source": "import",
+          "target": "Dining",
+          "total_eur": 965.7
+        },
+        {
+          "source": "import",
+          "target": "Housing",
+          "total_eur": 936.0
+        },
+        {
+          "source": "import",
+          "target": "Communication",
+          "total_eur": 719.76
+        },
+        {
+          "source": "import",
+          "target": "Health",
+          "total_eur": 691.2
+        },
+        {
+          "source": "import",
+          "target": "Subscriptions",
+          "total_eur": 681.12
+        },
+        {
+          "source": "import",
+          "target": "Insurance",
+          "total_eur": 510.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "sankey",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "16-sankey-income-de",
+      "set": "chart",
+      "kind": "sankey",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig als Sankey, wie mein Einkommen 2025 in die Ausgabenkategorien fliesst.",
+      "seconds": 9.2,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": "SELECT\n  source AS source,\n  COALESCE(category, 'Needs review') AS target,\n  ROUND(-SUM(amount), 2) AS amount_eur\nFROM transaction_view\nWHERE\n  source IN ('Sparkasse Girokonto')\n  AND amount_cents < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND (\n    NOT COALESCE(category, 'Needs review') IN ('Housing', 'Insurance', 'Transfers', 'Fees and taxes')\n  )\nGROUP BY\n  source,\n  COALESCE(category, 'Needs review')\nUNION ALL\nSELECT\n  'Sparkasse Girokonto' AS source,\n  'Other sources' AS target,\n  ROUND(-SUM(amount), 2) AS amount_eur\nFROM transaction_view\nWHERE\n  source IN ('Sparkasse Girokonto')\n  AND NOT COALESCE(category, 'Needs review') IS NULL\nORDER BY\n  source,\n  target\nLIMIT 0",
+      "columns": [
+        "source",
+        "target",
+        "amount_eur"
+      ],
+      "rows": [],
+      "error": "The query behind the chart returned no rows, so there is nothing to draw.",
+      "refusals": [],
+      "shape": "sankey",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": []
+    },
+    {
+      "id": "17-two-halves-en",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Compare my total spending in the first half of 2025 with the second half in a chart.",
+      "seconds": 10.89,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 2,
+      "sql": "SELECT\n  'First Half' AS half_name,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-06-30'\n  AND NOT category IN ('Income', 'Interest', 'Refunds', 'Other income')\nUNION ALL\nSELECT\n  'Second Half' AS half_name,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0\n  AND booked_on BETWEEN '2025-07-01' AND '2025-12-31'\n  AND NOT category IN ('Income', 'Interest', 'Refunds', 'Other income')\nLIMIT 200",
+      "columns": [
+        "half_name",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "half_name": "First Half",
+          "total_eur": 6834.89
+        },
+        {
+          "half_name": "Second Half",
+          "total_eur": 7281.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": [
+        "Repair 1 of 2: The card owns the size and the caption, so drop title from the definition."
+      ]
+    },
+    {
+      "id": "18-two-months-de",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Vergleiche meine Ausgaben im Januar 2025 mit denen im Juli 2025 als Diagramm.",
+      "seconds": 3.07,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COALESCE(category, 'Needs review') AS category,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-07-31'\n  AND (\n    STRFTIME('%Y-%m', booked_on) = '2025-01'\n    OR STRFTIME('%Y-%m', booked_on) = '2025-07'\n  )\nGROUP BY\n  month,\n  category\nORDER BY\n  month,\n  category\nLIMIT 200",
+      "columns": [
+        "month",
+        "category",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "category": "Cash",
+          "total_eur": 300.0
+        },
+        {
+          "month": "2025-01",
+          "category": "Communication",
+          "total_eur": 59.98
+        },
+        {
+          "month": "2025-01",
+          "category": "Dining",
+          "total_eur": 96.3
+        },
+        {
+          "month": "2025-01",
+          "category": "Groceries",
+          "total_eur": 550.0
+        },
+        {
+          "month": "2025-01",
+          "category": "Health",
+          "total_eur": 39.9
+        },
+        {
+          "month": "2025-01",
+          "category": "Housing",
+          "total_eur": 78.0
+        },
+        {
+          "month": "2025-01",
+          "category": "Insurance",
+          "total_eur": 42.5
+        },
+        {
+          "month": "2025-01",
+          "category": "Needs review",
+          "total_eur": 1181.5
+        },
+        {
+          "month": "2025-01",
+          "category": "Shopping",
+          "total_eur": 61.1
+        },
+        {
+          "month": "2025-01",
+          "category": "Subscriptions",
+          "total_eur": 56.76
+        },
+        {
+          "month": "2025-01",
+          "category": "Transport",
+          "total_eur": 78.0
+        },
+        {
+          "month": "2025-07",
+          "category": "Cash",
+          "total_eur": 400.0
+        },
+        {
+          "month": "2025-07",
+          "category": "Communication",
+          "total_eur": 59.98
+        },
+        {
+          "month": "2025-07",
+          "category": "Dining",
+          "total_eur": 116.8
+        },
+        {
+          "month": "2025-07",
+          "category": "Groceries",
+          "total_eur": 406.4
+        },
+        {
+          "month": "2025-07",
+          "category": "Health",
+          "total_eur": 39.9
+        },
+        {
+          "month": "2025-07",
+          "category": "Housing",
+          "total_eur": 78.0
+        },
+        {
+          "month": "2025-07",
+          "category": "Insurance",
+          "total_eur": 42.5
+        },
+        {
+          "month": "2025-07",
+          "category": "Needs review",
+          "total_eur": 1208.0
+        },
+        {
+          "month": "2025-07",
+          "category": "Shopping",
+          "total_eur": 201.86
+        },
+        {
+          "month": "2025-07",
+          "category": "Subscriptions",
+          "total_eur": 56.76
+        },
+        {
+          "month": "2025-07",
+          "category": "Transport",
+          "total_eur": 150.6
+        }
+      ],
+      "error": "The chart could not be drawn from these rows: The 22 rows carry only 2 different values in month, because 2 names come back more than once (2025-01, 2025-07). One bar per name: the query has to group by month and return each value once.",
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": []
+    },
+    {
+      "id": "19-quarters-en",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Chart my spending per quarter in 2025.",
+      "seconds": 9.49,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y', booked_on) || '-Q' || CAST((\n    CAST(SUBSTRING(STRFTIME('%Y', booked_on), 5, 2) AS INTEGER) / 3\n  ) + 1 AS TEXT) AS quarter,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0 AND booked_on >= '2025-01-01' AND booked_on < '2026-01-01'\nGROUP BY\n  quarter\nORDER BY\n  quarter\nLIMIT 200",
+      "columns": [
+        "quarter",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "quarter": "2025-Q1",
+          "total_eur": 28535.89
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "20-daily-march-en",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Show my spending per day in March 2025 as a line chart.",
+      "seconds": 3.7,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m-%d', booked_on) AS day,\n  ROUND(SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  booked_on BETWEEN '2025-03-01' AND '2025-03-31' AND amount_cents > 0\nGROUP BY\n  day\nORDER BY\n  day\nLIMIT 200",
+      "columns": [
+        "day",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "day": "2025-03-28",
+          "total_eur": 2850.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": false,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "21-groceries-months-en",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Show what I spent on groceries per month in 2025.",
+      "seconds": 4.44,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0\n  AND category = 'Groceries'\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  STRFTIME('%Y-%m', booked_on)\nORDER BY\n  month DESC\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-12",
+          "total_eur": 280.7
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 339.5
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 273.2
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 520.1
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 294.3
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 406.4
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 384.2
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 440.72
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 252.7
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 320.13
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 413.0
+        },
+        {
+          "month": "2025-01",
+          "total_eur": 550.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "22-all-categories-de",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig die Ausgaben aller Kategorien 2025 als Balkendiagramm, auch die kleinen.",
+      "seconds": 4.34,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 30",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "total_eur": 14419.5
+        },
+        {
+          "topic": "Groceries",
+          "total_eur": 4474.95
+        },
+        {
+          "topic": "Cash",
+          "total_eur": 2400.0
+        },
+        {
+          "topic": "Transport",
+          "total_eur": 1426.3
+        },
+        {
+          "topic": "Shopping",
+          "total_eur": 1311.36
+        },
+        {
+          "topic": "Dining",
+          "total_eur": 965.7
+        },
+        {
+          "topic": "Housing",
+          "total_eur": 936.0
+        },
+        {
+          "topic": "Communication",
+          "total_eur": 719.76
+        },
+        {
+          "topic": "Health",
+          "total_eur": 691.2
+        },
+        {
+          "topic": "Subscriptions",
+          "total_eur": 681.12
+        },
+        {
+          "topic": "Insurance",
+          "total_eur": 510.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_horizontal",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "23-income-versus-spending-en",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Chart my income and my spending per month in 2025 side by side.",
+      "seconds": 4.06,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND category IN (\n    SELECT DISTINCT\n      category\n    FROM transaction_view\n    WHERE\n      amount_cents < 0\n      AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n      AND (\n        category = 'Income' OR category IS NULL\n      )\n  )\nGROUP BY\n  month,\n  topic\nHAVING\n  topic IN ('Income', 'Spending')\nUNION ALL\nSELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents > 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month,\n  topic\nHAVING\n  category IN (\n    SELECT DISTINCT\n      category\n    FROM transaction_view\n    WHERE\n      amount_cents > 0\n      AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n      AND (\n        category = 'Income' OR category IS NULL\n      )\n  )\nORDER BY\n  month,\n  topic\nLIMIT 200",
+      "columns": [
+        "month",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [],
+      "error": "The query behind the chart returned no rows, so there is nothing to draw.",
+      "refusals": [],
+      "shape": "bar_grouped",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": []
+    },
+    {
+      "id": "24-net-per-month-de",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig den monatlichen Saldo 2025, also Einnahmen minus Ausgaben, als Diagramm.",
+      "seconds": 5.68,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS YYYY_MM,\n  ROUND(SUM(amount), 2) AS Saldo\nFROM transaction_view\nWHERE\n  booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  STRFTIME('%Y-%m', booked_on)\nORDER BY\n  YYYY_MM\nLIMIT 200",
+      "columns": [
+        "YYYY_MM",
+        "Saldo"
+      ],
+      "rows": [
+        {
+          "YYYY_MM": "2025-01",
+          "Saldo": 305.96
+        },
+        {
+          "YYYY_MM": "2025-02",
+          "Saldo": 584.66
+        },
+        {
+          "YYYY_MM": "2025-03",
+          "Saldo": 559.23
+        },
+        {
+          "YYYY_MM": "2025-04",
+          "Saldo": 620.16
+        },
+        {
+          "YYYY_MM": "2025-05",
+          "Saldo": 539.54
+        },
+        {
+          "YYYY_MM": "2025-06",
+          "Saldo": 548.96
+        },
+        {
+          "YYYY_MM": "2025-07",
+          "Saldo": 89.2
+        },
+        {
+          "YYYY_MM": "2025-08",
+          "Saldo": 571.16
+        },
+        {
+          "YYYY_MM": "2025-09",
+          "Saldo": 297.56
+        },
+        {
+          "YYYY_MM": "2025-10",
+          "Saldo": 649.06
+        },
+        {
+          "YYYY_MM": "2025-11",
+          "Saldo": 429.86
+        },
+        {
+          "YYYY_MM": "2025-12",
+          "Saldo": 503.66
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "25-doughnut-supermarkets-de",
+      "set": "chart",
+      "kind": "doughnut",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig als Donut, wie sich meine Lebensmittelausgaben 2025 auf die einzelnen Maerkte verteilen.",
+      "seconds": 31.54,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND (\n    category LIKE '%Supermarket%'\n    OR category LIKE '%Restaurant%'\n    OR category LIKE '%Cafe%'\n    OR category LIKE '%Takeaway%'\n    OR category LIKE '%Delivery%'\n    OR category LIKE '%Fuel%'\n    OR category LIKE '%Ride hailing%'\n    OR category = 'Needs review'\n    OR category = 'Pharmacy'\n    OR category = 'Bank fees'\n    OR category = 'Health insurance'\n    OR category LIKE '%Travel%'\n  )\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [],
+      "error": "The query behind the chart returned no rows, so there is nothing to draw.",
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": []
+    },
+    {
+      "id": "26-sankey-subcategories-en",
+      "set": "chart",
+      "kind": "sankey",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Draw a sankey of how my 2025 spending flows from its categories into their subcategories.",
+      "seconds": 8.22,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": "SELECT\n  t.subcategory AS source,\n  COALESCE(t2.category, 'Needs review') AS target,\n  ROUND(-SUM(t.amount), 2) AS total_eur\nFROM transaction_view AS t\nJOIN transaction_view AS t2\n  ON t.booked_on <= t2.booked_on\nWHERE\n  t.amount_cents < 0\n  AND t.booked_on BETWEEN '2025-01-01' AND '2025-12-28'\n  AND NOT t.subcategory IS NULL\n  AND NOT t.category IS NULL\n  AND NOT t.category IN (\n    'Income',\n    'Housing',\n    'Groceries',\n    'Dining',\n    'Transport',\n    'Shopping',\n    'Subscriptions',\n    'Health',\n    'Insurance',\n    'Communication',\n    'Leisure',\n    'Education',\n    'Cash',\n    'Transfers',\n    'Fees and taxes',\n    'Unknown'\n  )\n  AND NOT t2.category IN (\n    'Income',\n    'Housing',\n    'Groceries',\n    'Dining',\n    'Transport',\n    'Shopping',\n    'Subscriptions',\n    'Health',\n    'Insurance',\n    'Communication',\n    'Leisure',\n    'Education',\n    'Cash',\n    'Transfers',\n    'Fees and taxes',\n    'Unknown'\n  )\n  AND t.subcategory <> t2.category\nGROUP BY\n  t.subcategory,\n  COALESCE(t2.category, 'Needs review')\nHAVING\n  COUNT(*) > 0\nORDER BY\n  source,\n  target,\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "source",
+        "target",
+        "total_eur"
+      ],
+      "rows": [],
+      "error": "The query behind the chart returned no rows, so there is nothing to draw.",
+      "refusals": [],
+      "shape": "sankey",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": []
+    },
+    {
+      "id": "27-needs-review-bar-de",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig mir als Diagramm, wie viel von meinen Ausgaben 2025 kategorisiert ist und wie viel noch in Needs review liegt.",
+      "seconds": 39.04,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 4,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS sum,\n  'Overheids inkomsten' AS label\nFROM transaction_view\nWHERE\n  amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  label\nUNION ALL\nSELECT\n  ROUND(-SUM(amount), 2) AS sum,\n  COALESCE(category, 'Needs review') AS label\nFROM transaction_view\nWHERE\n  amount_cents < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND category = 'Overheids inkomsten'\nGROUP BY\n  label\nUNION ALL\nSELECT\n  ROUND(-SUM(amount), 2) AS sum,\n  'Unbekannten' AS label\nFROM transaction_view\nWHERE\n  amount_cents < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND category IS NULL\nLIMIT 200",
+      "columns": [
+        "sum",
+        "label"
+      ],
+      "rows": [
+        {
+          "sum": 28535.89,
+          "label": "Overheids inkomsten"
+        },
+        {
+          "sum": 14419.5,
+          "label": "Unbekannten"
+        }
+      ],
+      "error": "The chart could not be drawn: 3 attempts failed the self-check, last reason: - A doughnut chart separates its data by colour, so the mark needs `color` pointing at the column that names the groups.",
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": [
+        "Repair 1 of 2: A doughnut chart separates its data by colour, so the mark needs `color` pointing at the column that names the groups.",
+        "Repair 2 of 2: A doughnut chart separates its data by colour, so the mark needs `color` pointing at the column that names the groups.",
+        "Gave up after 3 attempts: A doughnut chart separates its data by colour, so the mark needs `color` pointing at the column that names the groups."
+      ]
+    },
+    {
+      "id": "28-friends-doughnut-de",
+      "set": "chart",
+      "kind": "doughnut",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie verteilen sich meine PayPal-Zahlungen an Freunde 2025? Zeig es als Donut.",
+      "seconds": 9.89,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 4,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0 AND LOWER(counterparty) LIKE '%paypal%'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "total_eur": 619.5
+        }
+      ],
+      "error": "The chart could not be drawn: 3 attempts failed the self-check, last reason: - A doughnut chart separates its data by colour, so the mark needs `color` pointing at the column that names the groups.",
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": false,
+      "notes": [
+        "Repair 1 of 2: A doughnut chart separates its data by colour, so the mark needs `color` pointing at the column that names the groups.; The card owns the size and the caption, so drop title from the definition.",
+        "Repair 2 of 2: A doughnut chart separates its data by colour, so the mark needs `color` pointing at the column that names the groups.",
+        "Gave up after 3 attempts: A doughnut chart separates its data by colour, so the mark needs `color` pointing at the column that names the groups."
+      ]
+    },
+    {
+      "id": "29-daily-december-line-de",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig meine taeglichen Ausgaben im Dezember 2025 als Liniendiagramm.",
+      "seconds": 31.2,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m-%d', booked_on) AS tag,\n  -CAST(SUM(CASE WHEN amount_cents < 0 THEN amount ELSE 0 END) AS REAL) AS gesamtausgaben\nFROM transaction_view\nWHERE\n  booked_on BETWEEN '2025-12-01' AND '2025-12-31'\nGROUP BY\n  tag\nORDER BY\n  tag\nLIMIT 200",
+      "columns": [
+        "tag",
+        "gesamtausgaben"
+      ],
+      "rows": [
+        {
+          "tag": "2025-12-01",
+          "gesamtausgaben": 1297.0
+        },
+        {
+          "tag": "2025-12-02",
+          "gesamtausgaben": 58.6
+        },
+        {
+          "tag": "2025-12-04",
+          "gesamtausgaben": 29.8
+        },
+        {
+          "tag": "2025-12-05",
+          "gesamtausgaben": 39.99
+        },
+        {
+          "tag": "2025-12-06",
+          "gesamtausgaben": 127.0
+        },
+        {
+          "tag": "2025-12-07",
+          "gesamtausgaben": 84.19
+        },
+        {
+          "tag": "2025-12-08",
+          "gesamtausgaben": 19.99
+        },
+        {
+          "tag": "2025-12-09",
+          "gesamtausgaben": 49.8
+        },
+        {
+          "tag": "2025-12-10",
+          "gesamtausgaben": 7.2
+        },
+        {
+          "tag": "2025-12-11",
+          "gesamtausgaben": 84.49
+        },
+        {
+          "tag": "2025-12-12",
+          "gesamtausgaben": 10.3
+        },
+        {
+          "tag": "2025-12-14",
+          "gesamtausgaben": 10.0
+        },
+        {
+          "tag": "2025-12-15",
+          "gesamtausgaben": 96.7
+        },
+        {
+          "tag": "2025-12-16",
+          "gesamtausgaben": 69.7
+        },
+        {
+          "tag": "2025-12-19",
+          "gesamtausgaben": 8.99
+        },
+        {
+          "tag": "2025-12-20",
+          "gesamtausgaben": 39.5
+        },
+        {
+          "tag": "2025-12-22",
+          "gesamtausgaben": 50.79
+        },
+        {
+          "tag": "2025-12-24",
+          "gesamtausgaben": 35.7
+        },
+        {
+          "tag": "2025-12-25",
+          "gesamtausgaben": 110.8
+        },
+        {
+          "tag": "2025-12-26",
+          "gesamtausgaben": 105.7
+        },
+        {
+          "tag": "2025-12-28",
+          "gesamtausgaben": 10.1
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "30-groceries-stacked-quarters-en",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Show my grocery spending per quarter in 2025, split into supermarket, bakery and drugstore, as a stacked bar chart.",
+      "seconds": 3.86,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND category IN ('Supermarket', 'Bakery', 'Drugstore')\nGROUP BY\n  STRFTIME('%Y-%m', booked_on),\n  topic\nORDER BY\n  STRFTIME('%Y-%m', booked_on),\n  topic\nLIMIT 200",
+      "columns": [
+        "month",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [],
+      "error": "The query behind the chart returned no rows, so there is nothing to draw.",
+      "refusals": [],
+      "shape": "bar_stacked",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": []
+    },
+    {
+      "id": "31-groceries-area-de",
+      "set": "chart",
+      "kind": "area",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig die kumulierten Lebensmittelausgaben 2025 als Flaechendiagramm.",
+      "seconds": 3.24,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  SUM(-amount) AS cumulative_food_total_eur\nFROM transaction_view\nWHERE\n  booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND amount_cents < 0\n  AND category IN ('Supermarket', 'Bakery', 'Drugstore')\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "cumulative_food_total_eur"
+      ],
+      "rows": [],
+      "error": "The query behind the chart returned no rows, so there is nothing to draw.",
+      "refusals": [],
+      "shape": "area",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": []
+    },
+    {
+      "id": "32-top-merchants-half-en",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Which five merchants took the most money in the second half of 2025? Show them as horizontal bars.",
+      "seconds": 11.96,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 4,
+      "sql": "SELECT\n  COALESCE(title, counterparty, description) AS group_name,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount_cents < 0 AND booked_on BETWEEN '2025-07-01' AND '2025-12-31'\nGROUP BY\n  COALESCE(category, 'Needs review')\nORDER BY\n  total_eur DESC\nLIMIT 5",
+      "columns": [
+        "group_name",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "group_name": "Hausverwaltung Bergmann",
+          "total_eur": 7278.0
+        },
+        {
+          "group_name": "REWE",
+          "total_eur": 2114.2
+        },
+        {
+          "group_name": "Cash withdrawal",
+          "total_eur": 1500.0
+        },
+        {
+          "group_name": "Shell",
+          "total_eur": 841.9
+        },
+        {
+          "group_name": "Vapiano",
+          "total_eur": 490.2
+        }
+      ],
+      "error": "The chart could not be drawn: 3 attempts failed the self-check, last reason: - Call `defineChart` exactly once and return what it gives you; it was called 0 times.\n- The function body must `return defineChart({ ... })`.\n- The code never reads `data`. Hand those rows to the mark itself, `barY(data, { ... })`, and read every value through a channel name. The columns are: group_name, total_eur.",
+      "refusals": [],
+      "shape": "bar_horizontal",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": false,
+      "drawn": false,
+      "notes": [
+        "Repair 1 of 2: Call `defineChart` exactly once and return what it gives you; it was called 0 times.; The function body must `return defineChart({ ... })`.; The code never reads `data`. Hand those rows to the mark itself, `barY(data, { ... })`, and read every value through a channel name. The columns are: group_name, total_eur.",
+        "Repair 2 of 2: Call `defineChart` exactly once and return what it gives you; it was called 0 times.; The function body must `return defineChart({ ... })`.; The code never reads `data`. Hand those rows to the mark itself, `barY(data, { ... })`, and read every value through a channel name. The columns are: group_name, total_eur.",
+        "Gave up after 3 attempts: Call `defineChart` exactly once and return what it gives you; it was called 0 times.; The function body must `return defineChart({ ... })`.; The code never reads `data`. Hand those rows to the mark itself, `barY(data, { ... })`, and read every value through a channel name. The columns are: group_name, total_eur."
+      ]
+    }
+  ]
+}

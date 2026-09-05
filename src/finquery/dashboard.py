@@ -25,6 +25,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from finquery.chart.fold import fold_rows
 from finquery.chart.shapes import Shape
 from finquery.db import DashboardChart, Profile, Transaction, utcnow
 from finquery.query.guard import SqlFailed, SqlRejected, execute_read_only, validate_sql
@@ -123,9 +124,11 @@ return defineChart({
   },
 });"""
 
-# The last three months by category, five slices and the rest. The fold is in the statement
-# because the rows are re-read on every load: a household that gains a category between two
-# visits would otherwise hand a six-colour doughnut seven slices to draw.
+# The last three months by category, five slices and the rest. This one folds in the statement,
+# which it can because the statement is ours: a household that gains a category between two
+# visits would otherwise hand a six-colour doughnut seven slices to draw. `run_card` folds
+# whatever comes back anyway (ticket 39), so the two agree; a statement the sub-agent wrote has
+# only that second fold, because asking a model's SQL to fold is what broke the stacked bars.
 CATEGORY_SQL = f"""
 WITH by_category AS (
   SELECT coalesce(category, 'Needs review') AS name,
@@ -333,16 +336,24 @@ class CardRows:
 
 
 def run_card(session: Session, card: DashboardChart) -> CardRows:
-    """Run one stored statement through the guard, scoped to the card's own profile."""
+    """Run one stored statement through the guard, scoped to the card's own profile, and fold it.
+
+    The fold is the same function the runner ran before the definition was ever written
+    (`finquery.chart.fold`), over this load's rows: the statement is stored unfolded, because
+    folding is arithmetic this app does after the query rather than in it. Without it a stack
+    that showed six series in the chat showed eleven here and cycled the palette (ticket 36),
+    and the household could gain a category between two visits anyway.
+    """
     try:
         validated = validate_sql(card.sql)
     except SqlRejected as exc:
         return CardRows(error=REJECTED.format(reason=exc))
     try:
-        rows = execute_read_only(session, validated, card.profile_id)
+        result = execute_read_only(session, validated, card.profile_id)
     except SqlFailed as exc:
         return CardRows(error=FAILED.format(reason=exc))
-    return CardRows(columns=rows.columns, rows=rows.rows)
+    folded = fold_rows(card.shape, result.columns, result.rows, language=card.language)
+    return CardRows(columns=result.columns, rows=folded.rows)
 
 
 def notes_of(card: DashboardChart) -> list[str]:

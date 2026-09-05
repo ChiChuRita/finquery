@@ -1,0 +1,2836 @@
+{
+  "about": "The SQL benchmark: what a household really asks its bank statements, written by hand and answered by reference SQL we wrote ourselves. `sql` is that statement, `gold` is what it returned when bench/build_gold.py last ran it through the guard against a fresh database holding fixtures/synthetic/sparkasse-2025.csv. A run scores a model's own statement against those rows, to the cent. Ticket 38.",
+  "profile": "fixtures/synthetic/sparkasse-2025.csv, imported through the Sparkasse preset and categorized by rules and the merchant dictionary only, so the database is the same every time: 433 bookings, 2025-01-01 to 2025-12-28, 384 categorized and 49 Needs review (the rent, the salary and the four friends paid through PayPal).",
+  "today": "2025-12-31",
+  "today_note": "The date the query prompt is built with, so a relative period lands inside the data: this month is December 2025, last month is November, this quarter is the fourth and last quarter is the third.",
+  "kinds": [
+    "total",
+    "breakdown",
+    "comparison",
+    "trend",
+    "ranking",
+    "entity",
+    "follow-up",
+    "period"
+  ],
+  "difficulty": {
+    "1": "one filter and one aggregate; a model that misses these is not usable",
+    "2": "two things at once: a period and a category, two entities, a count beside a sum",
+    "3": "the ones the review of 2026-09-05 saw fail: relative periods, averages, exclusions, ties, a name nobody has"
+  },
+  "scoring": "figure match: every number in the gold rows comes back in the model's rows, rounded to the cent. sql valid: the guard admitted the statement and SQLite ran it. first attempt: it did so without a repair round.",
+  "datapoints": [
+    {
+      "id": "s01-may-total-de",
+      "kind": "total",
+      "difficulty": 1,
+      "language": "de",
+      "question": "Wie viel habe ich im Mai 2025 ausgegeben?",
+      "tags": [
+        "month",
+        "spending",
+        "German"
+      ],
+      "why": "The plainest question there is. Everything else in the set is a variation of it, so a model that misses this one is not worth running the rest on.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-05-01' AND '2025-05-31'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 2310.46
+          }
+        ]
+      }
+    },
+    {
+      "id": "s02-year-total-en",
+      "kind": "total",
+      "difficulty": 1,
+      "language": "en",
+      "question": "How much did I spend in total in 2025?",
+      "tags": [
+        "year",
+        "spending"
+      ],
+      "why": "One figure over the whole year. The sign filter is the only thing that can go wrong, and leaving it out turns the salary into a discount.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 28535.89
+          }
+        ]
+      }
+    },
+    {
+      "id": "s03-groceries-half-en",
+      "kind": "total",
+      "difficulty": 2,
+      "language": "en",
+      "question": "What did I spend on groceries in the second half of 2025?",
+      "tags": [
+        "half year",
+        "category",
+        "spending"
+      ],
+      "why": "A category filter and a period that is not a month or a year. The subcategories of Groceries (Supermarket, Bakery, Drugstore) are the standing trap: filtering on them as categories returns nothing.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Groceries' AND booked_on BETWEEN '2025-07-01' AND '2025-12-31'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 2114.2
+          }
+        ]
+      }
+    },
+    {
+      "id": "s04-rent-total-de",
+      "kind": "total",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie viel Miete habe ich 2025 insgesamt gezahlt?",
+      "tags": [
+        "merchant text",
+        "needs review",
+        "German"
+      ],
+      "why": "There is no Rent category in this profile: the twelve rent bookings are Needs review, so the answer only exists as a match on the booking text.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%miete%')",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 13800.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "s05-income-total-en",
+      "kind": "total",
+      "difficulty": 2,
+      "language": "en",
+      "question": "What was my total income in 2025?",
+      "tags": [
+        "year",
+        "income"
+      ],
+      "why": "Income is every positive amount, which is twelve salaries plus one Amazon refund. A model that reads income as the Income category gets nothing, because no booking carries it.",
+      "source": "hand",
+      "sql": "SELECT ROUND(SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents > 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 34234.9
+          }
+        ]
+      }
+    },
+    {
+      "id": "s06-groceries-per-week-de",
+      "kind": "total",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Was gebe ich pro Woche im Schnitt fuer Lebensmittel aus?",
+      "tags": [
+        "average",
+        "week",
+        "category",
+        "German"
+      ],
+      "why": "The question that cost Qwen3.5 four minutes and fifteen statements. The average is one division inside the statement, and the divisor is the 49 weeks that carry a grocery booking, not the 52 of the calendar. Deliberately unforgiving: an answer that divides by 52 is five euros out and counts as a miss.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount) / (COUNT(DISTINCT strftime('%Y-%W', booked_on)) * 1.0), 2) AS per_week_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Groceries' AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'",
+      "gold": {
+        "columns": [
+          "per_week_eur"
+        ],
+        "rows": [
+          {
+            "per_week_eur": 91.33
+          }
+        ]
+      }
+    },
+    {
+      "id": "s07-subscriptions-per-month-en",
+      "kind": "total",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much do my subscriptions cost me per month on average?",
+      "tags": [
+        "average",
+        "month",
+        "category"
+      ],
+      "why": "An average whose divisor is the months in the data, not the rows. Dividing by the booking count is the near miss: four subscriptions a month is 48 rows, not 12.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount) / (COUNT(DISTINCT strftime('%Y-%m', booked_on)) * 1.0), 2) AS per_month_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Subscriptions' AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'",
+      "gold": {
+        "columns": [
+          "per_month_eur"
+        ],
+        "rows": [
+          {
+            "per_month_eur": 56.76
+          }
+        ]
+      }
+    },
+    {
+      "id": "s08-electricity-de",
+      "kind": "total",
+      "difficulty": 1,
+      "language": "de",
+      "question": "Wie hoch war meine Stromrechnung 2025?",
+      "tags": [
+        "subcategory",
+        "German"
+      ],
+      "why": "The answer lives in a subcategory (Housing > Electricity), so this is the mirror image of the category questions: here filtering on the category alone is too wide.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND subcategory = 'Electricity' AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 936.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "s09-this-quarter-en",
+      "kind": "total",
+      "difficulty": 3,
+      "language": "en",
+      "question": "What did I spend this quarter?",
+      "tags": [
+        "relative period",
+        "quarter"
+      ],
+      "why": "Today is 2025-12-31, so this quarter is the fourth. The review of 2026-09-05 saw the current quarter and the previous one swapped in both directions.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-10-01' AND '2025-12-31'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 6967.42
+          }
+        ]
+      }
+    },
+    {
+      "id": "s10-since-march-de",
+      "kind": "total",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie viel habe ich seit Maerz ausgegeben?",
+      "tags": [
+        "relative period",
+        "open ended",
+        "German"
+      ],
+      "why": "An open period with one end. March means the first of March of this year, and the other end is today, so no upper bound belongs in the statement.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on >= '2025-03-01'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 23726.51
+          }
+        ]
+      }
+    },
+    {
+      "id": "s11-supermarket-october-en",
+      "kind": "total",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much did I spend at the supermarket in October?",
+      "tags": [
+        "subcategory",
+        "month"
+      ],
+      "why": "Supermarket is a subcategory of Groceries, and the bakery and the drugstore are its siblings: answering with the whole category adds 38,70 EUR nobody asked about.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND subcategory = 'Supermarket' AND booked_on BETWEEN '2025-10-01' AND '2025-10-31'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 234.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "s12-cash-total-en",
+      "kind": "total",
+      "difficulty": 1,
+      "language": "en",
+      "question": "How much cash did I take out in 2025, and how often?",
+      "tags": [
+        "category",
+        "count"
+      ],
+      "why": "Two figures in one row, the total and how often. A question with an 'and how often' in it is answered with one statement, not two.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur, COUNT(*) AS bookings FROM transaction_view WHERE amount_cents < 0 AND category = 'Cash' AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'",
+      "gold": {
+        "columns": [
+          "total_eur",
+          "bookings"
+        ],
+        "rows": [
+          {
+            "total_eur": 2400.0,
+            "bookings": 20
+          }
+        ]
+      }
+    },
+    {
+      "id": "s13-per-category-de",
+      "kind": "breakdown",
+      "difficulty": 1,
+      "language": "de",
+      "question": "Wie viel habe ich 2025 pro Kategorie ausgegeben?",
+      "tags": [
+        "category",
+        "needs review",
+        "German"
+      ],
+      "why": "Eleven rows, one of them the Needs review bucket that holds the rent. Dropping the uncategorized bookings loses the largest number on the page.",
+      "source": "hand",
+      "sql": "SELECT coalesce(category, 'Needs review') AS topic, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY topic ORDER BY total_eur DESC",
+      "gold": {
+        "columns": [
+          "topic",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "topic": "Needs review",
+            "total_eur": 14419.5
+          },
+          {
+            "topic": "Groceries",
+            "total_eur": 4474.95
+          },
+          {
+            "topic": "Cash",
+            "total_eur": 2400.0
+          },
+          {
+            "topic": "Transport",
+            "total_eur": 1426.3
+          },
+          {
+            "topic": "Shopping",
+            "total_eur": 1311.36
+          },
+          {
+            "topic": "Dining",
+            "total_eur": 965.7
+          },
+          {
+            "topic": "Housing",
+            "total_eur": 936.0
+          },
+          {
+            "topic": "Communication",
+            "total_eur": 719.76
+          },
+          {
+            "topic": "Health",
+            "total_eur": 691.2
+          },
+          {
+            "topic": "Subscriptions",
+            "total_eur": 681.12
+          },
+          {
+            "topic": "Insurance",
+            "total_eur": 510.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "s14-dining-subcategories-en",
+      "kind": "breakdown",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Break my dining spending down by subcategory.",
+      "tags": [
+        "subcategory",
+        "category"
+      ],
+      "why": "The one question where the subcategory column is what is asked for. Grouping by category returns one row and answers nothing.",
+      "source": "hand",
+      "sql": "SELECT coalesce(subcategory, 'None') AS topic, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Dining' GROUP BY topic ORDER BY total_eur DESC",
+      "gold": {
+        "columns": [
+          "topic",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "topic": "Delivery",
+            "total_eur": 393.2
+          },
+          {
+            "topic": "Takeaway",
+            "total_eur": 296.0
+          },
+          {
+            "topic": "Restaurant",
+            "total_eur": 214.5
+          },
+          {
+            "topic": "Cafe",
+            "total_eur": 62.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "s16-supermarkets-de",
+      "kind": "breakdown",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie verteilen sich meine Lebensmittelausgaben auf die einzelnen Supermaerkte?",
+      "tags": [
+        "merchant",
+        "category",
+        "German"
+      ],
+      "why": "A category filter and a merchant grouping in one statement. The bakery and the two drugstores are groceries here, which is what the profile's own taxonomy says.",
+      "source": "hand",
+      "sql": "SELECT coalesce(counterparty, description) AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Groceries' GROUP BY merchant ORDER BY total_eur DESC",
+      "gold": {
+        "columns": [
+          "merchant",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "merchant": "KAUFLAND BERLIN",
+            "total_eur": 1098.5
+          },
+          {
+            "merchant": "REWE Markt GmbH",
+            "total_eur": 732.0
+          },
+          {
+            "merchant": "ALDI SÜD",
+            "total_eur": 642.7
+          },
+          {
+            "merchant": "LIDL Vertriebs GmbH",
+            "total_eur": 599.3
+          },
+          {
+            "merchant": "EDEKA Sander",
+            "total_eur": 445.83
+          },
+          {
+            "merchant": "NETTO MARKEN-DISCOUNT",
+            "total_eur": 425.5
+          },
+          {
+            "merchant": "dm drogerie markt",
+            "total_eur": 401.7
+          },
+          {
+            "merchant": "Bäckerei Steinecke",
+            "total_eur": 110.5
+          },
+          {
+            "merchant": "ROSSMANN Drogeriemarkt",
+            "total_eur": 18.92
+          }
+        ]
+      }
+    },
+    {
+      "id": "s17-income-vs-spending-en",
+      "kind": "breakdown",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Show me income and spending for each month of 2025.",
+      "tags": [
+        "month",
+        "income",
+        "spending",
+        "two figures"
+      ],
+      "why": "Two figures per month out of one signed column. The WHERE clause cannot filter the sign here, so the split has to happen inside the aggregate.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(SUM(CASE WHEN amount_cents > 0 THEN amount ELSE 0 END), 2) AS income_eur, ROUND(-SUM(CASE WHEN amount_cents < 0 THEN amount ELSE 0 END), 2) AS spending_eur FROM transaction_view WHERE booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY month ORDER BY month",
+      "gold": {
+        "columns": [
+          "month",
+          "income_eur",
+          "spending_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "income_eur": 2850.0,
+            "spending_eur": 2544.04
+          },
+          {
+            "month": "2025-02",
+            "income_eur": 2850.0,
+            "spending_eur": 2265.34
+          },
+          {
+            "month": "2025-03",
+            "income_eur": 2850.0,
+            "spending_eur": 2290.77
+          },
+          {
+            "month": "2025-04",
+            "income_eur": 2884.9,
+            "spending_eur": 2264.74
+          },
+          {
+            "month": "2025-05",
+            "income_eur": 2850.0,
+            "spending_eur": 2310.46
+          },
+          {
+            "month": "2025-06",
+            "income_eur": 2850.0,
+            "spending_eur": 2301.04
+          },
+          {
+            "month": "2025-07",
+            "income_eur": 2850.0,
+            "spending_eur": 2760.8
+          },
+          {
+            "month": "2025-08",
+            "income_eur": 2850.0,
+            "spending_eur": 2278.84
+          },
+          {
+            "month": "2025-09",
+            "income_eur": 2850.0,
+            "spending_eur": 2552.44
+          },
+          {
+            "month": "2025-10",
+            "income_eur": 2850.0,
+            "spending_eur": 2200.94
+          },
+          {
+            "month": "2025-11",
+            "income_eur": 2850.0,
+            "spending_eur": 2420.14
+          },
+          {
+            "month": "2025-12",
+            "income_eur": 2850.0,
+            "spending_eur": 2346.34
+          }
+        ]
+      }
+    },
+    {
+      "id": "s18-needs-review-merchants-de",
+      "kind": "breakdown",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Welche Haendler stecken in 'Needs review', und wie viele Buchungen sind das jeweils?",
+      "tags": [
+        "needs review",
+        "merchant",
+        "German"
+      ],
+      "why": "Needs review is the absence of a category, so it is `category IS NULL` and never a string compared against a category name.",
+      "source": "hand",
+      "sql": "SELECT coalesce(counterparty, description) AS merchant, COUNT(*) AS bookings FROM transaction_view WHERE category IS NULL GROUP BY merchant ORDER BY bookings DESC",
+      "gold": {
+        "columns": [
+          "merchant",
+          "bookings"
+        ],
+        "rows": [
+          {
+            "merchant": "PayPal Europe S.a.r.l.",
+            "bookings": 25
+          },
+          {
+            "merchant": "Mustermann Systems GmbH",
+            "bookings": 12
+          },
+          {
+            "merchant": "Hausverwaltung Bergmann GmbH",
+            "bookings": 12
+          }
+        ]
+      }
+    },
+    {
+      "id": "s19-per-quarter-en",
+      "kind": "breakdown",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much did I spend per quarter in 2025?",
+      "tags": [
+        "quarter",
+        "period arithmetic"
+      ],
+      "why": "SQLite has no quarter function, so a quarter is arithmetic on the month. Four rows, and twelve is the sign that the model quietly answered a different question.",
+      "source": "hand",
+      "sql": "SELECT '2025-Q' || ((CAST(strftime('%m', booked_on) AS INTEGER) + 2) / 3) AS quarter, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY quarter ORDER BY quarter",
+      "gold": {
+        "columns": [
+          "quarter",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "quarter": "2025-Q1",
+            "total_eur": 7100.15
+          },
+          {
+            "quarter": "2025-Q2",
+            "total_eur": 6876.24
+          },
+          {
+            "quarter": "2025-Q3",
+            "total_eur": 7592.08
+          },
+          {
+            "quarter": "2025-Q4",
+            "total_eur": 6967.42
+          }
+        ]
+      }
+    },
+    {
+      "id": "s20-weekday-de",
+      "kind": "breakdown",
+      "difficulty": 3,
+      "language": "de",
+      "question": "An welchen Wochentagen gebe ich am meisten Geld aus?",
+      "tags": [
+        "date function",
+        "German"
+      ],
+      "why": "Grouping by something that is not a period or a category. `strftime('%w', ...)` is the only way to it, and the rent falls on the first of the month, which moves through the week.",
+      "source": "hand",
+      "sql": "SELECT strftime('%w', booked_on) AS weekday, ROUND(-SUM(amount), 2) AS total_eur, COUNT(*) AS bookings FROM transaction_view WHERE amount_cents < 0 GROUP BY weekday ORDER BY total_eur DESC",
+      "gold": {
+        "columns": [
+          "weekday",
+          "total_eur",
+          "bookings"
+        ],
+        "rows": [
+          {
+            "weekday": "6",
+            "total_eur": 5808.23,
+            "bookings": 69
+          },
+          {
+            "weekday": "1",
+            "total_eur": 5106.01,
+            "bookings": 76
+          },
+          {
+            "weekday": "3",
+            "total_eur": 4441.48,
+            "bookings": 54
+          },
+          {
+            "weekday": "2",
+            "total_eur": 4201.09,
+            "bookings": 53
+          },
+          {
+            "weekday": "0",
+            "total_eur": 3179.31,
+            "bookings": 59
+          },
+          {
+            "weekday": "4",
+            "total_eur": 2906.95,
+            "bookings": 58
+          },
+          {
+            "weekday": "5",
+            "total_eur": 2892.82,
+            "bookings": 51
+          }
+        ]
+      }
+    },
+    {
+      "id": "s21-categorized-share-en",
+      "kind": "breakdown",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much of my 2025 spending is categorized and how much still needs review?",
+      "tags": [
+        "needs review",
+        "two buckets"
+      ],
+      "why": "A CASE that labels a booking by its category is allowed; the same CASE over the booking text is refused by the guard. The difference is what the rule is about.",
+      "source": "hand",
+      "sql": "SELECT CASE WHEN category IS NULL THEN 'Needs review' ELSE 'Categorized' END AS topic, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY topic ORDER BY topic",
+      "gold": {
+        "columns": [
+          "topic",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "topic": "Categorized",
+            "total_eur": 14116.39
+          },
+          {
+            "topic": "Needs review",
+            "total_eur": 14419.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "s22-account-months-de",
+      "kind": "breakdown",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig mir pro Monat, wie viele Buchungen ich hatte und was sie zusammen gekostet haben.",
+      "tags": [
+        "month",
+        "count",
+        "German"
+      ],
+      "why": "A count and a sum side by side over twelve months. The count has to be of the spending rows only, so the filter belongs in the WHERE clause and not around the sum.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, COUNT(*) AS bookings, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 GROUP BY month ORDER BY month",
+      "gold": {
+        "columns": [
+          "month",
+          "bookings",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "bookings": 35,
+            "total_eur": 2544.04
+          },
+          {
+            "month": "2025-02",
+            "bookings": 34,
+            "total_eur": 2265.34
+          },
+          {
+            "month": "2025-03",
+            "bookings": 30,
+            "total_eur": 2290.77
+          },
+          {
+            "month": "2025-04",
+            "bookings": 34,
+            "total_eur": 2264.74
+          },
+          {
+            "month": "2025-05",
+            "bookings": 38,
+            "total_eur": 2310.46
+          },
+          {
+            "month": "2025-06",
+            "bookings": 32,
+            "total_eur": 2301.04
+          },
+          {
+            "month": "2025-07",
+            "bookings": 39,
+            "total_eur": 2760.8
+          },
+          {
+            "month": "2025-08",
+            "bookings": 34,
+            "total_eur": 2278.84
+          },
+          {
+            "month": "2025-09",
+            "bookings": 38,
+            "total_eur": 2552.44
+          },
+          {
+            "month": "2025-10",
+            "bookings": 34,
+            "total_eur": 2200.94
+          },
+          {
+            "month": "2025-11",
+            "bookings": 34,
+            "total_eur": 2420.14
+          },
+          {
+            "month": "2025-12",
+            "bookings": 38,
+            "total_eur": 2346.34
+          }
+        ]
+      }
+    },
+    {
+      "id": "s23-may-vs-april-en",
+      "kind": "comparison",
+      "difficulty": 1,
+      "language": "en",
+      "question": "Compare my spending in May 2025 with April 2025.",
+      "tags": [
+        "two periods",
+        "month"
+      ],
+      "why": "Two periods are two rows of one statement, not two numbers subtracted in prose.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-04-01' AND '2025-05-31' GROUP BY month ORDER BY month",
+      "gold": {
+        "columns": [
+          "month",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-04",
+            "total_eur": 2264.74
+          },
+          {
+            "month": "2025-05",
+            "total_eur": 2310.46
+          }
+        ]
+      }
+    },
+    {
+      "id": "s24-jan-vs-feb-de",
+      "kind": "comparison",
+      "difficulty": 2,
+      "language": "de",
+      "question": "War der Januar oder der Februar teurer?",
+      "tags": [
+        "two periods",
+        "German",
+        "comparative"
+      ],
+      "why": "A question phrased as a choice still wants both figures. Answering with one month is unfalsifiable.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-02-28' GROUP BY month ORDER BY total_eur DESC",
+      "gold": {
+        "columns": [
+          "month",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "total_eur": 2544.04
+          },
+          {
+            "month": "2025-02",
+            "total_eur": 2265.34
+          }
+        ]
+      }
+    },
+    {
+      "id": "s25-halves-en",
+      "kind": "comparison",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Compare the first half of 2025 with the second half.",
+      "tags": [
+        "two periods",
+        "half year"
+      ],
+      "why": "Halves are not a date function either, so the split is a CASE over the date. Two rows.",
+      "source": "hand",
+      "sql": "SELECT CASE WHEN booked_on < '2025-07-01' THEN 'H1' ELSE 'H2' END AS half, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY half ORDER BY half",
+      "gold": {
+        "columns": [
+          "half",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "half": "H1",
+            "total_eur": 13976.39
+          },
+          {
+            "half": "H2",
+            "total_eur": 14559.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "s26-groceries-vs-dining-de",
+      "kind": "comparison",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Vergleiche meine Ausgaben fuer Lebensmittel und fuers Essengehen, pro Quartal.",
+      "tags": [
+        "two categories",
+        "quarter",
+        "German",
+        "crossed"
+      ],
+      "why": "Two dimensions that really cross: four quarters times two categories is eight rows, and grouping by only one of them silently answers half the question.",
+      "source": "hand",
+      "sql": "SELECT '2025-Q' || ((CAST(strftime('%m', booked_on) AS INTEGER) + 2) / 3) AS quarter, category AS topic, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category IN ('Groceries', 'Dining') AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY quarter, topic ORDER BY quarter, topic",
+      "gold": {
+        "columns": [
+          "quarter",
+          "topic",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "quarter": "2025-Q1",
+            "topic": "Dining",
+            "total_eur": 242.1
+          },
+          {
+            "quarter": "2025-Q1",
+            "topic": "Groceries",
+            "total_eur": 1283.13
+          },
+          {
+            "quarter": "2025-Q2",
+            "topic": "Dining",
+            "total_eur": 233.4
+          },
+          {
+            "quarter": "2025-Q2",
+            "topic": "Groceries",
+            "total_eur": 1077.62
+          },
+          {
+            "quarter": "2025-Q3",
+            "topic": "Dining",
+            "total_eur": 283.8
+          },
+          {
+            "quarter": "2025-Q3",
+            "topic": "Groceries",
+            "total_eur": 1220.8
+          },
+          {
+            "quarter": "2025-Q4",
+            "topic": "Dining",
+            "total_eur": 206.4
+          },
+          {
+            "quarter": "2025-Q4",
+            "topic": "Groceries",
+            "total_eur": 893.4
+          }
+        ]
+      }
+    },
+    {
+      "id": "s27-transport-vs-subscriptions-en",
+      "kind": "comparison",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Did I spend more on transport or on subscriptions in 2025?",
+      "tags": [
+        "two categories",
+        "comparative"
+      ],
+      "why": "Two categories, one statement, both figures. `IN` is the whole trick and a UNION of two identical branches is the usual detour.",
+      "source": "hand",
+      "sql": "SELECT category AS topic, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category IN ('Transport', 'Subscriptions') AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY topic ORDER BY total_eur DESC",
+      "gold": {
+        "columns": [
+          "topic",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "topic": "Transport",
+            "total_eur": 1426.3
+          },
+          {
+            "topic": "Subscriptions",
+            "total_eur": 681.12
+          }
+        ]
+      }
+    },
+    {
+      "id": "s28-q4-vs-q3-en",
+      "kind": "comparison",
+      "difficulty": 3,
+      "language": "en",
+      "question": "How does this quarter compare with the last one?",
+      "tags": [
+        "relative period",
+        "quarter",
+        "two periods"
+      ],
+      "why": "Both ends are relative to today (2025-12-31): the third quarter and the fourth. Getting one of the two wrong is the failure this datapoint is here for.",
+      "source": "hand",
+      "sql": "SELECT '2025-Q' || ((CAST(strftime('%m', booked_on) AS INTEGER) + 2) / 3) AS quarter, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-07-01' AND '2025-12-31' GROUP BY quarter ORDER BY quarter",
+      "gold": {
+        "columns": [
+          "quarter",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "quarter": "2025-Q3",
+            "total_eur": 7592.08
+          },
+          {
+            "quarter": "2025-Q4",
+            "total_eur": 6967.42
+          }
+        ]
+      }
+    },
+    {
+      "id": "s29-rent-constant-de",
+      "kind": "comparison",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Ist meine Miete im Laufe des Jahres gestiegen?",
+      "tags": [
+        "false premise",
+        "needs review",
+        "merchant text",
+        "German"
+      ],
+      "why": "A false premise: the rent is 1.150 EUR every month. The rows that disprove it are the answer, so the statement has to return all twelve and not a difference.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS rent_eur FROM transaction_view WHERE amount_cents < 0 AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%miete%') GROUP BY month ORDER BY month",
+      "gold": {
+        "columns": [
+          "month",
+          "rent_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "rent_eur": 1150.0
+          },
+          {
+            "month": "2025-02",
+            "rent_eur": 1150.0
+          },
+          {
+            "month": "2025-03",
+            "rent_eur": 1150.0
+          },
+          {
+            "month": "2025-04",
+            "rent_eur": 1150.0
+          },
+          {
+            "month": "2025-05",
+            "rent_eur": 1150.0
+          },
+          {
+            "month": "2025-06",
+            "rent_eur": 1150.0
+          },
+          {
+            "month": "2025-07",
+            "rent_eur": 1150.0
+          },
+          {
+            "month": "2025-08",
+            "rent_eur": 1150.0
+          },
+          {
+            "month": "2025-09",
+            "rent_eur": 1150.0
+          },
+          {
+            "month": "2025-10",
+            "rent_eur": 1150.0
+          },
+          {
+            "month": "2025-11",
+            "rent_eur": 1150.0
+          },
+          {
+            "month": "2025-12",
+            "rent_eur": 1150.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "s30-anna-vs-max-en",
+      "kind": "comparison",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Compare what I sent Anna with what I sent Max.",
+      "tags": [
+        "person",
+        "paypal",
+        "two entities"
+      ],
+      "why": "Both payments are PayPal, so the counterparty is PayPal and the name is in the booking text. Matching the counterparty alone finds neither of them, and a CASE over that text that labels them is refused by the guard, so the two rows are a UNION of two branches.",
+      "source": "hand",
+      "sql": "SELECT 'Anna' AS person, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%anna weber%') UNION ALL SELECT 'Max' AS person, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%max schulz%')",
+      "gold": {
+        "columns": [
+          "person",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "person": "Anna",
+            "total_eur": 133.5
+          },
+          {
+            "person": "Max",
+            "total_eur": 137.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "s31-per-month-en",
+      "kind": "trend",
+      "difficulty": 1,
+      "language": "en",
+      "question": "How much did I spend per month in 2025?",
+      "tags": [
+        "month",
+        "series"
+      ],
+      "why": "The twelve-row series every chart in the other set is drawn from.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY month ORDER BY month",
+      "gold": {
+        "columns": [
+          "month",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "total_eur": 2544.04
+          },
+          {
+            "month": "2025-02",
+            "total_eur": 2265.34
+          },
+          {
+            "month": "2025-03",
+            "total_eur": 2290.77
+          },
+          {
+            "month": "2025-04",
+            "total_eur": 2264.74
+          },
+          {
+            "month": "2025-05",
+            "total_eur": 2310.46
+          },
+          {
+            "month": "2025-06",
+            "total_eur": 2301.04
+          },
+          {
+            "month": "2025-07",
+            "total_eur": 2760.8
+          },
+          {
+            "month": "2025-08",
+            "total_eur": 2278.84
+          },
+          {
+            "month": "2025-09",
+            "total_eur": 2552.44
+          },
+          {
+            "month": "2025-10",
+            "total_eur": 2200.94
+          },
+          {
+            "month": "2025-11",
+            "total_eur": 2420.14
+          },
+          {
+            "month": "2025-12",
+            "total_eur": 2346.34
+          }
+        ]
+      }
+    },
+    {
+      "id": "s32-dining-trend-de",
+      "kind": "trend",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie haben sich meine Ausgaben in Restaurants und Cafes ueber das Jahr entwickelt?",
+      "tags": [
+        "month",
+        "category",
+        "German",
+        "series"
+      ],
+      "why": "A series inside one category. The German for the category is not the category's name, which is what the taxonomy in the prompt is for.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Dining' GROUP BY month ORDER BY month",
+      "gold": {
+        "columns": [
+          "month",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "total_eur": 96.3
+          },
+          {
+            "month": "2025-02",
+            "total_eur": 98.6
+          },
+          {
+            "month": "2025-03",
+            "total_eur": 47.2
+          },
+          {
+            "month": "2025-04",
+            "total_eur": 61.8
+          },
+          {
+            "month": "2025-05",
+            "total_eur": 104.4
+          },
+          {
+            "month": "2025-06",
+            "total_eur": 67.2
+          },
+          {
+            "month": "2025-07",
+            "total_eur": 116.8
+          },
+          {
+            "month": "2025-08",
+            "total_eur": 31.7
+          },
+          {
+            "month": "2025-09",
+            "total_eur": 135.3
+          },
+          {
+            "month": "2025-10",
+            "total_eur": 30.8
+          },
+          {
+            "month": "2025-11",
+            "total_eur": 88.3
+          },
+          {
+            "month": "2025-12",
+            "total_eur": 87.3
+          }
+        ]
+      }
+    },
+    {
+      "id": "s33-groceries-trend-en",
+      "kind": "trend",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Is my grocery spending going up?",
+      "tags": [
+        "month",
+        "category",
+        "series",
+        "open question"
+      ],
+      "why": "A yes-or-no question that only a series can answer. One number cannot say whether something is going up.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Groceries' GROUP BY month ORDER BY month",
+      "gold": {
+        "columns": [
+          "month",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "total_eur": 550.0
+          },
+          {
+            "month": "2025-02",
+            "total_eur": 413.0
+          },
+          {
+            "month": "2025-03",
+            "total_eur": 320.13
+          },
+          {
+            "month": "2025-04",
+            "total_eur": 252.7
+          },
+          {
+            "month": "2025-05",
+            "total_eur": 440.72
+          },
+          {
+            "month": "2025-06",
+            "total_eur": 384.2
+          },
+          {
+            "month": "2025-07",
+            "total_eur": 406.4
+          },
+          {
+            "month": "2025-08",
+            "total_eur": 294.3
+          },
+          {
+            "month": "2025-09",
+            "total_eur": 520.1
+          },
+          {
+            "month": "2025-10",
+            "total_eur": 273.2
+          },
+          {
+            "month": "2025-11",
+            "total_eur": 339.5
+          },
+          {
+            "month": "2025-12",
+            "total_eur": 280.7
+          }
+        ]
+      }
+    },
+    {
+      "id": "s34-cumulative-de",
+      "kind": "trend",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig mir meine kumulierten Ausgaben pro Monat.",
+      "tags": [
+        "running total",
+        "window function",
+        "German"
+      ],
+      "why": "A running total needs a window function over a grouped subquery. The last row is the year's total, which is the cheap check that the frame is right.",
+      "source": "hand",
+      "sql": "WITH monthly AS (SELECT strftime('%Y-%m', booked_on) AS month, -SUM(amount) AS spent FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY month) SELECT month, ROUND(SUM(spent) OVER (ORDER BY month), 2) AS cumulative_eur FROM monthly ORDER BY month",
+      "gold": {
+        "columns": [
+          "month",
+          "cumulative_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "cumulative_eur": 2544.04
+          },
+          {
+            "month": "2025-02",
+            "cumulative_eur": 4809.38
+          },
+          {
+            "month": "2025-03",
+            "cumulative_eur": 7100.15
+          },
+          {
+            "month": "2025-04",
+            "cumulative_eur": 9364.89
+          },
+          {
+            "month": "2025-05",
+            "cumulative_eur": 11675.35
+          },
+          {
+            "month": "2025-06",
+            "cumulative_eur": 13976.39
+          },
+          {
+            "month": "2025-07",
+            "cumulative_eur": 16737.19
+          },
+          {
+            "month": "2025-08",
+            "cumulative_eur": 19016.03
+          },
+          {
+            "month": "2025-09",
+            "cumulative_eur": 21568.47
+          },
+          {
+            "month": "2025-10",
+            "cumulative_eur": 23769.41
+          },
+          {
+            "month": "2025-11",
+            "cumulative_eur": 26189.55
+          },
+          {
+            "month": "2025-12",
+            "cumulative_eur": 28535.89
+          }
+        ]
+      }
+    },
+    {
+      "id": "s35-net-per-month-en",
+      "kind": "trend",
+      "difficulty": 3,
+      "language": "en",
+      "question": "What is my net per month, income minus spending?",
+      "tags": [
+        "month",
+        "net",
+        "sign"
+      ],
+      "why": "The one question where the signed sum is the answer and no sign filter belongs in the statement at all.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(SUM(amount), 2) AS net_eur FROM transaction_view WHERE booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY month ORDER BY month",
+      "gold": {
+        "columns": [
+          "month",
+          "net_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "net_eur": 305.96
+          },
+          {
+            "month": "2025-02",
+            "net_eur": 584.66
+          },
+          {
+            "month": "2025-03",
+            "net_eur": 559.23
+          },
+          {
+            "month": "2025-04",
+            "net_eur": 620.16
+          },
+          {
+            "month": "2025-05",
+            "net_eur": 539.54
+          },
+          {
+            "month": "2025-06",
+            "net_eur": 548.96
+          },
+          {
+            "month": "2025-07",
+            "net_eur": 89.2
+          },
+          {
+            "month": "2025-08",
+            "net_eur": 571.16
+          },
+          {
+            "month": "2025-09",
+            "net_eur": 297.56
+          },
+          {
+            "month": "2025-10",
+            "net_eur": 649.06
+          },
+          {
+            "month": "2025-11",
+            "net_eur": 429.86
+          },
+          {
+            "month": "2025-12",
+            "net_eur": 503.66
+          }
+        ]
+      }
+    },
+    {
+      "id": "s36-bookings-per-month-de",
+      "kind": "trend",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie viele Buchungen hatte ich pro Monat?",
+      "tags": [
+        "month",
+        "count",
+        "German"
+      ],
+      "why": "A series of counts rather than of euros: nothing here is money, so a euro column would be an invention.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, COUNT(*) AS bookings FROM transaction_view GROUP BY month ORDER BY month",
+      "gold": {
+        "columns": [
+          "month",
+          "bookings"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "bookings": 36
+          },
+          {
+            "month": "2025-02",
+            "bookings": 35
+          },
+          {
+            "month": "2025-03",
+            "bookings": 31
+          },
+          {
+            "month": "2025-04",
+            "bookings": 36
+          },
+          {
+            "month": "2025-05",
+            "bookings": 39
+          },
+          {
+            "month": "2025-06",
+            "bookings": 33
+          },
+          {
+            "month": "2025-07",
+            "bookings": 40
+          },
+          {
+            "month": "2025-08",
+            "bookings": 35
+          },
+          {
+            "month": "2025-09",
+            "bookings": 39
+          },
+          {
+            "month": "2025-10",
+            "bookings": 35
+          },
+          {
+            "month": "2025-11",
+            "bookings": 35
+          },
+          {
+            "month": "2025-12",
+            "bookings": 39
+          }
+        ]
+      }
+    },
+    {
+      "id": "s37-march-weeks-en",
+      "kind": "trend",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Show me my spending per week in March 2025.",
+      "tags": [
+        "week",
+        "month",
+        "series"
+      ],
+      "why": "Weeks inside one month, which is five buckets and not four. The week number is a strftime format nobody remembers, and inventing a date function is the usual failure.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%W', booked_on) AS week, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-03-01' AND '2025-03-31' GROUP BY week ORDER BY week",
+      "gold": {
+        "columns": [
+          "week",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "week": "2025-08",
+            "total_eur": 1335.3
+          },
+          {
+            "week": "2025-09",
+            "total_eur": 272.47
+          },
+          {
+            "week": "2025-10",
+            "total_eur": 189.82
+          },
+          {
+            "week": "2025-11",
+            "total_eur": 129.48
+          },
+          {
+            "week": "2025-12",
+            "total_eur": 363.7
+          }
+        ]
+      }
+    },
+    {
+      "id": "s38-top-five-en",
+      "kind": "ranking",
+      "difficulty": 1,
+      "language": "en",
+      "question": "Which merchants took the most money in 2025? Show me the top five.",
+      "tags": [
+        "ranking",
+        "merchant"
+      ],
+      "why": "The plain ranking. The five largest are the same whether the merchant is grouped by its counterparty or by its enriched title, which is what makes this one the easy version.",
+      "source": "hand",
+      "sql": "SELECT coalesce(counterparty, description) AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY merchant ORDER BY total_eur DESC LIMIT 5",
+      "gold": {
+        "columns": [
+          "merchant",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "merchant": "Hausverwaltung Bergmann GmbH",
+            "total_eur": 13800.0
+          },
+          {
+            "merchant": "Sparkasse Geldautomat",
+            "total_eur": 2400.0
+          },
+          {
+            "merchant": "AMAZON EU S.A R.L.",
+            "total_eur": 1269.6
+          },
+          {
+            "merchant": "KAUFLAND BERLIN",
+            "total_eur": 1098.5
+          },
+          {
+            "merchant": "Vattenfall Europe Sales GmbH",
+            "total_eur": 936.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "s39-top-ten-de",
+      "kind": "ranking",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig mir meine zehn groessten Haendler 2025.",
+      "tags": [
+        "ranking",
+        "merchant",
+        "German"
+      ],
+      "why": "Ten deep the grouping starts to matter: PayPal is one counterparty carrying four people, so grouping by the booking text instead splits it into four smaller merchants and the tail of the ranking changes.",
+      "source": "hand",
+      "sql": "SELECT coalesce(counterparty, description) AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY merchant ORDER BY total_eur DESC LIMIT 10",
+      "gold": {
+        "columns": [
+          "merchant",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "merchant": "Hausverwaltung Bergmann GmbH",
+            "total_eur": 13800.0
+          },
+          {
+            "merchant": "Sparkasse Geldautomat",
+            "total_eur": 2400.0
+          },
+          {
+            "merchant": "AMAZON EU S.A R.L.",
+            "total_eur": 1269.6
+          },
+          {
+            "merchant": "KAUFLAND BERLIN",
+            "total_eur": 1098.5
+          },
+          {
+            "merchant": "Vattenfall Europe Sales GmbH",
+            "total_eur": 936.0
+          },
+          {
+            "merchant": "REWE Markt GmbH",
+            "total_eur": 732.0
+          },
+          {
+            "merchant": "ALDI SÜD",
+            "total_eur": 642.7
+          },
+          {
+            "merchant": "PayPal Europe S.a.r.l.",
+            "total_eur": 619.5
+          },
+          {
+            "merchant": "LIDL Vertriebs GmbH",
+            "total_eur": 599.3
+          },
+          {
+            "merchant": "BVG Berliner Verkehrsbetriebe",
+            "total_eur": 588.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "s40-biggest-expense-en",
+      "kind": "ranking",
+      "difficulty": 2,
+      "language": "en",
+      "question": "What was my biggest single expense in 2025?",
+      "tags": [
+        "ranking",
+        "single booking",
+        "ties"
+      ],
+      "why": "The largest booking is the rent, and it is the largest twelve times over, so the figure is the answer and no single date is. A statement that returns one row with a date has picked one of twelve identical ones.",
+      "source": "hand",
+      "sql": "SELECT ROUND(MAX(-amount), 2) AS largest_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'",
+      "gold": {
+        "columns": [
+          "largest_eur"
+        ],
+        "rows": [
+          {
+            "largest_eur": 1150.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "s41-smallest-recurring-de",
+      "kind": "ranking",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Was ist meine kleinste wiederkehrende Zahlung?",
+      "tags": [
+        "ranking",
+        "recurring",
+        "smallest",
+        "German"
+      ],
+      "why": "Smallest means the smallest amount of money, and recurring means the same amount month after month. Ordering signed cents ascending returns the largest payment instead, which is exactly what Qwen3.5 published.",
+      "source": "hand",
+      "sql": "WITH recurring AS (SELECT coalesce(counterparty, description) AS merchant, COUNT(*) AS bookings, ROUND(-AVG(amount), 2) AS amount_eur, MIN(amount_cents) AS lo, MAX(amount_cents) AS hi FROM transaction_view WHERE amount_cents < 0 GROUP BY merchant HAVING bookings >= 6 AND lo = hi) SELECT merchant, amount_eur, bookings FROM recurring ORDER BY amount_eur ASC LIMIT 1",
+      "gold": {
+        "columns": [
+          "merchant",
+          "amount_eur",
+          "bookings"
+        ],
+        "rows": [
+          {
+            "merchant": "AMAZON PRIME MEMBERSHIP",
+            "amount_eur": 8.99,
+            "bookings": 12
+          }
+        ]
+      }
+    },
+    {
+      "id": "s42-biggest-category-en",
+      "kind": "ranking",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Which category did I spend the most on in 2025, leaving the uncategorized bookings aside?",
+      "tags": [
+        "ranking",
+        "category",
+        "needs review"
+      ],
+      "why": "The question excludes the Needs review bucket in words, so the statement has to exclude it too. Without that filter the answer is the rent and the question was not answered.",
+      "source": "hand",
+      "sql": "SELECT category AS topic, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category IS NOT NULL AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY topic ORDER BY total_eur DESC LIMIT 1",
+      "gold": {
+        "columns": [
+          "topic",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "topic": "Groceries",
+            "total_eur": 4474.95
+          }
+        ]
+      }
+    },
+    {
+      "id": "s43-worst-grocery-month-de",
+      "kind": "ranking",
+      "difficulty": 2,
+      "language": "de",
+      "question": "In welchem Monat habe ich am meisten fuer Lebensmittel ausgegeben?",
+      "tags": [
+        "ranking",
+        "month",
+        "category",
+        "German"
+      ],
+      "why": "A ranking over months rather than merchants. Narrowing to a year that was never named is the failure the review of 2026-09-05 caught twice.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Groceries' GROUP BY month ORDER BY total_eur DESC LIMIT 1",
+      "gold": {
+        "columns": [
+          "month",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "total_eur": 550.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "s44-most-visited-supermarkets-en",
+      "kind": "ranking",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Which three supermarkets did I shop at most often?",
+      "tags": [
+        "ranking",
+        "count",
+        "subcategory"
+      ],
+      "why": "Ranked by how often and not by how much, and 'supermarket' is the subcategory, so the bakery and the drugstore are out. Two of the three are two bookings apart.",
+      "source": "hand",
+      "sql": "SELECT coalesce(counterparty, description) AS merchant, COUNT(*) AS bookings FROM transaction_view WHERE amount_cents < 0 AND subcategory = 'Supermarket' GROUP BY merchant ORDER BY bookings DESC LIMIT 3",
+      "gold": {
+        "columns": [
+          "merchant",
+          "bookings"
+        ],
+        "rows": [
+          {
+            "merchant": "ALDI SÜD",
+            "bookings": 21
+          },
+          {
+            "merchant": "LIDL Vertriebs GmbH",
+            "bookings": 19
+          },
+          {
+            "merchant": "KAUFLAND BERLIN",
+            "bookings": 18
+          }
+        ]
+      }
+    },
+    {
+      "id": "s45-biggest-without-rent-de",
+      "kind": "ranking",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wer hat 2025 am meisten Geld von mir bekommen, ohne die Miete?",
+      "tags": [
+        "ranking",
+        "exclusion",
+        "German"
+      ],
+      "why": "An exclusion in words has to become a NOT in the statement. The rent is 13.800 EUR, so forgetting it leaves the whole ranking one place out of step.",
+      "source": "hand",
+      "sql": "SELECT coalesce(counterparty, description) AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' AND NOT (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%miete%') GROUP BY merchant ORDER BY total_eur DESC LIMIT 5",
+      "gold": {
+        "columns": [
+          "merchant",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "merchant": "Sparkasse Geldautomat",
+            "total_eur": 2400.0
+          },
+          {
+            "merchant": "AMAZON EU S.A R.L.",
+            "total_eur": 1269.6
+          },
+          {
+            "merchant": "KAUFLAND BERLIN",
+            "total_eur": 1098.5
+          },
+          {
+            "merchant": "Vattenfall Europe Sales GmbH",
+            "total_eur": 936.0
+          },
+          {
+            "merchant": "REWE Markt GmbH",
+            "total_eur": 732.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "s46-top-expenses-en",
+      "kind": "ranking",
+      "difficulty": 3,
+      "language": "en",
+      "question": "What are the five largest single bookings that are neither rent nor a cash withdrawal?",
+      "tags": [
+        "ranking",
+        "single booking",
+        "exclusion"
+      ],
+      "why": "Single bookings, not merchants, so no GROUP BY at all, and the order is over the signed cents ascending. Two exclusions in one sentence, one of them a category and one of them a match on the booking text.",
+      "source": "hand",
+      "sql": "SELECT booked_on, ROUND(-amount, 2) AS amount_eur FROM transaction_view WHERE amount_cents < 0 AND coalesce(category, '') <> 'Cash' AND NOT (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%miete%') ORDER BY amount_cents ASC LIMIT 5",
+      "gold": {
+        "columns": [
+          "booked_on",
+          "amount_eur"
+        ],
+        "rows": [
+          {
+            "booked_on": "2025-11-21",
+            "amount_eur": 189.0
+          },
+          {
+            "booked_on": "2025-06-17",
+            "amount_eur": 121.5
+          },
+          {
+            "booked_on": "2025-02-24",
+            "amount_eur": 118.6
+          },
+          {
+            "booked_on": "2025-07-09",
+            "amount_eur": 117.6
+          },
+          {
+            "booked_on": "2025-03-02",
+            "amount_eur": 102.9
+          }
+        ]
+      }
+    },
+    {
+      "id": "s47-edeka-en",
+      "kind": "entity",
+      "difficulty": 1,
+      "language": "en",
+      "question": "How much did I spend at Edeka in 2025?",
+      "tags": [
+        "merchant",
+        "text match"
+      ],
+      "why": "One merchant, one LIKE term. The booking text is upper case and the counterparty says EDEKA Sander, so the match has to be case-insensitive and over both columns.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%edeka%')",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 445.83
+          }
+        ]
+      }
+    },
+    {
+      "id": "s48-rewe-and-edeka-de",
+      "kind": "entity",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie viel bei REWE und wie viel bei EDEKA?",
+      "tags": [
+        "merchant",
+        "two entities",
+        "German"
+      ],
+      "why": "Two merchants in one sentence want two rows, not two statements and not one sum of both. The two rows come from the counterparty column, because a CASE over the booking text that labels a booking is refused by the guard.",
+      "source": "hand",
+      "sql": "SELECT coalesce(counterparty, description) AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%rewe%' OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%edeka%') GROUP BY merchant ORDER BY merchant",
+      "gold": {
+        "columns": [
+          "merchant",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "merchant": "EDEKA Sander",
+            "total_eur": 445.83
+          },
+          {
+            "merchant": "REWE Markt GmbH",
+            "total_eur": 732.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "s49-typo-en",
+      "kind": "entity",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much did I spend at Edeak?",
+      "tags": [
+        "merchant",
+        "typo"
+      ],
+      "why": "A typo in the merchant name. The list of busiest counterparties in the prompt is what the model corrects it against, and with no period named the answer is the whole data.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%edeka%')",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 445.83
+          }
+        ]
+      }
+    },
+    {
+      "id": "s50-dm-de",
+      "kind": "entity",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie viel habe ich bei dm ausgegeben?",
+      "tags": [
+        "merchant",
+        "short token",
+        "German"
+      ],
+      "why": "A merchant whose name is two letters. `LIKE '%dm%'` would also match any word containing them, so the term needs the space that the booking text has (DM FIL 8817).",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%dm %' OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%dm drogerie%')",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 401.7
+          }
+        ]
+      }
+    },
+    {
+      "id": "s51-anna-de",
+      "kind": "entity",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie viel habe ich Anna Weber ueberwiesen?",
+      "tags": [
+        "person",
+        "paypal",
+        "German"
+      ],
+      "why": "A person paid through PayPal: the counterparty is PayPal Europe and the name is inside the reference. Matching only the counterparty finds nothing at all.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%anna weber%')",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 133.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "s52-unknown-person-en",
+      "kind": "entity",
+      "difficulty": 3,
+      "language": "en",
+      "question": "How much did I pay Klaus Meier?",
+      "tags": [
+        "person",
+        "no answer",
+        "trap"
+      ],
+      "why": "Nobody by that name is in the data. The honest answer is no rows, and the failure this guards against is a model widening the match until the household's whole spending comes back as the answer.",
+      "answer": "none",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur, COUNT(*) AS bookings FROM transaction_view WHERE amount_cents < 0 AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%klaus meier%')",
+      "gold": {
+        "columns": [
+          "total_eur",
+          "bookings"
+        ],
+        "rows": [
+          {
+            "total_eur": null,
+            "bookings": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "s53-amazon-de",
+      "kind": "entity",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie viel habe ich 2025 insgesamt an Amazon gezahlt, inklusive Prime?",
+      "tags": [
+        "merchant",
+        "two names",
+        "German"
+      ],
+      "why": "One merchant under two booking texts (AMAZON EU and AMZN Mktp) and in two categories, Shopping and Subscriptions. The category column cannot answer this one.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%amazon%' OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%amzn%')",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 1377.48
+          }
+        ]
+      }
+    },
+    {
+      "id": "s54-last-rent-en",
+      "kind": "entity",
+      "difficulty": 2,
+      "language": "en",
+      "question": "When was my last rent payment and how much was it?",
+      "tags": [
+        "merchant text",
+        "latest",
+        "needs review"
+      ],
+      "why": "The newest row rather than a sum, so ORDER BY with a LIMIT and no aggregate. Sorting the wrong way round returns January.",
+      "source": "hand",
+      "sql": "SELECT booked_on, ROUND(-amount, 2) AS amount_eur FROM transaction_view WHERE amount_cents < 0 AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%miete%') ORDER BY booked_on DESC LIMIT 1",
+      "gold": {
+        "columns": [
+          "booked_on",
+          "amount_eur"
+        ],
+        "rows": [
+          {
+            "booked_on": "2025-12-01",
+            "amount_eur": 1150.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "s55-netflix-de",
+      "kind": "entity",
+      "difficulty": 1,
+      "language": "de",
+      "question": "Was kostet mich Netflix im Jahr?",
+      "tags": [
+        "merchant",
+        "subscription",
+        "German"
+      ],
+      "why": "One subscription over a year: twelve bookings of 12,99 EUR. A euro figure that ends in an even amount is the sign that the cents were divided away.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%netflix%')",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 155.88
+          }
+        ]
+      }
+    },
+    {
+      "id": "s56-all-subscriptions-en",
+      "kind": "entity",
+      "difficulty": 2,
+      "language": "en",
+      "question": "What do all my subscriptions cost me per year?",
+      "tags": [
+        "category",
+        "subscription"
+      ],
+      "why": "The profile has a Subscriptions category, so this is one filter. Guessing a list of streaming brands instead is how the same question was answered with Netflix alone.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Subscriptions' AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 681.12
+          }
+        ]
+      }
+    },
+    {
+      "id": "s57-refunds-en",
+      "kind": "entity",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Did I get any refunds in 2025?",
+      "tags": [
+        "refund",
+        "income",
+        "sign"
+      ],
+      "why": "A refund is money in that is not the salary. One row, 34,90 EUR from Amazon, and the twelve salaries are what a careless sign filter drags in with it.",
+      "source": "hand",
+      "sql": "SELECT booked_on, description, ROUND(amount, 2) AS amount_eur FROM transaction_view WHERE amount_cents > 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' AND amount_cents < 100000 ORDER BY booked_on",
+      "gold": {
+        "columns": [
+          "booked_on",
+          "description",
+          "amount_eur"
+        ],
+        "rows": [
+          {
+            "booked_on": "2025-04-03",
+            "description": "AMZN RETOUR ERSTATTUNG",
+            "amount_eur": 34.9
+          }
+        ]
+      }
+    },
+    {
+      "id": "s58-friends-total-de",
+      "kind": "entity",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie viel Geld habe ich 2025 insgesamt an Freunde per PayPal geschickt?",
+      "tags": [
+        "person",
+        "paypal",
+        "German"
+      ],
+      "why": "Every payment to a friend is a PayPal booking, so the counterparty is the filter here and the four names are not needed at all.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%paypal%')",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 619.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "s59-bakery-de",
+      "kind": "entity",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie oft war ich 2025 beim Baecker und was habe ich dort gelassen?",
+      "tags": [
+        "subcategory",
+        "count",
+        "German",
+        "colloquial"
+      ],
+      "why": "Colloquial German for a subcategory nobody spells out. Both figures come from one statement.",
+      "source": "hand",
+      "sql": "SELECT COUNT(*) AS bookings, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND subcategory = 'Bakery' AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'",
+      "gold": {
+        "columns": [
+          "bookings",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "bookings": 14,
+            "total_eur": 110.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "s60-uncategorized-count-en",
+      "kind": "entity",
+      "difficulty": 1,
+      "language": "en",
+      "question": "How many transactions have no category?",
+      "tags": [
+        "needs review",
+        "count"
+      ],
+      "why": "A count with no money in it. `category IS NULL` is the whole statement, and comparing against the string 'Needs review' is the near miss.",
+      "source": "hand",
+      "sql": "SELECT COUNT(*) AS bookings FROM transaction_view WHERE category IS NULL",
+      "gold": {
+        "columns": [
+          "bookings"
+        ],
+        "rows": [
+          {
+            "bookings": 49
+          }
+        ]
+      }
+    },
+    {
+      "id": "s61-and-june-en",
+      "kind": "follow-up",
+      "difficulty": 1,
+      "language": "en",
+      "question": "And in June?",
+      "prefix": [
+        "How much did I spend in May 2025?"
+      ],
+      "tags": [
+        "follow-up",
+        "month"
+      ],
+      "why": "Three words that only mean something after the question before them. Everything except the month is inherited.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-06-01' AND '2025-06-30'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 2301.04
+          }
+        ]
+      }
+    },
+    {
+      "id": "s62-only-groceries-en",
+      "kind": "follow-up",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Only groceries.",
+      "prefix": [
+        "How much did I spend in May 2025?",
+        "And in June?"
+      ],
+      "tags": [
+        "follow-up",
+        "category",
+        "month"
+      ],
+      "why": "Two turns of context: the month comes from the second question and the shape of the answer from the first.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Groceries' AND booked_on BETWEEN '2025-06-01' AND '2025-06-30'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 384.2
+          }
+        ]
+      }
+    },
+    {
+      "id": "s63-per-week-de",
+      "kind": "follow-up",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Und pro Woche?",
+      "prefix": [
+        "Wie viel habe ich im Mai 2025 ausgegeben?"
+      ],
+      "tags": [
+        "follow-up",
+        "week",
+        "German"
+      ],
+      "why": "The period stays and the grouping changes. May has five week buckets, so five rows.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%W', booked_on) AS week, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-05-01' AND '2025-05-31' GROUP BY week ORDER BY week",
+      "gold": {
+        "columns": [
+          "week",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "week": "2025-17",
+            "total_eur": 1301.0
+          },
+          {
+            "week": "2025-18",
+            "total_eur": 315.78
+          },
+          {
+            "week": "2025-19",
+            "total_eur": 174.2
+          },
+          {
+            "week": "2025-20",
+            "total_eur": 311.98
+          },
+          {
+            "week": "2025-21",
+            "total_eur": 207.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "s64-just-supermarkets-en",
+      "kind": "follow-up",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Show me just the supermarkets.",
+      "prefix": [
+        "Which merchants took the most money in 2025?"
+      ],
+      "tags": [
+        "follow-up",
+        "ranking",
+        "subcategory"
+      ],
+      "why": "The ranking from the turn before, narrowed to one subcategory. The ordering and the period are inherited, the filter is new.",
+      "source": "hand",
+      "sql": "SELECT coalesce(counterparty, description) AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND subcategory = 'Supermarket' AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY merchant ORDER BY total_eur DESC",
+      "gold": {
+        "columns": [
+          "merchant",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "merchant": "KAUFLAND BERLIN",
+            "total_eur": 1098.5
+          },
+          {
+            "merchant": "REWE Markt GmbH",
+            "total_eur": 732.0
+          },
+          {
+            "merchant": "ALDI SÜD",
+            "total_eur": 642.7
+          },
+          {
+            "merchant": "LIDL Vertriebs GmbH",
+            "total_eur": 599.3
+          },
+          {
+            "merchant": "EDEKA Sander",
+            "total_eur": 445.83
+          },
+          {
+            "merchant": "NETTO MARKEN-DISCOUNT",
+            "total_eur": 425.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "s65-of-that-kaufland-de",
+      "kind": "follow-up",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Und wie viel davon bei Kaufland?",
+      "prefix": [
+        "Wie viel habe ich 2025 fuer Lebensmittel ausgegeben?"
+      ],
+      "tags": [
+        "follow-up",
+        "merchant",
+        "German"
+      ],
+      "why": "'Davon' points back at a total that was already given. The new statement is about one merchant inside it, not about the difference.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%kaufland%')",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 1098.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "s66-cheapest-month-en",
+      "kind": "follow-up",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Which of those months was the cheapest?",
+      "prefix": [
+        "How much did I spend per month in 2025?"
+      ],
+      "tags": [
+        "follow-up",
+        "ranking",
+        "month"
+      ],
+      "why": "'Those months' is the twelve rows of the previous answer, and cheapest is the smallest total, so the sort flips from the usual descending.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY month ORDER BY total_eur ASC LIMIT 1",
+      "gold": {
+        "columns": [
+          "month",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-10",
+            "total_eur": 2200.94
+          }
+        ]
+      }
+    },
+    {
+      "id": "s67-without-rent-de",
+      "kind": "follow-up",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Und ohne die Miete?",
+      "prefix": [
+        "Zeig mir meine fuenf groessten Haendler 2025.",
+        "Was davon war die Miete?"
+      ],
+      "tags": [
+        "follow-up",
+        "exclusion",
+        "ranking",
+        "German"
+      ],
+      "why": "The same ranking as two turns ago with one merchant taken out. Everything else has to survive the follow-up unchanged.",
+      "source": "hand",
+      "sql": "SELECT coalesce(counterparty, description) AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' AND NOT (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%miete%') GROUP BY merchant ORDER BY total_eur DESC LIMIT 5",
+      "gold": {
+        "columns": [
+          "merchant",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "merchant": "Sparkasse Geldautomat",
+            "total_eur": 2400.0
+          },
+          {
+            "merchant": "AMAZON EU S.A R.L.",
+            "total_eur": 1269.6
+          },
+          {
+            "merchant": "KAUFLAND BERLIN",
+            "total_eur": 1098.5
+          },
+          {
+            "merchant": "Vattenfall Europe Sales GmbH",
+            "total_eur": 936.0
+          },
+          {
+            "merchant": "REWE Markt GmbH",
+            "total_eur": 732.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "s68-by-merchant-en",
+      "kind": "follow-up",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Break that down by merchant.",
+      "prefix": [
+        "What did I spend on transport in 2025?"
+      ],
+      "tags": [
+        "follow-up",
+        "breakdown",
+        "category"
+      ],
+      "why": "One figure becomes four rows. The category filter is inherited and the grouping is what the follow-up adds.",
+      "source": "hand",
+      "sql": "SELECT coalesce(counterparty, description) AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Transport' AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY merchant ORDER BY total_eur DESC",
+      "gold": {
+        "columns": [
+          "merchant",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "merchant": "BVG Berliner Verkehrsbetriebe",
+            "total_eur": 588.0
+          },
+          {
+            "merchant": "SHELL DEUTSCHLAND",
+            "total_eur": 386.2
+          },
+          {
+            "merchant": "Deutsche Bahn AG",
+            "total_eur": 300.2
+          },
+          {
+            "merchant": "UBER BV",
+            "total_eur": 151.9
+          }
+        ]
+      }
+    },
+    {
+      "id": "s69-last-month-en",
+      "kind": "period",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much did I spend last month?",
+      "tags": [
+        "relative period",
+        "month"
+      ],
+      "why": "Today is 2025-12-31, so last month is November. This month would be December and it has data too, which is what makes the two easy to confuse.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-11-01' AND '2025-11-30'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 2420.14
+          }
+        ]
+      }
+    },
+    {
+      "id": "s70-last-quarter-de",
+      "kind": "period",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie viel habe ich letztes Quartal ausgegeben?",
+      "tags": [
+        "relative period",
+        "quarter",
+        "German"
+      ],
+      "why": "Letztes Quartal is the quarter before the one today falls in, so July to September. The review of 2026-09-05 read it as the current quarter and was three months out.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-07-01' AND '2025-09-30'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 7592.08
+          }
+        ]
+      }
+    },
+    {
+      "id": "s71-last-three-months-en",
+      "kind": "period",
+      "difficulty": 2,
+      "language": "en",
+      "question": "What did I spend in total in the last three months of the year?",
+      "tags": [
+        "period",
+        "quarter"
+      ],
+      "why": "The last three months of the year are October to December whatever today is: a period named by the calendar and not by the clock.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-10-01' AND '2025-12-31'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 6967.42
+          }
+        ]
+      }
+    },
+    {
+      "id": "s72-first-half-de",
+      "kind": "period",
+      "difficulty": 1,
+      "language": "de",
+      "question": "Wie viel habe ich im ersten Halbjahr ausgegeben?",
+      "tags": [
+        "period",
+        "half year",
+        "German"
+      ],
+      "why": "Six months named in one word. The half has to end on the thirtieth of June and not on the first of July.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-06-30'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 13976.39
+          }
+        ]
+      }
+    },
+    {
+      "id": "s73-march-to-may-en",
+      "kind": "period",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much did I spend between March and May?",
+      "tags": [
+        "period",
+        "inclusive"
+      ],
+      "why": "Between March and May includes both of them, which is three months and not one. The month ends differ in length, so the upper bound is a real decision.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-03-01' AND '2025-05-31'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 6865.97
+          }
+        ]
+      }
+    },
+    {
+      "id": "s74-this-month-de",
+      "kind": "period",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Was habe ich diesen Monat bisher ausgegeben?",
+      "tags": [
+        "relative period",
+        "month",
+        "German"
+      ],
+      "why": "This month is December, and 'bisher' changes nothing about the statement: the data ends where it ends.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-12-01' AND '2025-12-31'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 2346.34
+          }
+        ]
+      }
+    },
+    {
+      "id": "s75-summer-en",
+      "kind": "period",
+      "difficulty": 3,
+      "language": "en",
+      "question": "How much did I spend over the summer?",
+      "tags": [
+        "period",
+        "vague"
+      ],
+      "why": "A period with no calendar definition. June to August is the reading a German household means, and any statement that picks a period has to pick one and say so.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-06-01' AND '2025-08-31'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 7340.68
+          }
+        ]
+      }
+    },
+    {
+      "id": "s76-denglisch-en",
+      "kind": "period",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie viel habe ich last month fuer Groceries ausgegeben, also im November?",
+      "tags": [
+        "denglisch",
+        "relative period",
+        "category"
+      ],
+      "why": "A German sentence with the period and the category in English, which is how people actually type. The month is named twice and both namings agree.",
+      "source": "hand",
+      "sql": "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND category = 'Groceries' AND booked_on BETWEEN '2025-11-01' AND '2025-11-30'",
+      "gold": {
+        "columns": [
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "total_eur": 339.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "s77-rambling-en",
+      "kind": "period",
+      "difficulty": 3,
+      "language": "en",
+      "question": "I am trying to work out where the money went last year, so could you tell me what I spent in each of the last three months of 2025, just the spending, not the salary?",
+      "tags": [
+        "rambling",
+        "period",
+        "series"
+      ],
+      "why": "Forty words with one question in them. The long ones are where a small model starts answering a question nobody asked.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-10-01' AND '2025-12-31' GROUP BY month ORDER BY month",
+      "gold": {
+        "columns": [
+          "month",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-10",
+            "total_eur": 2200.94
+          },
+          {
+            "month": "2025-11",
+            "total_eur": 2420.14
+          },
+          {
+            "month": "2025-12",
+            "total_eur": 2346.34
+          }
+        ]
+      }
+    }
+  ]
+}

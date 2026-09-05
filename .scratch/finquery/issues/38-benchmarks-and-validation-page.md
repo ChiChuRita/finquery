@@ -4,7 +4,7 @@
 
 **Blocked by:** 05, 25 (merged)
 
-**Status:** ready-for-agent
+**Status:** done
 
 Decisions, settled:
 - Gold is code, not a model: every SQL datapoint has a question (German or English), tags (kind: total, breakdown, comparison, trend, ranking, entity, follow-up, period; difficulty 1 to 3), an optional conversation prefix for follow-ups, a reference SQL written by us against transaction_view over the shipped synthetic year, and the expected result rows computed by running that SQL at build time. A datapoint's expected figure is therefore exact and reproducible.
@@ -14,9 +14,9 @@ Decisions, settled:
 - The validation page is a static site under bench/validate/ (plain HTML plus a small script, no build step, served with python -m http.server) that lists the datapoints one at a time: the question, the tags, the gold SQL, the expected rows as a table, for charts the expected shape and columns; the user marks Correct, Wrong, or Unsure with a note; labels live in localStorage and export as JSON; a summary shows counts. The first review set is a stratified sample of 30 (20 SQL, 10 chart) chosen by seed.
 - Growing the set: a generator script that drafts more datapoints with a strong hosted model (question plus candidate SQL) is fine, but every generated datapoint's SQL is executed and its rows stored as gold only after the user validated the sample and the runner shows the generated questions are answerable; generated items are tagged generated so they can be excluded.
 
-- [ ] bench/sql-benchmark.json with at least 60 hand-written datapoints covering every kind and difficulty, gold rows computed by a build script that fails if a reference SQL is refused by the guard or returns nothing; bench/chart-benchmark.json extending the 24 with gold SQL and rows to at least 30
-- [ ] uv run finquery-bench with --set, --model, --adapter, --n, --seed, results files, a markdown table, and a compare command; runs against OpenRouter models now and the local slots later without code changes
-- [ ] The validation page under bench/validate with the 30-item stratified sample, labels in localStorage, JSON export, summary
-- [ ] The generator script bench/generate.py that drafts datapoints with a hosted model and stores them tagged generated only after their SQL runs, with a README describing the validate then grow loop
-- [ ] A first baseline run of both sets on google/gemini-3.8-flash and on qwen/qwen3.5-9b via OpenRouter, results committed under bench/results, with the table in the README
-- [ ] Tests: the build script's gold rows are reproducible, the runner scores a scripted model correctly (a known right and a known wrong SQL), the compare command's diff; suite green
+- [x] bench/sql-benchmark.json with at least 60 hand-written datapoints covering every kind and difficulty, gold rows computed by a build script that fails if a reference SQL is refused by the guard or returns nothing; bench/chart-benchmark.json extending the 24 with gold SQL and rows to at least 30
+- [x] uv run finquery-bench with --set, --model, --adapter, --n, --seed, results files, a markdown table, and a compare command; runs against OpenRouter models now and the local slots later without code changes
+- [x] The validation page under bench/validate with the 30-item stratified sample, labels in localStorage, JSON export, summary
+- [x] The generator script bench/generate.py that drafts datapoints with a hosted model and stores them tagged generated only after their SQL runs, with a README describing the validate then grow loop
+- [x] A first baseline run of both sets on google/gemini-3.8-flash and on qwen/qwen3.5-9b via OpenRouter, results committed under bench/results, with the table in the README
+- [x] Tests: the build script's gold rows are reproducible, the runner scores a scripted model correctly (a known right and a known wrong SQL), the compare command's diff; suite green

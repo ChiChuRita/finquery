@@ -10,14 +10,23 @@
         margin: 0;
         padding: 0;
         background: transparent;
+        /* The app's face, loaded by the runtime entry; the size axis ticks and legend items
+           inherit is set per node by the runtime. */
         font: 12px/1.4 'Geist Variable', system-ui, sans-serif;
         overflow: hidden;
       }
+      /* Room around the plot, set by the runtime with the theme, so no tick label or node
+         touches the frame's edge. The chart's height is the frame's minus the top inset. */
       #chart {
         width: 100%;
+        box-sizing: border-box;
+        padding: var(--chart-inset-top, 6px) var(--chart-inset-side, 12px) 0;
       }
       .ts-chart-host {
         width: 100%;
+      }
+      .ts-chart-host svg {
+        font-variant-numeric: tabular-nums;
       }
     </style>
   </head>

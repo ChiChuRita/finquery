@@ -795,6 +795,9 @@ function TranscriptMessage({
             return (
               <ChartToolStep
                 key={`${message.id}-${index}`}
+                // The sub-agent narrates its steps into the turn's thinking; a chart still being
+                // made reads them to advance its own rail.
+                narration={live ? parts.find(isReasoning)?.text : undefined}
                 part={part}
                 rating={ratings.get(`${turnId}:${part.toolCallId}`)}
                 turnId={turnId}
