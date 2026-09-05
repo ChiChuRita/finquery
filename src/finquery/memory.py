@@ -159,6 +159,12 @@ Returning an empty list is the normal case and always allowed. Never keep a numb
 (those come from queries and go stale), a one-off question, small talk, or anything the
 "Already known" list below already says.
 
+An order for this one turn is not a durable fact, however firmly it was put. "Recategorize all
+Netflix rows as Leisure", "split this booking", "answer in more detail", "make it a bar chart":
+those were carried out when they were said and keeping them would make every later
+conversation obey an instruction nobody repeated. Keep the standing rule behind an order only
+when the user phrased it as one ("Netflix is always Leisure", "I always want short answers").
+
 One short sentence per fact, phrased so it makes sense in a different conversation months
 later. Use kind "rule" for something the assistant should apply, "preference" for what the user
 cares about or how they want answers, "fact" for everything else.

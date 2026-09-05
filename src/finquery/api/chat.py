@@ -61,7 +61,7 @@ from finquery.context import (
 )
 from finquery.db import Conversation, Turn, new_id, utcnow
 from finquery.followups import suggest_followups
-from finquery.local.gemma import MarkerFilter, strip_markers
+from finquery.local.gemma import MarkerFilter, strip_channel_lines, strip_markers
 from finquery.memory import MemoryBlock, add_memory, build_memory_block, distill_memories, list_memories
 from finquery.providers import ProviderNotAvailable
 
@@ -102,6 +102,28 @@ def strip_retry_feedback(text: str) -> str:
     if RETRY_FEEDBACK not in text.casefold():
         return text
     return "".join(part for part in _SENTENCE.findall(text) if RETRY_FEEDBACK not in part.casefold())
+
+
+class TextFilter:
+    """`MarkerFilter` plus the bare channel-name lines OpenRouter leaves in an answer.
+
+    A line has to be judged whole, so a delta is released only up to its last newline and the
+    tail waits for the next one; `flush` releases it when the text part ends.
+    """
+
+    def __init__(self) -> None:
+        self._markers = MarkerFilter()
+        self._held = ""
+
+    def feed(self, delta: str) -> str:
+        buffer = self._held + self._markers.feed(delta)
+        cut = buffer.rfind("\n") + 1
+        ready, self._held = buffer[:cut], buffer[cut:]
+        return strip_channel_lines(ready)
+
+    def flush(self) -> str:
+        held, self._held = self._held + self._markers.flush(), ""
+        return strip_channel_lines(held)
 
 
 class ThinkingFilter:
@@ -633,7 +655,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
         # hold the finished answer hostage, so the whole pair is on a clock.
         try:
             followups, _ = await asyncio.wait_for(
-                asyncio.gather(_followups(produced), _distill(produced)), POST_TURN_TIMEOUT
+                asyncio.gather(_followups(produced, turn_messages), _distill(produced)), POST_TURN_TIMEOUT
             )
         except TimeoutError:
             logger.warning("post-turn steps timed out after %s s", POST_TURN_TIMEOUT)
@@ -688,13 +710,17 @@ async def chat(request: Request, conversation_id: str) -> Response:
             "summarized_turns": prompt.summarized_turns,
         }
 
-    async def _followups(turn_messages: Sequence[ModelMessage]) -> list[str]:
-        prompts = _user_prompts(turn_messages)
+    async def _followups(produced: Sequence[ModelMessage], turn: Sequence[ModelMessage]) -> list[str]:
+        # A turn resumed from an answered Question card produced no user prompt of its own: it
+        # starts at the tool result. Its question is the one that opened the turn, and without
+        # this fallback the one turn a user most needs a next step after (the card that just
+        # applied its answers) was the only turn in the app with no follow-ups.
+        prompts = _user_prompts(produced) or _user_prompts(turn)
         if not prompts:
             return []
         # Sub-agents are pinned to the fast slot whatever the conversation runs on.
         return await suggest_followups(
-            state.resolve_model("fast"), state.subagent_settings, prompts[-1], _assistant_text(turn_messages)
+            state.resolve_model("fast"), state.subagent_settings, prompts[-1], _assistant_text(produced)
         )
 
     async def _distill(turn_messages: Sequence[ModelMessage]) -> None:
@@ -742,7 +768,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
         nonlocal thinking_started
         # Gemma's own template tokens are text on OpenRouter, and the answer is what the user
         # reads, so they are taken out here for both providers.
-        markers = MarkerFilter()
+        markers = TextFilter()
         thinking = ThinkingFilter()
         source = adapter.run_stream(
             message_history=history,
@@ -792,12 +818,13 @@ async def chat(request: Request, conversation_id: str) -> Response:
                 elif item.type == "text-delta":
                     delta = markers.feed(item.delta)
                     if not delta:
-                        # The whole delta was a marker, or the start of one still being held.
+                        # The whole delta was a marker or a channel name, or the start of one
+                        # still being held back until the next delta decides.
                         continue
                     # A copy rather than a new chunk: whatever else the provider put on it stays.
                     item = item.model_copy(update={"delta": delta})
                 elif item.type == "text-end" and (tail := markers.flush()):
-                    # Text held back for a marker that never completed is still text.
+                    # Text held back for a marker or a line that never completed is still text.
                     yield TextDeltaChunk(id=item.id, delta=tail)
                 yield item
         finally:
