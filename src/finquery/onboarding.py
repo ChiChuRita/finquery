@@ -11,6 +11,7 @@ turn nobody generated is a number nobody invented. Its three suggestions travel 
 `data-followups` part every answer already uses, so the existing suggestion chips render them.
 """
 
+import re
 from datetime import date
 from pathlib import Path
 from typing import Literal
@@ -100,11 +101,49 @@ def welcome_suggestions(language: str, *, transaction_count: int, last_booked_on
     ]
 
 
-def language_rule(language: str) -> str:
-    """The prompt block for a profile that fixed its answer language.
+#: Words that decide which of the two languages a message is written in. Function words only,
+#: because they occur in every sentence and never in a merchant's name.
+_GERMAN_WORDS = frozenset(
+    "und oder der die das den dem des ein eine einen einem einer ich du wir ihr sie mir mich dir "
+    "mein meine meinen meiner meinem wie was wo wann warum wieviel wie viel welche welcher welches "
+    "zum zur im am vom beim für fuer auf aus bei mit nach von über ueber unter zwischen ist sind "
+    "war waren habe hast hat haben bitte zeig zeige mach mache nicht kein keine noch schon auch "
+    "diesen dieses diese dieser jahr monat ausgaben ausgegeben bezahlt".split()
+)
+_ENGLISH_WORDS = frozenset(
+    "the a an and or of to in on at for from with by about into over under between is are was "
+    "were be been have has had do does did i you we my your our me us how what where when why "
+    "which who much many show me please this that these those not no all any some year month "
+    "spend spent spending paid pay compare remember".split()
+)
+_WORD = re.compile(r"[a-zäöüß]+")
 
-    Empty for `follow`, which is the system prompt's own rule: answer in the language of the
-    newest message. When the user picked one, it has to win over that rule, so it says so.
+
+def detect_language(text: str) -> AnswerLanguage | None:
+    """`de` or `en` when the message clearly leans one way, `None` when it does not.
+
+    Counted on function words, so "Netflix" or "REWE" decide nothing. This exists because the
+    small local model, asked to answer in the language of the newest message, drifts into
+    German whenever the data is German (every merchant, every category rule it is shown), and a
+    sentence that names the language outright is what it follows.
+    """
+    words = _WORD.findall(text.casefold())
+    german = sum(word in _GERMAN_WORDS for word in words)
+    english = sum(word in _ENGLISH_WORDS for word in words)
+    if german > english:
+        return "de"
+    if english > german:
+        return "en"
+    return None
+
+
+def language_rule(language: str, message: str | None = None) -> str:
+    """The prompt block that names the language this answer is written in.
+
+    A profile that fixed its language (German or English in onboarding) gets that, and it has
+    to win over the follow-the-message rule, so it says so. A profile on `follow` gets the
+    language of the newest message named in as many words, when `message` clearly has one, and
+    nothing when it does not.
     """
     if language == "de":
         return (
@@ -118,4 +157,9 @@ def language_rule(language: str) -> str:
             "whatever language the user's message is in. This overrides the rule about answering in "
             "the language of the newest message."
         )
+    detected = detect_language(message) if message else None
+    if detected == "de":
+        return "The user's newest message is written in German, so this answer is written in German."
+    if detected == "en":
+        return "The user's newest message is written in English, so this answer is written in English."
     return ""

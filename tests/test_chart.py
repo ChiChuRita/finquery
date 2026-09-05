@@ -342,13 +342,17 @@ async def test_a_chart_that_never_passes_the_check_is_reported_without_a_chart(
     assert answer(chunks).startswith("I could not draw that:")
 
 
-async def test_a_doughnut_with_too_many_slices_is_repaired(
+async def test_a_doughnut_with_too_many_slices_is_folded_in_code(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
 ) -> None:
+    """Seven rows for six slices: the smallest two become one rest slice before any code runs.
+
+    Folding is arithmetic, so it is not left to a repair round (the local fast model lost a
+    twelve-category doughnut three rounds running). The first code passes, the rows the card
+    shows are the rows the chart drew, and the fold is narrated in the request's language.
+    """
     await import_synthetic(client, profile_id)
-    respond = scripted_chart(
-        plan=DOUGHNUT_PLAN, sql=MERCHANTS_SQL, codes=[DOUGHNUT_CODE, FOLDED_DOUGHNUT_CODE]
-    )
+    respond = scripted_chart(plan=DOUGHNUT_PLAN, sql=MERCHANTS_SQL, codes=[DOUGHNUT_CODE])
     scripts.fast = ask_chart_then_report("the largest merchants in 2025 as a doughnut")
     scripts.fast_call = respond  # type: ignore[assignment]
     conversation_id = await new_conversation(client, profile_id)
@@ -356,10 +360,20 @@ async def test_a_doughnut_with_too_many_slices_is_repaired(
     _, chunks = await chat(conversation_id, "Zeig die groessten Haendler als Donut.")
 
     output = chart_output(chunks)
-    assert output["row_count"] == 7
+    assert output["row_count"] == 6
     assert output["error"] is None
-    assert output["code"] == FOLDED_DOUGHNUT_CODE
-    assert "A doughnut shows at most 6 slices and this one has 7." in output["notes"][0]
+    assert output["code"] == DOUGHNUT_CODE
+    assert output["notes"] == []
+    assert len(respond.prompts["code"]) == 1  # type: ignore[attr-defined]
+    kept, rest = output["rows"][:-1], output["rows"][-1]
+    assert rest["merchant"] == "Sonstige" and rest["total_eur"] > 0
+    # The five largest stay, in order; the rest slice holds the two smallest, so it is under them.
+    assert [row["total_eur"] for row in kept] == sorted((row["total_eur"] for row in kept), reverse=True)
+    assert rest["total_eur"] < 2 * kept[-1]["total_eur"]
+    assert "The query returned 7 slices and a doughnut shows 6, so the 2 smallest are one 'Sonstige' slice." in narration(chunks)
+    # The figures the answer quotes are written the German way, rest slice included.
+    assert output["figures"][-1].startswith("merchant Sonstige, total_eur ")
+    assert output["figures"][-1].endswith(" EUR") and "," in output["figures"][-1]
 
 
 async def test_a_stacked_chart_becomes_plain_bars_when_the_rows_carry_one_series(

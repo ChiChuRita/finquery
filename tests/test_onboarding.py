@@ -113,9 +113,16 @@ async def test_step_two_stores_the_preferences_and_the_prompt_follows_the_langua
     assert "Write every answer in German" in recorder.prompt
 
     await patch_settings(client, profile_id, answer_language="follow")
-    await chat(conversation, "And in May?")
+    await chat(conversation, "And how much was it in May?")
     assert "Write every answer in German" not in recorder.prompt
     assert "Write every answer in English" not in recorder.prompt
+    # On `follow` the language of the newest message is detected in code and named outright,
+    # because the local fast model left to detect it answers German data in German.
+    assert "The user's newest message is written in English" in recorder.prompt
+    await chat(conversation, "Und wie viel war es im April?")
+    assert "The user's newest message is written in German" in recorder.prompt
+    await chat(conversation, "Netflix 2025?")
+    assert "newest message is written in" not in recorder.prompt, "a message with no function words names no language"
 
     assert (await patch_settings(client, profile_id, answer_language="fr")).status_code == 422
     assert (await patch_settings(client, profile_id, default_model_slot="huge")).status_code == 422

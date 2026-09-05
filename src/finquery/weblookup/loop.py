@@ -228,6 +228,12 @@ async def run_loop(
             return outcome
         decision = result.output
 
+        # A finish with a category and no summary is still a conclusion: the category is what
+        # gets filed, the summary is what the card shows, and the local fast model writes the
+        # first without the second. The summary then names the page it relied on.
+        if decision.action == FINISH and not decision.summary and decision.category:
+            relied = _sources_for(decision, seen, fetched)
+            decision.summary = f"Filed under {decision.category}" + (f", from {relied[0].title}" if relied else "")
         if decision.action == FINISH and decision.summary:
             if not decision.confidence and not nudged:
                 nudged = True
@@ -288,7 +294,18 @@ async def run_loop(
             steps.append(Step(FETCH, url, f"  page text ({len(page.text)} characters):\n{page.text[:PAGE_CHARS]}"))
             continue
 
-        steps.append(Step(decision.action, "", "  refused: that decision was missing what it needs"))
+        # A decision without the field its action needs. Logged as it came, because the local
+        # fast model has spent a whole budget on these and the transcript only shows the sum.
+        logger.warning("web lookup step refused for %s: %s", token.text, decision.model_dump(exclude_none=True))
+        steps.append(
+            Step(
+                decision.action,
+                "",
+                f"  refused: a {decision.action} needs its "
+                f"{'query' if decision.action == SEARCH else 'url' if decision.action == FETCH else 'summary and category'}. "
+                "Send the decision again with it filled in.",
+            )
+        )
 
     outcome.error = "The lookup spent its budget without reaching a conclusion."
     outcome.sources = _sources_for(Decision(action=FINISH, confidence=0.0), seen, fetched)

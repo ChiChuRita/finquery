@@ -420,7 +420,8 @@ async def test_answering_a_question_card_applies_the_answers_in_code(
     assert answer(chunks) == f"Summarized: {applied}"
     # Nothing is left to reason about on this half of the turn, so it runs with reasoning off:
     # the fast model collapsed into a repetition loop when it was left to think here.
-    assert summarize.settings[0] == {"openrouter_reasoning": {"enabled": False}}  # type: ignore[attr-defined]
+    # It also carries the sub-agent output ceiling, because it runs with the sub-agent settings.
+    assert summarize.settings[0] == {"openrouter_reasoning": {"enabled": False}, "max_tokens": 3072}  # type: ignore[attr-defined]
 
     anna = await rows_of(client, profile_id, "ANNA WEBER")
     assert {(row["category"], row["subcategory"]) for row in anna} == {("Dining", "Restaurant")}

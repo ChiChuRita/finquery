@@ -15,6 +15,7 @@ from pydantic_ai.models.function import AgentInfo, DeltaToolCall
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.db import create_profile, ensure_account
+from finquery.formats import eur
 
 from .conftest import (
     SYNTHETIC,
@@ -169,6 +170,10 @@ async def test_scripted_sql_executes_and_its_rows_reach_the_transcript(
     total = output["rows"][0]["total_eur"]
     assert total > 0, "spending is reported as a positive figure"
     assert output["summary"] == f"One row: total_eur = {total}"
+    # The same figure written the way the answer should quote it: the rows stay numeric for
+    # the transcript's table, the figures are for the model.
+    assert output["figures"] == [f"total_eur {eur(round(total * 100))} EUR"]
+    assert "," in output["figures"][0] and "." not in output["figures"][0].split(",")[1]
     # The number in the prose is the number the query returned.
     assert answer(chunks) == f"Result: total_eur={total}"
 
@@ -180,6 +185,10 @@ async def test_scripted_sql_executes_and_its_rows_reach_the_transcript(
     assert "no booking is categorized yet" in prompt
     assert "REWE Markt GmbH" in prompt
     assert "Question: groceries at REWE in May 2025" in prompt
+    # A merchant is matched on the booking text and the counterparty together: a PayPal payment
+    # carries PayPal as the counterparty and the person in the description.
+    assert "lower(description || ' ' || coalesce(counterparty, '')) LIKE" in prompt
+    assert "coalesce(counterparty, description)) LIKE" not in prompt
 
     # A reload shows one assistant message with the same tool step, its SQL and its rows.
     detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
@@ -411,3 +420,33 @@ async def test_a_case_that_does_not_label_the_booking_text_still_runs(
     assert output["error"] is None
     assert len(respond.prompts) == 1, "no retry: the statement was admitted the first time"  # type: ignore[attr-defined]
     assert {row["size_group"] for row in output["rows"]} == {"gross", "klein"}
+
+
+async def test_a_statement_matching_every_merchant_is_refused_and_the_sub_agent_narrows(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """Asked about a person it could not find, the local fast model matched every merchant it
+    had been shown and returned the household's whole spending as the answer. The guard refuses
+    a statement with more LIKE terms than any topic needs and says what to write instead."""
+    await import_synthetic(client, profile_id)
+    merchants = ["rewe", "aldi", "lidl", "edeka", "kaufland", "netto", "netflix", "spotify", "adobe", "vodafone"]
+    match = " OR ".join(f"lower(coalesce(counterparty, description)) LIKE '%{name}%'" for name in merchants)
+    everything = f"SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND ({match})"
+    one = (
+        "SELECT ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 "
+        "AND lower(coalesce(counterparty, description)) LIKE '%max schulz%'"
+    )
+    respond = scripted_sql(everything, one)
+    scripts.fast = ask_query_then_report("PayPal payments to Max Schulz in 2025")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "How much did I send my flatmate in 2025?")
+
+    output = tool_output(chunks)
+    assert output["error"] is None
+    assert "'%max schulz%'" in output["sql"]
+    prompts = respond.prompts  # type: ignore[attr-defined]
+    assert len(prompts) == 2
+    assert "matches 10 merchant patterns" in prompts[1]
+    assert "return no rows" in prompts[1]

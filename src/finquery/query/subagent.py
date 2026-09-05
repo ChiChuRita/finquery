@@ -68,9 +68,14 @@ Rules:
   the WHERE clause. It is never how you label them.
 - A month is `strftime('%Y-%m', booked_on)`. A period is `booked_on BETWEEN '2025-04-01' AND
   '2025-04-30'`. There is no date type, so never call date functions on anything else.
-- Match merchants case-insensitively, `counterparty` first and `description` second:
-  `lower(coalesce(counterparty, description)) LIKE '%rewe%'`. A topic that spans merchants is
-  several LIKE terms joined with OR.
+- Match a merchant or a person on the booking text and the counterparty together,
+  case-insensitively: `lower(description || ' ' || coalesce(counterparty, '')) LIKE '%rewe%'`.
+  Never on one column alone: a PayPal payment carries PayPal as the counterparty and the
+  person's name in the description, so `coalesce(counterparty, description)` misses every
+  payment to a person. A topic that spans merchants is
+  several LIKE terms joined with OR, at most eight. A person or a merchant the question names
+  is one LIKE term for that name, and when no merchant in the list carries it the statement
+  simply returns no rows: never widen the match to every merchant you were shown.
 - When the question compares two periods, return one row per period rather than one number.
 - A question about which merchants, categories, months or subscriptions are involved wants one
   row per merchant (`GROUP BY`), never one row per booking. Add a total with `UNION ALL` when
@@ -87,12 +92,12 @@ SELECT ROUND(-SUM(amount), 2) AS total_eur
 FROM transaction_view
 WHERE amount_cents < 0
   AND booked_on BETWEEN '2025-05-01' AND '2025-05-31'
-  AND (lower(coalesce(counterparty, description)) LIKE '%rewe%'
-    OR lower(coalesce(counterparty, description)) LIKE '%aldi%'
-    OR lower(coalesce(counterparty, description)) LIKE '%lidl%'
-    OR lower(coalesce(counterparty, description)) LIKE '%edeka%'
-    OR lower(coalesce(counterparty, description)) LIKE '%kaufland%'
-    OR lower(coalesce(counterparty, description)) LIKE '%netto%')
+  AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%rewe%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%aldi%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%lidl%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%edeka%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%kaufland%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%netto%')
 
 Question: How much did I spend per month in 2025?
 SQL:
@@ -121,20 +126,20 @@ SELECT coalesce(counterparty, description) AS merchant,
 FROM transaction_view
 WHERE amount_cents < 0
   AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
-  AND (lower(coalesce(counterparty, description)) LIKE '%netflix%'
-    OR lower(coalesce(counterparty, description)) LIKE '%spotify%'
-    OR lower(coalesce(counterparty, description)) LIKE '%prime%'
-    OR lower(coalesce(counterparty, description)) LIKE '%adobe%')
+  AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%netflix%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%spotify%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%prime%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%adobe%')
 GROUP BY merchant
 UNION ALL
 SELECT 'TOTAL' AS merchant, ROUND(-SUM(amount), 2) AS total_eur, COUNT(*) AS bookings
 FROM transaction_view
 WHERE amount_cents < 0
   AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'
-  AND (lower(coalesce(counterparty, description)) LIKE '%netflix%'
-    OR lower(coalesce(counterparty, description)) LIKE '%spotify%'
-    OR lower(coalesce(counterparty, description)) LIKE '%prime%'
-    OR lower(coalesce(counterparty, description)) LIKE '%adobe%')
+  AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%netflix%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%spotify%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%prime%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%adobe%')
 
 Question: Wie viel habe ich 2025 pro Kategorie ausgegeben?
 SQL:
@@ -150,11 +155,11 @@ SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eu
 FROM transaction_view
 WHERE amount_cents < 0
   AND booked_on BETWEEN '2025-04-01' AND '2025-05-31'
-  AND (lower(coalesce(counterparty, description)) LIKE '%lieferando%'
-    OR lower(coalesce(counterparty, description)) LIKE '%vapiano%'
-    OR lower(coalesce(counterparty, description)) LIKE '%doener%'
-    OR lower(coalesce(counterparty, description)) LIKE '%cafe%'
-    OR lower(coalesce(counterparty, description)) LIKE '%dean and david%')
+  AND (lower(description || ' ' || coalesce(counterparty, '')) LIKE '%lieferando%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%vapiano%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%doener%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%cafe%'
+    OR lower(description || ' ' || coalesce(counterparty, '')) LIKE '%dean and david%')
 GROUP BY month
 ORDER BY month
 """

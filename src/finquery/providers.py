@@ -25,6 +25,13 @@ OPENROUTER_MODELS: dict[ModelSlot, str] = {
 """The hosted half of each slot: the same two models the local provider runs, so a turn does
 not change character with the provider. See docs/adr/0006 for why the quality slot is Qwen."""
 
+OPENROUTER_LABELS: dict[ModelSlot, str] = {
+    "fast": "Gemma 4 26B",
+    "quality": "Qwen3.5 9B",
+}
+"""What the UI calls each hosted model. The local labels live on the catalog entries; both reach
+the browser through `GET /api/models`, so a selector never names a model that is not running."""
+
 ModelResolver = Callable[[ModelSlot], Model]
 
 
@@ -70,16 +77,29 @@ def build_resolver(settings: Settings, *, local: "LocalStack | None" = None) -> 
     return (local or build_local_stack(settings)).resolve
 
 
+SUBAGENT_MAX_TOKENS = 3072
+"""The most a sub-agent may generate for one call.
+
+The largest honest answer any sub-agent gives is about 2500 tokens: a 30 booking statement
+page from the extraction sub-agent, or a 25 merchant batch from the categorizer. A forced
+tool call is a grammar, and a grammar over a list lets a small model repeat rows until the
+context is full (ticket 11 measured six minutes and a prompt past n_ctx for three pages on the
+local fast slot). This is the ceiling that stops it: a call that hits it fails its validation
+and is retried once, instead of running away.
+"""
+
+
 def subagent_settings(settings: Settings) -> ModelSettings:
     """Overrides for a sub-agent run on the fast slot.
 
     A sub-agent answers one question behind a tool call and its thinking is never shown, so
     reasoning is turned off: on OpenRouter that is the difference between three and eleven
     seconds for a suggestion nobody asked to wait for. Locally the model itself turns thinking
-    off for a forced single tool, so there is nothing to override.
+    off for a forced single tool, so there is nothing to override. Both providers get the
+    same output ceiling, `SUBAGENT_MAX_TOKENS`.
     """
     if settings.provider == "openrouter":
         from pydantic_ai.models.openrouter import OpenRouterModelSettings
 
-        return OpenRouterModelSettings(openrouter_reasoning={"enabled": False})
-    return ModelSettings()
+        return OpenRouterModelSettings(openrouter_reasoning={"enabled": False}, max_tokens=SUBAGENT_MAX_TOKENS)
+    return ModelSettings(max_tokens=SUBAGENT_MAX_TOKENS)

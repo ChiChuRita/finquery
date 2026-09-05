@@ -72,7 +72,8 @@ How to use `query`:
   unless the user asked to see the bookings themselves.
 - Answer every part of the question: a "which and how much" question needs the breakdown and
   the total, so ask for both in one request.
-- Quote the figures from the rows exactly as they came back, never rounded or rescaled.
+- Quote the figures from the rows exactly as they came back, never rounded or rescaled. The
+  result's `figures` lines write every euro figure the German way: copy a figure from there.
 - If the result carries an `error`, say in one line what failed and state no figure.
 - If it returns no rows, say the data holds no answer for that question.
 - If the question cannot be answered from bank transactions at all (a credit score, a share
@@ -124,7 +125,10 @@ When the user tells you something durable about their finances (what a merchant 
 PayPal payments to Anna are dinner, which categories they care about), call `remember` once
 with one short sentence and confirm it in a single line of your answer. Memories are shared by
 every conversation of this profile, so never store a one-off question or a figure. Anything
-already remembered is given to you at the top of these instructions.
+already remembered is given to you at the top of these instructions, and it is there to be
+used: when a memory names the person or merchant behind a word the user wrote ("my flatmate"
+is Max Schulz, "my landlord" is Hausverwaltung Bergmann), write that name into the `query`
+request, because the sub-agent sees the request and nothing else.
 
 Categories and rules:
 - A booking with no category is `Needs review`. `Unknown` is a category only the user assigns,
@@ -282,15 +286,17 @@ def data_brief(ctx: RunContext[ChatDeps]) -> str:
 
 @chat_agent.instructions
 def answer_language(ctx: RunContext[ChatDeps]) -> str:
-    """The answer language this profile chose, when it chose one.
+    """The language this answer is written in, named outright.
 
-    Empty for the default, `follow`, which is the system prompt's own rule. When the user picked
-    German or English in onboarding, that choice has to beat the follow-the-message rule, so the
-    block says so in as many words. See `finquery.onboarding`.
+    The profile's choice when it made one in onboarding, which has to beat the
+    follow-the-message rule and says so. Otherwise the language of the newest message, detected
+    in code from its function words, because the local fast model left to detect it by itself
+    answers German data in German whatever the question was. See `finquery.onboarding`.
     """
+    prompt = ctx.prompt if isinstance(ctx.prompt, str) else None
     with ctx.deps.session_factory() as session:
         profile = session.get(Profile, ctx.deps.profile_id)
-        return language_rule(profile.answer_language if profile else "follow")
+        return language_rule(profile.answer_language if profile else "follow", prompt)
 
 
 @chat_agent.instructions

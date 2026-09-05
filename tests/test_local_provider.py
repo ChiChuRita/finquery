@@ -34,6 +34,7 @@ def spec(slot: str, name: str, weights_size: int, wire: str) -> ModelSpec:
     return ModelSpec(
         slot=slot,  # type: ignore[arg-type]
         name=name,
+        label=name,
         wire=wire,  # type: ignore[arg-type]
         weights=FileSpec(kind="weights", repo_id="acme/tiny", filename=f"{name}.gguf", size=weights_size, sha256="0" * 64),
         projector=FileSpec(kind="projector", repo_id="acme/tiny", filename="mmproj.gguf", size=4, sha256="1" * 64),
@@ -371,6 +372,7 @@ async def test_parked_file_is_reused_when_its_hash_matches(tmp_path: Path) -> No
     model = ModelSpec(
         slot="fast",
         name="tiny",
+        label="Tiny",
         wire="gemma",
         weights=parked_spec(weights_payload, "wanted.gguf", "weights"),
         projector=parked_spec(projector_payload, "mmproj.gguf", "projector"),
@@ -502,3 +504,28 @@ async def test_a_schema_constrained_request_forces_a_single_tool(tmp_path: Path,
     assert request["tool_choice"] == {"type": "function", "function": {"name": request["tools"][0]["function"]["name"]}}
     assert request["enable_thinking"] is False
     assert "response_format" not in request
+
+
+async def test_every_sub_agent_request_carries_the_output_ceiling(tmp_path: Path) -> None:
+    """A forced tool call is a grammar, and a grammar over a list has no end of its own.
+
+    The chat turn keeps the model's default ceiling; every request a sub-agent makes behind
+    it (here the follow-up suggestions and the memory distillation after the answer) carries
+    `SUBAGENT_MAX_TOKENS`, which is what stops a page of extraction running until n_ctx.
+    """
+    from finquery.local.model import MAX_TOKENS
+    from finquery.providers import SUBAGENT_MAX_TOKENS
+
+    slots = {"fast": FakeSlot("tiny-fast", ("Hello there.",)), "quality": FakeSlot("tiny-quality")}
+    async with local_client(local_stack(tmp_path, slots)) as client:
+        await turn(client, await new_conversation(client, await default_profile_id(client)), "Hi")
+
+    requests = slots["fast"].requests
+    chat, others = requests[0], requests[1:]
+    assert chat["tool_choice"] == "auto"
+    assert chat["max_tokens"] == MAX_TOKENS
+    assert others, "the post-turn sub-agents never ran"
+    assert {request["max_tokens"] for request in others} == {SUBAGENT_MAX_TOKENS}
+    # The one that is a forced tool (the distillation) is bounded too, with thinking off.
+    forced = [request for request in others if isinstance(request.get("tool_choice"), dict)]
+    assert forced and all(request["enable_thinking"] is False for request in forced)

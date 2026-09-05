@@ -37,6 +37,22 @@ FORBIDDEN_FUNCTIONS = frozenset({"load_extension", "readfile", "writefile", "edi
 # The two columns a model reaches for when it wants to classify a booking itself.
 TEXT_COLUMNS = frozenset({"description", "counterparty"})
 
+MAX_MERCHANT_PATTERNS = 8
+"""How many LIKE patterns over the booking text one statement may carry.
+
+A topic that spans merchants (six supermarkets, four subscriptions) is a handful. Thirty is
+the local fast model, asked about a person it could not find, matching every merchant it was
+shown and returning the household's whole spending as the answer.
+"""
+
+EVERY_MERCHANT = (
+    "This statement matches {count} merchant patterns, which is every merchant in the list and "
+    "not the one the question names. A question about one person or one merchant takes one "
+    f"LIKE term for that name, a topic that spans merchants at most {MAX_MERCHANT_PATTERNS}. "
+    "When no booking carries that name, return no rows: the answer is then that the data holds "
+    "none, never the total of everything else."
+)
+
 INVENTED_CATEGORY = (
     "A CASE over description or counterparty that returns a label of its own invents a "
     "categorization. The category of a booking is the `category` column and nothing else: group "
@@ -104,6 +120,8 @@ def validate_sql(sql: str) -> str:
     for case in statement.find_all(exp.Case):
         if _invents_a_category(case):
             raise SqlRejected(INVENTED_CATEGORY)
+    if (patterns := _merchant_patterns(statement)) > MAX_MERCHANT_PATTERNS:
+        raise SqlRejected(EVERY_MERCHANT.format(count=patterns))
 
     current = _limit_of(statement)
     if current is None or current > MAX_ROWS:
@@ -111,6 +129,15 @@ def validate_sql(sql: str) -> str:
     # Rendered from the parsed tree, so the statement in the transcript is the one that ran,
     # formatted the same way whatever the model wrote.
     return statement.sql(dialect=DIALECT, pretty=True)
+
+
+def _merchant_patterns(statement: exp.Expression) -> int:
+    """How many LIKE terms over description or counterparty the statement carries."""
+    return sum(
+        1
+        for like in statement.find_all(exp.Like, exp.ILike)
+        if any(column.name.lower() in TEXT_COLUMNS for column in like.this.find_all(exp.Column))
+    )
 
 
 def _invents_a_category(case: exp.Case) -> bool:

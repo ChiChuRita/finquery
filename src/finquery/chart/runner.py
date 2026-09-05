@@ -13,10 +13,11 @@ from pydantic_ai.settings import ModelSettings
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.chart.selfcheck import check_chart_code, data_findings
-from finquery.chart.shapes import MAX_SERIES, SHAPES
+from finquery.chart.shapes import MAX_SERIES, MAX_SLICES, SHAPES
 from finquery.chart.subagent import ChartPlan, write_code, write_plan
 from finquery.providers import ModelResolver, ProviderNotAvailable
-from finquery.query import load_query_context, run_query
+from finquery.query import QueryOutcome, load_query_context, run_query
+from finquery.query.runner import figures
 
 # One attempt plus two repair rounds. A third failure is reported instead of looping.
 ATTEMPTS = 3
@@ -64,6 +65,7 @@ class ChartOutcome:
             "row_count": len(self.rows),
             "columns": self.columns,
             "rows": self.rows,
+            "figures": figures(self.columns, self.rows),
             "code": self.code,
             "notes": self.notes,
             "summary": self.summary,
@@ -145,6 +147,34 @@ def _honest_shape(
 # percent, so the share goes into the caption where the user reads it.
 REST_LABELS = ("rest", "other", "others", "sonstige", "sonstiges", "andere", "uebrige", "übrige")
 REST_MAJORITY = 0.5
+REST_NAME = {"de": "Sonstige", "en": "Other"}
+
+
+def _fold_slices(
+    plan: ChartPlan, columns: list[str], rows: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], str | None]:
+    """A doughnut over more rows than it has slices: the smallest become one rest slice.
+
+    Folding is arithmetic, not a judgement, so it is done here in code rather than asked of a
+    repair round: the local fast model drew twelve categories three rounds running and lost the
+    chart, and a round that relabels instead of summing is what the browser threw on. The rows
+    the chart draws are the rows the card shows, and the fold is narrated.
+    """
+    if plan.shape != "doughnut" or len(rows) <= MAX_SLICES or len(columns) < 2:
+        return rows, None
+    label, value = columns[0], columns[1]
+    if any(not isinstance(row.get(value), (int, float)) or isinstance(row.get(value), bool) for row in rows):
+        return rows, None
+    ranked = sorted(rows, key=lambda row: float(row[value]), reverse=True)
+    kept, rest = ranked[: MAX_SLICES - 1], ranked[MAX_SLICES - 1 :]
+    folded = {column: None for column in columns}
+    folded[label] = REST_NAME.get(plan.language, REST_NAME["en"])
+    folded[value] = round(sum(float(row[value]) for row in rest), 2)
+    note = (
+        f"The query returned {len(rows)} slices and a doughnut shows {MAX_SLICES}, so the "
+        f"{len(rest)} smallest are one '{folded[label]}' slice."
+    )
+    return [*kept, folded], note
 
 
 def _rest_share(shape: str, columns: list[str], rows: list[dict[str, Any]]) -> str | None:
@@ -290,6 +320,13 @@ async def run_chart(
     plan, downgrade = _honest_shape(plan, outcome.columns, outcome.rows)
     if downgrade is not None:
         say(downgrade)
+
+    rows, folded = _fold_slices(plan, outcome.columns, outcome.rows)
+    if folded is not None:
+        say(folded)
+        outcome = QueryOutcome(
+            request=outcome.request, sql=outcome.sql, columns=outcome.columns, rows=rows, summary=outcome.summary
+        )
 
     if (share := _rest_share(plan.shape, outcome.columns, outcome.rows)) is not None:
         plan = plan.model_copy(update={"title": f"{plan.title} ({share} in the rest slice)"})

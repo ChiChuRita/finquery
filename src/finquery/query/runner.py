@@ -10,6 +10,7 @@ from typing import Any
 from pydantic_ai.settings import ModelSettings
 from sqlalchemy.orm import Session, sessionmaker
 
+from finquery.formats import eur
 from finquery.providers import ModelResolver, ProviderNotAvailable
 from finquery.query.guard import MAX_ROWS, Rows, SqlFailed, SqlRejected, execute_read_only, validate_sql
 from finquery.query.subagent import Rejection, load_query_context, write_sql
@@ -40,9 +41,39 @@ class QueryOutcome:
             "row_count": len(self.rows),
             "columns": self.columns,
             "rows": self.rows,
+            "figures": figures(self.columns, self.rows),
             "summary": self.summary,
             "error": self.error,
         }
+
+
+FIGURE_LINES = 25
+"""How many rows are written out as figures. A longer result is a table the answer summarizes."""
+
+
+def is_euro_column(name: str) -> bool:
+    """The columns the SQL sub-agent is told to write euros into: `amount` and every `*_eur`."""
+    return name == "amount" or name.endswith("_eur")
+
+
+def figures(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
+    """The rows as lines the answer can copy, every euro figure already written the German way.
+
+    `rows` stays numeric for the transcript's table. This is the same data for the model, which
+    otherwise copies `13800.0` out of a row and writes it into a German sentence; the review of
+    2026-09-04 and the local fast model both did.
+    """
+    lines: list[str] = []
+    for row in rows[:FIGURE_LINES]:
+        parts: list[str] = []
+        for column in columns:
+            value = row.get(column)
+            if is_euro_column(column) and isinstance(value, (int, float)) and not isinstance(value, bool):
+                parts.append(f"{column} {eur(round(value * 100))} EUR")
+            else:
+                parts.append(f"{column} {value}")
+        lines.append(", ".join(parts))
+    return lines
 
 
 def summarize(rows: Rows) -> str:
