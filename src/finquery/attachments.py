@@ -115,6 +115,10 @@ def store(
         data=upload.data,
     )
     session.add(record)
+    # Flushed here, not left to the caller: the id is what `chips` puts in the chip's URL, and a
+    # record that has not reached the database yet has none. "Load the sample year" reads the
+    # chip straight off this record, and its stored CSV linked to `/api/attachments/None`.
+    session.flush()
     return record
 
 

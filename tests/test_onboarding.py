@@ -160,7 +160,13 @@ async def test_step_three_imports_the_sample_year_as_a_dropped_file_would(
     detail = (await client.get(f"/api/conversations/{body['conversation_id']}")).json()
     assert detail["title"] == "The sample year"
     user_parts = parts_of(detail["messages"], "user")
-    assert any(part["type"] == "file" and part["filename"] == "sparkasse-2025.csv" for part in user_parts)
+    chips = [part for part in user_parts if part["type"] == "file"]
+    assert [chip["filename"] for chip in chips] == ["sparkasse-2025.csv"]
+    # The chip is a link, so the id in it has to be a stored attachment: the seeded turn read it
+    # off a record that had not been flushed yet and linked to `/api/attachments/None`.
+    stored = await client.get(chips[0]["url"])
+    assert stored.status_code == 200, chips[0]["url"]
+    assert stored.content.startswith(b'"Auftragskonto"'), "the chip serves the CSV that was imported"
     assistant_parts = parts_of(detail["messages"], "assistant")
     imports = [part for part in assistant_parts if part["type"] == "tool-import_file"]
     assert len(imports) == 1
