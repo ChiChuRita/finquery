@@ -1,0 +1,3939 @@
+{
+  "model": "local:fast",
+  "set": "sql",
+  "started_at": "2026-09-05T16:55:14+00:00",
+  "seconds": 804.7,
+  "seed": 7,
+  "n": 76,
+  "summary": {
+    "n": 76,
+    "figure_match": 0.513,
+    "sql_valid": 0.974,
+    "first_attempt": 0.934,
+    "shape_match": null,
+    "columns_map": null,
+    "language_ok": null,
+    "drawn": null,
+    "median_seconds": 9.1,
+    "p90_seconds": 14.7,
+    "total_seconds": 804.7,
+    "by_kind": {
+      "breakdown": {
+        "n": 9,
+        "figure_match": 0.333,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 8.3
+      },
+      "comparison": {
+        "n": 8,
+        "figure_match": 0.375,
+        "sql_valid": 1.0,
+        "first_attempt": 0.875,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 12.2
+      },
+      "entity": {
+        "n": 14,
+        "figure_match": 0.5,
+        "sql_valid": 0.857,
+        "first_attempt": 0.786,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 8.6
+      },
+      "follow-up": {
+        "n": 8,
+        "figure_match": 0.375,
+        "sql_valid": 1.0,
+        "first_attempt": 0.875,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 11.3
+      },
+      "period": {
+        "n": 9,
+        "figure_match": 0.889,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 8.8
+      },
+      "ranking": {
+        "n": 9,
+        "figure_match": 0.222,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 9.3
+      },
+      "total": {
+        "n": 12,
+        "figure_match": 0.75,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 8.6
+      },
+      "trend": {
+        "n": 7,
+        "figure_match": 0.571,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 9.2
+      }
+    },
+    "by_difficulty": {
+      "1": {
+        "n": 13,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 9.0
+      },
+      "2": {
+        "n": 36,
+        "figure_match": 0.444,
+        "sql_valid": 0.972,
+        "first_attempt": 0.972,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 8.6
+      },
+      "3": {
+        "n": 27,
+        "figure_match": 0.37,
+        "sql_valid": 0.963,
+        "first_attempt": 0.852,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 9.5
+      }
+    },
+    "by_language": {
+      "de": {
+        "n": 34,
+        "figure_match": 0.412,
+        "sql_valid": 0.941,
+        "first_attempt": 0.882,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 9.0
+      },
+      "en": {
+        "n": 42,
+        "figure_match": 0.595,
+        "sql_valid": 1.0,
+        "first_attempt": 0.976,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 8.8
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "s01-may-total-de",
+      "set": "sql",
+      "kind": "total",
+      "difficulty": 1,
+      "language": "de",
+      "question": "Wie viel habe ich im Mai 2025 ausgegeben?",
+      "seconds": 14.7,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-05-01' AND '2025-05-31'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 2310.46
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s02-year-total-en",
+      "set": "sql",
+      "kind": "total",
+      "difficulty": 1,
+      "language": "en",
+      "question": "How much did I spend in total in 2025?",
+      "seconds": 8.5,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS total_eur\nFROM transaction_view\nWHERE\n  booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 28535.89
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s03-groceries-half-en",
+      "set": "sql",
+      "kind": "total",
+      "difficulty": 2,
+      "language": "en",
+      "question": "What did I spend on groceries in the second half of 2025?",
+      "seconds": 8.49,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-07-01' AND '2025-12-31'\n  AND category = 'Groceries'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 2114.2
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s04-rent-total-de",
+      "set": "sql",
+      "kind": "total",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie viel Miete habe ich 2025 insgesamt gezahlt?",
+      "seconds": 7.49,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND category = 'Housing' AND subcategory = 'Rent'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": null
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s05-income-total-en",
+      "set": "sql",
+      "kind": "total",
+      "difficulty": 2,
+      "language": "en",
+      "question": "What was my total income in 2025?",
+      "seconds": 8.2,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount > 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 34234.9
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s06-groceries-per-week-de",
+      "set": "sql",
+      "kind": "total",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Was gebe ich pro Woche im Schnitt fuer Lebensmittel aus?",
+      "seconds": 10.76,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount) / 7.0, 2) AS avg_weekly_spending_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND (\n    LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%aldi%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%lidl%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%rewe%'\n  )\nGROUP BY\n  STRFTIME('%Y-%W', booked_on)\nORDER BY\n  1\nLIMIT 200",
+      "columns": [
+        "avg_weekly_spending_eur"
+      ],
+      "rows": [
+        {
+          "avg_weekly_spending_eur": 1.44
+        },
+        {
+          "avg_weekly_spending_eur": 1.71
+        },
+        {
+          "avg_weekly_spending_eur": 1.81
+        },
+        {
+          "avg_weekly_spending_eur": 2.39
+        },
+        {
+          "avg_weekly_spending_eur": 2.41
+        },
+        {
+          "avg_weekly_spending_eur": 2.86
+        },
+        {
+          "avg_weekly_spending_eur": 2.91
+        },
+        {
+          "avg_weekly_spending_eur": 3.54
+        },
+        {
+          "avg_weekly_spending_eur": 3.57
+        },
+        {
+          "avg_weekly_spending_eur": 3.74
+        },
+        {
+          "avg_weekly_spending_eur": 4.53
+        },
+        {
+          "avg_weekly_spending_eur": 5.0
+        },
+        {
+          "avg_weekly_spending_eur": 5.3
+        },
+        {
+          "avg_weekly_spending_eur": 5.47
+        },
+        {
+          "avg_weekly_spending_eur": 5.59
+        },
+        {
+          "avg_weekly_spending_eur": 5.84
+        },
+        {
+          "avg_weekly_spending_eur": 5.91
+        },
+        {
+          "avg_weekly_spending_eur": 6.37
+        },
+        {
+          "avg_weekly_spending_eur": 6.97
+        },
+        {
+          "avg_weekly_spending_eur": 7.27
+        },
+        {
+          "avg_weekly_spending_eur": 7.57
+        },
+        {
+          "avg_weekly_spending_eur": 7.6
+        },
+        {
+          "avg_weekly_spending_eur": 8.29
+        },
+        {
+          "avg_weekly_spending_eur": 8.49
+        },
+        {
+          "avg_weekly_spending_eur": 9.03
+        },
+        {
+          "avg_weekly_spending_eur": 9.4
+        },
+        {
+          "avg_weekly_spending_eur": 9.47
+        },
+        {
+          "avg_weekly_spending_eur": 9.59
+        },
+        {
+          "avg_weekly_spending_eur": 10.33
+        },
+        {
+          "avg_weekly_spending_eur": 10.47
+        },
+        {
+          "avg_weekly_spending_eur": 14.96
+        },
+        {
+          "avg_weekly_spending_eur": 16.14
+        },
+        {
+          "avg_weekly_spending_eur": 17.4
+        },
+        {
+          "avg_weekly_spending_eur": 17.54
+        },
+        {
+          "avg_weekly_spending_eur": 19.0
+        },
+        {
+          "avg_weekly_spending_eur": 22.07
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s07-subscriptions-per-month-en",
+      "set": "sql",
+      "kind": "total",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much do my subscriptions cost me per month on average?",
+      "seconds": 8.56,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(AVG(CASE WHEN amount < 0 THEN -amount ELSE NULL END), 2) AS average_cost_eur\nFROM transaction_view\nWHERE\n  category = 'Subscriptions' AND amount < 0\nGROUP BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "average_cost_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "average_cost_eur": 14.19
+        },
+        {
+          "month": "2025-02",
+          "average_cost_eur": 14.19
+        },
+        {
+          "month": "2025-03",
+          "average_cost_eur": 14.19
+        },
+        {
+          "month": "2025-04",
+          "average_cost_eur": 14.19
+        },
+        {
+          "month": "2025-05",
+          "average_cost_eur": 14.19
+        },
+        {
+          "month": "2025-06",
+          "average_cost_eur": 14.19
+        },
+        {
+          "month": "2025-07",
+          "average_cost_eur": 14.19
+        },
+        {
+          "month": "2025-08",
+          "average_cost_eur": 14.19
+        },
+        {
+          "month": "2025-09",
+          "average_cost_eur": 14.19
+        },
+        {
+          "month": "2025-10",
+          "average_cost_eur": 14.19
+        },
+        {
+          "month": "2025-11",
+          "average_cost_eur": 14.19
+        },
+        {
+          "month": "2025-12",
+          "average_cost_eur": 14.19
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s08-electricity-de",
+      "set": "sql",
+      "kind": "total",
+      "difficulty": 1,
+      "language": "de",
+      "question": "Wie hoch war meine Stromrechnung 2025?",
+      "seconds": 8.72,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND category = 'Housing'\n  AND subcategory = 'Electricity'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 936.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s09-this-quarter-en",
+      "set": "sql",
+      "kind": "total",
+      "difficulty": 3,
+      "language": "en",
+      "question": "What did I spend this quarter?",
+      "seconds": 8.21,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-10-01' AND '2025-12-31'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 6967.42
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s10-since-march-de",
+      "set": "sql",
+      "kind": "total",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie viel habe ich seit Maerz ausgegeben?",
+      "seconds": 8.01,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2)\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-03-01' AND '2025-12-28'\nLIMIT 200",
+      "columns": [
+        "ROUND(-SUM(amount), 2)"
+      ],
+      "rows": [
+        {
+          "ROUND(-SUM(amount), 2)": 23726.51
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s11-supermarket-october-en",
+      "set": "sql",
+      "kind": "total",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much did I spend at the supermarket in October?",
+      "seconds": 8.85,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-10-01' AND '2025-10-31'\n  AND category = 'Groceries'\n  AND subcategory = 'Supermarket'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 234.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s12-cash-total-en",
+      "set": "sql",
+      "kind": "total",
+      "difficulty": 1,
+      "language": "en",
+      "question": "How much cash did I take out in 2025, and how often?",
+      "seconds": 9.29,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS total_eur,\n  COUNT(*) AS bookings\nFROM transaction_view\nWHERE\n  category = 'Cash'\n  AND subcategory = 'Cash withdrawal'\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nLIMIT 200",
+      "columns": [
+        "total_eur",
+        "bookings"
+      ],
+      "rows": [
+        {
+          "total_eur": 2400.0,
+          "bookings": 20
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s13-per-category-de",
+      "set": "sql",
+      "kind": "breakdown",
+      "difficulty": 1,
+      "language": "de",
+      "question": "Wie viel habe ich 2025 pro Kategorie ausgegeben?",
+      "seconds": 9.04,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "total_eur": 14419.5
+        },
+        {
+          "topic": "Groceries",
+          "total_eur": 4474.95
+        },
+        {
+          "topic": "Cash",
+          "total_eur": 2400.0
+        },
+        {
+          "topic": "Transport",
+          "total_eur": 1426.3
+        },
+        {
+          "topic": "Shopping",
+          "total_eur": 1311.36
+        },
+        {
+          "topic": "Dining",
+          "total_eur": 965.7
+        },
+        {
+          "topic": "Housing",
+          "total_eur": 936.0
+        },
+        {
+          "topic": "Communication",
+          "total_eur": 719.76
+        },
+        {
+          "topic": "Health",
+          "total_eur": 691.2
+        },
+        {
+          "topic": "Subscriptions",
+          "total_eur": 681.12
+        },
+        {
+          "topic": "Insurance",
+          "total_eur": 510.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s14-dining-subcategories-en",
+      "set": "sql",
+      "kind": "breakdown",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Break my dining spending down by subcategory.",
+      "seconds": 7.81,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  subcategory AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND category = 'Dining'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Delivery",
+          "total_eur": 393.2
+        },
+        {
+          "topic": "Takeaway",
+          "total_eur": 296.0
+        },
+        {
+          "topic": "Restaurant",
+          "total_eur": 214.5
+        },
+        {
+          "topic": "Cafe",
+          "total_eur": 62.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s16-supermarkets-de",
+      "set": "sql",
+      "kind": "breakdown",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie verteilen sich meine Lebensmittelausgaben auf die einzelnen Supermaerkte?",
+      "seconds": 8.28,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  subcategory AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND subcategory = 'Supermarket'\nGROUP BY\n  subcategory\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "merchant": "Supermarket",
+          "total_eur": 3943.83
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s17-income-vs-spending-en",
+      "set": "sql",
+      "kind": "breakdown",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Show me income and spending for each month of 2025.",
+      "seconds": 9.2,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  SUM(CASE WHEN amount > 0 THEN amount ELSE -amount END) AS total_eur\nFROM transaction_view\nWHERE\n  booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 5394.04
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 5115.34
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 5140.77
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 5149.64
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 5160.46
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 5151.04
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 5610.8
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 5128.84
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 5402.44
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 5050.94
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 5270.14
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 5196.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s18-needs-review-merchants-de",
+      "set": "sql",
+      "kind": "breakdown",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Welche Haendler stecken in 'Needs review', und wie viele Buchungen sind das jeweils?",
+      "seconds": 7.65,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(counterparty, description) AS merchant,\n  COUNT(*) AS bookings\nFROM transaction_view\nWHERE\n  COALESCE(category, 'Needs review') = 'Needs review'\nGROUP BY\n  merchant\nLIMIT 200",
+      "columns": [
+        "merchant",
+        "bookings"
+      ],
+      "rows": [
+        {
+          "merchant": "Hausverwaltung Bergmann GmbH",
+          "bookings": 12
+        },
+        {
+          "merchant": "Mustermann Systems GmbH",
+          "bookings": 12
+        },
+        {
+          "merchant": "PayPal Europe S.a.r.l.",
+          "bookings": 25
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s19-per-quarter-en",
+      "set": "sql",
+      "kind": "breakdown",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much did I spend per quarter in 2025?",
+      "seconds": 9.14,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-Q', booked_on) AS quarter,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  quarter\nORDER BY\n  quarter\nLIMIT 200",
+      "columns": [
+        "quarter",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "quarter": "2025-Q",
+          "total_eur": 28535.89
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s20-weekday-de",
+      "set": "sql",
+      "kind": "breakdown",
+      "difficulty": 3,
+      "language": "de",
+      "question": "An welchen Wochentagen gebe ich am meisten Geld aus?",
+      "seconds": 8.29,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%w', booked_on) AS day_of_week,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\nGROUP BY\n  day_of_week\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "day_of_week",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "day_of_week": "6",
+          "total_eur": 5808.23
+        },
+        {
+          "day_of_week": "1",
+          "total_eur": 5106.01
+        },
+        {
+          "day_of_week": "3",
+          "total_eur": 4441.48
+        },
+        {
+          "day_of_week": "2",
+          "total_eur": 4201.09
+        },
+        {
+          "day_of_week": "0",
+          "total_eur": 3179.31
+        },
+        {
+          "day_of_week": "4",
+          "total_eur": 2906.95
+        },
+        {
+          "day_of_week": "5",
+          "total_eur": 2892.82
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s21-categorized-share-en",
+      "set": "sql",
+      "kind": "breakdown",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much of my 2025 spending is categorized and how much still needs review?",
+      "seconds": 9.66,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(SUM(CASE WHEN NOT category IS NULL THEN -amount ELSE 0 END), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Groceries",
+          "total_eur": 4474.95
+        },
+        {
+          "topic": "Cash",
+          "total_eur": 2400.0
+        },
+        {
+          "topic": "Transport",
+          "total_eur": 1426.3
+        },
+        {
+          "topic": "Shopping",
+          "total_eur": 1311.36
+        },
+        {
+          "topic": "Dining",
+          "total_eur": 965.7
+        },
+        {
+          "topic": "Housing",
+          "total_eur": 936.0
+        },
+        {
+          "topic": "Communication",
+          "total_eur": 719.76
+        },
+        {
+          "topic": "Health",
+          "total_eur": 691.2
+        },
+        {
+          "topic": "Subscriptions",
+          "total_eur": 681.12
+        },
+        {
+          "topic": "Insurance",
+          "total_eur": 510.0
+        },
+        {
+          "topic": "Needs review",
+          "total_eur": 0.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s22-account-months-de",
+      "set": "sql",
+      "kind": "breakdown",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig mir pro Monat, wie viele Buchungen ich hatte und was sie zusammen gekostet haben.",
+      "seconds": 7.93,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COUNT(*) AS bookings,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "bookings",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "bookings": 36,
+          "total_eur": -305.96
+        },
+        {
+          "month": "2025-02",
+          "bookings": 35,
+          "total_eur": -584.66
+        },
+        {
+          "month": "2025-03",
+          "bookings": 31,
+          "total_eur": -559.23
+        },
+        {
+          "month": "2025-04",
+          "bookings": 36,
+          "total_eur": -620.16
+        },
+        {
+          "month": "2025-05",
+          "bookings": 39,
+          "total_eur": -539.54
+        },
+        {
+          "month": "2025-06",
+          "bookings": 33,
+          "total_eur": -548.96
+        },
+        {
+          "month": "2025-07",
+          "bookings": 40,
+          "total_eur": -89.2
+        },
+        {
+          "month": "2025-08",
+          "bookings": 35,
+          "total_eur": -571.16
+        },
+        {
+          "month": "2025-09",
+          "bookings": 39,
+          "total_eur": -297.56
+        },
+        {
+          "month": "2025-10",
+          "bookings": 35,
+          "total_eur": -649.06
+        },
+        {
+          "month": "2025-11",
+          "bookings": 35,
+          "total_eur": -429.86
+        },
+        {
+          "month": "2025-12",
+          "bookings": 39,
+          "total_eur": -503.66
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s23-may-vs-april-en",
+      "set": "sql",
+      "kind": "comparison",
+      "difficulty": 1,
+      "language": "en",
+      "question": "Compare my spending in May 2025 with April 2025.",
+      "seconds": 9.24,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-04-01' AND '2025-05-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-04",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 2310.46
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s24-jan-vs-feb-de",
+      "set": "sql",
+      "kind": "comparison",
+      "difficulty": 2,
+      "language": "de",
+      "question": "War der Januar oder der Februar teurer?",
+      "seconds": 9.48,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND STRFTIME('%Y-%m', booked_on) IN ('2025-01', '2025-02')\nGROUP BY\n  month\nORDER BY\n  total_eur DESC\nLIMIT 1",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 2544.04
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s25-halves-en",
+      "set": "sql",
+      "kind": "comparison",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Compare the first half of 2025 with the second half.",
+      "seconds": 12.15,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-01', booked_on) AS period,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-06-30'\nGROUP BY\n  period\nUNION ALL\nSELECT\n  STRFTIME('%Y-01', booked_on) AS period,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-07-01' AND '2025-12-31'\nGROUP BY\n  period\nLIMIT 200",
+      "columns": [
+        "period",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "period": "2025-01",
+          "total_eur": 13976.39
+        },
+        {
+          "period": "2025-01",
+          "total_eur": 14559.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s26-groceries-vs-dining-de",
+      "set": "sql",
+      "kind": "comparison",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Vergleiche meine Ausgaben fuer Lebensmittel und fuers Essengehen, pro Quartal.",
+      "seconds": 39.22,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 2,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND (\n    COALESCE(category, 'Needs review') = 'Groceries'\n    OR COALESCE(category, 'Needs review') = 'Dining'\n  )\n  AND booked_on BETWEEN '2025-07-01' AND '2025-09-30'\nGROUP BY\n  month\nUNION ALL\nSELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND (\n    COALESCE(category, 'Needs review') = 'Groceries'\n    OR COALESCE(category, 'Needs review') = 'Dining'\n  )\n  AND booked_on BETWEEN '2025-10-01' AND '2025-12-31'\nGROUP BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-07",
+          "total_eur": 523.2
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 326.0
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 655.4
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 304.0
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 427.8
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 368.0
+        }
+      ],
+      "error": null,
+      "refusals": [
+        "This statement matches 9 merchant patterns, which is every merchant in the list and not the one the question names. A question about one person or one merchant takes one LIKE term for that name, a topic that spans merchants at most 8. When no booking carries that name, return no rows: the answer is then that the data holds none, never the total of everything else."
+      ],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s27-transport-vs-subscriptions-en",
+      "set": "sql",
+      "kind": "comparison",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Did I spend more on transport or on subscriptions in 2025?",
+      "seconds": 18.47,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND (\n    LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%public transport%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%fuel%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%ride hailing%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%car%'\n  )\nGROUP BY\n  topic\nUNION ALL\nSELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND (\n    LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%streaming%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%software%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%music%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%news%'\n  )\nGROUP BY\n  topic\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Subscriptions",
+          "total_eur": 285.48
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s28-q4-vs-q3-en",
+      "set": "sql",
+      "kind": "comparison",
+      "difficulty": 3,
+      "language": "en",
+      "question": "How does this quarter compare with the last one?",
+      "seconds": 11.35,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS period,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND (\n    booked_on BETWEEN '2025-10-01' AND '2025-12-31'\n    OR booked_on BETWEEN '2025-07-01' AND '2025-09-30'\n  )\nGROUP BY\n  period\nORDER BY\n  CAST(STRFTIME('%Y', booked_on) AS INTEGER),\n  STRFTIME('%m', booked_on)\nLIMIT 200",
+      "columns": [
+        "period",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "period": "2025-07",
+          "total_eur": 2760.8
+        },
+        {
+          "period": "2025-08",
+          "total_eur": 2278.84
+        },
+        {
+          "period": "2025-09",
+          "total_eur": 2552.44
+        },
+        {
+          "period": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "period": "2025-11",
+          "total_eur": 2420.14
+        },
+        {
+          "period": "2025-12",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s29-rent-constant-de",
+      "set": "sql",
+      "kind": "comparison",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Ist meine Miete im Laufe des Jahres gestiegen?",
+      "seconds": 42.33,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  category = 'Housing' AND subcategory = 'Rent'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s30-anna-vs-max-en",
+      "set": "sql",
+      "kind": "comparison",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Compare what I sent Anna with what I sent Max.",
+      "seconds": 10.67,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%anna%'\nGROUP BY\n  1\nUNION ALL\nSELECT\n  COALESCE(counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%max%'\nGROUP BY\n  1\nLIMIT 200",
+      "columns": [
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "merchant": "PayPal Europe S.a.r.l.",
+          "total_eur": 133.5
+        },
+        {
+          "merchant": "PayPal Europe S.a.r.l.",
+          "total_eur": 137.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s31-per-month-en",
+      "set": "sql",
+      "kind": "trend",
+      "difficulty": 1,
+      "language": "en",
+      "question": "How much did I spend per month in 2025?",
+      "seconds": 9.25,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 2265.34
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 2290.77
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 2310.46
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 2301.04
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 2760.8
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 2278.84
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 2552.44
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 2420.14
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s32-dining-trend-de",
+      "set": "sql",
+      "kind": "trend",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie haben sich meine Ausgaben in Restaurants und Cafes ueber das Jahr entwickelt?",
+      "seconds": 9.74,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND (\n    LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%restaurant%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%cafe%'\n  )\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 11.0
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 5.5
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 11.8
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 18.4
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 5.9
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 9.4
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s33-groceries-trend-en",
+      "set": "sql",
+      "kind": "trend",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Is my grocery spending going up?",
+      "seconds": 10.91,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND (\n    LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%aldi%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%lidl%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%rewe%'\n  )\n  AND category = 'Groceries'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 152.0
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 224.9
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 137.3
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 117.4
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 319.9
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 70.0
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 238.3
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 83.1
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 180.7
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 169.7
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 111.7
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 169.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s34-cumulative-de",
+      "set": "sql",
+      "kind": "trend",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig mir meine kumulierten Ausgaben pro Monat.",
+      "seconds": 8.0,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 2265.34
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 2290.77
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 2310.46
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 2301.04
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 2760.8
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 2278.84
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 2552.44
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 2420.14
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s35-net-per-month-en",
+      "set": "sql",
+      "kind": "trend",
+      "difficulty": 3,
+      "language": "en",
+      "question": "What is my net per month, income minus spending?",
+      "seconds": 7.65,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  SUM(amount) AS net_eur\nFROM transaction_view\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "net_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "net_eur": 305.96000000000004
+        },
+        {
+          "month": "2025-02",
+          "net_eur": 584.66
+        },
+        {
+          "month": "2025-03",
+          "net_eur": 559.23
+        },
+        {
+          "month": "2025-04",
+          "net_eur": 620.16
+        },
+        {
+          "month": "2025-05",
+          "net_eur": 539.54
+        },
+        {
+          "month": "2025-06",
+          "net_eur": 548.96
+        },
+        {
+          "month": "2025-07",
+          "net_eur": 89.20000000000002
+        },
+        {
+          "month": "2025-08",
+          "net_eur": 571.16
+        },
+        {
+          "month": "2025-09",
+          "net_eur": 297.56
+        },
+        {
+          "month": "2025-10",
+          "net_eur": 649.0600000000001
+        },
+        {
+          "month": "2025-11",
+          "net_eur": 429.85999999999996
+        },
+        {
+          "month": "2025-12",
+          "net_eur": 503.65999999999997
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s36-bookings-per-month-de",
+      "set": "sql",
+      "kind": "trend",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie viele Buchungen hatte ich pro Monat?",
+      "seconds": 7.46,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COUNT(*) AS bookings\nFROM transaction_view\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "bookings"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "bookings": 36
+        },
+        {
+          "month": "2025-02",
+          "bookings": 35
+        },
+        {
+          "month": "2025-03",
+          "bookings": 31
+        },
+        {
+          "month": "2025-04",
+          "bookings": 36
+        },
+        {
+          "month": "2025-05",
+          "bookings": 39
+        },
+        {
+          "month": "2025-06",
+          "bookings": 33
+        },
+        {
+          "month": "2025-07",
+          "bookings": 40
+        },
+        {
+          "month": "2025-08",
+          "bookings": 35
+        },
+        {
+          "month": "2025-09",
+          "bookings": 39
+        },
+        {
+          "month": "2025-10",
+          "bookings": 35
+        },
+        {
+          "month": "2025-11",
+          "bookings": 35
+        },
+        {
+          "month": "2025-12",
+          "bookings": 39
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s37-march-weeks-en",
+      "set": "sql",
+      "kind": "trend",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Show me my spending per week in March 2025.",
+      "seconds": 9.22,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%W', booked_on) AS week,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-03-01' AND '2025-03-31'\nGROUP BY\n  week\nORDER BY\n  week\nLIMIT 200",
+      "columns": [
+        "week",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "week": "2025-08",
+          "total_eur": 1335.3
+        },
+        {
+          "week": "2025-09",
+          "total_eur": 272.47
+        },
+        {
+          "week": "2025-10",
+          "total_eur": 189.82
+        },
+        {
+          "week": "2025-11",
+          "total_eur": 129.48
+        },
+        {
+          "week": "2025-12",
+          "total_eur": 363.7
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s38-top-five-en",
+      "set": "sql",
+      "kind": "ranking",
+      "difficulty": 1,
+      "language": "en",
+      "question": "Which merchants took the most money in 2025? Show me the top five.",
+      "seconds": 9.26,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  merchant\nORDER BY\n  total_eur DESC\nLIMIT 5",
+      "columns": [
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "merchant": "Hausverwaltung Bergmann GmbH",
+          "total_eur": 13800.0
+        },
+        {
+          "merchant": "Sparkasse Geldautomat",
+          "total_eur": 2400.0
+        },
+        {
+          "merchant": "AMAZON EU S.A R.L.",
+          "total_eur": 1269.6
+        },
+        {
+          "merchant": "KAUFLAND BERLIN",
+          "total_eur": 1098.5
+        },
+        {
+          "merchant": "Vattenfall Europe Sales GmbH",
+          "total_eur": 936.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s39-top-ten-de",
+      "set": "sql",
+      "kind": "ranking",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig mir meine zehn groessten Haendler 2025.",
+      "seconds": 9.48,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur,\n  COUNT(*) AS bookings\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  merchant\nORDER BY\n  total_eur DESC\nLIMIT 10",
+      "columns": [
+        "merchant",
+        "total_eur",
+        "bookings"
+      ],
+      "rows": [
+        {
+          "merchant": "Hausverwaltung Bergmann GmbH",
+          "total_eur": 13800.0,
+          "bookings": 12
+        },
+        {
+          "merchant": "Sparkasse Geldautomat",
+          "total_eur": 2400.0,
+          "bookings": 20
+        },
+        {
+          "merchant": "AMAZON EU S.A R.L.",
+          "total_eur": 1269.6,
+          "bookings": 23
+        },
+        {
+          "merchant": "KAUFLAND BERLIN",
+          "total_eur": 1098.5,
+          "bookings": 18
+        },
+        {
+          "merchant": "Vattenfall Europe Sales GmbH",
+          "total_eur": 936.0,
+          "bookings": 12
+        },
+        {
+          "merchant": "REWE Markt GmbH",
+          "total_eur": 732.0,
+          "bookings": 17
+        },
+        {
+          "merchant": "ALDI SÜD",
+          "total_eur": 642.7,
+          "bookings": 21
+        },
+        {
+          "merchant": "PayPal Europe S.a.r.l.",
+          "total_eur": 619.5,
+          "bookings": 25
+        },
+        {
+          "merchant": "LIDL Vertriebs GmbH",
+          "total_eur": 599.3,
+          "bookings": 19
+        },
+        {
+          "merchant": "BVG Berliner Verkehrsbetriebe",
+          "total_eur": 588.0,
+          "bookings": 12
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s40-biggest-expense-en",
+      "set": "sql",
+      "kind": "ranking",
+      "difficulty": 2,
+      "language": "en",
+      "question": "What was my biggest single expense in 2025?",
+      "seconds": 7.42,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\nORDER BY\n  ABS(amount) DESC\nLIMIT 1",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 28535.89
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s41-smallest-recurring-de",
+      "set": "sql",
+      "kind": "ranking",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Was ist meine kleinste wiederkehrende Zahlung?",
+      "seconds": 7.23,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(amount, 2) AS smallest_eur\nFROM transaction_view\nWHERE\n  amount < 0\nORDER BY\n  amount DESC\nLIMIT 1",
+      "columns": [
+        "smallest_eur"
+      ],
+      "rows": [
+        {
+          "smallest_eur": -3.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s42-biggest-category-en",
+      "set": "sql",
+      "kind": "ranking",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Which category did I spend the most on in 2025, leaving the uncategorized bookings aside?",
+      "seconds": 9.29,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 1",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "total_eur": 14419.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s43-worst-grocery-month-de",
+      "set": "sql",
+      "kind": "ranking",
+      "difficulty": 2,
+      "language": "de",
+      "question": "In welchem Monat habe ich am meisten fuer Lebensmittel ausgegeben?",
+      "seconds": 11.98,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND (\n    LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%aldi%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%lidl%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%rewe%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%netto%'\n  )\nGROUP BY\n  month\nORDER BY\n  total_eur DESC\nLIMIT 1",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-05",
+          "total_eur": 358.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s44-most-visited-supermarkets-en",
+      "set": "sql",
+      "kind": "ranking",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Which three supermarkets did I shop at most often?",
+      "seconds": 7.64,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  subcategory AS topic,\n  COUNT(*) AS bookings\nFROM transaction_view\nWHERE\n  subcategory = 'Supermarket'\nGROUP BY\n  topic\nORDER BY\n  bookings DESC\nLIMIT 3",
+      "columns": [
+        "topic",
+        "bookings"
+      ],
+      "rows": [
+        {
+          "topic": "Supermarket",
+          "bookings": 105
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s45-biggest-without-rent-de",
+      "set": "sql",
+      "kind": "ranking",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wer hat 2025 am meisten Geld von mir bekommen, ohne die Miete?",
+      "seconds": 10.68,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(counterparty, description) AS merchant,\n  ROUND(\n    SUM(CASE WHEN category = 'Housing' AND subcategory = 'Rent' THEN amount ELSE 0 END),\n    2\n  ) AS rent_amount,\n  ROUND(SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  merchant\nORDER BY\n  ABS(total_eur) DESC\nLIMIT 1",
+      "columns": [
+        "merchant",
+        "rent_amount",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "merchant": "Mustermann Systems GmbH",
+          "rent_amount": 0.0,
+          "total_eur": 34200.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s46-top-expenses-en",
+      "set": "sql",
+      "kind": "ranking",
+      "difficulty": 3,
+      "language": "en",
+      "question": "What are the five largest single bookings that are neither rent nor a cash withdrawal?",
+      "seconds": 7.45,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  amount\nFROM transaction_view\nWHERE\n  category <> 'Housing' AND subcategory <> 'Cash withdrawal'\nORDER BY\n  ABS(amount) DESC\nLIMIT 5",
+      "columns": [
+        "amount"
+      ],
+      "rows": [
+        {
+          "amount": -189.0
+        },
+        {
+          "amount": -121.5
+        },
+        {
+          "amount": -118.6
+        },
+        {
+          "amount": -117.6
+        },
+        {
+          "amount": -102.9
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s47-edeka-en",
+      "set": "sql",
+      "kind": "entity",
+      "difficulty": 1,
+      "language": "en",
+      "question": "How much did I spend at Edeka in 2025?",
+      "seconds": 9.32,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND (\n    LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%edeka%'\n  )\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 445.83
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s48-rewe-and-edeka-de",
+      "set": "sql",
+      "kind": "entity",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie viel bei REWE und wie viel bei EDEKA?",
+      "seconds": 10.18,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  t1.category,\n  ROUND(-SUM(t1.amount), 2) AS total_eur\nFROM transaction_view AS t1\nWHERE\n  (\n    LOWER(t1.description || ' ' || COALESCE(t1.counterparty, '')) LIKE '%rewe%'\n  )\n  OR (\n    LOWER(t1.description || ' ' || COALESCE(t1.counterparty, '')) LIKE '%edeka%'\n  )\nGROUP BY\n  t1.category\nLIMIT 200",
+      "columns": [
+        "category",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "category": "Groceries",
+          "total_eur": 1177.83
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s49-typo-en",
+      "set": "sql",
+      "kind": "entity",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much did I spend at Edeak?",
+      "seconds": 7.86,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%edeka%'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 445.83
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s50-dm-de",
+      "set": "sql",
+      "kind": "entity",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie viel habe ich bei dm ausgegeben?",
+      "seconds": 16.46,
+      "figure_match": false,
+      "sql_valid": false,
+      "first_attempt": false,
+      "attempts": 2,
+      "sql": null,
+      "columns": [],
+      "rows": [],
+      "error": "SQLite cannot parse this: Invalid expression / Unexpected token. Line 1, Col: 30.\n  SELECT ROUND(-SUM(amount)), 2\u001b[4m)\u001b[0m AS total_eur FROM transaction_view WHERE amount < 0 AND lower(description || ' ' || coalesce(counte",
+      "refusals": [
+        "SQLite cannot parse this: Error tokenizing 'ce(counterparty, '')) LIKE '%dm drogerie markt%or'",
+        "SQLite cannot parse this: Invalid expression / Unexpected token. Line 1, Col: 30.\n  SELECT ROUND(-SUM(amount)), 2\u001b[4m)\u001b[0m AS total_eur FROM transaction_view WHERE amount < 0 AND lower(description || ' ' || coalesce(counte"
+      ],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s51-anna-de",
+      "set": "sql",
+      "kind": "entity",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie viel habe ich Anna Weber ueberwiesen?",
+      "seconds": 19.8,
+      "figure_match": false,
+      "sql_valid": false,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": null,
+      "columns": [],
+      "rows": [],
+      "error": "no statement: Exceeded maximum output retries (1)",
+      "refusals": [
+        "no statement: Exceeded maximum output retries (1)"
+      ],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s52-unknown-person-en",
+      "set": "sql",
+      "kind": "entity",
+      "difficulty": 3,
+      "language": "en",
+      "question": "How much did I pay Klaus Meier?",
+      "seconds": 17.31,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 2,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%klaus meier%'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": null
+        }
+      ],
+      "error": null,
+      "refusals": [
+        "SQLite cannot parse this: Error tokenizing 'coalesce(counterparty, '')) LIKE '%klaus meier%ED'"
+      ],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s53-amazon-de",
+      "set": "sql",
+      "kind": "entity",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie viel habe ich 2025 insgesamt an Amazon gezahlt, inklusive Prime?",
+      "seconds": 10.99,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  (\n    LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%amazon%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%amazon prime%'\n  )\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 1342.58
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s54-last-rent-en",
+      "set": "sql",
+      "kind": "entity",
+      "difficulty": 2,
+      "language": "en",
+      "question": "When was my last rent payment and how much was it?",
+      "seconds": 7.97,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  booked_on,\n  amount\nFROM transaction_view\nWHERE\n  LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%rent%'\nORDER BY\n  booked_on DESC\nLIMIT 1",
+      "columns": [
+        "booked_on",
+        "amount"
+      ],
+      "rows": [],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s55-netflix-de",
+      "set": "sql",
+      "kind": "entity",
+      "difficulty": 1,
+      "language": "de",
+      "question": "Was kostet mich Netflix im Jahr?",
+      "seconds": 8.01,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND (\n    LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%netflix%'\n  )\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 155.88
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s56-all-subscriptions-en",
+      "set": "sql",
+      "kind": "entity",
+      "difficulty": 2,
+      "language": "en",
+      "question": "What do all my subscriptions cost me per year?",
+      "seconds": 8.16,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND category = 'Subscriptions'\nGROUP BY\n  topic\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Subscriptions",
+          "total_eur": 681.12
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s57-refunds-en",
+      "set": "sql",
+      "kind": "entity",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Did I get any refunds in 2025?",
+      "seconds": 7.23,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COUNT(*)\nFROM transaction_view\nWHERE\n  amount > 0 AND category = 'Income' AND subcategory = 'Refunds'\nLIMIT 200",
+      "columns": [
+        "COUNT(*)"
+      ],
+      "rows": [
+        {
+          "COUNT(*)": 0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s58-friends-total-de",
+      "set": "sql",
+      "kind": "entity",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie viel Geld habe ich 2025 insgesamt an Freunde per PayPal geschickt?",
+      "seconds": 9.58,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%paypal%'\n  AND LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%friends and family%'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": null
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s59-bakery-de",
+      "set": "sql",
+      "kind": "entity",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie oft war ich 2025 beim Baecker und was habe ich dort gelassen?",
+      "seconds": 8.57,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COUNT(*) AS bookings,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%bäckerei steinecke%'\n  AND amount < 0\nLIMIT 200",
+      "columns": [
+        "bookings",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "bookings": 14,
+          "total_eur": 110.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s60-uncategorized-count-en",
+      "set": "sql",
+      "kind": "entity",
+      "difficulty": 1,
+      "language": "en",
+      "question": "How many transactions have no category?",
+      "seconds": 6.8,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COUNT(*) AS bookings\nFROM transaction_view\nWHERE\n  category IS NULL\nLIMIT 200",
+      "columns": [
+        "bookings"
+      ],
+      "rows": [
+        {
+          "bookings": 49
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s61-and-june-en",
+      "set": "sql",
+      "kind": "follow-up",
+      "difficulty": 1,
+      "language": "en",
+      "question": "And in June?",
+      "seconds": 8.44,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-06-01' AND '2025-06-30'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 2301.04
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s62-only-groceries-en",
+      "set": "sql",
+      "kind": "follow-up",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Only groceries.",
+      "seconds": 7.43,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND category = 'Groceries'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 4474.95
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s63-per-week-de",
+      "set": "sql",
+      "kind": "follow-up",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Und pro Woche?",
+      "seconds": 8.66,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%W', booked_on) AS week,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\nGROUP BY\n  week\nORDER BY\n  week\nLIMIT 200",
+      "columns": [
+        "week",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "week": "2025-00",
+          "total_eur": 1543.59
+        },
+        {
+          "week": "2025-01",
+          "total_eur": 345.37
+        },
+        {
+          "week": "2025-02",
+          "total_eur": 171.69
+        },
+        {
+          "week": "2025-03",
+          "total_eur": 435.39
+        },
+        {
+          "week": "2025-04",
+          "total_eur": 1320.8
+        },
+        {
+          "week": "2025-05",
+          "total_eur": 203.47
+        },
+        {
+          "week": "2025-06",
+          "total_eur": 308.89
+        },
+        {
+          "week": "2025-07",
+          "total_eur": 156.78
+        },
+        {
+          "week": "2025-08",
+          "total_eur": 1658.7
+        },
+        {
+          "week": "2025-09",
+          "total_eur": 272.47
+        },
+        {
+          "week": "2025-10",
+          "total_eur": 189.82
+        },
+        {
+          "week": "2025-11",
+          "total_eur": 129.48
+        },
+        {
+          "week": "2025-12",
+          "total_eur": 363.7
+        },
+        {
+          "week": "2025-13",
+          "total_eur": 1383.69
+        },
+        {
+          "week": "2025-14",
+          "total_eur": 293.87
+        },
+        {
+          "week": "2025-15",
+          "total_eur": 86.99
+        },
+        {
+          "week": "2025-16",
+          "total_eur": 423.99
+        },
+        {
+          "week": "2025-17",
+          "total_eur": 1377.2
+        },
+        {
+          "week": "2025-18",
+          "total_eur": 315.78
+        },
+        {
+          "week": "2025-19",
+          "total_eur": 174.2
+        },
+        {
+          "week": "2025-20",
+          "total_eur": 311.98
+        },
+        {
+          "week": "2025-21",
+          "total_eur": 1455.6
+        },
+        {
+          "week": "2025-22",
+          "total_eur": 221.87
+        },
+        {
+          "week": "2025-23",
+          "total_eur": 193.69
+        },
+        {
+          "week": "2025-24",
+          "total_eur": 371.48
+        },
+        {
+          "week": "2025-25",
+          "total_eur": 265.9
+        },
+        {
+          "week": "2025-26",
+          "total_eur": 1585.39
+        },
+        {
+          "week": "2025-27",
+          "total_eur": 458.87
+        },
+        {
+          "week": "2025-28",
+          "total_eur": 278.45
+        },
+        {
+          "week": "2025-29",
+          "total_eur": 402.69
+        },
+        {
+          "week": "2025-30",
+          "total_eur": 1308.6
+        },
+        {
+          "week": "2025-31",
+          "total_eur": 171.37
+        },
+        {
+          "week": "2025-32",
+          "total_eur": 426.59
+        },
+        {
+          "week": "2025-33",
+          "total_eur": 289.08
+        },
+        {
+          "week": "2025-34",
+          "total_eur": 118.6
+        },
+        {
+          "week": "2025-35",
+          "total_eur": 1858.88
+        },
+        {
+          "week": "2025-36",
+          "total_eur": 186.48
+        },
+        {
+          "week": "2025-37",
+          "total_eur": 402.19
+        },
+        {
+          "week": "2025-38",
+          "total_eur": 104.89
+        },
+        {
+          "week": "2025-39",
+          "total_eur": 1441.09
+        },
+        {
+          "week": "2025-40",
+          "total_eur": 60.67
+        },
+        {
+          "week": "2025-41",
+          "total_eur": 353.49
+        },
+        {
+          "week": "2025-42",
+          "total_eur": 321.29
+        },
+        {
+          "week": "2025-43",
+          "total_eur": 1364.9
+        },
+        {
+          "week": "2025-44",
+          "total_eur": 335.27
+        },
+        {
+          "week": "2025-45",
+          "total_eur": 112.39
+        },
+        {
+          "week": "2025-46",
+          "total_eur": 424.18
+        },
+        {
+          "week": "2025-47",
+          "total_eur": 207.8
+        },
+        {
+          "week": "2025-48",
+          "total_eur": 1636.58
+        },
+        {
+          "week": "2025-49",
+          "total_eur": 181.78
+        },
+        {
+          "week": "2025-50",
+          "total_eur": 214.89
+        },
+        {
+          "week": "2025-51",
+          "total_eur": 313.09
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s64-just-supermarkets-en",
+      "set": "sql",
+      "kind": "follow-up",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Show me just the supermarkets.",
+      "seconds": 11.2,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  T1.description,\n  T1.counterparty\nFROM transaction_view AS T1\nWHERE\n  T1.category = 'Groceries' AND T1.subcategory = 'Supermarket'\nLIMIT 200",
+      "columns": [
+        "description",
+        "counterparty"
+      ],
+      "rows": [
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "EDEKA SAGT DANKE",
+          "counterparty": "EDEKA Sander"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "EDEKA SAGT DANKE",
+          "counterparty": "EDEKA Sander"
+        },
+        {
+          "description": "EDEKA SAGT DANKE",
+          "counterparty": "EDEKA Sander"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "EDEKA SAGT DANKE",
+          "counterparty": "EDEKA Sander"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "EDEKA SANDER BERLIN",
+          "counterparty": "EDEKA Sander"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "EDEKA SAGT DANKE",
+          "counterparty": "EDEKA Sander"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "EDEKA SAGT DANKE",
+          "counterparty": "EDEKA Sander"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "EDEKA SAGT DANKE",
+          "counterparty": "EDEKA Sander"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "EDEKA SAGT DANKE",
+          "counterparty": "EDEKA Sander"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "EDEKA SAGT DANKE",
+          "counterparty": "EDEKA Sander"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "EDEKA SAGT DANKE",
+          "counterparty": "EDEKA Sander"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "EDEKA SAGT DANKE",
+          "counterparty": "EDEKA Sander"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "NETTO FILIALE 3312",
+          "counterparty": "NETTO MARKEN-DISCOUNT"
+        },
+        {
+          "description": "KAUFLAND 4711 BERLIN",
+          "counterparty": "KAUFLAND BERLIN"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        },
+        {
+          "description": "REWE SAGT DANKE. BIS BALD",
+          "counterparty": "REWE Markt GmbH"
+        },
+        {
+          "description": "EDEKA SAGT DANKE",
+          "counterparty": "EDEKA Sander"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "LIDL DANKT IHNEN",
+          "counterparty": "LIDL Vertriebs GmbH"
+        },
+        {
+          "description": "EDEKA SAGT DANKE",
+          "counterparty": "EDEKA Sander"
+        },
+        {
+          "description": "ALDI SUED SAGT DANKE",
+          "counterparty": "ALDI SÜD"
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s65-of-that-kaufland-de",
+      "set": "sql",
+      "kind": "follow-up",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Und wie viel davon bei Kaufland?",
+      "seconds": 11.58,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%kaufland%'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 1098.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s66-cheapest-month-en",
+      "set": "sql",
+      "kind": "follow-up",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Which of those months was the cheapest?",
+      "seconds": 13.4,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  total_eur ASC\nLIMIT 1",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s67-without-rent-de",
+      "set": "sql",
+      "kind": "follow-up",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Und ohne die Miete?",
+      "seconds": 22.36,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 2,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND category <> 'Housing'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Groceries",
+          "total_eur": 4474.95
+        },
+        {
+          "topic": "Cash",
+          "total_eur": 2400.0
+        },
+        {
+          "topic": "Transport",
+          "total_eur": 1426.3
+        },
+        {
+          "topic": "Shopping",
+          "total_eur": 1311.36
+        },
+        {
+          "topic": "Dining",
+          "total_eur": 965.7
+        },
+        {
+          "topic": "Communication",
+          "total_eur": 719.76
+        },
+        {
+          "topic": "Health",
+          "total_eur": 691.2
+        },
+        {
+          "topic": "Subscriptions",
+          "total_eur": 681.12
+        },
+        {
+          "topic": "Insurance",
+          "total_eur": 510.0
+        }
+      ],
+      "error": null,
+      "refusals": [
+        "no such column: T1.topic"
+      ],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s68-by-merchant-en",
+      "set": "sql",
+      "kind": "follow-up",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Break that down by merchant.",
+      "seconds": 11.26,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  COUNT(*) AS bookings\nFROM transaction_view\nWHERE\n  amount < 0\n  AND (\n    LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%public transport%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%fuel%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%ride hailing%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%car%'\n  )\nGROUP BY\n  topic\nLIMIT 200",
+      "columns": [
+        "topic",
+        "bookings"
+      ],
+      "rows": [],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s69-last-month-en",
+      "set": "sql",
+      "kind": "period",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much did I spend last month?",
+      "seconds": 8.3,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-11-01' AND '2025-11-30'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 2420.14
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s70-last-quarter-de",
+      "set": "sql",
+      "kind": "period",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie viel habe ich letztes Quartal ausgegeben?",
+      "seconds": 8.31,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-07-01' AND '2025-09-30'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 7592.08
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s71-last-three-months-en",
+      "set": "sql",
+      "kind": "period",
+      "difficulty": 2,
+      "language": "en",
+      "question": "What did I spend in total in the last three months of the year?",
+      "seconds": 8.33,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-10-01' AND '2025-12-31'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 6967.42
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s72-first-half-de",
+      "set": "sql",
+      "kind": "period",
+      "difficulty": 1,
+      "language": "de",
+      "question": "Wie viel habe ich im ersten Halbjahr ausgegeben?",
+      "seconds": 8.93,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-06-30'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 13976.39
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s73-march-to-may-en",
+      "set": "sql",
+      "kind": "period",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much did I spend between March and May?",
+      "seconds": 8.4,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-03-01' AND '2025-05-31'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 6865.97
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s74-this-month-de",
+      "set": "sql",
+      "kind": "period",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Was habe ich diesen Monat bisher ausgegeben?",
+      "seconds": 8.82,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-12-01' AND '2025-12-31'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s75-summer-en",
+      "set": "sql",
+      "kind": "period",
+      "difficulty": 3,
+      "language": "en",
+      "question": "How much did I spend over the summer?",
+      "seconds": 9.15,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-07-01' AND '2025-09-30'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 7592.08
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s76-denglisch-en",
+      "set": "sql",
+      "kind": "period",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie viel habe ich last month fuer Groceries ausgegeben, also im November?",
+      "seconds": 9.48,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-11-01' AND '2025-11-30'\n  AND category = 'Groceries'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 339.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    },
+    {
+      "id": "s77-rambling-en",
+      "set": "sql",
+      "kind": "period",
+      "difficulty": 3,
+      "language": "en",
+      "question": "I am trying to work out where the money went last year, so could you tell me what I spent in each of the last three months of 2025, just the spending, not the salary?",
+      "seconds": 10.04,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-10-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 2420.14
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": []
+    }
+  ]
+}
