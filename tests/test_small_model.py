@@ -537,6 +537,43 @@ async def test_an_edit_that_names_the_amount_still_writes_it(
         assert row is not None and row.amount_cents == -4230
 
 
+async def test_the_amount_the_row_already_has_is_not_a_change(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """Seen on Qwen: the model copies the row's own amount into the call to look complete.
+
+    That writes nothing, so refusing it would cost the turn its retries for no gain. What is
+    refused is an amount that differs from the row and from the user's words.
+    """
+    await import_synthetic(client, profile_id)
+    listing = (
+        await client.get("/api/transactions", params={"profile_id": profile_id, "q": "vapiano"})
+    ).json()["rows"]
+    booking = listing[0]
+    scripts.fast = calls_tool(
+        "apply_simple_edit",
+        {
+            "transaction_id": booking["id"],
+            "title": "Set the VAPIANO booking to Dining",
+            "category": "Dining",
+            "subcategory": "Restaurant",
+            "amount_cents": booking["amount_cents"],
+        },
+        "Done.",
+    )
+    scripts.fast_call = fast_slot()  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Set the VAPIANO booking to Dining.")
+
+    calls = [c for c in chunks if c["type"] == "tool-input-available"]
+    assert len(calls) == 1, "no retry was needed"
+    edited = (await client.get("/api/transactions", params={"profile_id": profile_id, "q": "vapiano"})).json()
+    changed = next(row for row in edited["rows"] if row["id"] == booking["id"])
+    assert changed["amount_cents"] == booking["amount_cents"]
+    assert changed["category"] == "Dining"
+
+
 # --------------------------------------------------------------------------- 7: prose figures
 
 

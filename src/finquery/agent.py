@@ -44,7 +44,7 @@ from finquery.changesets import ChangesetError, ChangesetIntent, propose, to_out
 from finquery.changesets import apply as apply_changeset
 from finquery.chart import run_chart
 from finquery.db import Profile, SplitSumError
-from finquery.edits import TransactionEditError
+from finquery.edits import TransactionEditError, find_transaction
 from finquery.ingest.chat_import import import_attachment
 from finquery.ingest.duplicates import PER_CARD as DUPLICATES_PER_CARD
 from finquery.ingest.duplicates import review as duplicate_review
@@ -476,14 +476,21 @@ def propose_changeset(ctx: RunContext[ChatDeps], intent: ChangesetIntent) -> dic
     return out.model_dump(mode="json")
 
 
-def _was_named(message: str, amount_cents: int) -> bool:
-    """Whether the user's own words carry this amount, whichever way round they wrote the sign.
+def _may_write_the_amount(ctx: RunContext[ChatDeps], transaction_id: str, amount_cents: int) -> bool:
+    """Whether this amount is the user's to write: their own words, or no change at all.
+
+    An amount the model copied off the row it just read changes nothing, so it passes; the sign
+    is ignored, because a user writes 42,30 for a payment the data holds as -4230.
 
     TODO: this turn's message only. A user who says the amount in one turn and "yes, do it" in
     the next has to say it again; the upgrade path is the turn's own user prompts, which the
     deps would have to carry.
     """
-    return any(abs(cents) == abs(amount_cents) for cents in names_an_amount(message))
+    if any(abs(cents) == abs(amount_cents) for cents in names_an_amount(ctx.deps.user_message)):
+        return True
+    with ctx.deps.session_factory() as session:
+        row = find_transaction(session, ctx.deps.profile_id, transaction_id)
+        return row is not None and row.amount_cents == amount_cents
 
 
 AMOUNT_NOT_ASKED_FOR = (
@@ -530,7 +537,7 @@ def apply_simple_edit(
     # `amount_cents: 0` on a request that only asked for a category zeroed a real booking in the
     # 9B review of 2026-09-05, and the answer said only that the category had been set. The
     # amount comes from the user's words or it does not come at all.
-    if amount_cents is not None and not _was_named(ctx.deps.user_message, amount_cents):
+    if amount_cents is not None and not _may_write_the_amount(ctx, transaction_id, amount_cents):
         raise ModelRetry(AMOUNT_NOT_ASKED_FOR)
     intent = ChangesetIntent(
         kind="edit",
