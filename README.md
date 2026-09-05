@@ -257,9 +257,10 @@ merchant token leaves at most once per profile: the result is cached. Search nee
   Charts. `src/chart-runtime/` is a second page: the sandboxed frame charts render in
 - `training/preference/`: the DPO export, the train script and the loop they belong to
 - `tests/`: HTTP-seam tests
-- `fixtures/synthetic/`: shipped demo dataset. `scripts/`: its generator, and
+- `fixtures/synthetic/`: shipped demo dataset. `scripts/`: its generator,
   `measure_categorization.py`, which imports a CSV into a running app and prints what each
-  categorization stage placed
+  categorization stage placed, and `measure_extraction.py`, which reads a folder of receipts and
+  a statement PDF through the extraction sub-agent and scores them against what is printed
 - `CONTEXT.md`: domain glossary. `docs/adr/`: architecture decisions.
   `docs/chart-runtime.md`: the contract generated chart code is written against
 - `.scratch/finquery/`: spec and tickets

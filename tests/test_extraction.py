@@ -42,6 +42,10 @@ TOTAL_BOOKINGS = 433
 OPENING = 421055
 CLOSING = 990956
 
+# What the two readers fill their `reasoning` field with before they read a figure.
+PAGE_REASONING = "a Sparkasse page\nthe amount stands before the balance\nno balance line is a booking"
+BILL_REASONING = "a supermarket receipt\nthe total is printed under the articles\nthe date is at the foot"
+
 # The Edeka receipt of 14.03.2025 and the booking of the same amount that is in the CSV.
 EDEKA_ITEMS = (
     ("Vollmilch 3,5% 1L", "1,29"),
@@ -114,7 +118,7 @@ def read_page(prompt: str, *, retype: int | None = None, drop: int | None = None
                 "balance_text": balance,
             }
         )
-    return {"rows": rows}
+    return {"reasoning": PAGE_REASONING, "rows": rows}
 
 
 def statement_reader(*, retype: tuple[int, int] | None = None, drop: tuple[int, int] | None = None):
@@ -174,6 +178,7 @@ def bill_reader(
             assert info.allow_text_output is False
             images.extend(_images_of(messages))
             payload = {
+                "reasoning": BILL_REASONING,
                 "merchant": merchant,
                 "date_text": date_text,
                 "total_text": total,
@@ -201,7 +206,7 @@ def bill_reader(
                 if f"i{index}" in prompt
             ]
             if merchants:
-                return ModelResponse(parts=[ToolCallPart("categorize", json.dumps({"merchants": merchants}))])
+                return ModelResponse(parts=[ToolCallPart("categorize", json.dumps({"reasoning": "read each merchant off its text", "merchants": merchants}))])
         return categorizer(messages, info)
 
     respond.images = images  # type: ignore[attr-defined]
@@ -352,6 +357,45 @@ async def test_an_amount_that_is_not_printed_is_flagged_by_the_verbatim_guard(
     # The value was still read from the span, and the running balance still adds up.
     assert flagged["amount_cents"] == -115000
     assert extraction["reconciliation"]["status"] == "ok"
+
+
+async def test_a_refused_figure_is_read_again_with_the_refusal_in_the_prompt(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """A guard rejection is handed back to the reader once, framed as a correction (ticket 42).
+
+    The span it is refused for is printed on the page the prompt already carries, so a second
+    reading of those lines is cheap and is checked by exactly the same guard.
+    """
+    retries: list[str] = []
+    reads: list[int] = []
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        prompt = _prompt_of(messages)
+        reads.append(1)
+        page = int(re.search(r"This is page (\d+) of", prompt).group(1))
+        correcting = "Your last answer was refused" in prompt
+        if correcting:
+            retries.append(prompt)
+        answer = read_page(prompt, retype=2 if page == 1 and not correcting else None)
+        return ModelResponse(parts=[ToolCallPart("read_statement", json.dumps(answer))])
+
+    scripts.fast_call = respond  # type: ignore[assignment]
+
+    extraction = await extract(client, STATEMENT)
+
+    # One page was read twice, and the second reading is the one that was kept.
+    assert len(reads) == 16
+    assert extraction["flagged"] == 0
+    assert len(extraction["rows"]) == TOTAL_BOOKINGS
+    assert extraction["reconciliation"]["status"] == "ok"
+
+    assert len(retries) == 1
+    handed_back = retries[0]
+    assert f"Your reasoning was:\n{PAGE_REASONING}" in handed_back
+    assert "-1150.00" in handed_back, "the refused row is shown as it was answered"
+    assert "'-1150.00' is not printed on this page" in handed_back
+    assert "The first line of the reasoning says what you changed." in handed_back
 
 
 async def test_a_missed_booking_is_caught_by_the_reconciliation_guard(
@@ -535,6 +579,71 @@ async def test_a_bill_that_matches_nothing_previews_a_new_transaction(
     assert len(rows) == before + 1
     written = next(row for row in rows if row["description"] == "OBI Markt")
     assert (written["amount_cents"], written["booked_on"], written["source"]) == (-1249, "2025-07-19", "manual")
+
+
+async def test_a_receipt_whose_items_do_not_add_up_is_looked_at_once_more(
+    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+) -> None:
+    """The sum that did not come out goes back to the reader (ticket 42).
+
+    Eight of the twenty public receipts were flagged for a line the reader could have read
+    again: a subtotal counted as an article, a quantity line taken for a price, a discount left
+    out. The second reading is held to the same guard, so it is arithmetic that decides.
+    """
+    await import_synthetic(client, profile_id)
+    prompts: list[str] = []
+    categorizer = scripted_categorizer({"Blumenerde 40L": ("Shopping", "Home", 0.8)})
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        if [tool.name for tool in info.output_tools] != ["read_bill"]:
+            return categorizer(messages, info)
+        prompt = _prompt_of(messages)
+        prompts.append(prompt)
+        # The first reading misses the second article, so the items are 2,00 EUR short of the
+        # printed total. The second one reads it, which is what makes the receipt add up.
+        items = [{"description": "Blumenerde 40L", "amount_text": "5,99"}]
+        if len(prompts) > 1:
+            items.append({"description": "Giesskanne", "amount_text": "2,00"})
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    "read_bill",
+                    json.dumps(
+                        {
+                            "reasoning": BILL_REASONING,
+                            "merchant": "OBI Markt",
+                            "date_text": "19.07.2025",
+                            "total_text": "7,99",
+                            "currency_text": "EUR",
+                            "direction": "out",
+                            "items": items,
+                        }
+                    ),
+                )
+            ]
+        )
+
+    scripts.fast = importing(OBI_BILL.name)
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    first = await client.post(
+        f"/api/conversations/{conversation_id}/chat",
+        json=attach(conversation_id, "book this receipt", OBI_BILL, media_type="image/png"),
+    )
+    assert first.status_code == 200, first.text
+    output = outputs_of(parse_sse(first.text))[0]
+
+    assert len(prompts) == 2, "the receipt was looked at exactly once more"
+    again = prompts[1]
+    assert f"Your reasoning was:\n{BILL_REASONING}" in again
+    assert "Blumenerde 40L | 5,99" in again
+    assert "items add up to 5,99 EUR and the total you read is 7,99 EUR" in again
+    assert "a difference of 2,00 EUR" in again
+    assert "never make the items add up by changing one" in again
+    # The corrected reading is the one that reached the card.
+    assert output["bill"]["verified"] is True
+    assert "2 line items add up to the printed total of 7,99 EUR" in output["bill"]["check"]
 
 
 async def test_a_receipt_date_printed_with_its_time_is_the_date_that_is_booked(
@@ -747,6 +856,7 @@ def receipt_as_statement(rows: Sequence[tuple[str, str, str]]):
 
     def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         payload = {
+            "reasoning": PAGE_REASONING,
             "rows": [
                 {
                     "date_text": date_text,
@@ -914,7 +1024,7 @@ async def test_the_trade_republic_layout_reconciles_per_frame_on_its_running_bal
                     "balance_text": match.group(3),
                 }
             )
-        return {"rows": rows}
+        return {"reasoning": PAGE_REASONING, "rows": rows}
 
     def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         assert [tool.name for tool in info.output_tools] == ["read_statement"]
@@ -975,7 +1085,7 @@ def scanned_reader(rows: Sequence[dict[str, Any]]):
         assert [tool.name for tool in info.output_tools] == ["read_statement"]
         images.extend(_images_of(messages))
         prompts.append(_prompt_of(messages))
-        return ModelResponse(parts=[ToolCallPart("read_statement", json.dumps({"rows": list(rows)}))])
+        return ModelResponse(parts=[ToolCallPart("read_statement", json.dumps({"reasoning": PAGE_REASONING, "rows": list(rows)}))])
 
     respond.images = images  # type: ignore[attr-defined]
     respond.prompts = prompts  # type: ignore[attr-defined]

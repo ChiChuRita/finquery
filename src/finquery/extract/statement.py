@@ -87,6 +87,20 @@ class Extraction(BaseModel):
         return bool(self.flagged) or self.reconciliation.status != "ok"
 
 
+def _refusals(rows: Sequence[ExtractedRow]) -> list[str]:
+    """What the verbatim guard refused about these rows, in the words the second reading gets.
+
+    Only the two flags a second reading of the same page can do anything about: a figure that is
+    not printed on the page, and a span that is not a date or an amount at all. Reconciliation
+    is judged over the whole statement, long after this, and no single page can fix it.
+    """
+    return [
+        f"line {row.line}: {row.reason}"
+        for row in rows
+        if row.reason and ("verbatim" in row.flags or "unreadable" in row.flags)
+    ]
+
+
 def _year_of(text: str) -> int | None:
     """The year the statement is mostly about, for a date printed as `01.04.` with none."""
     years = Counter(int(match.group()) for match in _YEAR.finditer(text))
@@ -129,9 +143,10 @@ async def extract_statement(
     per_page: list[list[ExtractedRow]] = [[] for _ in document.pages]
     errors: list[str] = []
     done = 0
+    rereads = 0
 
     async def one(index: int, page: pdf.Page) -> None:
-        nonlocal done
+        nonlocal done, rereads
         async with semaphore:
             try:
                 model = resolve_model("fast")
@@ -150,23 +165,39 @@ async def extract_statement(
                     )
                     rows = to_rows(answer.rows, page=page.number, source_text=None, year=year)
                 else:
-                    answer = await read_statement_text(
-                        model,
-                        page=page.number,
-                        pages=len(document.pages),
-                        layout_hint=layout.hint,
-                        year=year,
-                        lines=page.numbered(),
-                        model_settings=model_settings,
-                    )
-                    rows = to_rows(
-                        answer.rows,
-                        page=page.number,
-                        lines=page.lines,
-                        source_text=page.text,
-                        document_text=document.text,
-                        year=year,
-                    )
+
+                    async def read(
+                        previous: StatementPage | None = None, findings: list[str] | None = None
+                    ) -> tuple[StatementPage, list[ExtractedRow]]:
+                        answer = await read_statement_text(
+                            model,
+                            page=page.number,
+                            pages=len(document.pages),
+                            layout_hint=layout.hint,
+                            year=year,
+                            lines=page.numbered(),
+                            previous=previous,
+                            findings=findings,
+                            model_settings=model_settings,
+                        )
+                        return answer, to_rows(
+                            answer.rows,
+                            page=page.number,
+                            lines=page.lines,
+                            source_text=page.text,
+                            document_text=document.text,
+                            year=year,
+                        )
+
+                    answer, rows = await read()
+                    # A figure the verbatim guard refused was written rather than read, and the
+                    # printed line it belongs to is in the prompt already: one second reading
+                    # with the refusal in it is cheaper than a review card per row (ticket 42).
+                    if refused := _refusals(rows):
+                        rereads += 1
+                        second_answer, second_rows = await read(answer, refused)
+                        if len(_refusals(second_rows)) < len(refused):
+                            answer, rows = second_answer, second_rows
             except Exception as exc:  # noqa: BLE001 - one page failing is a flag, not a crash
                 logger.warning("page %s of %s could not be extracted: %s", page.number, file_name, exc)
                 errors.append(f"Page {page.number} could not be read: {exc}")
@@ -207,7 +238,7 @@ async def extract_statement(
         # the page was not a statement at all.
         note=notes[0] if notes and not rows else None,
         errors=errors,
-        model_calls=len(document.pages),
+        model_calls=len(document.pages) + rereads,
     )
 
 
