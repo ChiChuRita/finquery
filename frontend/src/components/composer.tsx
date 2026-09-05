@@ -1,7 +1,20 @@
 import type { ChatStatus, FileUIPart } from 'ai'
-import { FileTextIcon, ImageIcon, PaperclipIcon, XIcon } from 'lucide-react'
+import { PaperclipIcon } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import {
+  Attachment,
+  AttachmentHoverCard,
+  AttachmentHoverCardContent,
+  AttachmentHoverCardTrigger,
+  AttachmentInfo,
+  AttachmentPreview,
+  AttachmentRemove,
+  Attachments,
+  getAttachmentLabel,
+  getMediaCategory,
+  type AttachmentData,
+} from '@/components/ai-elements/attachments'
 import {
   PromptInput,
   PromptInputBody,
@@ -91,7 +104,7 @@ export function Composer({
       onSubmit={handleSubmit}
     >
       <PromptInputBody>
-        <Attachments onClear={clearRejected} rejected={rejected} />
+        <AttachedFiles onClear={clearRejected} rejected={rejected} />
         <PromptInputTextarea
           autoFocus={autoFocus}
           className="min-h-14 text-base md:text-sm"
@@ -133,8 +146,41 @@ function AttachButton() {
   )
 }
 
-/** The chips above the textarea: what will be sent with this message, each removable. */
-function Attachments({ rejected, onClear }: { rejected?: string; onClear: () => void }) {
+/** One chip: a photo by its thumbnail, a CSV or a PDF by its icon, both with the name and an X.
+ *
+ * A photo gets a hover card with the picture at readable size, which is the one thing the old
+ * chip row could not do: a receipt is told from another receipt by looking at it, not by its
+ * file name. The remove button stays visible instead of appearing on hover (the library's
+ * inline variant hides it): a touch screen has no hover, and taking a file back out is the only
+ * thing there is to do to a chip.
+ */
+function Chip({ file, onRemove }: { file: AttachmentData; onRemove: () => void }) {
+  const label = getAttachmentLabel(file)
+  const chip = (
+    <Attachment data={file} onRemove={onRemove}>
+      <AttachmentPreview />
+      <AttachmentInfo className="max-w-48 text-xs" />
+      <AttachmentRemove className="opacity-100" label={`Remove ${label}`} />
+    </Attachment>
+  )
+  if (getMediaCategory(file) !== 'image' || file.type !== 'file' || !file.url) return chip
+  return (
+    <AttachmentHoverCard>
+      <AttachmentHoverCardTrigger asChild>{chip}</AttachmentHoverCardTrigger>
+      <AttachmentHoverCardContent>
+        <img alt={label} className="max-h-80 w-72 rounded-md object-contain" src={file.url} />
+      </AttachmentHoverCardContent>
+    </AttachmentHoverCard>
+  )
+}
+
+/** The chips above the textarea: what will be sent with this message, each removable.
+ *
+ * Only the markup is the library's. Every rule about what this box takes (`ACCEPT`, `MAX_FILES`,
+ * `MAX_FILE_BYTES`) and every sentence it refuses with (`REJECTED`) stays in `prompt-input`,
+ * so a rejected file is still answered in this app's own words.
+ */
+function AttachedFiles({ rejected, onClear }: { rejected?: string; onClear: () => void }) {
   const attachments = usePromptInputAttachments()
 
   useEffect(() => {
@@ -144,27 +190,11 @@ function Attachments({ rejected, onClear }: { rejected?: string; onClear: () => 
   if (attachments.files.length === 0 && !rejected) return null
   return (
     <div className="flex w-full flex-wrap items-center justify-start gap-2 px-3 pt-3">
-      {attachments.files.map((file) => (
-        <span
-          className="inline-flex max-w-full items-center gap-1.5 rounded-full border bg-muted/40 py-1 pl-2.5 pr-1 text-xs"
-          key={file.id}
-        >
-          {file.mediaType?.startsWith('image/') ? (
-            <ImageIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          ) : (
-            <FileTextIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          )}
-          <span className="truncate">{file.filename ?? 'attachment'}</span>
-          <button
-            aria-label={`Remove ${file.filename ?? 'attachment'}`}
-            className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={() => attachments.remove(file.id)}
-            type="button"
-          >
-            <XIcon className="size-3" />
-          </button>
-        </span>
-      ))}
+      <Attachments variant="inline">
+        {attachments.files.map((file) => (
+          <Chip file={file} key={file.id} onRemove={() => attachments.remove(file.id)} />
+        ))}
+      </Attachments>
       {rejected && (
         <span className="text-destructive text-xs" role="alert">
           {rejected}
