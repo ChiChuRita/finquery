@@ -17,10 +17,19 @@ ROOT=${FQ_ROOT:-/sc/scratch/rahul.singh}
 REPO=$ROOT/finquery
 LOGS=$REPO/training/cluster/logs
 
-MODELS=(local:gemma-4-e4b local:qwen3.5-9b local:gemma-4-12b)
+MODELS="local:gemma-4-e4b local:qwen3.5-9b local:gemma-4-12b"
+
 # The SQL set is 152 questions, the chart set 63 whole charts, the subset 30 chat turns. The
-# limits are what the smoke run's seconds per case say those need on an A100, roughly doubled.
-declare -A LIMIT=([sql]=05:00:00 [chart]=06:00:00 [e2e]=05:00:00)
+# limits are what the smoke run's seconds per case say those need, roughly doubled. A case
+# statement rather than an associative array, because the laptop's bash is 3.2 and has none.
+limit_for() {
+  case "$1" in
+    sql) echo 05:00:00 ;;
+    chart) echo 06:00:00 ;;
+    e2e) echo 05:00:00 ;;
+    *) echo "no time limit for the $1 set" >&2; exit 2 ;;
+  esac
+}
 
 after=""
 smoke=""
@@ -49,16 +58,16 @@ if [ -n "$smoke" ]; then
 fi
 
 echo "model                set    job"
-ids=()
-for model in "${MODELS[@]}"; do
+ids=""
+for model in $MODELS; do
   for set_name in sql chart e2e; do
-    job=$(submit "$model" "$set_name" "${LIMIT[$set_name]}" 0)
-    ids+=("$job")
+    job=$(submit "$model" "$set_name" "$(limit_for "$set_name")" 0)
+    ids="$ids $job"
     printf '%-20s %-6s %s\n' "$model" "$set_name" "$job"
   done
 done
 
 echo
-echo "${#ids[@]} jobs: ${ids[*]}"
+echo "jobs:$ids"
 echo "watch:   ssh $REMOTE squeue -u \$USER"
 echo "collect: bash training/cluster/collect.sh"

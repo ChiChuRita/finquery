@@ -58,23 +58,23 @@ install_uv() {
 
 install_cuda() {
   step "the CUDA toolkit in $CUDA_HOME"
-  if [ -x "$CUDA_HOME/bin/nvcc" ]; then
-    "$CUDA_HOME/bin/nvcc" --version | tail -2
-    return
-  fi
   # The nodes carry the driver and nothing else: no nvcc, no headers, no module system. The
   # runfile installs the toolkit alone, which needs no root as long as it stays out of /usr.
-  if [ ! -f "$ROOT/$CUDA_RUNFILE" ]; then
-    curl -sSL --retry 3 -o "$ROOT/$CUDA_RUNFILE" \
-      "https://developer.download.nvidia.com/compute/cuda/$CUDA_VERSION/local_installers/$CUDA_RUNFILE"
+  if [ ! -f "$CUDA_HOME/bin/nvcc" ]; then
+    if [ ! -f "$ROOT/$CUDA_RUNFILE" ]; then
+      curl -sSL --retry 3 -o "$ROOT/$CUDA_RUNFILE" \
+        "https://developer.download.nvidia.com/compute/cuda/$CUDA_VERSION/local_installers/$CUDA_RUNFILE"
+    fi
+    sh "$ROOT/$CUDA_RUNFILE" --silent --toolkit --toolkitpath="$CUDA_HOME" \
+      --defaultroot="$CUDA_HOME" --no-man-page --override
   fi
-  sh "$ROOT/$CUDA_RUNFILE" --silent --toolkit --toolkitpath="$CUDA_HOME" \
-    --defaultroot="$CUDA_HOME" --no-man-page --override
-  # Everything the installer writes into this scratch lands as 600, whatever the umask says, so
-  # nvcc cannot be run until the execute bit is put back on the programs and the libraries.
+  # Everything the installer writes into this scratch lands as 600, whatever the umask says.
+  # nvcc is not one program: it runs cicc, cudafe++, ptxas and bin2c, and CMake's very first
+  # test compile fails on any of them that cannot be executed. So the execute bit goes back on
+  # every program and every library, every time, because it costs a second and a half of it is
+  # what a confusing CMake error looks like.
   find "$CUDA_HOME" -type d -exec chmod u+rwx {} +
-  find "$CUDA_HOME/bin" "$CUDA_HOME/nvvm/bin" -type f -exec chmod u+x {} +
-  find "$CUDA_HOME" -type f -name '*.so*' -exec chmod u+x {} +
+  find "$CUDA_HOME" -type f \( -path '*/bin/*' -o -name '*.so*' \) -exec chmod u+x {} +
   # Only once nvcc really runs is the 5 GB installer worth deleting.
   "$CUDA_HOME/bin/nvcc" --version | tail -2
   rm -f "$ROOT/$CUDA_RUNFILE"
