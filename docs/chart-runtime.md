@@ -129,7 +129,10 @@ instruction in the same words.
   telling them apart, so it is not what this rule is about.
 - A line or an area with a series draws one stroke per name: `z` and `color` both name the
   column of names, the euro domain covers every figure in the rows, and the legend goes on. At
-  most six of them, the same ceiling as the bars.
+  most six of them, the same ceiling as the bars. `areaY` stacks its bands unless it is given
+  explicit boundaries, so an area comparing periods gives every band the same floor,
+  `y1: 0, y2: 'cumulative_eur'`: two periods are read off the gap between them, never off their
+  sum. The browser drew that sum on 2026-09-06 before the worked example said so.
 - Every chart carries `tooltip: { use: tooltip, format: ... }` and formats euros with `eur`.
 - A legend only with more than one series, and then
   `color: { legend: colorLegend({ placement: 'bottom' }) }`.

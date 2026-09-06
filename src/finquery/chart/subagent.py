@@ -263,6 +263,10 @@ House rules, all checked before the user sees the chart:
   `color` both name the column of names, the euro domain is over every figure in the rows, and
   the legend goes on. One mark and never one per name, one line per name and never a line for
   all of them added together.
+- `areaY` with a series stacks its bands on top of each other unless you say otherwise, and two
+  periods compared are read off the gap between them and not off their sum. So an area with a
+  series gives every band the same floor, `y1: 0, y2: 'cumulative_eur'`, and drops the plain `y`
+  channel. A zero floor is not a figure typed into the code.
 - A request that asks whether a period is above the usual gets one reference line across the
   plot: `ruleY([mean(data, 'total_eur')])`, on a line, an area or a bar and on nothing else.
   Its value is computed from the rows, with `mean` or a `reduce` over `data`, and never typed:
@@ -462,13 +466,13 @@ return defineChart({
                 "the shape is area and these rows carry a series, so one areaY and one lineY over all of them\n"
                 "the columns are month_of_half, half and cumulative_eur, and cumulative_eur holds the numbers\n"
                 "half names the series, so it is the z and the color channel on both marks and the legend goes on\n"
-                "month_of_half is a name and not a month, so no monthShort and no label dropped\n"
+                "the two bands are compared and not added, so each rests on zero itself: y1 zero, y2 the figure\n"
                 "an area rests on zero, so its euro axis is the bare scaleLinear factory"
             ),
             code="""\
 return defineChart({
   marks: [
-    areaY(data, { x: 'month_of_half', y: 'cumulative_eur', z: 'half', color: 'half', fillOpacity: 0.18 }),
+    areaY(data, { x: 'month_of_half', y1: 0, y2: 'cumulative_eur', z: 'half', color: 'half', fillOpacity: 0.18 }),
     lineY(data, { x: 'month_of_half', y: 'cumulative_eur', z: 'half', color: 'half', strokeWidth: 2 }),
   ],
   scales: {
