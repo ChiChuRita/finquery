@@ -119,9 +119,12 @@ class Dropped:
     columns: list[str] = field(default_factory=list)
     rows: list[dict[str, Any]] = field(default_factory=list)
     validated_sql: str = ""
+    verdict: dict[str, Any] | None = None
+    """What a judge said about this drop, when one has seen it (`judge_pack.py`). A `revise`
+    verdict is what turns a drop that ran into a check-pass sample and a rewrite sample."""
 
     def payload(self) -> dict[str, Any]:
-        return {
+        payload = {
             "task": self.candidate.task,
             "candidate": self.candidate.model_dump(),
             "reason": self.code,
@@ -132,6 +135,9 @@ class Dropped:
             "rows": self.rows,
             "validated_sql": self.validated_sql,
         }
+        if self.verdict is not None:
+            payload["verdict"] = self.verdict
+        return payload
 
 
 @dataclass

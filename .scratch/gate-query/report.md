@@ -6,9 +6,9 @@
 | --- | ---: | ---: |
 | couple | 2 | 20 % |
 | family | 2 | 20 % |
-| pensioner | 2 | 20 % |
+| freelancer | 2 | 20 % |
 | student | 2 | 20 % |
-| freelancer | 1 | 10 % |
+| pensioner | 1 | 10 % |
 | shipped | 1 | 10 % |
 
 | kind | rows | share |
