@@ -7,8 +7,30 @@ from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from finquery.db import Profile, create_profile
+from finquery.providers import ModelResolver
 
 router = APIRouter()
+
+
+def profile_resolver(state: object, profile_id: str | None = None) -> ModelResolver:
+    """The models an endpoint outside a conversation runs on: the profile's default entry.
+
+    An import, an extraction or a mapping proposal has no conversation to take a catalog entry
+    from, so it takes the one a new conversation of this profile would start on. Its provider is
+    then the provider of the fast slot the sub-agent runs on, which is the same rule a turn
+    follows. See finquery.catalog.
+    """
+    return state.models.resolver(profile_model_key(state, profile_id))  # type: ignore[attr-defined]
+
+
+def profile_model_key(state: object, profile_id: str | None = None) -> str:
+    """The catalog entry a new conversation of this profile starts on."""
+    key: str | None = None
+    if profile_id is not None:
+        with state.session_factory() as session:  # type: ignore[attr-defined]
+            profile = session.get(Profile, profile_id)
+            key = profile.default_model_key if profile else None
+    return state.models.key_of(key)  # type: ignore[attr-defined]
 
 
 class ProfileOut(BaseModel):

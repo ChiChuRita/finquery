@@ -177,7 +177,7 @@ async def test_scripted_sql_executes_and_its_rows_reach_the_transcript(
     _, chunks = await chat(conversation_id, "Wie viel habe ich im Mai bei REWE ausgegeben?")
 
     # The chat model on quality, then the sub-agent and both post-turn steps on fast.
-    assert scripts.resolved == ["quality", "fast", "fast", "fast"]
+    assert scripts.roles == ["chat", "fast", "fast", "fast"]
     # The tool step is announced, resolved, and only then does the answer start.
     types = [str(c["type"]) for c in chunks]
     assert types.index("tool-input-available") < types.index("tool-output-available") < types.index("text-start")
@@ -333,7 +333,7 @@ async def test_an_empty_profile_is_answered_without_calling_the_sub_agent(
 
     # The chat model and the two post-turn steps, and no fourth resolution for the sub-agent:
     # the tool answered before any model was involved.
-    assert scripts.resolved == ["fast", "fast", "fast"]
+    assert scripts.roles == ["chat", "fast", "fast"]
     output = tool_output(chunks)
     assert output["sql"] is None
     assert output["row_count"] == 0

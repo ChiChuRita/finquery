@@ -138,7 +138,7 @@ async def test_every_turn_reports_token_stats_for_the_badge(
     first, second = await drive(chat, conversation_id, 2)
 
     assert first["budget"] == BUDGET
-    assert first["slot"] == "fast"
+    assert first["model_key"] == "openrouter:qwen/qwen3.5-9b"
     # Nothing was distilled from these turns, so the prompt carries no memories (test_memory
     # covers the other side: a memory in the prompt is counted here).
     assert first["memories"] == 0
@@ -169,10 +169,11 @@ async def test_at_the_threshold_older_turns_are_summarized_and_no_longer_sent(
     # and every turn after it folds in one more.
     assert [s["summarized_turns"] for s in stats] == [0, 0, 0, 0, 0, 0, 0, 1, 2, 3]
     assert len(recorder.summaries) == 3, "one compression per turn once the threshold is behind us"
-    # Requests per turn: the chat model on the conversation's slot, then the follow-up and the
-    # distillation step on fast, plus one more fast request for the summary on a turn that
-    # compresses. Ten turns, three of them compressing.
-    assert scripts.resolved == ["fast"] * (10 * 3 + 3)
+    # Requests per turn: the chat model on the conversation's entry, then the follow-up and the
+    # distillation step on the fast slot, plus one more fast request for the summary on a turn
+    # that compresses. Ten turns, three of them compressing.
+    assert scripts.roles.count("chat") == 10
+    assert len(scripts.roles) == 10 * 3 + 3
 
     used = [s["used"] for s in stats]
     assert used[:7] == sorted(set(used[:7])), "the badge climbs while the whole history is sent"

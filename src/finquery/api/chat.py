@@ -76,7 +76,7 @@ from finquery.memory import (
 )
 from finquery.onboarding import detect_language
 from finquery.prose import AnswerCheck, Figures
-from finquery.providers import ProviderNotAvailable
+from finquery.providers import ModelResolver, ProviderNotAvailable
 
 logger = logging.getLogger(__name__)
 
@@ -604,7 +604,7 @@ def persist_turn(
     conversation_id: str,
     messages: list[ModelMessage],
     *,
-    slot: str,
+    model_key: str,
     metadata: dict[str, object] | None = None,
     data_parts: Sequence[DataUIPart] = (),
     attachments: Sequence[FileUIPart] = (),
@@ -652,11 +652,11 @@ def persist_turn(
     ui_messages = _one_assistant_message(
         VercelAIAdapter.dump_messages(_renderable(messages), sdk_version=SDK_VERSION)
     )
-    # Every fragment says which slot produced it, so switching the conversation to the other
-    # model never relabels a turn that is already on screen (story 10).
+    # Every fragment says which catalog entry produced it, so switching the conversation to
+    # another model never relabels a turn that is already on screen (story 10).
     for message in ui_messages:
         if message.role == "assistant":
-            message.metadata = {**(message.metadata or {}), "model_slot": slot}
+            message.metadata = {**(message.metadata or {}), "model_key": model_key}
     if ui_messages and ui_messages[-1].role == "assistant":
         ui_messages[-1].metadata = {**(ui_messages[-1].metadata or {}), **metadata}
         if narration:
@@ -679,7 +679,7 @@ def persist_turn(
             Turn(
                 id=turn_id,
                 position=position,
-                model_slot=slot,
+                model_key=model_key,
                 interrupted=interrupted,
                 finished=True,
                 model_messages_json=ModelMessagesTypeAdapter.dump_json(messages).decode(),
@@ -697,7 +697,7 @@ def open_turn(
     session_factory: sessionmaker[Session],
     conversation_id: str,
     *,
-    slot: str,
+    model_key: str,
     ui_messages: Sequence[UIMessage],
 ) -> str | None:
     """Write the turn down before the model is asked anything, without its end marker.
@@ -721,7 +721,7 @@ def open_turn(
             Turn(
                 id=turn_id,
                 position=len(conversation.turns),
-                model_slot=slot,
+                model_key=model_key,
                 finished=False,
                 model_messages_json="[]",
                 ui_messages_json=json.dumps([m.model_dump(by_alias=True, mode="json") for m in ui_messages]),
@@ -762,7 +762,7 @@ def persist_partial(
     turn_id: str,
     *,
     message_id: str,
-    slot: str,
+    model_key: str,
     parts: Sequence[dict[str, Any]],
 ) -> None:
     """Write the turn so far into the open turn, replacing what was written for it before.
@@ -784,7 +784,7 @@ def persist_partial(
             return
         messages = [m for m in json.loads(turn.ui_messages_json) if m.get("id") != message_id]
         messages.append(
-            {"id": message_id, "role": "assistant", "parts": list(parts), "metadata": {"model_slot": slot}}
+            {"id": message_id, "role": "assistant", "parts": list(parts), "metadata": {"model_key": model_key}}
         )
         # `default=str` for the one thing a tool result can carry that JSON cannot: a date. The
         # wire encoder handles those itself, and this is the same objects taking the other road.
@@ -812,7 +812,7 @@ def _interrupt(turn: Turn) -> None:
                 "id": f"interrupted-{turn.id}",
                 "role": "assistant",
                 "parts": [],
-                "metadata": {"model_slot": turn.model_slot, "interrupted": True, "turn_id": turn.id},
+                "metadata": {"model_key": turn.model_key, "interrupted": True, "turn_id": turn.id},
             }
         )
     turn.ui_messages_json = json.dumps(ui_messages)
@@ -872,6 +872,7 @@ async def _prompt_for(
     summary: str | None,
     through: int,
     memory: MemoryBlock,
+    resolve: ModelResolver,
 ) -> Assembly:
     """This turn's prompt, compressed first when the history has grown past the threshold.
 
@@ -889,8 +890,9 @@ async def _prompt_for(
         return assembly
     folded = turns_to_fold(turns, through)
     try:
-        # Sub-agents are pinned to the fast slot whatever the conversation runs on.
-        model = state.resolve_model("fast")
+        # Sub-agents are pinned to the fast slot of the entry's provider, whatever the
+        # conversation runs on.
+        model = resolve("fast")
     except ProviderNotAvailable:
         logger.warning("cannot compress: the fast slot is unavailable", exc_info=True)
         return assembly
@@ -906,18 +908,21 @@ async def chat(request: Request, conversation_id: str) -> Response:
     state = request.app.state
     with state.session_factory() as session:
         conversation = get_conversation_or_404(session, conversation_id)
-        slot = conversation.model_slot
+        model_key = state.models.key_of(conversation.model_key or conversation.model_slot)
         # The conversation owns the profile: every tool in this turn stays inside it.
         profile_id = conversation.profile_id
         stored = load_history(conversation)
         summary, summary_through = conversation.summary, conversation.summary_through
+    # Chat on the conversation's catalog entry, sub-agents on the fast slot of that entry's
+    # provider. Nothing below this line knows which provider that is. See finquery.catalog.
+    resolve = state.models.resolver(model_key)
 
     running: dict[str, RunningTurn] = state.running_turns
     if conversation_id in running:
         raise HTTPException(status_code=409, detail=ALREADY_RUNNING)
 
     try:
-        model = state.resolve_model(slot)
+        model = resolve("chat")
     except ProviderNotAvailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -958,7 +963,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
             conversation_id,
             open_calls,
             answers,
-            resolve_model=state.resolve_model,
+            resolve_model=resolve,
             model_settings=state.subagent_settings,
         )
     results = DeferredToolResults(calls=dict(answers)) if answers else None
@@ -1000,7 +1005,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
         reopen_turn(state.session_factory, replaces)
     else:
         replaces = open_turn(
-            state.session_factory, conversation_id, slot=slot, ui_messages=adapter.run_input.messages
+            state.session_factory, conversation_id, model_key=model_key, ui_messages=adapter.run_input.messages
         )
 
     # Narration is pushed into the same queue the agent's chunks travel through, so a
@@ -1025,7 +1030,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
         session_factory=state.session_factory,
         profile_id=profile_id,
         conversation_id=conversation_id,
-        resolve_model=state.resolve_model,
+        resolve_model=resolve,
         subagent_settings=state.subagent_settings,
         narrate=narration.say,
         web_client=state.web_client,
@@ -1048,7 +1053,9 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # last response it is given. Anything the user asked in between stays in the transcript and
     # in every later prompt, it is simply not part of the run being resumed.
     if card_turn is None:
-        prompt = await _prompt_for(request, conversation_id, stored.turns, summary, summary_through, memory_block)
+        prompt = await _prompt_for(
+            request, conversation_id, stored.turns, summary, summary_through, memory_block, resolve
+        )
     else:
         # The rolling summary may already stand in for the turn the card is on, and a prompt
         # with the pending call summarized away is a prompt the run cannot resume from at all.
@@ -1076,7 +1083,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
     # where the reattached stream (which lands on the newest message) would draw it again.
     partials = card_turn is None or card_turn == len(stored.turns) - 1
     # Stored on the assistant UI message and echoed to the client at the end of the turn.
-    metadata: dict[str, object] = {"model_slot": slot}
+    metadata: dict[str, object] = {"model_key": model_key}
     # The language a replaced figure is explained in: the profile's own choice when it made one,
     # otherwise the language of the question, the same rule the answer itself follows.
     prose_language = answer_language if answer_language in ("de", "en") else (detect_language(question) or "en")
@@ -1157,7 +1164,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
             state.session_factory,
             conversation_id,
             turn_messages,
-            slot=slot,
+            model_key=model_key,
             metadata=metadata,
             data_parts=data_parts,
             attachments=chips,
@@ -1176,7 +1183,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
         return {
             "used": prompt.tokens + estimate_tokens(produced),
             "budget": state.context_budget,
-            "slot": slot,
+            "model_key": model_key,
             # The memories the assembly put in the prompt, which the badge and the chip on the
             # answer both read.
             "memories": prompt.memories,
@@ -1193,7 +1200,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
             return []
         # Sub-agents are pinned to the fast slot whatever the conversation runs on.
         return await suggest_followups(
-            state.resolve_model("fast"),
+            resolve("fast"),
             state.subagent_settings,
             prompts[-1],
             _assistant_text(produced),
@@ -1209,7 +1216,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
         with state.session_factory() as session:
             known = [memory.text for memory in list_memories(session, profile_id)]
         facts = await distill_memories(
-            state.resolve_model("fast"),
+            resolve("fast"),
             state.subagent_settings,
             prompts[-1],
             answer,
@@ -1350,7 +1357,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
                     continue
                 if parts := partial_parts(turn.chunks):
                     persist_partial(
-                        state.session_factory, replaces, message_id=message_id, slot=slot, parts=parts
+                        state.session_factory, replaces, message_id=message_id, model_key=model_key, parts=parts
                     )
                     written_at = time.monotonic()
         except Exception:  # noqa: BLE001 - a task nobody awaits reports nothing by itself

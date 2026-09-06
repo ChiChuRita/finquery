@@ -92,7 +92,7 @@ async def test_a_rating_on_an_answer_is_stored_and_shown_again_after_a_reload(
     assert record["rating"] == "up"
     assert record["paired"] is False, "a thumb is one side, only a pick is a pair"
     assert record["prompt"] == "Wie viel habe ich im Mai ausgegeben?"
-    assert record["model_slot"] == "fast"
+    assert record["model_key"] == "openrouter:qwen/qwen3.5-9b"
 
     # The transcript carries the turn id, so the thumbs come back filled in after a reload.
     detail = await detail_of(client, conversation_id)
@@ -181,7 +181,7 @@ async def test_regenerating_a_chart_gives_a_second_one_and_the_pick_stores_both_
     assert record["kind"] == "chart"
     assert record["rating"] == "pick"
     assert record["paired"] is True
-    assert record["model_slot"] == "fast", "the chart sub-agent is always on the fast slot"
+    assert record["model_key"] == "openrouter:fast", "the chart sub-agent is always on the fast slot"
 
     lines = await exported(client, profile_id)
     assert len(lines) == 1, "the pick replaced the thumb on the same chart"
@@ -219,7 +219,7 @@ async def test_the_answer_ab_reruns_the_turn_read_only_and_the_pick_stores_the_p
     assert response.status_code == 200, response.text
     second = response.json()
     assert second["text"].startswith("Ausfuehrlich")
-    assert second["model_slot"] == "fast"
+    assert second["model_key"] == "openrouter:qwen/qwen3.5-9b"
     assert second["temperature"] > 1
     # A second answer may look figures up and draw, and may change nothing.
     assert seen["tools"] == ["query", "chart"]
@@ -288,7 +288,7 @@ async def test_the_export_holds_one_line_per_record_of_this_profile_only(
     assert [line["kind"] for line in lines] == ["answer", "answer"]
     assert [line["prompt"] for line in lines] == ["Frage eins?", "Frage zwei?"]
     assert [line["rating"] for line in lines] == ["up", "down"]
-    assert set(lines[0]) == {"kind", "rating", "prompt", "chosen", "rejected", "model_slot", "created_at"}
+    assert set(lines[0]) == {"kind", "rating", "prompt", "chosen", "rejected", "model_key", "created_at"}
 
     # Nothing of this profile is in the other one's export, and its list is empty.
     assert await exported(client, other["id"]) == []

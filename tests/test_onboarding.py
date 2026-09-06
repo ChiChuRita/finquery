@@ -29,6 +29,9 @@ from .test_memory import Recorder
 
 TOTAL_ROWS = 433
 
+CLOUD_GEMMA = "openrouter:google/gemma-4-26b-a4b-it"
+"""A catalog entry that is not the default, so a stored choice is visibly a choice."""
+
 
 async def settings_of(client: httpx.AsyncClient, profile_id: str) -> dict[str, Any]:
     response = await client.get("/api/settings", params={"profile_id": profile_id})
@@ -112,11 +115,11 @@ async def test_step_two_stores_the_preferences_and_the_prompt_follows_the_langua
 
     stored = (
         await patch_settings(
-            client, profile_id, answer_language="de", default_model_slot="quality", web_lookup_enabled=False
+            client, profile_id, answer_language="de", default_model_key=CLOUD_GEMMA, web_lookup_enabled=False
         )
     ).json()
     assert stored["answer_language"] == "de"
-    assert stored["default_model_slot"] == "quality"
+    assert stored["default_model_key"] == CLOUD_GEMMA
     assert stored["web_lookup_enabled"] is False
 
     conversation = await new_conversation(client, profile_id)
@@ -136,7 +139,7 @@ async def test_step_two_stores_the_preferences_and_the_prompt_follows_the_langua
     assert "newest message is written in" not in recorder.prompt, "a message with no function words names no language"
 
     assert (await patch_settings(client, profile_id, answer_language="fr")).status_code == 422
-    assert (await patch_settings(client, profile_id, default_model_slot="huge")).status_code == 422
+    assert (await patch_settings(client, profile_id, default_model_key="huge")).status_code == 422
 
 
 async def test_step_three_imports_the_sample_year_as_a_dropped_file_would(

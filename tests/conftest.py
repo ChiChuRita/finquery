@@ -1,4 +1,4 @@
-"""One test seam: the FastAPI app over HTTP, both model slots scripted per test."""
+"""One test seam: the FastAPI app over HTTP, every catalog entry scripted per test."""
 
 import json
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
@@ -51,10 +51,15 @@ def _collected(fn: StreamFn) -> Callable[[list[ModelMessage], AgentInfo], Awaita
 
 
 class Scripts:
-    """Per-slot scripted models.
+    """Scripted models, by role and by catalog entry.
 
     Tests assign `scripts.fast = ...` for a streamed chat turn and `scripts.fast_call = ...`
-    for a sub-agent that runs to completion (the CSV mapping proposal, for instance).
+    for a sub-agent that runs to completion (the CSV mapping proposal, for instance). That pair
+    answers every role of every entry unless the test says otherwise: `scripts.quality` takes
+    over the chat side, and `scripts.entries[key] = ...` scripts one catalog entry on its own.
+
+    `resolved` is what the app asked for, `(entry key, role)` per call, which is how a test
+    checks that a sub-agent ran on the fast slot of the right provider.
     """
 
     def __init__(self) -> None:
@@ -62,16 +67,30 @@ class Scripts:
         self.quality: StreamFn | None = None
         self.fast_call: CallFn | None = None
         self.quality_call: CallFn | None = None
-        self.resolved: list[str] = []
+        self.entries: dict[str, StreamFn] = {}
+        self.resolved: list[tuple[str, str]] = []
 
-    def resolve(self, slot: str) -> FunctionModel:
-        self.resolved.append(slot)
-        stream = getattr(self, slot)
-        call = getattr(self, f"{slot}_call")
-        assert stream is not None or call is not None, f"test did not script the {slot} slot"
+    def resolve(self, key: str, role: str) -> FunctionModel:
+        self.resolved.append((key, role))
+        if role == "chat" and (scripted := self.entries.get(key)) is not None:
+            return FunctionModel(_collected(scripted), stream_function=scripted, model_name=f"scripted-{key}")
+        name = "fast" if role == "fast" else ("quality" if self.quality or self.quality_call else "fast")
+        stream = getattr(self, name)
+        call = getattr(self, f"{name}_call")
+        assert stream is not None or call is not None, f"test did not script the {name} model"
         # A streamed script also answers the non-streamed requests sub-agents make, unless the
         # test scripted that side itself.
-        return FunctionModel(call or _collected(stream), stream_function=stream, model_name=f"scripted-{slot}")
+        return FunctionModel(call or _collected(stream), stream_function=stream, model_name=f"scripted-{name}")
+
+    @property
+    def roles(self) -> list[str]:
+        """Which role each resolved model was asked for, in order."""
+        return [role for _key, role in self.resolved]
+
+    @property
+    def providers(self) -> list[str]:
+        """Which provider each resolved model belonged to, in order."""
+        return [key.split(":", 1)[0] for key, _role in self.resolved]
 
 
 def _asks_for(messages: Sequence[ModelMessage], marker: str) -> bool:
@@ -214,8 +233,18 @@ async def profile_id(client: httpx.AsyncClient) -> str:
     return await default_profile_id(client)
 
 
-async def new_conversation(client: httpx.AsyncClient, profile_id: str, slot: str = "fast") -> str:
-    response = await client.post("/api/conversations", json={"profile_id": profile_id, "model_slot": slot})
+async def default_model_key(client: httpx.AsyncClient) -> str:
+    """The entry a new conversation of this app starts on."""
+    return str((await client.get("/api/models")).json()["default_key"])
+
+
+async def model_keys(client: httpx.AsyncClient) -> list[str]:
+    """Every catalog key the app offers, in the order the picker lists them."""
+    return [str(entry["key"]) for entry in (await client.get("/api/models")).json()["entries"]]
+
+
+async def new_conversation(client: httpx.AsyncClient, profile_id: str, model_key: str | None = None) -> str:
+    response = await client.post("/api/conversations", json={"profile_id": profile_id, "model_key": model_key})
     assert response.status_code == 201, response.text
     return str(response.json()["id"])
 

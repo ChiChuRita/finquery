@@ -1,7 +1,9 @@
-"""Resolve the two logical model slots (fast, quality) to Pydantic AI models.
+"""Provider specifics: what a hosted model is, what the local provider is, and the two roles.
 
-This is the only module that knows provider specifics. Everything else asks for a slot.
-See docs/adr/0002-provider-switch-with-two-slots.md.
+A role says what a model is being asked to do in one turn: `chat` is the conversation's own
+catalog entry, `fast` is the sub-agent slot of that entry's provider. Everything outside this
+module and `finquery.catalog` asks for a role and gets a model.
+See docs/adr/0002-provider-switch-with-two-slots.md and docs/adr/0012-model-catalog-across-providers.md.
 """
 
 from collections.abc import Callable
@@ -18,8 +20,11 @@ from finquery.settings import Settings
 if TYPE_CHECKING:
     from finquery.local.runtime import LocalStack
 
-ModelSlot = Literal["fast", "quality"]
-MODEL_SLOTS: tuple[ModelSlot, ...] = get_args(ModelSlot)
+ModelRole = Literal["chat", "fast"]
+MODEL_ROLES: tuple[ModelRole, ...] = get_args(ModelRole)
+"""The two things a model is asked to be in one turn. `chat` is the conversation's catalog
+entry, `fast` the sub-agent slot of that entry's provider. On the local provider the two are
+also the two seats in memory (`finquery.local.runtime`)."""
 
 KNOWN_LABELS: dict[str, str] = {
     "google/gemma-4-26b-a4b-it": "Gemma 4 26B",
@@ -30,9 +35,9 @@ entries; both reach the browser through `GET /api/models`, so a selector never n
 that is not running. See docs/adr/0006 for why the quality slot is Qwen."""
 
 
-def openrouter_models(settings: Settings) -> dict[ModelSlot, str]:
-    """The hosted model id behind each slot, from the settings (defaults match the local pair)."""
-    return {"fast": settings.openrouter_fast_model, "quality": settings.openrouter_quality_model}
+def openrouter_chat_models(settings: Settings) -> tuple[str, str]:
+    """The two hosted ids offered as chat entries, from the settings."""
+    return settings.openrouter_quality_model, settings.openrouter_second_chat_model
 
 
 def openrouter_label(model_id: str) -> str:
@@ -49,7 +54,9 @@ def openrouter_label(model_id: str) -> str:
     label = " ".join(words)
     return f"{label} ({variant})" if variant else label
 
-ModelResolver = Callable[[ModelSlot], Model]
+ModelResolver = Callable[[ModelRole], Model]
+"""What a tool or a sub-agent is given: a role to a model, already bound to one catalog entry.
+`finquery.catalog.Catalog.resolver` makes one."""
 
 
 class ProviderNotAvailable(RuntimeError):
@@ -110,43 +117,36 @@ class HostedModel(WrapperModel):
             yield stream
 
 
-def _openrouter_resolver(settings: Settings) -> ModelResolver:
+NO_API_KEY = "OPENROUTER_API_KEY is not set, so the hosted models cannot answer. Put it in .env."
+
+
+def hosted_model(settings: Settings, model_id: str) -> Model:
+    """One OpenRouter model by id. Construction never touches the network."""
     from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
     from pydantic_ai.providers.openrouter import OpenRouterProvider
 
     if not settings.openrouter_api_key:
-        raise ProviderNotAvailable("FINQUERY_PROVIDER=openrouter needs OPENROUTER_API_KEY in the environment or .env")
+        raise ProviderNotAvailable(NO_API_KEY)
     provider = OpenRouterProvider(api_key=settings.openrouter_api_key)
     reasoning = OpenRouterModelSettings(openrouter_reasoning={"enabled": True})
-    models = {
-        slot: HostedModel(OpenRouterModel(name, provider=provider, settings=reasoning))
-        for slot, name in openrouter_models(settings).items()
-    }
-    return models.__getitem__
+    return HostedModel(OpenRouterModel(model_id, provider=provider, settings=reasoning))
 
 
-def build_local_stack(settings: Settings) -> "LocalStack":
-    """The local provider's state: the model files, the resident slots and the adapters.
+def build_local_stack(settings: Settings, *, download: bool = True) -> "LocalStack":
+    """The local provider's state: the model files, the seats and the adapters.
 
-    Anything missing starts downloading right away, so a fresh checkout only needs
-    `uv run finquery` and the Settings page to watch.
+    Both providers can be live at once, so this is built whatever `FINQUERY_PROVIDER` says and
+    nothing here loads weights or touches the network. `download` is what the provider setting
+    decides: on `local` anything missing starts coming down right away, so a fresh checkout only
+    needs `uv run finquery` and the Settings page to watch, while an OpenRouter run does not
+    start a 13 GB download nobody asked for. The Settings models card starts it either way.
     """
     from finquery.local.runtime import LocalStack
 
     stack = LocalStack(settings)
-    stack.downloads.start()
+    if download:
+        stack.downloads.start()
     return stack
-
-
-def build_resolver(settings: Settings, *, local: "LocalStack | None" = None) -> ModelResolver:
-    """Return a callable mapping a slot to a model. Construction never touches the network.
-
-    On the local provider nothing is downloaded or loaded here either: the first chat on a slot
-    does that, so the app starts (and can show download progress) with no weights on disk.
-    """
-    if settings.provider == "openrouter":
-        return _openrouter_resolver(settings)
-    return (local or build_local_stack(settings)).resolve
 
 
 SUBAGENT_MAX_TOKENS = 3072

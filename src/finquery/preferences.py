@@ -157,7 +157,7 @@ def store(
     prompt: str,
     chosen: dict[str, Any] | None,
     rejected: dict[str, Any] | None,
-    model_slot: str,
+    model_key: str,
 ) -> PreferenceRecord:
     """Write the record for one click, replacing the one that click already made.
 
@@ -178,7 +178,7 @@ def store(
     record.prompt = prompt
     record.chosen_json = json.dumps(chosen) if chosen is not None else None
     record.rejected_json = json.dumps(rejected) if rejected is not None else None
-    record.model_slot = model_slot
+    record.model_key = model_key
     session.flush()
     return record
 
@@ -215,7 +215,7 @@ def export_line(record: PreferenceRecord) -> dict[str, Any]:
         "prompt": record.prompt,
         "chosen": loaded(record.chosen_json),
         "rejected": loaded(record.rejected_json),
-        "model_slot": record.model_slot,
+        "model_key": record.model_key,
         "created_at": record.created_at.isoformat(),
     }
 

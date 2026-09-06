@@ -18,6 +18,7 @@ from .conftest import (
     default_profile_id,
     is_followup_request,
     make_settings,
+    model_keys,
     new_conversation,
     parse_sse,
     script,
@@ -72,71 +73,84 @@ async def test_conversations_are_listed_by_last_activity(client: httpx.AsyncClie
     assert [c["title"] for c in listing] == ["first question", "second question"]
 
 
-async def test_model_slot_switches_mid_conversation_and_every_turn_carries_its_slot(
+async def test_the_entry_switches_mid_conversation_and_every_turn_carries_its_entry(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat
 ) -> None:
-    scripts.fast = script("fast answer", thought="f")
-    scripts.quality = script("quality answer", thought="q")
+    keys = await model_keys(client)
+    first_key, second_key = keys[1], keys[3]
+    scripts.entries[first_key] = script("the first answer", thought="f")
+    scripts.entries[second_key] = script("the second answer", thought="q")
     profile_id = await default_profile_id(client)
-    conversation_id = await new_conversation(client, profile_id)
+    conversation_id = await new_conversation(client, profile_id, first_key)
 
     _, first = await chat(conversation_id, "first question")
-    assert assistant_metadata(first)["model_slot"] == "fast"
+    assert assistant_metadata(first)["model_key"] == first_key
 
-    assert (await client.patch(f"/api/conversations/{conversation_id}", json={"model_slot": "quality"})).status_code == 200
-    assert (await client.patch(f"/api/conversations/{conversation_id}", json={"model_slot": "turbo"})).status_code == 422
+    switched = await client.patch(f"/api/conversations/{conversation_id}", json={"model_key": second_key})
+    assert switched.status_code == 200
+    refused = await client.patch(f"/api/conversations/{conversation_id}", json={"model_key": "turbo"})
+    assert refused.status_code == 422
     _, second = await chat(conversation_id, "second question")
-    assert assistant_metadata(second)["model_slot"] == "quality"
-    assert "".join(str(c["delta"]) for c in second if c["type"] == "text-delta").strip() == "quality answer"
+    assert assistant_metadata(second)["model_key"] == second_key
+    assert "".join(str(c["delta"]) for c in second if c["type"] == "text-delta").strip() == "the second answer"
 
-    # Three resolutions per turn: the chat model on the conversation's slot, then the two
-    # post-turn steps (follow-up suggestions, memory distillation), both pinned to fast.
-    assert scripts.resolved == ["fast", "fast", "fast", "quality", "fast", "fast"]
+    # Three resolutions per turn: the chat model on the conversation's entry, then the two
+    # post-turn steps (follow-up suggestions, memory distillation), both on the fast slot of
+    # that entry's provider.
+    assert scripts.resolved == [
+        (first_key, "chat"),
+        ("openrouter:fast", "fast"),
+        ("openrouter:fast", "fast"),
+        (second_key, "chat"),
+        ("openrouter:fast", "fast"),
+        ("openrouter:fast", "fast"),
+    ]
     detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
-    assert [m["metadata"]["model_slot"] for m in detail["messages"] if m["role"] == "assistant"] == ["fast", "quality"]
-    assert detail["model_slot"] == "quality"
+    entries = [m["metadata"]["model_key"] for m in detail["messages"] if m["role"] == "assistant"]
+    assert entries == [first_key, second_key]
+    assert detail["model_key"] == second_key
 
 
-async def test_switching_the_slot_while_a_turn_runs_lands_on_the_next_turn(
+async def test_switching_the_entry_while_a_turn_runs_lands_on_the_next_turn(
     client: httpx.AsyncClient, scripts: Scripts
 ) -> None:
     """The model of a running turn was resolved when it started, and it keeps it.
 
-    The picker in the composer writes the conversation's slot, which is read at the top of the
+    The picker in the composer writes the conversation's entry, which is read at the top of the
     next request. Switching it mid-answer must not relabel the turn that is on screen, and must
     not be refused either: it is a setting, not part of the turn.
     """
     started = asyncio.Event()
     release = asyncio.Event()
+    keys = await model_keys(client)
+    first_key, second_key = keys[1], keys[3]
 
     async def waits(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
         started.set()
         await release.wait()
-        yield "answered on the fast slot"
+        yield "answered on the first entry"
 
-    scripts.fast = waits
-    scripts.quality = script("answered on the quality slot")
-    conversation_id = await new_conversation(client, await default_profile_id(client))
+    scripts.entries[first_key] = waits
+    scripts.entries[second_key] = script("answered on the second entry")
+    conversation_id = await new_conversation(client, await default_profile_id(client), first_key)
 
     turn = asyncio.create_task(
         client.post(f"/api/conversations/{conversation_id}/chat", json=chat_body("first", conversation_id))
     )
     await asyncio.wait_for(started.wait(), timeout=5)
-    switched = await client.patch(f"/api/conversations/{conversation_id}", json={"model_slot": "quality"})
+    switched = await client.patch(f"/api/conversations/{conversation_id}", json={"model_key": second_key})
     assert switched.status_code == 200
     release.set()
     running = await asyncio.wait_for(turn, timeout=5)
 
-    assert assistant_metadata(parse_sse(running.text))["model_slot"] == "fast"
+    assert assistant_metadata(parse_sse(running.text))["model_key"] == first_key
     response = await client.post(
         f"/api/conversations/{conversation_id}/chat", json=chat_body("second", conversation_id)
     )
-    assert assistant_metadata(parse_sse(response.text))["model_slot"] == "quality"
+    assert assistant_metadata(parse_sse(response.text))["model_key"] == second_key
     detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
-    assert [m["metadata"]["model_slot"] for m in detail["messages"] if m["role"] == "assistant"] == [
-        "fast",
-        "quality",
-    ]
+    entries = [m["metadata"]["model_key"] for m in detail["messages"] if m["role"] == "assistant"]
+    assert entries == [first_key, second_key]
 
 
 async def test_followup_suggestions_travel_as_a_data_part_and_are_persisted(
@@ -234,7 +248,7 @@ async def test_a_database_from_before_the_rolling_summary_keeps_its_conversation
     async def conversations(title: str | None = None) -> list[dict[str, object]]:
         app = create_app(
             make_settings(db_path=db),
-            resolve_model=lambda _slot: None,  # type: ignore[arg-type,return-value]
+            resolve_model=lambda _key, _role: None,  # type: ignore[arg-type,return-value]
             web_client=NoWeb(),
             serve_frontend=False,
         )

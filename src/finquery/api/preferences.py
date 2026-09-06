@@ -77,7 +77,7 @@ class PreferenceOut(BaseModel):
     prompt: str
     paired: bool
     """True when both sides are there, which is what a DPO export can use."""
-    model_slot: str
+    model_key: str
     created_at: datetime
 
 
@@ -136,7 +136,7 @@ class AlternativeAnswerBody(BaseModel):
 class AlternativeAnswerOut(BaseModel):
     text: str
     tools: list[dict[str, Any]]
-    model_slot: str
+    model_key: str
     temperature: float
 
 
@@ -151,7 +151,7 @@ def _out(record: PreferenceRecord) -> PreferenceOut:
         rating=record.rating,  # type: ignore[arg-type]
         prompt=record.prompt,
         paired=record.chosen_json is not None and record.rejected_json is not None,
-        model_slot=record.model_slot,
+        model_key=record.model_key or "",
         created_at=record.created_at,
     )
 
@@ -165,6 +165,13 @@ def turn_or_404(session: Session, profile_id: str, turn_id: str) -> tuple[Turn, 
     return turn, conversation
 
 
+def _record_key(state: Any, turn: Turn, subagent: bool) -> str:
+    """The catalog key a preference record carries: the turn's entry, or its provider's fast slot."""
+    catalog = state.models
+    key = catalog.key_of(turn.model_key or turn.model_slot)
+    return catalog.for_role(key, "fast" if subagent else "chat").key
+
+
 def chart_or_404(content: TurnContent, tool_call_id: str) -> dict[str, Any]:
     chart = content.charts.get(tool_call_id)
     if chart is None:
@@ -172,17 +179,17 @@ def chart_or_404(content: TurnContent, tool_call_id: str) -> dict[str, Any]:
     return chart
 
 
-def _sides(content: TurnContent, target: str | None) -> tuple[Kind, str, dict[str, Any], str | None]:
-    """The stored half of a record: its kind, its prompt, its output and the slot behind it.
+def _sides(content: TurnContent, target: str | None) -> tuple[Kind, str, dict[str, Any], bool]:
+    """The stored half of a record: its kind, its prompt, its output and whether it is a sub-agent's.
 
-    The slot is `None` for an answer, meaning the turn's own, and `fast` for a chart, because
-    every sub-agent runs there whatever the conversation is set to. It is the slot an adapter
-    would be trained for, so it belongs on the record.
+    An answer came from the turn's own catalog entry. A chart came from the fast slot of that
+    entry's provider, because every sub-agent runs there whatever the conversation is set to,
+    and that is the model an adapter would be trained for, so it belongs on the record.
     """
     if target is None:
-        return "answer", content.prompt, answer_side(content.text, content.tools), None
+        return "answer", content.prompt, answer_side(content.text, content.tools), False
     chart = chart_or_404(content, target)
-    return "chart", chart_prompt(chart), chart_side(chart), "fast"
+    return "chart", chart_prompt(chart), chart_side(chart), True
 
 
 @router.get("/preferences", response_model=list[PreferenceOut])
@@ -216,7 +223,7 @@ async def rate(request: Request, body: RatingBody) -> PreferenceOut:
     with request.app.state.session_factory() as session:
         turn, conversation = turn_or_404(session, body.profile_id, body.turn_id)
         content = read_turn(turn)
-        kind, prompt, side, slot = _sides(content, body.target)
+        kind, prompt, side, subagent = _sides(content, body.target)
         record = store(
             session,
             profile_id=body.profile_id,
@@ -228,7 +235,7 @@ async def rate(request: Request, body: RatingBody) -> PreferenceOut:
             prompt=prompt,
             chosen=side if body.rating == "up" else None,
             rejected=side if body.rating == "down" else None,
-            model_slot=slot or turn.model_slot,
+            model_key=_record_key(request.app.state, turn, subagent),
         )
         out = _out(record)
         session.commit()
@@ -242,7 +249,7 @@ async def store_pair(request: Request, body: PairBody) -> PreferenceOut:
     with request.app.state.session_factory() as session:
         turn, conversation = turn_or_404(session, body.profile_id, body.turn_id)
         content = read_turn(turn)
-        kind, prompt, original, slot = _sides(content, body.target)
+        kind, prompt, original, subagent = _sides(content, body.target)
         if kind == "chart":
             other = chart_side(
                 {
@@ -267,7 +274,7 @@ async def store_pair(request: Request, body: PairBody) -> PreferenceOut:
             prompt=prompt,
             chosen=chosen,
             rejected=rejected,
-            model_slot=slot or turn.model_slot,
+            model_key=_record_key(request.app.state, turn, subagent),
         )
         out = _out(record)
         session.commit()
@@ -289,9 +296,12 @@ async def chart_alternative(request: Request, body: AlternativeChartBody) -> dic
         content = read_turn(turn)
         chart = chart_or_404(content, body.tool_call_id)
         profile_id = conversation.profile_id
+        turn_key = turn.model_key or turn.model_slot
+    resolve = state.models.resolver(state.models.key_of(turn_key))
+
     async def draw() -> ChartOutcome:
         return await run_chart(
-            resolve_model=state.resolve_model,
+            resolve_model=resolve,
             model_settings=state.subagent_settings,
             session_factory=state.session_factory,
             profile_id=profile_id,
@@ -333,11 +343,12 @@ async def answer_alternative(request: Request, body: AlternativeAnswerBody) -> A
         earlier = [t for t in load_history(conversation).turns if t.position < turn.position]
         memory = build_memory_block(session, conversation.profile_id, content.prompt)
         prompt = assemble(earlier, conversation.summary, conversation.summary_through, memory)
-        slot = turn.model_slot
+        model_key = state.models.key_of(turn.model_key or turn.model_slot)
         profile_id, conversation_id = conversation.profile_id, conversation.id
 
+    resolve = state.models.resolver(model_key)
     try:
-        model = state.resolve_model(slot)
+        model = resolve("chat")
     except ProviderNotAvailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -345,7 +356,7 @@ async def answer_alternative(request: Request, body: AlternativeAnswerBody) -> A
         session_factory=state.session_factory,
         profile_id=profile_id,
         conversation_id=conversation_id,
-        resolve_model=state.resolve_model,
+        resolve_model=resolve,
         subagent_settings=state.subagent_settings,
         # Required since ticket 14. The rerun declares only `query`, so nothing here can reach
         # it, but the deps have to be whole.
@@ -366,5 +377,5 @@ async def answer_alternative(request: Request, body: AlternativeAnswerBody) -> A
     # Everything after the history and the prompt that was appended to it is the second answer.
     second = answer_of(result.all_messages()[len(prompt.history) + 1 :])
     return AlternativeAnswerOut(
-        text=second["text"], tools=second["tools"], model_slot=slot, temperature=AB_TEMPERATURE
+        text=second["text"], tools=second["tools"], model_key=model_key, temperature=AB_TEMPERATURE
     )

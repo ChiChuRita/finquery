@@ -2,7 +2,7 @@
 
 A profile that has not started onboarding opens it instead of an empty chat. The state lives on
 the profile (`onboarding_state`) next to the two preferences the flow collects,
-`answer_language` and `default_model_slot`, and is read and written through
+`answer_language` and `default_model_key`, and is read and written through
 `GET`/`PATCH /api/settings` like `web_lookup_enabled` already is.
 
 Nothing here calls a model. The welcome turn is written from what the profile actually holds,

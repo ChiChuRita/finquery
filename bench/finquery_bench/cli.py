@@ -130,7 +130,7 @@ def build_parser() -> argparse.ArgumentParser:
     runner.add_argument(
         "--model",
         required=True,
-        help="a slot on the current provider (fast, quality), an OpenRouter id, or local:<slot>",
+        help="a catalog key (local:qwen3.5-9b), a role on the current provider (fast, quality), an OpenRouter id, or local:fast",
     )
     runner.add_argument("--adapter", default=None, choices=("query", "chart"), help="a LoRA adapter, local only")
     runner.add_argument(

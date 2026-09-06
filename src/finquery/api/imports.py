@@ -37,7 +37,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from finquery.api.chat import persist_turn
-from finquery.api.profiles import get_profile_or_404
+from finquery.api.profiles import get_profile_or_404, profile_model_key, profile_resolver
 from finquery.ask_user import ASK_USER, AskUser
 from finquery.attachments import kind_of
 from finquery.categorize import categorize_import, pending_questions, review_card
@@ -58,7 +58,7 @@ from finquery.ingest.csv_reader import (
     sniff,
 )
 from finquery.ingest.mapping_agent import MappingUnusable, propose
-from finquery.providers import ModelSlot, ProviderNotAvailable
+from finquery.providers import ProviderNotAvailable
 from finquery.weblookup import Lookups, lookups_for
 
 router = APIRouter()
@@ -162,7 +162,7 @@ def _mapping_or_422(raw: str) -> Mapping:
         raise HTTPException(status_code=422, detail=f"The mapping is not usable: {exc.errors()[0]['msg']}") from exc
 
 
-async def _propose_mapping(request: Request, sniffed: Sniffed, file_name: str) -> tuple[Mapping, str, str]:
+async def _propose_mapping(request: Request, sniffed: Sniffed, file_name: str, profile_id: str | None = None) -> tuple[Mapping, str, str]:
     """Ask the fast slot for a mapping. Only reached when no preset recognizes the header.
 
     The proposal itself is `mapping_agent.propose`, which the `import_file` chat tool calls too;
@@ -170,7 +170,7 @@ async def _propose_mapping(request: Request, sniffed: Sniffed, file_name: str) -
     """
     state = request.app.state
     try:
-        model = state.resolve_model("fast")
+        model = profile_resolver(state, profile_id)("fast")
     except ProviderNotAvailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     try:
@@ -346,8 +346,9 @@ async def extract_upload(request: Request, file: UploadFile = File(...)) -> Extr
     if kind not in ("pdf", "image"):
         raise HTTPException(status_code=422, detail="This endpoint reads PDFs and images. A CSV goes to /imports/preview.")
     state = request.app.state
+    resolve = profile_resolver(state)
     try:
-        state.resolve_model("fast")
+        resolve("fast")
     except ProviderNotAvailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     try:
@@ -355,7 +356,7 @@ async def extract_upload(request: Request, file: UploadFile = File(...)) -> Extr
             data,
             file_name=file_name,
             kind=kind,
-            resolve_model=state.resolve_model,
+            resolve_model=resolve,
             model_settings=state.subagent_settings,
         )
     except PdfUnreadable as exc:
@@ -540,7 +541,8 @@ async def delete_import(request: Request, import_id: str, profile_id: str) -> De
 
 
 class ReviewBody(ProfileBody):
-    model_slot: ModelSlot = "fast"
+    model_key: str | None = None
+    """The catalog entry the review conversation runs on. Null means the profile's default."""
 
 
 class QuestionOut(BaseModel):
@@ -587,7 +589,7 @@ def _lookups(request: Request, profile_id: str) -> Lookups | None:
         state.session_factory,
         profile_id,
         client=state.web_client,
-        resolve_model=state.resolve_model,
+        resolve_model=profile_resolver(state, profile_id),
         model_settings=state.subagent_settings,
     )
 
@@ -678,7 +680,7 @@ async def decide_duplicates(request: Request, import_id: str, body: DecideBody) 
             {item.ref: item.decision for item in body.decisions},
             remove_all_exact=body.remove_all_exact,
             import_id=import_id,
-            resolve_model=state.resolve_model,
+            resolve_model=profile_resolver(state, body.profile_id),
             model_settings=state.subagent_settings,
         )
         account = session.get(Account, record.account_id)
@@ -707,7 +709,7 @@ async def categorize(request: Request, import_id: str, body: ProfileBody) -> Cat
             session,
             body.profile_id,
             import_id,
-            resolve_model=state.resolve_model,
+            resolve_model=profile_resolver(state, body.profile_id),
             model_settings=state.subagent_settings,
             lookups=_lookups(request, body.profile_id),
         )
@@ -743,6 +745,7 @@ async def review_conversation(request: Request, import_id: str, body: ReviewBody
     outside a conversation, so nothing an older import left open is stranded.
     """
     state = request.app.state
+    model_key = state.models.key_of(body.model_key) if body.model_key else profile_model_key(state, body.profile_id)
     with state.session_factory() as session:
         record = _import_or_404(session, body.profile_id, import_id)
         account = session.get(Account, record.account_id)
@@ -757,7 +760,7 @@ async def review_conversation(request: Request, import_id: str, body: ReviewBody
             questions, pending = await pending_questions(
                 session,
                 body.profile_id,
-                resolve_model=state.resolve_model,
+                resolve_model=profile_resolver(state, body.profile_id),
                 model_settings=state.subagent_settings,
                 lookups=_lookups(request, body.profile_id),
             )
@@ -766,7 +769,7 @@ async def review_conversation(request: Request, import_id: str, body: ReviewBody
             card = review_card(questions, pending)
             prompt = REVIEW_PROMPT
         title = f"Review {record.file_name}"[:120]
-        conversation = Conversation(profile_id=body.profile_id, model_slot=body.model_slot, title=title)
+        conversation = Conversation(profile_id=body.profile_id, model_key=model_key, title=title)
         session.add(conversation)
         summary = import_summary(session, record, account_name)
         session.commit()
@@ -784,8 +787,8 @@ async def review_conversation(request: Request, import_id: str, body: ReviewBody
                 ]
             ),
         ],
-        slot=body.model_slot,
-        metadata={"model_slot": body.model_slot},
+        model_key=model_key,
+        metadata={"model_key": model_key},
     )
     return ReviewConversationOut(
         conversation_id=conversation_id,

@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     """A folder of already-downloaded GGUF files. A copy whose hash matches is linked in
     instead of downloaded again."""
     local_n_ctx: int = 32768
-    """Context cap per resident model.
+    """Context cap per resident model, and the size a swapped-in chat model is reloaded at.
 
     32k is what Gemma 4 E4B and Qwen3.5 9B take together: 13.5 GB inside the 18.2 GB Metal
     working set of a 24 GB Mac, with flash attention and a q8_0 KV cache. Lower it on a
@@ -43,10 +43,15 @@ class Settings(BaseSettings):
     local provider (one model, serialized anyway) and 12 on a hosted one, where the pages really
     do run in parallel (FINQUERY_EXTRACTION_PAGE_CONCURRENCY)."""
     openrouter_fast_model: str = "google/gemma-4-26b-a4b-it"
+    """The hosted sub-agent slot: what every sub-agent of a cloud chat entry runs on
+    (FINQUERY_OPENROUTER_FAST_MODEL). Its local counterpart is Gemma 4 E4B."""
     openrouter_quality_model: str = "qwen/qwen3.5-9b"
-    """The hosted model behind each slot. The defaults are the same two models the local
-    provider runs; any OpenRouter id works here to try another model without a code change
-    (FINQUERY_OPENROUTER_FAST_MODEL, FINQUERY_OPENROUTER_QUALITY_MODEL)."""
+    openrouter_second_chat_model: str = "google/gemma-4-26b-a4b-it"
+    """The two hosted chat entries of the catalog, in the order the picker lists them
+    (FINQUERY_OPENROUTER_QUALITY_MODEL, FINQUERY_OPENROUTER_SECOND_CHAT_MODEL). The defaults are
+    Qwen3.5 9B, the model class the local provider ships, and the closest hosted Gemma 4 there
+    is: OpenRouter has no Gemma 4 12B. Any OpenRouter id works here to try another model without
+    a code change. See docs/adr/0012-model-catalog-across-providers.md."""
 
 
 def page_concurrency(settings: Settings) -> int:
