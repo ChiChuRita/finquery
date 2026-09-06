@@ -4,7 +4,7 @@
 
 **Blocked by:** 43 (design), 56 (cluster bench), 57 (research), 61 (in flight; not needed for this ticket)
 
-**Status:** ready-for-agent
+**Status:** done
 
 Decisions:
 - Households: `scripts/generate_synthetic.py` gains five profiles with fixed seeds (student, family with children, freelancer with irregular income, pensioner, couple with two accounts), each a full year with its own merchant set, categories, amounts, recurring payments and a few edge cases, written to `fixtures/synthetic/households/<name>-2025.csv` plus a `households.json` with the truth the generator knows (merchants and their categories, monthly totals). Deterministic, committed, each under 100 KB. The shipped year stays as it is.
@@ -18,9 +18,50 @@ Decisions:
 - Smoke: `training/data/smoke.sh` runs a ten-row hand-written batch of each kind end to end (validate, gate, render, assemble, audit) in under two minutes with no model, and is the acceptance test the fan-out agents run first.
 - Tests for the schema, the gate (a wrong figure is dropped, a degenerate result is dropped, a passing chart is kept), the assembly (prompt equals the sub-agent's builder output byte for byte), the audit (a paraphrase is caught), and the households (deterministic, counts). No em dashes anywhere.
 
-- [ ] Five households generated and committed with their truth file; databases build and cache
-- [ ] Schema and `validate_batch`; gate with reasons and report; tests
-- [ ] Headless render of kept charts to PNG with a manifest; verified on ten charts
-- [ ] Assembly to TRL chat format for both adapters with repair and check rows; byte-equality test against the production prompt builders
-- [ ] Judge pack and verdict apply; audit tools and the freeze command; tests
-- [ ] `training/data/README.md` for the writer and judge agents: the exact commands, the candidate schema, the quotas per agent (household, language, kind, difficulty), and what a good candidate looks like with three examples per task; `smoke.sh` green in under two minutes
+- [x] Five households generated and committed with their truth file; databases build and cache
+- [x] Schema and `validate_batch`; gate with reasons and report; tests
+- [x] Headless render of kept charts to PNG with a manifest; verified on ten charts
+- [x] Assembly to TRL chat format for both adapters with repair and check rows; byte-equality test against the production prompt builders
+- [x] Judge pack and verdict apply; audit tools and the freeze command; tests
+- [x] `training/data/README.md` for the writer and judge agents: the exact commands, the candidate schema, the quotas per agent (household, language, kind, difficulty), and what a good candidate looks like with three examples per task; `smoke.sh` green in under two minutes
+
+## Comments
+
+2026-09-06, done on branch `worktree-agent-abeb6d2b1e907da49`. The whole harness is
+`training/data/`, and `training/data/README.md` is what the twenty agents of ticket 64 read.
+
+- **Households.** `scripts/generate_synthetic.py` gained five: `student` (300 bookings),
+  `family` (486), `freelancer` (381), `pensioner` (349) and `couple` (565 over two accounts),
+  each a deterministic year in the Sparkasse layout under
+  `fixtures/synthetic/households/`, each CSV under 100 KB, the shipped year untouched.
+  `households.json` carries what the generator knows: every merchant with its category, the
+  totals per category and the totals per month per category. `tests/test_training_households.py`
+  holds that file to the database the production import path builds out of the same CSV,
+  merchant by merchant and month by month, which is what makes it truth a judge can recompute
+  from rather than a claim.
+- **The gate is the whole design.** A query row is kept only when a second statement, written
+  differently on purpose, agrees on every figure to the cent (the benchmark's own
+  `figure_match`) and the result is not one of the shapes `query/check.py` would send back. A
+  chart row is kept only when the statement returns exactly the planned columns, the fold and
+  `data_findings` pass, production would not downgrade the shape, and the real self-check passes
+  first time. Every drop carries its reason, and half of them are worth as much as a keep: a
+  refusal becomes a repair sample, a degenerate result becomes a rewrite sample, and a statement
+  that ran and answered a different question becomes a `revise` verdict for the check pass once
+  a judge has written the sentence.
+- **Renders.** `render.py` serves the built runtime and one job file per chart from a short-lived
+  HTTP server in the process and drives headless Chrome through `agent-browser` on the session
+  `ticket62`. Ten charts, all eight shapes, render in under two seconds at 640 by 280; the dark
+  theme is one flag. The chart runtime has to be built once (`npm --prefix frontend run build`),
+  which the README says twice.
+- **Two things worth knowing for ticket 64.** The near-duplicate threshold was set by measuring
+  the benchmark against itself, 25,200 pairs, and it caught two of my own hand-written smoke
+  questions immediately, so expect it to catch real ones. And the split is now frozen:
+  `bench/SPLIT_FROZEN.md` holds the hash, `bench/split.py` refuses to re-cut without `--force`,
+  and `audit freeze --check` is in `smoke.sh` so a run notices before it writes a row.
+- **Not done here, on purpose.** No `revise` verdict can be written by code, because it is a
+  sentence about what a statement answered instead. `assemble.py` says so in `stats.md` when a
+  set has none, and the README tells the judges it is the only way those samples exist.
+
+`smoke.sh` runs validate, gate, render, judge pack, judge apply, assemble and audit over the
+committed batches in seven seconds with no model. `uv run pytest`: 442 passed, 4 skipped,
+against 405 before.
