@@ -167,7 +167,7 @@
     [data-slot="table-container"]::-webkit-scrollbar-thumb {
         @apply rounded-full bg-border;
     }
-    /* Native date inputs sit next to shadcn selects in the filter bar. */
+    /* Native date inputs, in the table's date cell and the New transaction dialog. */
     input[type="date"]::-webkit-calendar-picker-indicator {
         @apply cursor-pointer rounded opacity-50 transition-opacity hover:opacity-100;
     }

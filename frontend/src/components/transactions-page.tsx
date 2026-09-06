@@ -4,6 +4,7 @@ import type { RowSelectionState } from '@tanstack/react-table'
 import { PlusIcon, SearchIcon, TableIcon, XIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { DateRangePicker } from '@/components/date-range-picker'
 import { PageBar } from '@/components/page'
 import { TransactionsTable, type Patch } from '@/components/transactions-table'
 import {
@@ -14,7 +15,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
-import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -42,9 +42,6 @@ const ALL = '__all__'
  *  one stray click away from taking the category off every selected row, and three rows lost
  *  theirs that way in the e2e of 2026-09-05 (p2). */
 const NOTHING_CHOSEN = ''
-/** The two native date fields, sized and lettered like the shadcn selects beside them. Their
- *  calendar button is toned down to match the select chevrons in `index.css`. */
-const DATE_FIELD = 'w-36 text-sm tabular-nums'
 const NO_ROWS: Transaction[] = []
 const NO_CATEGORIES: CategoryRef[] = []
 const NO_ACCOUNTS: AccountRef[] = []
@@ -115,32 +112,11 @@ function FilterBar({
         </InputGroupAddon>
       </InputGroup>
 
-      {/* A native date field reads out as three unnamed spinbuttons, so the visible label is
-          not enough: each field carries its own name. */}
-      <div className="flex items-center gap-1.5">
-        <Label className="text-muted-foreground text-xs" htmlFor="filter-from">
-          From
-        </Label>
-        <Input
-          aria-label="Booked from"
-          className={DATE_FIELD}
-          id="filter-from"
-          onChange={(event) => set({ date_from: event.target.value })}
-          type="date"
-          value={filters.date_from}
-        />
-        <Label className="text-muted-foreground text-xs" htmlFor="filter-to">
-          to
-        </Label>
-        <Input
-          aria-label="Booked to"
-          className={DATE_FIELD}
-          id="filter-to"
-          onChange={(event) => set({ date_to: event.target.value })}
-          type="date"
-          value={filters.date_to}
-        />
-      </div>
+      <DateRangePicker
+        from={filters.date_from}
+        onChange={(range) => set({ date_from: range.from, date_to: range.to })}
+        to={filters.date_to}
+      />
 
       <Select
         onValueChange={(value) => set({ category_id: value === ALL ? '' : value })}
