@@ -4,7 +4,7 @@ The page is one request (`GET /dashboard`): the tiles, and every card with the r
 statement returns right now. Nothing is served from a cache, because a stored figure would be a
 number that did not come from an executed query (ADR 0004).
 
-A card arrives in one of two ways: seeded as one of the four defaults on the first visit
+A card arrives in one of two ways: seeded as one of the six defaults on the first visit
 (`finquery.dashboard.ensure_defaults`), or kept from a chart in a chat, by the agent itself or
 by Add to dashboard. Charts are asked for in words in a chat and nowhere else (ticket 44), so
 this module no longer draws one.
@@ -38,6 +38,7 @@ from finquery.dashboard import (
     notes_of,
     read_tiles,
     remove,
+    restore_defaults,
     run_card,
     touch,
     undo,
@@ -59,8 +60,17 @@ def _window(since: date | None, until: date | None) -> Range:
     return Range(since=since, until=until)
 
 
+class MonthOut(BaseModel):
+    """One month of the tiles' statement, so the page can subtract two of them."""
+
+    month: str
+    spent_eur: float
+    income_eur: float
+    net_eur: float
+
+
 class TilesOut(BaseModel):
-    """The four figures above the charts, and where the fourth one leads."""
+    """The four figures above the charts, what they are compared with, and where the fourth leads."""
 
     month: str | None
     """The month the three money figures are about: the newest one the profile has bookings in."""
@@ -68,6 +78,11 @@ class TilesOut(BaseModel):
     income_eur: float
     net_eur: float
     needs_review: int
+    months: list[MonthOut] = []
+    """The last seven months the range holds, oldest first, from the one statement the three
+    money figures come from. The page takes the last row as the month, the one before it as last
+    month and the mean of the earlier rows as the average: the deltas are arithmetic on rows a
+    query returned, never a second figure from somewhere else."""
     review_import_id: str | None = None
     """The newest import that still has bookings without a category, so the tile can open the
     conversation that asks about them. Null when nothing is waiting."""
@@ -92,6 +107,8 @@ class ChartCardOut(BaseModel):
     error: str | None
     """Why this card has no rows: the guard's refusal or SQLite's, in one sentence."""
     created_from: str
+    default_key: str | None = None
+    """Which shipped default this card is, or null for a card that came from a chat."""
     created_at: datetime
     refreshed_at: datetime | None
     removed_at: datetime | None = None
@@ -185,6 +202,15 @@ def _tiles_out(session: Session, profile_id: str, tiles: Tiles) -> TilesOut:
         income_eur=tiles.income_eur,
         net_eur=tiles.net_eur,
         needs_review=tiles.needs_review,
+        months=[
+            MonthOut(
+                month=month.month,
+                spent_eur=month.spent_eur,
+                income_eur=month.income_eur,
+                net_eur=month.net_eur,
+            )
+            for month in tiles.months
+        ],
         review_import_id=waiting,
     )
 
@@ -208,6 +234,7 @@ def _out(session: Session, card: DashboardChart, window: Range = NO_RANGE) -> Ch
         notes=notes_of(card),
         error=result.error,
         created_from=card.created_from,
+        default_key=card.default_key,
         created_at=card.created_at,
         refreshed_at=card.refreshed_at,
         removed_at=card.removed_at,
@@ -262,6 +289,36 @@ async def get_dashboard(
             range=RangeOut(
                 since=window.since, until=window.until, first_day=first_day, last_day=last_day
             ),
+        )
+
+
+class RestoredOut(BaseModel):
+    """What "Restore default cards" put back, and the page as it is now."""
+
+    added: list[str]
+    """The keys of the defaults that were missing, in the order they were added. Empty when the
+    dashboard already had all of them, which is what the page says out loud."""
+    charts: list[ChartCardOut]
+
+
+@router.post("/dashboard/restore-defaults", response_model=RestoredOut)
+async def restore_default_charts(
+    request: Request,
+    body: RangeBody,
+) -> RestoredOut:
+    """Add the shipped default cards this profile does not have, and nothing else.
+
+    Matched by `default_key`, so a default that was renamed, moved or edited counts as present
+    and no card the user made is ever touched. A profile that was seeded before ticket 51 has no
+    key on any of its cards, so it gets the six next to the four it already keeps.
+    """
+    window = _window(body.since, body.until)
+    with request.app.state.session_factory() as session:
+        profile = get_profile_or_404(session, body.profile_id)
+        added = restore_defaults(session, profile)
+        return RestoredOut(
+            added=added,
+            charts=[_out(session, card, window) for card in cards_of(session, body.profile_id)],
         )
 
 

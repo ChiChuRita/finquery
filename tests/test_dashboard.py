@@ -1,4 +1,4 @@
-"""The dashboard: the four defaults, the tiles, and the four things a card can be told to do.
+"""The dashboard: the six defaults, the tiles, and the four things a card can be told to do.
 
 Every test drives the HTTP seam. Nothing here stores a figure: a card stores a statement, and
 the assertions are about what that statement returns when the endpoint runs it, which is why
@@ -14,8 +14,7 @@ from pydantic_ai.models.function import AgentInfo, DeltaToolCall
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.chart.selfcheck import check_chart_code
-from finquery.chart.shapes import Shape
-from finquery.dashboard import DEFAULTS, keep_chat_chart
+from finquery.dashboard import DEFAULTS, cards_of, keep_chat_chart
 from finquery.query.guard import SqlRejected
 
 from .conftest import Chat, Scripts, new_conversation, tool_call_of, turn_of
@@ -89,7 +88,8 @@ async def test_the_defaults_are_created_once_per_profile_and_stay_removed(
 ) -> None:
     first = await dashboard(client, profile_id)
     assert [card["title"] for card in first["charts"]] == [default.title for default in DEFAULTS]
-    assert [card["position"] for card in first["charts"]] == [0, 1, 2, 3]
+    assert [card["default_key"] for card in first["charts"]] == [default.key for default in DEFAULTS]
+    assert [card["position"] for card in first["charts"]] == [0, 1, 2, 3, 4, 5]
     assert {card["created_from"] for card in first["charts"]} == {"default"}
 
     again = await dashboard(client, profile_id)
@@ -100,15 +100,15 @@ async def test_the_defaults_are_created_once_per_profile_and_stay_removed(
     )
     assert removed.status_code == 204
     after = await dashboard(client, profile_id)
-    assert len(after["charts"]) == 3
-    assert [card["position"] for card in after["charts"]] == [0, 1, 2]
+    assert len(after["charts"]) == 5
+    assert [card["position"] for card in after["charts"]] == [0, 1, 2, 3, 4]
 
 
 async def test_each_profile_has_its_own_dashboard(client: httpx.AsyncClient, profile_id: str) -> None:
     other = (await client.post("/api/profiles", json={"name": "Second"})).json()["id"]
     mine = await dashboard(client, profile_id)
     theirs = await dashboard(client, other)
-    assert len(theirs["charts"]) == 4
+    assert len(theirs["charts"]) == 6
     assert {card["id"] for card in mine["charts"]}.isdisjoint({card["id"] for card in theirs["charts"]})
 
     refused = await client.patch(
@@ -137,10 +137,26 @@ async def test_every_default_draws_from_the_rows_its_own_statement_returns(
         result = await check_chart_code(card["code"], card["rows"], card["shape"])
         assert result.ok, f"{card['title']}: {result.findings}"
 
-    doughnut = next(card for card in page["charts"] if card["shape"] == "doughnut")
-    assert doughnut["row_count"] <= 6, "a doughnut has six slices, so its statement folds the rest"
-    grouped = next(card for card in page["charts"] if card["shape"] == "bar_grouped")
-    assert {row["topic"] for row in grouped["rows"]} == {"Income", "Spending"}
+    by_key = {card["default_key"]: card for card in page["charts"]}
+    assert set(by_key) == {default.key for default in DEFAULTS}
+    # The eight largest categories and the rest, folded in this statement because it is ours.
+    assert by_key["top_categories"]["row_count"] <= 9
+    assert {row["topic"] for row in by_key["income_against_spending"]["rows"]} == {
+        "Income",
+        "Spending",
+    }
+    # The period is the series, the category is the position, and the shared fold read the
+    # column order (period, category, euros) to keep the largest categories per period.
+    comparison = by_key["month_over_month"]
+    assert comparison["columns"] == ["period", "category", "total_eur"]
+    assert {row["period"] for row in comparison["rows"]} == {"This month", "Last month"}
+    assert len({row["category"] for row in comparison["rows"]}) <= 6
+    pairs = [(row["period"], row["category"]) for row in comparison["rows"]]
+    assert len(pairs) == len(set(pairs)), "grouped bars need one figure per pair"
+    # The heuristic is named on the card, because a bar that looks like a fact has to say so.
+    regular = by_key["regular_payments"]
+    assert "heuristic" in regular["plan"]
+    assert "at least 3 of the last 4 months" in regular["plan"]
 
 
 async def test_the_tiles_are_the_newest_month_of_the_data(
@@ -158,6 +174,47 @@ async def test_the_tiles_are_the_newest_month_of_the_data(
     assert tiles["review_import_id"] is not None
 
 
+async def test_the_tiles_carry_the_seven_months_their_deltas_are_computed_from(
+    client: httpx.AsyncClient, profile_id: str
+) -> None:
+    """One statement, seven rows: the month, the one before it, and the six-month average.
+
+    The page subtracts two of these rows and averages the earlier ones, the way `fold_rows`
+    sums rows here. Nothing about a delta is a second query, and nothing about it is stored.
+    """
+    await import_synthetic(client, profile_id)
+    tiles = (await dashboard(client, profile_id))["tiles"]
+    months = tiles["months"]
+    assert [month["month"] for month in months] == [
+        "2025-06",
+        "2025-07",
+        "2025-08",
+        "2025-09",
+        "2025-10",
+        "2025-11",
+        "2025-12",
+    ]
+    newest = months[-1]
+    assert (newest["spent_eur"], newest["income_eur"], newest["net_eur"]) == (
+        tiles["spent_eur"],
+        tiles["income_eur"],
+        tiles["net_eur"],
+    )
+    for month in months:
+        assert round(month["income_eur"] - month["spent_eur"], 2) == month["net_eur"]
+
+    # A range narrower than seven months returns the months it holds, and the page then says
+    # what it averaged over instead of claiming six.
+    narrowed = (
+        await client.get(
+            "/api/dashboard",
+            params={"profile_id": profile_id, "from": "2025-03-01", "to": "2025-05-31"},
+        )
+    ).json()["tiles"]
+    assert [month["month"] for month in narrowed["months"]] == ["2025-03", "2025-04", "2025-05"]
+    assert narrowed["month"] == "2025-05"
+
+
 async def test_an_empty_profile_gets_zero_tiles_and_cards_without_rows(
     client: httpx.AsyncClient, profile_id: str
 ) -> None:
@@ -169,9 +226,10 @@ async def test_an_empty_profile_gets_zero_tiles_and_cards_without_rows(
         "income_eur": 0.0,
         "net_eur": 0.0,
         "needs_review": 0,
+        "months": [],
         "review_import_id": None,
     }
-    assert len(page["charts"]) == 4
+    assert len(page["charts"]) == 6
     assert all(card["row_count"] == 0 and card["error"] is None for card in page["charts"])
 
 
@@ -209,7 +267,7 @@ async def test_a_chart_drawn_in_a_chat_is_pinned_to_the_dashboard(
     )
     assert twice.status_code == 201
     assert twice.json()["id"] == card["id"]
-    assert len((await dashboard(client, profile_id))["charts"]) == 5
+    assert len((await dashboard(client, profile_id))["charts"]) == 7
 
 
 async def test_a_pinned_stacked_chart_draws_the_rows_it_drew_in_the_chat(
@@ -281,7 +339,7 @@ async def test_the_page_no_longer_draws_a_chart_of_its_own(
 
 async def test_a_card_is_renamed_and_moved(client: httpx.AsyncClient, profile_id: str) -> None:
     cards = (await dashboard(client, profile_id))["charts"]
-    last = cards[3]
+    last = cards[-1]
 
     renamed = await client.patch(
         f"/api/dashboard/charts/{last['id']}", json={"profile_id": profile_id, "title": "  My merchants  "}
@@ -295,8 +353,8 @@ async def test_a_card_is_renamed_and_moved(client: httpx.AsyncClient, profile_id
     assert moved.status_code == 200
     after = (await dashboard(client, profile_id))["charts"]
     assert [card["title"] for card in after][0] == "My merchants"
-    assert [card["position"] for card in after] == [0, 1, 2, 3]
-    assert [card["id"] for card in after][1:] == [card["id"] for card in cards[:3]]
+    assert [card["position"] for card in after] == [0, 1, 2, 3, 4, 5]
+    assert [card["id"] for card in after][1:] == [card["id"] for card in cards[:-1]]
 
 
 async def test_refresh_runs_the_statement_again_and_says_when(
@@ -304,7 +362,9 @@ async def test_refresh_runs_the_statement_again_and_says_when(
 ) -> None:
     await import_synthetic(client, profile_id)
     card = next(
-        card for card in (await dashboard(client, profile_id))["charts"] if card["shape"] == "line"
+        card
+        for card in (await dashboard(client, profile_id))["charts"]
+        if card["default_key"] == "spending_per_month"
     )
     assert card["refreshed_at"] is None
     before = sum(float(row["total_eur"]) for row in card["rows"])
@@ -359,8 +419,8 @@ async def test_a_statement_that_no_longer_runs_says_so_on_its_card(
     assert "no such column" in card["error"]
     assert card["rows"] == []
     # The rest of the page is unharmed.
-    assert len(page["charts"]) == 5
-    assert [default["error"] for default in page["charts"][:4]] == [None] * 4
+    assert len(page["charts"]) == 7
+    assert [default["error"] for default in page["charts"][:6]] == [None] * 6
 
 
 async def test_a_statement_the_guard_refuses_is_never_stored(
@@ -376,7 +436,7 @@ async def test_a_statement_the_guard_refuses_is_never_stored(
                 {"title": "Everything", "shape": "bar", "sql": "SELECT * FROM profile", "code": LINE_CODE},
                 call_id="call-refused",
             )
-    assert len((await dashboard(client, profile_id))["charts"]) == 4
+    assert len((await dashboard(client, profile_id))["charts"]) == 6
 
 
 async def test_a_chart_that_was_never_drawn_cannot_be_pinned(
@@ -401,11 +461,18 @@ async def test_a_chart_that_was_never_drawn_cannot_be_pinned(
     assert "never drawn" in refused.json()["detail"]
 
 
-SHAPES_WITH_A_DEFAULT: set[Shape] = {default.shape for default in DEFAULTS}
-
-
-def test_the_defaults_cover_four_different_shapes() -> None:
-    assert len(SHAPES_WITH_A_DEFAULT) == len(DEFAULTS)
+def test_every_default_has_a_key_of_its_own() -> None:
+    """The key is the identity Restore default cards matches on, so no two may share one."""
+    keys = [default.key for default in DEFAULTS]
+    assert len(set(keys)) == len(keys)
+    assert keys == [
+        "spending_per_month",
+        "income_against_spending",
+        "top_categories",
+        "month_over_month",
+        "regular_payments",
+        "top_merchants",
+    ]
 
 
 # The long-term half of ticket 44: a chart the agent keeps, and the five tools that manage the
@@ -471,7 +538,7 @@ async def test_a_chart_the_agent_keeps_is_stored_once_and_reported_by_the_pins(
     assert output["dashboard_chart_id"]
 
     page = await dashboard(client, profile_id)
-    assert len(page["charts"]) == 5
+    assert len(page["charts"]) == 7
     card = page["charts"][-1]
     assert card["id"] == output["dashboard_chart_id"]
     assert card["created_from"] == "chat"
@@ -488,7 +555,7 @@ async def test_a_chart_the_agent_keeps_is_stored_once_and_reported_by_the_pins(
     )
     assert again.status_code == 201, again.text
     assert again.json()["id"] == card["id"]
-    assert len((await dashboard(client, profile_id))["charts"]) == 5
+    assert len((await dashboard(client, profile_id))["charts"]) == 7
 
 
 async def test_a_chart_the_agent_does_not_keep_is_not_stored(
@@ -498,7 +565,7 @@ async def test_a_chart_the_agent_does_not_keep_is_not_stored(
     output, _ = await kept_chart(client, scripts, chat, profile_id, keep=False)
     assert output["kept"] is False
     assert output["dashboard_chart_id"] is None
-    assert len((await dashboard(client, profile_id))["charts"]) == 4
+    assert len((await dashboard(client, profile_id))["charts"]) == 6
     assert (await client.get("/api/dashboard/pins", params={"profile_id": profile_id})).json() == {
         "charts": []
     }
@@ -514,7 +581,7 @@ async def test_a_chart_that_was_never_drawn_is_not_kept(
     output = chart_output(chunks)
     assert output["code"] is None
     assert output["kept"] is False
-    assert len((await dashboard(client, profile_id))["charts"]) == 4
+    assert len((await dashboard(client, profile_id))["charts"]) == 6
 
 
 async def test_the_charts_on_the_dashboard_are_listed_and_shown_from_the_chat(
@@ -527,11 +594,11 @@ async def test_the_charts_on_the_dashboard_are_listed_and_shown_from_the_chat(
     conversation_id = await new_conversation(client, profile_id)
     _, chunks = await chat(conversation_id, "What is on my dashboard?")
     listed = tool_output(chunks)
-    assert listed["count"] == 4
+    assert listed["count"] == 6
     assert [chart["chart_id"] for chart in listed["charts"]] == [card["id"] for card in cards]
-    assert [chart["position"] for chart in listed["charts"]] == [0, 1, 2, 3]
+    assert [chart["position"] for chart in listed["charts"]] == [0, 1, 2, 3, 4, 5]
 
-    line = next(card for card in cards if card["shape"] == "line")
+    line = next(card for card in cards if card["default_key"] == "spending_per_month")
     scripts.fast = call_then_report("show_dashboard_chart", {"chart_id": line["id"]})
     _, chunks = await chat(conversation_id, "Show me the spending chart.")
     shown = tool_output(chunks)
@@ -569,7 +636,7 @@ async def test_a_chart_the_chat_edits_keeps_its_place_and_its_previous_version(
     assert "This chart already exists and the user is changing it" in plan_prompt
 
     page = await dashboard(client, profile_id)
-    assert len(page["charts"]) == 4
+    assert len(page["charts"]) == 6
     card = page["charts"][1]
     assert card["id"] == target["id"]
     assert card["position"] == 1, "an edit keeps the card where it was"
@@ -627,7 +694,7 @@ async def test_a_chart_is_renamed_and_removed_from_the_chat_with_an_undo_each(
     assert removed["applied"] is True
     after = await dashboard(client, profile_id)
     assert [card["id"] for card in after["charts"]] == [card["id"] for card in cards[1:]]
-    assert [card["position"] for card in after["charts"]] == [0, 1, 2]
+    assert [card["position"] for card in after["charts"]] == [0, 1, 2, 3, 4]
 
     # A removed card is not on the dashboard, and is still there to be put back.
     restored = await client.post(
@@ -668,11 +735,16 @@ async def test_the_dashboard_narrows_to_a_date_range(
     assert narrowed["tiles"]["month"] == "2025-04"
     assert narrowed["tiles"]["spent_eur"] < whole["tiles"]["spent_eur"]
 
-    line = next(card for card in narrowed["charts"] if card["shape"] == "line")
+    line = next(card for card in narrowed["charts"] if card["default_key"] == "spending_per_month")
     months = [row["month"] for row in line["rows"]]
     assert months == ["2025-02", "2025-03", "2025-04"]
     assert len(months) < len(
-        [row["month"] for row in next(c for c in whole["charts"] if c["shape"] == "line")["rows"]]
+        [
+            row["month"]
+            for c in whole["charts"]
+            if c["default_key"] == "spending_per_month"
+            for row in c["rows"]
+        ]
     )
 
     # A refresh answers the same days as the page it was pressed on.
@@ -698,3 +770,115 @@ async def test_a_range_that_reads_backwards_is_refused(
         "/api/dashboard", params={"profile_id": profile_id, "from": "last month"}
     )
     assert not_a_day.status_code == 422
+
+async def test_the_month_comparison_folds_its_categories_the_way_the_chat_would(
+    client: httpx.AsyncClient, profile_id: str
+) -> None:
+    """More categories than the palette has colours, folded by the shared fold, not by the SQL.
+
+    The statement asks for the columns in the order period, category, euros, which is what
+    `fold_rows` reads the position, the group and the figure off (ticket 39). So the tail
+    becomes one 'Other' group per period, summed and not dropped, exactly as a stacked chart
+    from a chat is folded.
+    """
+    await import_synthetic(client, profile_id)
+    categories = (await client.get("/api/categories", params={"profile_id": profile_id})).json()[:9]
+    rows = (
+        await client.get("/api/transactions", params={"profile_id": profile_id, "limit": 1000})
+    ).json()["rows"]
+    spent = [row for row in rows if row["amount_cents"] < 0]
+    for index, category in enumerate(categories):
+        await client.post(
+            "/api/transactions/bulk-recategorize",
+            json={
+                "profile_id": profile_id,
+                "ids": [row["id"] for row in spent[index :: len(categories)]],
+                "category_id": category["id"],
+            },
+        )
+
+    card = next(
+        card
+        for card in (await dashboard(client, profile_id))["charts"]
+        if card["default_key"] == "month_over_month"
+    )
+    names = {row["category"] for row in card["rows"]}
+    assert len(names) == 6, names
+    assert "Other" in names
+    assert {row["period"] for row in card["rows"]} == {"This month", "Last month"}
+    pairs = [(row["period"], row["category"]) for row in card["rows"]]
+    assert len(pairs) == len(set(pairs))
+
+    # Every euro the statement returned is still on the chart: the tail is summed, not dropped.
+    two_months = [
+        row for row in rows if row["booked_on"] >= "2025-11-01" and row["amount_cents"] < 0
+    ]
+    spent_eur = -sum(row["amount_cents"] for row in two_months) / 100
+    assert round(sum(row["total_eur"] for row in card["rows"]), 2) == round(spent_eur, 2)
+
+
+async def test_restore_default_cards_adds_only_what_is_missing(
+    client: httpx.AsyncClient, profile_id: str
+) -> None:
+    """The overflow action puts back the shipped defaults, matched by their key and nothing else."""
+    await import_synthetic(client, profile_id)
+    cards = (await dashboard(client, profile_id))["charts"]
+    removed = next(card for card in cards if card["default_key"] == "regular_payments")
+    kept = next(card for card in cards if card["default_key"] == "top_merchants")
+
+    assert (
+        await client.delete(
+            f"/api/dashboard/charts/{removed['id']}", params={"profile_id": profile_id}
+        )
+    ).status_code == 204
+    renamed = await client.patch(
+        f"/api/dashboard/charts/{kept['id']}", json={"profile_id": profile_id, "title": "Who I pay"}
+    )
+    assert renamed.status_code == 200, renamed.text
+
+    restored = await client.post(
+        "/api/dashboard/restore-defaults", json={"profile_id": profile_id}
+    )
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["added"] == ["regular_payments"]
+    after = restored.json()["charts"]
+    assert len(after) == 6
+    # A default the user renamed is present, so it is left alone rather than added again.
+    assert [card["title"] for card in after if card["default_key"] == "top_merchants"] == [
+        "Who I pay"
+    ]
+    back = next(card for card in after if card["default_key"] == "regular_payments")
+    assert back["id"] != removed["id"]
+    assert back["position"] == 5, "a restored card lands at the end, not in the middle"
+    assert back["row_count"] > 1, "and it is a query, not a copy of what was removed"
+
+    # Nothing to do the second time.
+    again = await client.post("/api/dashboard/restore-defaults", json={"profile_id": profile_id})
+    assert again.status_code == 200
+    assert again.json()["added"] == []
+    assert len(again.json()["charts"]) == 6
+
+
+async def test_restore_default_cards_leaves_a_profile_seeded_before_this_ticket_alone(
+    client: httpx.AsyncClient, profile_id: str, session_factory: sessionmaker[Session]
+) -> None:
+    """The old four have no key, so they are the user's cards now and the six arrive beside them."""
+    await import_synthetic(client, profile_id)
+    await dashboard(client, profile_id)
+    with session_factory() as session:
+        older = cards_of(session, profile_id)[:4]
+        for card in older:
+            card.default_key = None
+        for card in cards_of(session, profile_id)[4:]:
+            session.delete(card)
+        session.commit()
+        old_ids = [card.id for card in older]
+
+    restored = (
+        await client.post("/api/dashboard/restore-defaults", json={"profile_id": profile_id})
+    ).json()
+    assert restored["added"] == [default.key for default in DEFAULTS]
+    charts = restored["charts"]
+    assert [card["id"] for card in charts[:4]] == old_ids
+    assert [card["default_key"] for card in charts[:4]] == [None] * 4
+    assert [card["position"] for card in charts] == list(range(10))

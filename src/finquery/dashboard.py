@@ -1,4 +1,4 @@
-"""The dashboard: four tiles, the cards on it, and the four every profile starts with.
+"""The dashboard: four tiles, the cards on it, and the six every profile starts with.
 
 Nothing here is a cache. A card stores a title, a shape, the SQL and the checked JavaScript the
 chart was drawn from, and every load runs that SQL through the same guard and the same
@@ -6,14 +6,22 @@ profile-scoped view as a question asked in the chat (`finquery.query.guard`, ADR
 numbers on the page are therefore always the numbers in the database, and a statement that no
 longer runs becomes a sentence on its card rather than a broken page.
 
-The four defaults are written here rather than asked of a model: they are the same house style
+The six defaults are written here rather than asked of a model: they are the same house style
 (`docs/chart-runtime.md`), and `tests/test_dashboard.py` runs each of them through
-`finquery.chart.selfcheck` against the shipped dataset, so a rule that changes takes these four
-with it instead of leaving them behind.
+`finquery.chart.selfcheck` against the shipped dataset, so a rule that changes takes these six
+with it instead of leaving them behind. They answer a household's questions in order: where is
+the trend going, are we living within our income, where does the money go, what changed, what
+is fixed, who gets the most (ticket 51, Proposal A of
+`docs/research/charts-and-dashboard-2026-09-06.md`).
+
+The tiles are one statement over the last seven months, not one figure: the page compares the
+newest month with the one before it and with the mean of the earlier ones, and that arithmetic
+is done on the returned rows in the browser the way `fold_rows` is done on them here. No figure
+on this page was ever typed.
 
 Both the tiles and the defaults read "this month" and "the last twelve months" from the newest
 booking the profile has, not from today's date. A statement imported in January is still the
-newest thing the household did in March, and a dashboard of four empty charts says nothing
+newest thing the household did in March, and a dashboard of six empty charts says nothing
 about it.
 """
 
@@ -50,14 +58,24 @@ NO_RANGE = Range()
 # What the tiles and the twelve-month charts count as now: the day of the newest booking.
 LATEST_DAY = "(SELECT MAX(booked_on) FROM transaction_view)"
 
+TILE_MONTHS = 7
+"""How many months the tiles' statement returns.
+
+The newest is the month the tiles are about, the one before it is "last month", and the mean of
+the rest is the six-month average. Seven rows is therefore the smallest statement that carries
+both comparisons, and a profile with fewer months simply returns fewer rows: the page then says
+what it averaged over instead of pretending to six.
+"""
+
 MONEY_SQL = f"""
 SELECT strftime('%Y-%m', booked_on) AS month,
        ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spent_eur,
        ROUND(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 2) AS income_eur,
        ROUND(SUM(amount), 2) AS net_eur
 FROM transaction_view
-WHERE strftime('%Y-%m', booked_on) = strftime('%Y-%m', {LATEST_DAY})
+WHERE booked_on >= date({LATEST_DAY}, 'start of month', '-{TILE_MONTHS - 1} months')
 GROUP BY month
+ORDER BY month
 """
 
 REVIEW_SQL = """
@@ -68,8 +86,23 @@ WHERE category IS NULL
 
 
 @dataclass(frozen=True)
+class MonthFigures:
+    """One month of the tiles' statement: what left, what came in, and the difference."""
+
+    month: str
+    spent_eur: float
+    income_eur: float
+    net_eur: float
+
+
+@dataclass(frozen=True)
 class Tiles:
-    """The four plain figures above the charts, every one of them from an executed query."""
+    """The four plain figures above the charts, every one of them from an executed query.
+
+    The three money figures are the newest month of `months`, which is the whole statement. The
+    page draws the deltas from the same rows, so the figure and its comparison come from one
+    query and never from two.
+    """
 
     month: str | None = None
     """The month they are about, 'YYYY-MM', or null when the profile holds no booking."""
@@ -77,6 +110,8 @@ class Tiles:
     income_eur: float = 0.0
     net_eur: float = 0.0
     needs_review: int = 0
+    months: tuple[MonthFigures, ...] = ()
+    """The last seven months the range holds, oldest first. The newest is the tiles' own month."""
 
 
 def read_tiles(session: Session, profile_id: str, window: Range = NO_RANGE) -> Tiles:
@@ -84,7 +119,8 @@ def read_tiles(session: Session, profile_id: str, window: Range = NO_RANGE) -> T
 
     Inside the range, "this month" is the newest month the range holds: `LATEST_DAY` reads
     `MAX(booked_on)` of the same narrowed view the statement runs against, so a range that ends
-    in March makes the tiles say March.
+    in March makes the tiles say March, and the six months it compares with are the six before
+    that one.
     """
     money = execute_read_only(
         session, validate_sql(MONEY_SQL), profile_id, since=window.since, until=window.until
@@ -95,27 +131,55 @@ def read_tiles(session: Session, profile_id: str, window: Range = NO_RANGE) -> T
     needs_review = int(review[0]["needs_review"]) if review else 0
     if not money:
         return Tiles(needs_review=needs_review)
-    row = money[0]
+    months = tuple(
+        MonthFigures(
+            month=str(row["month"]),
+            spent_eur=float(row["spent_eur"] or 0),
+            income_eur=float(row["income_eur"] or 0),
+            net_eur=float(row["net_eur"] or 0),
+        )
+        for row in money
+    )
+    newest = months[-1]
     return Tiles(
-        month=str(row["month"]),
-        spent_eur=float(row["spent_eur"] or 0),
-        income_eur=float(row["income_eur"] or 0),
-        net_eur=float(row["net_eur"] or 0),
+        month=newest.month,
+        spent_eur=newest.spent_eur,
+        income_eur=newest.income_eur,
+        net_eur=newest.net_eur,
         needs_review=needs_review,
+        months=months,
     )
 
 
 @dataclass(frozen=True)
 class DefaultChart:
-    """One of the four cards a profile's dashboard opens with."""
+    """One of the six cards a profile's dashboard opens with."""
 
+    key: str
+    """What this default is, whatever it was later renamed to: the stable identity a card keeps
+    in `dashboard_chart.default_key`, so "Restore default cards" can tell which of the six a
+    profile is missing."""
     title: str
     shape: Shape
     sql: str
     code: str
+    plan: str = ""
+    """What the card's details say about it. Empty means the plain one-liner every default gets;
+    a card whose figures are a heuristic says so here, because a bar that looks like a fact has
+    to name the rule it came from."""
+
+    def plan_line(self) -> str:
+        """The plan stored on the card: its own, or the sentence that names shape and origin."""
+        return self.plan or (
+            f"Chart plan: {self.shape}, columns from a fixed statement. A FinQuery default."
+        )
 
 
-# The last twelve months of spending, one point per month.
+# 1. Where is the trend going? The last twelve months of spending, one bar per month.
+#
+# Bars rather than a line, because a month is a discrete period and not a point on a
+# continuum: a bar rests on zero by itself, and under the "This month" preset one bar still
+# reads where a single point of a line says nothing (ticket 51, Proposal A).
 MONTHLY_SQL = f"""
 SELECT strftime('%Y-%m', booked_on) AS month,
        ROUND(-SUM(amount), 2) AS total_eur
@@ -127,22 +191,16 @@ ORDER BY month
 """
 
 MONTHLY_CODE = """\
-const amounts = data.map((row) => row.total_eur);
 return defineChart({
   marks: [
-    lineY(data, { x: 'month', y: 'total_eur', stroke: palette[0], strokeWidth: 2.25, points: true }),
+    barY(data, { x: 'month', y: 'total_eur', fill: palette[0], maxThickness: 32 }),
   ],
   scales: {
     x: {
-      scale: () => scalePoint().padding(0.06),
+      scale: () => scaleBand().padding(0.2),
       axis: { ticks: { format: monthShort }, tickLabels: { thin: { minGap: 6, priority: 'ends' } } },
     },
-    y: {
-      scale: scaleLinear().domain([Math.min(0, ...amounts), Math.max(0, ...amounts)]),
-      nice: true,
-      grid: true,
-      axis: { ticks: { format: eurShort } },
-    },
+    y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
   },
   tooltip: {
     use: tooltip,
@@ -150,59 +208,10 @@ return defineChart({
   },
 });"""
 
-# The last three months by category, five slices and the rest. This one folds in the statement,
-# which it can because the statement is ours: a household that gains a category between two
-# visits would otherwise hand a six-colour doughnut seven slices to draw. `run_card` folds
-# whatever comes back anyway (ticket 39), so the two agree; a statement the sub-agent wrote has
-# only that second fold, because asking a model's SQL to fold is what broke the stacked bars.
-CATEGORY_SQL = f"""
-WITH by_category AS (
-  SELECT coalesce(category, 'Needs review') AS name,
-         ROUND(-SUM(amount), 2) AS total_eur
-  FROM transaction_view
-  WHERE amount < 0
-    AND booked_on > date({LATEST_DAY}, '-3 months')
-  GROUP BY name
-),
-ranked AS (
-  SELECT name, total_eur, ROW_NUMBER() OVER (ORDER BY total_eur DESC) AS place
-  FROM by_category
-)
-SELECT CASE WHEN place <= 5 THEN name ELSE 'Other' END AS category,
-       ROUND(SUM(total_eur), 2) AS total_eur
-FROM ranked
-GROUP BY 1
-ORDER BY MIN(place)
-"""
-
-CATEGORY_CODE = """\
-const short = (name) => (name.length > 18 ? name.slice(0, 17) + '.' : name);
-const slices = pie(data, { value: 'total_eur' });
-return defineChart({
-  marks: [
-    polar({
-      inset: 6,
-      radiusRatio: 0.92,
-      marks: [
-        radialArc(slices, {
-          innerRadius: ({ radius }) => radius * 0.62,
-          color: (slice) => short(slice.category),
-          key: 'category',
-        }),
-      ],
-      scales: { angle: null, radius: null },
-    }),
-  ],
-  scales: { x: null, y: null },
-  color: { legend: colorLegend({ placement: 'bottom', itemWidth: 150 }) },
-  tooltip: {
-    use: tooltip,
-    format: (point) => point.datum.category + ': ' + eur(point.datum.total_eur),
-  },
-});"""
-
-# Income and spending as two groups per month. Two figures cannot sit in one row and be drawn
-# side by side, so the two halves are a UNION and the name of the half is a column of its own.
+# 2. Are we living within our income? Income and spending as two bars per month.
+#
+# Two figures cannot sit in one row and be drawn side by side, so the two halves are a UNION
+# and the name of the half is a column of its own.
 INCOME_SQL = f"""
 SELECT strftime('%Y-%m', booked_on) AS month,
        'Income' AS topic,
@@ -241,13 +250,147 @@ return defineChart({
   },
 });"""
 
-# The ten merchants the newest year of data spent the most at. Long names, so the bars lie down.
-MERCHANTS_SQL = f"""
+# 3. Where does the money go? The range's categories, the eight largest and the rest.
+#
+# Ranked bars and not a doughnut: a profile seeds about fifteen categories against a palette of
+# six, a household thinks in euros rather than in percent, and area is the weakest comparison
+# there is. The tail folds in the statement, which this one may because the statement is ours.
+CATEGORY_SQL = """
+WITH by_category AS (
+  SELECT coalesce(category, 'Needs review') AS name,
+         ROUND(-SUM(amount), 2) AS total_eur
+  FROM transaction_view
+  WHERE amount < 0
+  GROUP BY name
+),
+ranked AS (
+  SELECT name, total_eur, ROW_NUMBER() OVER (ORDER BY total_eur DESC) AS place
+  FROM by_category
+)
+SELECT CASE WHEN place <= 8 THEN name ELSE 'Other' END AS category,
+       ROUND(SUM(total_eur), 2) AS total_eur
+FROM ranked
+GROUP BY 1
+ORDER BY MIN(place)
+"""
+
+CATEGORY_CODE = """\
+return defineChart({
+  marks: [
+    barX(data, { x: 'total_eur', y: 'category', fill: palette[0], maxThickness: 32 }),
+  ],
+  scales: {
+    x: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
+    y: { scale: () => scaleBand().padding(0.22), axis: { tickLabels: { thin: false } } },
+  },
+  tooltip: {
+    use: tooltip,
+    format: (point) => point.datum.category + ': ' + eur(point.datum.total_eur),
+  },
+});"""
+
+# 4. What changed, and where? The newest month against the one before it, by category.
+#
+# Long rows, one figure per (period, category) pair, and the period is the series: two bars
+# per category name. The statement returns every category and `run_card` folds the tail, which
+# is why the columns are asked for in the order period, category, euros: `fold_rows` reads the
+# position, the group and the figure off that order, so the five largest categories are kept
+# and the rest becomes one 'Other' group per period (ticket 39's shared fold).
+COMPARISON_SQL = f"""
+WITH per_period AS (
+  SELECT CASE
+           WHEN strftime('%Y-%m', booked_on) = strftime('%Y-%m', {LATEST_DAY})
+           THEN 'This month' ELSE 'Last month'
+         END AS period,
+         coalesce(category, 'Needs review') AS category,
+         ROUND(-SUM(amount), 2) AS total_eur
+  FROM transaction_view
+  WHERE amount < 0
+    AND booked_on >= date({LATEST_DAY}, 'start of month', '-1 month')
+  GROUP BY period, category
+)
+SELECT period, category, total_eur
+FROM per_period
+ORDER BY SUM(total_eur) OVER (PARTITION BY category) DESC, category, period
+"""
+
+COMPARISON_CODE = """\
+return defineChart({
+  marks: [
+    barY(data, { x: 'category', y: 'total_eur', z: 'period', color: (row) => row.period, layout: group({ padding: 0.12 }), maxThickness: 32 }),
+  ],
+  scales: {
+    x: { scale: () => scaleBand().padding(0.2), axis: { tickLabels: { thin: false, rotate: -28 } } },
+    y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
+  },
+  color: { legend: colorLegend({ placement: 'bottom', itemWidth: 150 }) },
+  tooltip: {
+    use: tooltip,
+    format: (point) => point.datum.period + ', ' + point.datum.category + ': ' + eur(point.datum.total_eur),
+  },
+});"""
+
+# 5. What leaves every month regardless? The merchants that look like a standing payment.
+#
+# A heuristic and named as one on the card: seen in at least three of the last four months at
+# an amount whose largest month is within fifteen percent of its smallest, drawn as the average
+# of those months. We store no recurring flag and no contract, so this is what the bookings
+# themselves can say.
+REGULAR_MONTHS = 4
+REGULAR_SEEN = 3
+REGULAR_SPREAD = 1.15
+
+REGULAR_SQL = f"""
+WITH monthly AS (
+  SELECT coalesce(title, counterparty, description) AS merchant,
+         strftime('%Y-%m', booked_on) AS month,
+         -SUM(amount) AS eur
+  FROM transaction_view
+  WHERE amount < 0
+    AND booked_on > date({LATEST_DAY}, 'start of month', '-{REGULAR_MONTHS} months')
+  GROUP BY merchant, month
+)
+SELECT merchant,
+       ROUND(AVG(eur), 2) AS monthly_eur
+FROM monthly
+GROUP BY merchant
+HAVING COUNT(*) >= {REGULAR_SEEN}
+   AND MAX(eur) <= MIN(eur) * {REGULAR_SPREAD}
+ORDER BY monthly_eur DESC
+LIMIT 10
+"""
+
+REGULAR_CODE = """\
+return defineChart({
+  marks: [
+    barX(data, { x: 'monthly_eur', y: 'merchant', fill: palette[0], maxThickness: 32 }),
+  ],
+  scales: {
+    x: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
+    y: { scale: () => scaleBand().padding(0.22), axis: { tickLabels: { thin: false } } },
+  },
+  tooltip: {
+    use: tooltip,
+    format: (point) => point.datum.merchant + ': ' + eur(point.datum.monthly_eur),
+  },
+});"""
+
+REGULAR_PLAN = (
+    f"Chart plan: bar_horizontal, columns merchant and monthly_eur. A FinQuery default, and a "
+    f"heuristic rather than a list of contracts: a merchant counts as regular when it was paid "
+    f"in at least {REGULAR_SEEN} of the last {REGULAR_MONTHS} months and its largest month is "
+    f"within {round((REGULAR_SPREAD - 1) * 100)} percent of its smallest. The bar is the average "
+    f"of those months. FinQuery stores no recurring flag, so a yearly bill, a first month and a "
+    f"changed price are all outside it."
+)
+
+# 6. Who gets the most? The ten merchants the range spent the most at. Long names, so the bars
+# lie down. Scoped by the range like every other card, rather than by the calendar year.
+MERCHANTS_SQL = """
 SELECT coalesce(title, counterparty, description) AS merchant,
        ROUND(-SUM(amount), 2) AS total_eur
 FROM transaction_view
 WHERE amount < 0
-  AND strftime('%Y', booked_on) = strftime('%Y', {LATEST_DAY})
 GROUP BY merchant
 ORDER BY total_eur DESC
 LIMIT 10
@@ -268,39 +411,91 @@ return defineChart({
   },
 });"""
 
+# The order is the order of the questions a household asks: where is the trend going, are we
+# living within our income, where does the money go, what changed, what is fixed, who gets the
+# most. It is also the position order on the page.
 DEFAULTS: tuple[DefaultChart, ...] = (
-    DefaultChart("Spending per month", "line", MONTHLY_SQL, MONTHLY_CODE),
-    DefaultChart("Spending by category, last three months", "doughnut", CATEGORY_SQL, CATEGORY_CODE),
-    DefaultChart("Income against spending per month", "bar_grouped", INCOME_SQL, INCOME_CODE),
-    DefaultChart("Top ten merchants this year", "bar_horizontal", MERCHANTS_SQL, MERCHANTS_CODE),
+    DefaultChart("spending_per_month", "Spending per month", "bar", MONTHLY_SQL, MONTHLY_CODE),
+    DefaultChart(
+        "income_against_spending",
+        "Income against spending per month",
+        "bar_grouped",
+        INCOME_SQL,
+        INCOME_CODE,
+    ),
+    DefaultChart("top_categories", "Top categories", "bar_horizontal", CATEGORY_SQL, CATEGORY_CODE),
+    DefaultChart(
+        "month_over_month",
+        "This month against last month",
+        "bar_grouped",
+        COMPARISON_SQL,
+        COMPARISON_CODE,
+    ),
+    DefaultChart(
+        "regular_payments",
+        "Regular payments",
+        "bar_horizontal",
+        REGULAR_SQL,
+        REGULAR_CODE,
+        plan=REGULAR_PLAN,
+    ),
+    DefaultChart(
+        "top_merchants", "Top ten merchants", "bar_horizontal", MERCHANTS_SQL, MERCHANTS_CODE
+    ),
 )
 
 
-def ensure_defaults(session: Session, profile: Profile) -> None:
-    """Put the four default cards on a dashboard that has never had them.
+def _seed(session: Session, profile_id: str, default: DefaultChart, position: int) -> None:
+    """Write one default onto a dashboard, at a position the caller has counted."""
+    session.add(
+        DashboardChart(
+            profile_id=profile_id,
+            position=position,
+            title=default.title,
+            shape=default.shape,
+            language="en",
+            request="",
+            plan=default.plan_line(),
+            sql=default.sql.strip(),
+            code=default.code,
+            created_from="default",
+            default_key=default.key,
+        )
+    )
 
-    Once per profile, marked on the profile itself: a dashboard the user emptied stays empty.
+
+def ensure_defaults(session: Session, profile: Profile) -> None:
+    """Put the six default cards on a dashboard that has never had them.
+
+    Once per profile, marked on the profile itself: a dashboard the user emptied stays empty,
+    and a profile that was seeded before ticket 51 keeps the four it was given. Restoring the
+    set is a deliberate action on the page (`restore_defaults`), never something a load does.
     """
     if profile.dashboard_seeded:
         return
     profile.dashboard_seeded = True
     at = len(cards_of(session, profile.id))
     for index, default in enumerate(DEFAULTS):
-        session.add(
-            DashboardChart(
-                profile_id=profile.id,
-                position=at + index,
-                title=default.title,
-                shape=default.shape,
-                language="en",
-                request="",
-                plan=f"Chart plan: {default.shape}, columns from a fixed statement. A FinQuery default.",
-                sql=default.sql.strip(),
-                code=default.code,
-                created_from="default",
-            )
-        )
+        _seed(session, profile.id, default, at + index)
     session.commit()
+
+
+def restore_defaults(session: Session, profile: Profile) -> list[str]:
+    """Add every default this profile does not have, and return the keys that were added.
+
+    Matched by `default_key` and by nothing else, so a default the user renamed, moved or
+    edited counts as present and a card the user made is never touched. A profile seeded before
+    ticket 51 carries no key on any card, which is why the six arrive next to its old four: the
+    old cards are the user's now.
+    """
+    profile.dashboard_seeded = True
+    present = {card.default_key for card in cards_of(session, profile.id) if card.default_key}
+    missing = [default for default in DEFAULTS if default.key not in present]
+    at = len(cards_of(session, profile.id))
+    for index, default in enumerate(missing):
+        _seed(session, profile.id, default, at + index)
+    session.commit()
+    return [default.key for default in missing]
 
 
 def cards_of(session: Session, profile_id: str) -> list[DashboardChart]:
