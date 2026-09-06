@@ -32,3 +32,10 @@ Hosted development runs on OpenRouter with `qwen/qwen3.5-9b` on both slots (set 
 because Qwen3.5 9B is the model class the local provider ships. Do not switch a verification
 run to a stronger hosted model: what works on Gemini and fails on Qwen is a bug we want to see.
 The Monday demo runs on `FINQUERY_PROVIDER=local`.
+
+## Benchmarks and fine-tuning
+
+Benchmarks and fine-tuning run on the HPI scientific computing cluster (reached through the
+user's Tunnelblick VPN), never on the laptop and never against the OpenRouter key. The key is
+for the dev server and short browser verifications only. Gemini and other stronger hosted
+models are not benchmarked: the candidates are the local models the product can ship.
