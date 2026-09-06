@@ -115,8 +115,8 @@ export function AppSidebar() {
           strip's hairline and New chat is centred on the page title. `size="lg"` keeps the rail's
           unpadded square for the 32px mark; `h-8 p-0` gives the expanded row the height of every
           other row, with the mark on the icon axis. */}
-      <SidebarHeader className="px-4 group-data-[collapsible=icon]:px-2">
-        <SidebarMenu>
+      <SidebarHeader className="px-4 pt-3 pb-2 group-data-[collapsible=icon]:px-2">
+        <SidebarMenu className="gap-3">
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="h-8 p-0" size="lg" tooltip="FinQuery">
               <Link onClick={followed} to="/">
@@ -137,7 +137,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup className="px-4 group-data-[collapsible=icon]:px-2">
+        <SidebarGroup className="px-4 pt-4 group-data-[collapsible=icon]:px-2">
           <SidebarGroupContent>
             <SidebarMenu>
               {PAGES.map((page) => (
