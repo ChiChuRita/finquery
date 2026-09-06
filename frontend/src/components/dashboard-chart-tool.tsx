@@ -33,7 +33,7 @@ import { useWorkspace } from '@/lib/workspace'
 function Undo({ cardId, callId }: { cardId: string; callId: string }) {
   const { profile } = useWorkspace()
   const queryClient = useQueryClient()
-  const card = useQuery(dashboardChartQuery(profile?.id, cardId))
+  const card = useQuery(dashboardChartQuery(profile?.id, cardId, callId))
   const undoable = card.data?.undo_call_id === callId
 
   const act = useMutation({
@@ -41,13 +41,15 @@ function Undo({ cardId, callId }: { cardId: string; callId: string }) {
       if (!profile) throw new Error('No profile is active yet.')
       return undoDashboardChart(profile.id, cardId, callId)
     },
-    onSuccess: async (next) => {
-      queryClient.setQueryData(dashboardChartQuery(profile?.id, cardId).queryKey, next)
+    // Every card in every transcript that is about this chart is now wrong, not only this one,
+    // so they all ask again rather than being written to one by one.
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['dashboard-chart'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       void queryClient.invalidateQueries(dashboardPinsQuery(profile?.id))
     },
     // A refused Undo is a card that has moved on, so ask the server what it looks like now.
-    onError: () => queryClient.invalidateQueries(dashboardChartQuery(profile?.id, cardId)),
+    onError: () => queryClient.invalidateQueries({ queryKey: ['dashboard-chart'] }),
   })
 
   if (card.isPending) return null
@@ -88,7 +90,9 @@ export function DashboardChartToolStep({ part }: { part: DashboardChartToolPart 
       <ChartCard>
         <ChartCardHeader title="Working on that chart..." />
         <RunningBody />
-        <Footer running />
+        {/* Keyed, so the finished card below gets a fresh Footer: the running one opens its
+            details by itself, and without a remount the drawn card would inherit that. */}
+        <Footer key="running" running />
       </ChartCard>
     )
   }
@@ -119,6 +123,7 @@ export function DashboardChartToolStep({ part }: { part: DashboardChartToolPart 
         </div>
       )}
       <Footer
+        key="done"
         actions={
           <span className="flex items-center gap-2">
             <span className="flex items-center gap-1 text-muted-foreground text-xs">

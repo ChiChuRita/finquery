@@ -1258,10 +1258,18 @@ export const pinChartToDashboard = (profileId: string, turn_id: string, tool_cal
   })
 
 /** One card by id, removed or not. A card in a transcript reads whether its own Undo still
- *  applies from here, the way a changeset card reads its status from the server. */
-export const dashboardChartQuery = (profileId: string | undefined, id: string | undefined) =>
+ *  applies from here, the way a changeset card reads its status from the server.
+ *
+ * `change` is the tool call the asking card belongs to, and it is part of the key: two cards in
+ * one transcript can be about the same chart, and the newer one must not be answered out of the
+ * older one's cache entry, which was written before its own change happened. */
+export const dashboardChartQuery = (
+  profileId: string | undefined,
+  id: string | undefined,
+  change?: string,
+) =>
   queryOptions({
-    queryKey: ['dashboard-chart', { profileId, id }],
+    queryKey: ['dashboard-chart', { profileId, id, change }],
     queryFn: () => request<DashboardChart>(`/api/dashboard/charts/${id}?profile_id=${profileId}`),
     enabled: profileId !== undefined && id !== undefined,
   })
