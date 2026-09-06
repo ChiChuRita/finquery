@@ -1,0 +1,657 @@
+{
+  "rows": [
+    {
+      "token": "lidl",
+      "summary": "Lidl is a major German international discount supermarket chain selling groceries, fresh produce, and everyday household items.",
+      "category": "Groceries",
+      "subcategory": "Supermarket",
+      "confidence": 0.99,
+      "sources": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Lidl",
+          "title": "Lidl - Wikipedia"
+        },
+        {
+          "url": "https://www.lidl.com/",
+          "title": "Lidl US | Grocery Store | More to Value"
+        }
+      ],
+      "searches": 1,
+      "fetches": 0,
+      "seconds": 4.530677417002153,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "what is lidl"
+      ],
+      "fetched": [],
+      "description": "LIDL DANKT IHNEN",
+      "counterparty": "LIDL Vertriebs GmbH",
+      "model_requests": 2,
+      "input_tokens": 3021,
+      "output_tokens": 288
+    },
+    {
+      "token": "dm drogerie",
+      "summary": "dm-drogerie markt is a major German retail chain specializing in cosmetics, healthcare, personal care, household goods, and organic groceries.",
+      "category": "Groceries",
+      "subcategory": "Drugstore",
+      "confidence": 0.99,
+      "sources": [],
+      "searches": 0,
+      "fetches": 0,
+      "seconds": 1.8976392920012586,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "description": "DM FIL 8817 BERLIN",
+      "counterparty": "dm drogerie markt",
+      "model_requests": 1,
+      "input_tokens": 1324,
+      "output_tokens": 141
+    },
+    {
+      "token": "netto marken discount",
+      "summary": "Netto Marken-Discount is a major German discount supermarket chain selling groceries and household items.",
+      "category": "Groceries",
+      "subcategory": "Supermarket",
+      "confidence": 0.99,
+      "sources": [],
+      "searches": 0,
+      "fetches": 0,
+      "seconds": 1.7045688749640249,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "description": "NETTO FILIALE 3312",
+      "counterparty": "NETTO MARKEN-DISCOUNT",
+      "model_requests": 1,
+      "input_tokens": 1324,
+      "output_tokens": 122
+    },
+    {
+      "token": "lieferando",
+      "summary": "German online food ordering and delivery platform operated by Just Eat Takeaway.",
+      "category": "Dining",
+      "subcategory": "Delivery",
+      "confidence": 0.95,
+      "sources": [
+        {
+          "url": "https://de.wikipedia.org/wiki/Lieferando",
+          "title": "Lieferando – Wikipedia"
+        },
+        {
+          "url": "https://www.lieferando.de/",
+          "title": "Lieferando.de | Essen & mehr bestellen - Lieferservice & Abholung"
+        }
+      ],
+      "searches": 1,
+      "fetches": 0,
+      "seconds": 3.982516125019174,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "lieferando"
+      ],
+      "fetched": [],
+      "description": "LIEFERANDO BESTELLUNG",
+      "counterparty": "Lieferando.de",
+      "model_requests": 2,
+      "input_tokens": 2989,
+      "output_tokens": 215
+    },
+    {
+      "token": "dean david",
+      "summary": "Fast casual dining chain in Germany offering fresh salads, bowls, sandwiches, and takeaway food.",
+      "category": "Dining",
+      "subcategory": "Takeaway",
+      "confidence": 0.9,
+      "sources": [
+        {
+          "url": "https://www.tripadvisor.de/Restaurant_Review-g187291-d1879136-Reviews-Dean_David-Stuttgart_Baden_Wurttemberg.html",
+          "title": "DEAN & DAVID, Stuttgart - Menü, Preise & Restaurant Bewertungen - Tripadvisor"
+        }
+      ],
+      "searches": 1,
+      "fetches": 0,
+      "seconds": 5.406446959008463,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "dean david restaurant"
+      ],
+      "fetched": [],
+      "description": "DEAN+DAVID 1188",
+      "counterparty": "DEAN AND DAVID",
+      "model_requests": 2,
+      "input_tokens": 3286,
+      "output_tokens": 242
+    },
+    {
+      "token": "doener haus kreuzberg",
+      "summary": "Döner kebab food stall / takeaway restaurant in Kreuzberg, Berlin.",
+      "category": "Dining",
+      "subcategory": "Takeaway",
+      "confidence": 0.95,
+      "sources": [],
+      "searches": 0,
+      "fetches": 0,
+      "seconds": 1.7327983339782804,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "description": "DOENER HAUS",
+      "counterparty": "Döner Haus Kreuzberg",
+      "model_requests": 1,
+      "input_tokens": 1326,
+      "output_tokens": 124
+    },
+    {
+      "token": "cafe milchbart",
+      "summary": "Eltern-Kind-Café in Berlin offering coffee, cake, snacks, and play areas for children.",
+      "category": "Dining",
+      "subcategory": "Cafe",
+      "confidence": 0.95,
+      "sources": [
+        {
+          "url": "https://www.top10berlin.de/de/cat/familie-275/kindercafes-1263/kindercafe-milchbart-514",
+          "title": "Kindercafé Milchbart - Kindercafés | Top10berlin"
+        },
+        {
+          "url": "https://www.speisekarte.de/berlin/restaurant/kindercafe_milchbart",
+          "title": "Kindercafé Milchbart in Berlin – speisekarte.de"
+        }
+      ],
+      "searches": 1,
+      "fetches": 0,
+      "seconds": 3.970162292011082,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "cafe milchbart"
+      ],
+      "fetched": [],
+      "description": "CAFE MILCHBART",
+      "counterparty": "Cafe Milchbart",
+      "model_requests": 2,
+      "input_tokens": 3151,
+      "output_tokens": 243
+    },
+    {
+      "token": "vapiano mitte",
+      "summary": "Vapiano is an Italian fast-casual restaurant chain serving freshly made pasta, pizza, and salads.",
+      "category": "Dining",
+      "subcategory": "Restaurant",
+      "confidence": 0.95,
+      "sources": [
+        {
+          "url": "https://www.tripadvisor.de/Restaurant_Review-g187323-d778662-Reviews-Vapiano-Berlin.html",
+          "title": "VAPIANO, Berlin - Mittelstr. 51, Mitte (Bezirk) - Restaurant Bewertungen & Telefonnummer - Tripadvisor"
+        },
+        {
+          "url": "https://www.berlin.kauperts.de/eintrag/VAPIANO-Mittelstrasse-51-10117-Berlin",
+          "title": "VAPIANO - Mittelstraße - Internationale Küche in Berlin Mitte - KAUPERTS"
+        }
+      ],
+      "searches": 1,
+      "fetches": 0,
+      "seconds": 4.678385999985039,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "vapiano mitte"
+      ],
+      "fetched": [],
+      "description": "VAPIANO MITTE",
+      "counterparty": "VAPIANO Berlin Mitte",
+      "model_requests": 2,
+      "input_tokens": 3316,
+      "output_tokens": 267
+    },
+    {
+      "token": "uber",
+      "summary": "Uber is a ride-hailing service providing on-demand passenger transport and mobility services.",
+      "category": "Transport",
+      "subcategory": "Ride hailing",
+      "confidence": 0.95,
+      "sources": [],
+      "searches": 0,
+      "fetches": 0,
+      "seconds": 1.9965981249697506,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "description": "UBER TRIP HELP.UBER.COM",
+      "counterparty": "UBER BV",
+      "model_requests": 1,
+      "input_tokens": 1321,
+      "output_tokens": 133
+    },
+    {
+      "token": "shell",
+      "summary": "Shell is a multinational oil and gas company operating a widespread network of petrol and service stations selling vehicle fuel and convenience goods.",
+      "category": "Transport",
+      "subcategory": "Fuel",
+      "confidence": 0.95,
+      "sources": [],
+      "searches": 0,
+      "fetches": 0,
+      "seconds": 1.9299703339929692,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "description": "SHELL STATION 1204",
+      "counterparty": "SHELL DEUTSCHLAND",
+      "model_requests": 1,
+      "input_tokens": 1321,
+      "output_tokens": 140
+    },
+    {
+      "token": "telekom",
+      "summary": "German telecommunications company offering mobile phone, landline, internet, and TV services.",
+      "category": "Communication",
+      "subcategory": "Mobile",
+      "confidence": 0.95,
+      "sources": [
+        {
+          "url": "https://www.telekom.de/start",
+          "title": "Telekom | Mobilfunk, Festnetz & Internet und TV"
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Telekom_Deutschland",
+          "title": "Telekom Deutschland - Wikipedia"
+        }
+      ],
+      "searches": 1,
+      "fetches": 0,
+      "seconds": 4.07281929202145,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "telekom deutschland"
+      ],
+      "fetched": [],
+      "description": "MAGENTA ZUHAUSE 100 MBIT",
+      "counterparty": "Telekom Deutschland GmbH",
+      "model_requests": 2,
+      "input_tokens": 2988,
+      "output_tokens": 228
+    },
+    {
+      "token": "adobe systems software",
+      "summary": "Adobe Inc. is a major computer software company providing digital media, creativity, and document management applications, typically sold via subscription.",
+      "category": "Subscriptions",
+      "subcategory": "Software",
+      "confidence": 0.95,
+      "sources": [
+        {
+          "url": "https://www.adobe.com/de/",
+          "title": "Adobe: Kreativität, Marketing und Dokumenten-Management"
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Adobe_Inc.",
+          "title": "Adobe Inc. - Wikipedia"
+        }
+      ],
+      "searches": 1,
+      "fetches": 0,
+      "seconds": 4.402599374996498,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "adobe systems software"
+      ],
+      "fetched": [],
+      "description": "ADOBE CREATIVE CLOUD ABO",
+      "counterparty": "ADOBE SYSTEMS SOFTWARE",
+      "model_requests": 2,
+      "input_tokens": 3020,
+      "output_tokens": 207
+    },
+    {
+      "token": "bvg berliner verkehrsbetriebe",
+      "summary": "Berliner Verkehrsbetriebe (BVG) is the main public transport company in Berlin, operating U-Bahn, trams, buses, and ferries.",
+      "category": "Transport",
+      "subcategory": "Public transport",
+      "confidence": 0.99,
+      "sources": [],
+      "searches": 0,
+      "fetches": 0,
+      "seconds": 1.791973500046879,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "description": "DEUTSCHLANDTICKET 03/2025",
+      "counterparty": "BVG Berliner Verkehrsbetriebe",
+      "model_requests": 1,
+      "input_tokens": 1329,
+      "output_tokens": 138
+    },
+    {
+      "token": "vattenfall sales",
+      "summary": "Vattenfall Sales GmbH is a major German energy supplier providing electricity and gas tariffs to households.",
+      "category": "Housing",
+      "subcategory": "Electricity",
+      "confidence": 0.95,
+      "sources": [
+        {
+          "url": "https://www.vattenfall.de/",
+          "title": "Vattenfall - Ihr Energieversorger für Ökostrom & Gas"
+        },
+        {
+          "url": "https://www.verivox.de/strom/anbieter/vattenfall-sales/",
+          "title": "Strom bei Vattenfall Sales: Tarife im Vergleich | Verivox"
+        }
+      ],
+      "searches": 1,
+      "fetches": 0,
+      "seconds": 4.767623958003242,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "vattenfall sales"
+      ],
+      "fetched": [],
+      "description": "STROM ABSCHLAG 03/2025",
+      "counterparty": "Vattenfall Europe Sales GmbH",
+      "model_requests": 2,
+      "input_tokens": 3070,
+      "output_tokens": 245
+    },
+    {
+      "token": "allianz versicherungs",
+      "summary": "Allianz is a major German multinational financial services and insurance company offering liability, life, health, and property insurance.",
+      "category": "Insurance",
+      "subcategory": null,
+      "confidence": 0.95,
+      "sources": [],
+      "searches": 0,
+      "fetches": 0,
+      "seconds": 1.8449796250206418,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "description": "HAUSRAT UND HAFTPFLICHT 03/2025",
+      "counterparty": "Allianz Versicherungs-AG",
+      "model_requests": 1,
+      "input_tokens": 1325,
+      "output_tokens": 138
+    },
+    {
+      "token": "sparkasse geldautomat",
+      "summary": "Sparkasse Geldautomat (ATM) for cash withdrawals.",
+      "category": "Cash",
+      "subcategory": "Cash withdrawal",
+      "confidence": 0.99,
+      "sources": [],
+      "searches": 0,
+      "fetches": 0,
+      "seconds": 1.5208581250044517,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "description": "GA NR00012345 BLZ12030000 01.03/BERLIN",
+      "counterparty": "Sparkasse Geldautomat",
+      "model_requests": 1,
+      "input_tokens": 1324,
+      "output_tokens": 106
+    },
+    {
+      "token": "hausverwaltung bergmann",
+      "summary": "German property management company (Hausverwaltung) managing residential real estate and collecting rent/utilities",
+      "category": "Housing",
+      "subcategory": "Rent",
+      "confidence": 0.95,
+      "sources": [
+        {
+          "url": "https://bergmann-immo.com/hausverwaltung/",
+          "title": "Hausverwaltung – Bergmann Immobilienmanagement"
+        },
+        {
+          "url": "https://www.immo-bergmann.com/",
+          "title": "Hausverwaltung Kaiserslautern, Pfalz, Saarland"
+        }
+      ],
+      "searches": 1,
+      "fetches": 0,
+      "seconds": 4.198545582999941,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "hausverwaltung bergmann"
+      ],
+      "fetched": [],
+      "description": "MIETE WOHNUNG 12 03/2025",
+      "counterparty": "Hausverwaltung Bergmann GmbH",
+      "model_requests": 2,
+      "input_tokens": 3083,
+      "output_tokens": 214
+    },
+    {
+      "token": "mustermann systems",
+      "summary": "Likely a placeholder/test merchant or IT/electronics systems provider.",
+      "category": "Shopping",
+      "subcategory": "Electronics",
+      "confidence": 0.2,
+      "sources": [
+        {
+          "url": "https://www.canopen-lift.org/wiki/Max_Mustermann_GmbH_Systemtooltechnik",
+          "title": "Max Mustermann GmbH Systemtooltechnik - CANopen-Lift"
+        }
+      ],
+      "searches": 2,
+      "fetches": 0,
+      "seconds": 6.833796791965142,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "mustermann systems",
+        "\"mustermann systems\" gmbh unternehmen"
+      ],
+      "fetched": [],
+      "description": "GEHALT 03/2025 PERS.NR 4711",
+      "counterparty": "Mustermann Systems GmbH",
+      "model_requests": 3,
+      "input_tokens": 5285,
+      "output_tokens": 342
+    },
+    {
+      "token": "zahnarztpraxis dr lorenz",
+      "summary": "Dental practice (Zahnarztpraxis) offering dental and oral healthcare services.",
+      "category": "Health",
+      "subcategory": "Doctor",
+      "confidence": 0.95,
+      "sources": [
+        {
+          "url": "https://zahngesundheit-ueberlingen.de/",
+          "title": "Zahnarzt Praxis Dr. Lorenz & Kollegen | Überlingen – Praxis für Zahngesundheit"
+        },
+        {
+          "url": "https://www.zahnarzt-lorenz.de/",
+          "title": "Willkommen | Zahnarztpraxis Dr. Carsten Lorenz"
+        }
+      ],
+      "searches": 1,
+      "fetches": 0,
+      "seconds": 4.993538749986328,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "zahnarztpraxis dr lorenz"
+      ],
+      "fetched": [],
+      "description": "RECHNUNG 2025-8841",
+      "counterparty": "Zahnarztpraxis Dr. Lorenz",
+      "model_requests": 2,
+      "input_tokens": 3000,
+      "output_tokens": 360
+    },
+    {
+      "token": "apotheke",
+      "summary": "German word for pharmacy, selling prescription medications, over-the-counter drugs, and healthcare products.",
+      "category": "Health",
+      "subcategory": "Pharmacy",
+      "confidence": 0.99,
+      "sources": [],
+      "searches": 0,
+      "fetches": 0,
+      "seconds": 2.379493208019994,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "description": "APOTHEKE AM MARKT",
+      "counterparty": "Apotheke am Markt",
+      "model_requests": 1,
+      "input_tokens": 1322,
+      "output_tokens": 108
+    },
+    {
+      "token": "",
+      "summary": "",
+      "category": null,
+      "subcategory": null,
+      "confidence": 0.0,
+      "sources": [],
+      "searches": 0,
+      "fetches": 0,
+      "seconds": 0.0,
+      "cached": false,
+      "refused": "That booking names a person, and a person's name never leaves this machine, so nothing was looked up.",
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "description": "PP.4711.PP . ANNA WEBER, Ihre Zahlung",
+      "counterparty": "PayPal Europe S.a.r.l.",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    }
+  ],
+  "outbound": [
+    {
+      "token": "lidl",
+      "kind": "search",
+      "target": "what is lidl",
+      "status": "ok",
+      "seconds": 0.9197781659895554,
+      "note": "5 hits: https://en.wikipedia.org/wiki/Lidl; https://simple.wikipedia.org/wiki/Lidl; https://en.wikipedia.org/wiki/Schwarz_Group; https://parade.com/food/what-is-lidl-grocery-store; https://www.lidl.com/"
+    },
+    {
+      "token": "lieferando",
+      "kind": "search",
+      "target": "lieferando",
+      "status": "ok",
+      "seconds": 0.6907006250112318,
+      "note": "5 hits: https://de.wikipedia.org/wiki/Lieferando; https://www.lieferando.de/en; https://www.lieferando.de/; https://www.lieferando.de/lieferdienst; https://www.lieferando.de/lieferdienst/berlin"
+    },
+    {
+      "token": "dean david",
+      "kind": "search",
+      "target": "dean david restaurant",
+      "status": "ok",
+      "seconds": 0.767301874991972,
+      "note": "5 hits: https://www.tripadvisor.de/Restaurant_Review-g187291-d1879136-Reviews-Dean_David-Stuttgart_Baden_Wurttemberg.html; https://www.tripadvisor.de/Restaurant_Review-g187371-d8015566-Reviews-Dean_David-Cologne_North_Rhine_Westphalia.html; https://www.tripadvisor.de/Restaurant_Review-g187375-d12653828-Reviews-Dean_David-Essen_North_Rhine_Westphalia.html; https://www.tripadvisor.de/Restaurant_Review-g187323-d11855164-Reviews-Dean_David-Berlin.html; https://www.tripadvisor.de/Restaurant_Review-g187309-d3483468-Reviews-Dean_and_David-Munich_Upper_Bavaria_Bavaria.html"
+    },
+    {
+      "token": "cafe milchbart",
+      "kind": "search",
+      "target": "cafe milchbart",
+      "status": "ok",
+      "seconds": 0.7444067919859663,
+      "note": "5 hits: https://www.berliner-freizeit-tipps.de/eltern-kind-cafe-milchbart-im-prenzlauerberg/; https://www.top10berlin.de/de/cat/familie-275/kindercafes-1263/kindercafe-milchbart-514; https://www.speisekarte.de/berlin/restaurant/kindercafe_milchbart; https://www.speisekarte.de/berlin/restaurant/milchbart_das_eltern_kind_cafe; https://www.mamilade.de/berlin/berlin/essen/cafe/eltern-kind-cafe-milchbart-berlin"
+    },
+    {
+      "token": "vapiano mitte",
+      "kind": "search",
+      "target": "vapiano mitte",
+      "status": "ok",
+      "seconds": 0.9113482909742743,
+      "note": "5 hits: https://www.tripadvisor.de/Restaurant_Review-g187323-d778662-Reviews-Vapiano-Berlin.html; https://www.berlin.kauperts.de/eintrag/VAPIANO-Mittelstrasse-51-10117-Berlin; https://www.holidaycheck.de/pi/vapiano-berlin-3/f7a76d6a-b2c4-3d71-b88c-5da3f90add06; https://www.tripadvisor.de/Restaurant_Review-g187323-d7110715-Reviews-VAPIANO_Berlin_Alexanderplatz-Berlin.html; https://wolt.com/de-at/aut/vienna/restaurant/vapiano-wien-mitte"
+    },
+    {
+      "token": "telekom",
+      "kind": "search",
+      "target": "telekom deutschland",
+      "status": "ok",
+      "seconds": 0.5161248749936931,
+      "note": "5 hits: https://en.wikipedia.org/wiki/Telekom_Deutschland; https://en.wikipedia.org/wiki/Deutsche_Telekom; https://www.telekom.de/start; https://www.telekom.de/kontakt; https://www.telekom.de/ueber-das-unternehmen"
+    },
+    {
+      "token": "adobe systems software",
+      "kind": "search",
+      "target": "adobe systems software",
+      "status": "ok",
+      "seconds": 1.0638487089890987,
+      "note": "5 hits: https://en.wikipedia.org/wiki/Adobe_Inc.; https://www.adobe.com/de/; https://softwareindustrie24.de/adobe/; https://shop.sfc-software.de/Markenwelt/Adobe/; https://www.ebay.de/b/Adobe-Systems-Buro-und-Business-Software-fur-Windows/3768/bn_797270"
+    },
+    {
+      "token": "vattenfall sales",
+      "kind": "search",
+      "target": "vattenfall sales",
+      "status": "ok",
+      "seconds": 0.5100107089965604,
+      "note": "5 hits: https://de.wikipedia.org/wiki/Vattenfall_(Deutschland); https://www.vattenfall.de/; https://www.verivox.de/strom/anbieter/vattenfall-sales/; https://www.hamburg.de/branchenbuch/hamburg/eintrag/10144154/; https://talents.studysmarter.de/companies/vattenfall-sales-gmbh/"
+    },
+    {
+      "token": "hausverwaltung bergmann",
+      "kind": "search",
+      "target": "hausverwaltung bergmann",
+      "status": "ok",
+      "seconds": 0.7420519160223193,
+      "note": "5 hits: https://www.immo-bergmann.com/; https://bergmann-immo.com/hausverwaltung/; https://www.gelbeseiten.de/gsbiz/818ed58e-3f3a-4354-b987-4a63e071c691; https://www.dasoertliche.de/Themen/Claudia-Bergmann-Immobilien-Hausverwaltung-Hamburg-Lemsahl-Mellingstedt-Raamfeld; https://www.primaprofi.de/hausverwaltung/firmen/bergmann-immobilien/"
+    },
+    {
+      "token": "mustermann systems",
+      "kind": "search",
+      "target": "mustermann systems",
+      "status": "ok",
+      "seconds": 0.6678510420024395,
+      "note": "5 hits: https://muenstermann.com/en/core-competencies/automated-process-plants/robotics-systems; https://github.com/sinatra/mustermann/blob/main/README.md; https://github.com/sinatra/mustermann/blob/master/mustermann/README.md; https://sinatrarb.com/2026/04/27/mustermann-4.0.html; https://www.canopen-lift.org/wiki/Max_Mustermann_GmbH_Systemtooltechnik"
+    },
+    {
+      "token": "mustermann systems",
+      "kind": "search",
+      "target": "\"mustermann systems\" gmbh unternehmen",
+      "status": "ok",
+      "seconds": 0.6417543750139885,
+      "note": "5 hits: https://www.computer-automation.de/company/mustermann-gmbh.htm; https://de.linkedin.com/company/mustermann-gmbh; https://www.ratedo.de/profil/mustermann-gmbh; https://www.foerderkreis-dorfen.de/branchenbuch/firma-mustermann-3; https://www.kununu.com/de/mustermann1"
+    },
+    {
+      "token": "zahnarztpraxis dr lorenz",
+      "kind": "search",
+      "target": "zahnarztpraxis dr lorenz",
+      "status": "ok",
+      "seconds": 0.7108437500428408,
+      "note": "5 hits: https://zahngesundheit-ueberlingen.de/; https://www.zahnarzt-lorenz.de/; http://www.dr-lorenz.de/; https://ihre-zahnaerzte-wiesbaden.de/; https://www.zahnaerzte-lorenz.de/"
+    }
+  ]
+}

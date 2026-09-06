@@ -1,0 +1,16 @@
+Combi. Frisch. Nebenan.           1 search, 0 fetch -> Groceries > Supermarket 0.95: Combi is a German supermarket chain operating in northwestern Germany selling fo
+HIT-Tankstelle                   REFUSED: That booking names a person, and a person's name never leaves this machine, so nothing was looked up.
+Saurüsselalm                      1 search, 0 fetch -> Dining > Restaurant 0.95: Alpine pasture restaurant (Alm) in Bad Wiessee am Tegernsee offering regional cu
+NEUHAUSER AUGUSTINER             REFUSED: That booking names a person, and a person's name never leaves this machine, so nothing was looked up.
+Fressnapf Köln-Ehrenfeld         REFUSED: That booking names a person, and a person's name never leaves this machine, so nothing was looked up.
+Ecenter EDEKA                    dictionary -> EDEKA (Groceries)
+SCHLÖCKER                         4 search, 0 fetch -> Groceries > Drugstore 0.30: Likely typo/variant for Schlecker, a former major German drugstore chain (Droger
+VOGTLANDBAHN-GMBH                 3 search, 0 fetch -> Transport > Public transport 0.95: Regional railway service operated by Die Länderbahn in Germany and the Czech Rep
+Kreiller Str. 81673 München      REFUSED: That booking names a person, and a person's name never leaves this machine, so nothing was looked up.
+ALDI HESEL, IM BRINK 8           dictionary -> ALDI (Groceries)
+ROSSMANN Mein Drogeriemarkt      dictionary -> Rossmann (Groceries)
+Esso Station                     dictionary -> Esso (Transport)
+EDEKA Sander                     dictionary -> EDEKA (Groceries)
+OBI Baumarkt                     dictionary -> OBI (Shopping)
+HANS IM GLUECK Burgergrill        1 search, 0 fetch -> Dining > Restaurant 0.95: Hans im Glück is a German burger restaurant and bar chain serving burgers, salad
+ROSSMANN Drogeriemarkt           dictionary -> Rossmann (Groceries)

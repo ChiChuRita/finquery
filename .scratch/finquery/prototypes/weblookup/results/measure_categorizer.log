@@ -1,0 +1,132 @@
+74 candidates, 2 placed by the dictionary: ['Zahnarztpraxis Dr. Lorenz', 'Shop Apotheke B.V.']
+72 merchants go to the measurement
+
+A done: 3 model calls
+  lookup Hausverwaltung Bergmann GmbH                  cache -> Housing/Rent 0.95
+  lookup Mustermann Systems GmbH                       cache -> Shopping/Electronics 0.20
+  lookup PayPal Europe S.a.r.l.                      REFUSED -> None/None 0.00
+  lookup PayPal Europe S.a.r.l.                      REFUSED -> None/None 0.00
+  lookup Combi Verbrauchermarkt                     1s/0f 4s -> Groceries/Supermarket 0.95
+  lookup HIT Handelsgruppe                          1s/0f 4s -> Groceries/Supermarket 0.95
+  lookup nahkauf Kraemer                            0s/0f 2s -> Groceries/Supermarket 0.95
+  lookup Brezelbaeckerei Ditsch GmbH                0s/0f 2s -> Groceries/Bakery 0.95
+  lookup BackFactory GmbH                           1s/0f 4s -> Groceries/Bakery 0.90
+  lookup BUDNI Handels- und Service GmbH            1s/0f 4s -> Groceries/Drugstore 0.95
+  lookup Flaschenpost SE                            1s/0f 5s -> Groceries/Supermarket 0.95
+  lookup HelloFresh Deutschland SE                  0s/0f 2s -> Groceries/Supermarket 0.95
+  lookup Metzgerei Huber                             REFUSED -> None/None 0.00
+  lookup NORDSEE GmbH                                  cache -> Dining/Takeaway 0.95
+  lookup Block House Restaurantbetriebe AG          0s/0f 2s -> Dining/Restaurant 0.95
+  lookup Five Guys Germany GmbH                      REFUSED -> None/None 0.00
+  lookup Coffee Fellows GmbH                         REFUSED -> None/None 0.00
+  lookup Espresso House Germany GmbH                 REFUSED -> None/None 0.00
+  lookup Sausalitos Holding GmbH                    1s/0f 5s -> Dining/Restaurant 0.95
+  lookup Peter Pane Burgergrill                     1s/0f 4s -> Dining/Restaurant 0.95
+  lookup Sixt GmbH & Co Autovermietung KG            REFUSED -> None/None 0.00
+  lookup MILES Mobility GmbH                         REFUSED -> None/None 0.00
+  lookup TIER Mobility SE                            REFUSED -> None/None 0.00
+  lookup FlixTrain GmbH                             0s/0f 2s -> Transport/Public transport 0.95
+  lookup JET Tankstellen Deutschland GmbH            REFUSED -> None/None 0.00
+  lookup Deutsche Tamoil GmbH                        REFUSED -> None/None 0.00
+  lookup ADAC e.V.                                  0s/0f 2s -> Transport/Car 0.95
+  lookup TEDi GmbH & Co. KG                         1s/0f 4s -> Shopping/Home 0.95
+  lookup Action Deutschland GmbH                   2s/0f 11s -> Shopping/Home 0.90
+  lookup KiK Textilien und Non-Food GmbH            0s/0f 2s -> Shopping/Clothing 0.95
+  lookup Deichmann SE                               1s/0f 6s -> Shopping/Clothing 0.95
+  lookup Parfuemerie Douglas GmbH                    REFUSED -> None/None 0.00
+  lookup Snipes SE                                  1s/0f 4s -> Shopping/Clothing 0.95
+  lookup Intersport Deutschland eG                  0s/0f 2s -> Shopping/Clothing 0.95
+  lookup toom Baumarkt GmbH                         0s/0f 2s -> Shopping/Home 0.95
+  lookup POCO Einrichtungsmaerkte GmbH               REFUSED -> None/None 0.00
+  lookup About You SE                                REFUSED -> None/None 0.00
+  lookup Temu                                       0s/0f 2s -> Shopping/Online marketplace 0.95
+  lookup Fressnapf Tiernahrungs GmbH                 REFUSED -> None/None 0.00
+  lookup Conrad Electronic SE                        REFUSED -> None/None 0.00
+  lookup Hugendubel Digital GmbH                    1s/0f 4s -> Leisure/Books 0.95
+  lookup Blumen Riedel                               REFUSED -> None/None 0.00
+  lookup Sky Deutschland Fernsehen GmbH              REFUSED -> None/None 0.00
+  lookup Deezer SA                                  1s/0f 4s -> Subscriptions/Music 0.95
+  lookup Xbox Game Pass                             0s/0f 2s -> Subscriptions/Software 0.95
+  lookup Duolingo Inc                               0s/0f 2s -> Education/Courses 0.95
+  lookup Zeit Online GmbH                           1s/0f 6s -> Subscriptions/News 0.95
+  lookup clever fit GmbH                            1s/0f 4s -> Health/Fitness 0.95
+  lookup FitX Deutschland GmbH                      1s/0f 5s -> Health/Fitness 0.95
+  lookup Apollo-Optik Holding GmbH                   REFUSED -> None/None 0.00
+  lookup Kieser Training AG                          REFUSED -> None/None 0.00
+  lookup Physiotherapie Am Park                      REFUSED -> None/None 0.00
+  lookup Debeka Krankenversicherungsverein a.        REFUSED -> None/None 0.00
+  lookup ERGO Versicherung AG                        REFUSED -> None/None 0.00
+  lookup BARMER                                     1s/0f 4s -> Insurance/Health insurance 0.95
+  lookup E.ON Energie Deutschland GmbH              1s/0f 4s -> Housing/Electricity 0.95
+  lookup Yello Strom GmbH                           1s/0f 5s -> Housing/Electricity 0.95
+  lookup Octopus Energy Germany GmbH                1s/0f 5s -> Housing/Electricity 0.95
+  lookup 1&1 Telecom GmbH                           1s/0f 4s -> Communication/Mobile 0.85
+  lookup freenet DLS GmbH                           1s/0f 5s -> Communication/Mobile 0.95
+  lookup CinemaxX Entertainment GmbH                 REFUSED -> None/None 0.00
+  lookup Tierpark Berlin-Friedrichsfelde GmbH        REFUSED -> None/None 0.00
+  lookup Jochen Schweizer GmbH                       REFUSED -> None/None 0.00
+  lookup Karls Markt OHG                            1s/0f 4s -> Leisure/Events 0.85
+  lookup ARD ZDF Deutschlandradio Beitragsser       0s/0f 2s -> Fees and taxes/Taxes 0.95
+  lookup Finanzamt Berlin Mitte/Tiergarten          0s/0f 2s -> Fees and taxes/Taxes 0.99
+  lookup Landeshauptkasse Berlin                    1s/0f 4s -> Fees and taxes/Taxes 0.85
+  lookup Trade Republic Bank GmbH                   0s/0f 2s -> Transfers/Savings 0.95
+  lookup Scalable Capital GmbH                       REFUSED -> None/None 0.00
+  lookup Bundesagentur fuer Arbeit                  0s/0f 2s -> Income/Other income 0.95
+  lookup Fahrschule Mobil GmbH                      0s/0f 2s -> Education/Courses 0.95
+  lookup VHS Berlin Mitte                            REFUSED -> None/None 0.00
+lookups: 41 ran, 28 refused, 66 model calls
+  widened PayPal Europe S.a.r.l.                     REFUSED -> None/None 0.00
+  widened PayPal Europe S.a.r.l.                     REFUSED -> None/None 0.00
+  widened Metzgerei Huber                            REFUSED -> None/None 0.00
+  widened Five Guys Germany GmbH                    1s/0f 4s -> Dining/Takeaway 0.95
+  widened Coffee Fellows GmbH                       1s/0f 8s -> Dining/Cafe 0.95
+  widened Espresso House Germany GmbH               1s/0f 5s -> Dining/Cafe 0.95
+  widened Sixt GmbH & Co Autovermietung KG          0s/0f 2s -> Transport/Car 0.99
+  widened MILES Mobility GmbH                       1s/0f 4s -> Transport/Car 0.95
+  widened TIER Mobility SE                          1s/0f 4s -> Transport/Public transport 0.95
+  widened JET Tankstellen Deutschland GmbH          1s/0f 4s -> Transport/Fuel 0.95
+  widened Deutsche Tamoil GmbH                      1s/0f 4s -> Transport/Fuel 0.95
+  widened Parfuemerie Douglas GmbH                  0s/0f 2s -> Groceries/Drugstore 0.95
+  widened POCO Einrichtungsmaerkte GmbH             0s/0f 2s -> Shopping/Home 0.95
+  widened About You SE                              0s/0f 2s -> Shopping/Clothing 0.95
+  widened Fressnapf Tiernahrungs GmbH               0s/0f 2s -> Shopping/Home 0.95
+  widened Conrad Electronic SE                      0s/0f 2s -> Shopping/Electronics 0.95
+  widened Blumen Riedel                              REFUSED -> None/None 0.00
+  widened Sky Deutschland Fernsehen GmbH            0s/0f 2s -> Subscriptions/Streaming 0.95
+  widened Apollo-Optik Holding GmbH                 1s/0f 4s -> Health/None 0.95
+  widened Kieser Training AG                        1s/0f 4s -> Health/Fitness 0.95
+  widened Physiotherapie Am Park                     REFUSED -> None/None 0.00
+  widened Debeka Krankenversicherungsverein a        REFUSED -> None/None 0.00
+  widened ERGO Versicherung AG                      0s/0f 2s -> Insurance/None 0.95
+  widened CinemaxX Entertainment GmbH               1s/0f 5s -> Leisure/Events 0.95
+  widened Tierpark Berlin-Friedrichsfelde Gmb       1s/0f 5s -> Leisure/Events 0.95
+  widened Jochen Schweizer GmbH                     1s/0f 7s -> Leisure/Events 0.95
+  widened Scalable Capital GmbH                     1s/0f 5s -> Transfers/Savings 0.95
+  widened VHS Berlin Mitte                           REFUSED -> None/None 0.00
+B done: 44 by the lookup, 28 by the model, 2 model calls
+B2 done: 65 by the lookup, 7 by the model, 1 model calls
+C done: 44 briefs, 3 model calls
+
+| arm | n | placed | placed and correct | placed and wrong | correct at any confidence | subcategory right |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| A model only (all) | 72 | 70/72 (97%) | 69/72 (96%) | 1 | 71/72 (99%) | 54/56 (96%) |
+| A model only (chain) | 48 | 48/48 (100%) | 47/48 (98%) | 1 | 47/48 (98%) | 35/37 (95%) |
+| A model only (local) | 24 | 22/24 (92%) | 22/24 (92%) | 0 | 24/24 (100%) | 19/19 (100%) |
+| B lookup then model (all) | 72 | 69/72 (96%) | 69/72 (96%) | 0 | 71/72 (99%) | 54/56 (96%) |
+| B lookup then model (chain) | 48 | 48/48 (100%) | 48/48 (100%) | 0 | 48/48 (100%) | 36/37 (97%) |
+| B lookup then model (local) | 24 | 21/24 (88%) | 21/24 (88%) | 0 | 23/24 (96%) | 18/19 (95%) |
+| B2 lookup (legal-form rule) then model (all) | 72 | 69/72 (96%) | 68/72 (94%) | 1 | 70/72 (97%) | 54/56 (96%) |
+| B2 lookup (legal-form rule) then model (chain) | 48 | 48/48 (100%) | 47/48 (98%) | 1 | 47/48 (98%) | 36/37 (97%) |
+| B2 lookup (legal-form rule) then model (local) | 24 | 21/24 (88%) | 21/24 (88%) | 0 | 23/24 (96%) | 18/19 (95%) |
+| C model with brief (all) | 72 | 70/72 (97%) | 68/72 (94%) | 2 | 70/72 (97%) | 55/56 (98%) |
+| C model with brief (chain) | 48 | 48/48 (100%) | 46/48 (96%) | 2 | 46/48 (96%) | 36/37 (97%) |
+| C model with brief (local) | 24 | 22/24 (92%) | 22/24 (92%) | 0 | 24/24 (100%) | 19/19 (100%) |
+| lookup alone (today's rule) (all) | 72 | 43/72 (60%) | 43/72 (60%) | 0 | 43/72 (60%) | 34/35 (97%) |
+| lookup alone (today's rule) (chain) | 48 | 28/48 (58%) | 28/48 (58%) | 0 | 28/48 (58%) | 22/22 (100%) |
+| lookup alone (today's rule) (local) | 24 | 15/24 (62%) | 15/24 (62%) | 0 | 15/24 (62%) | 12/13 (92%) |
+| lookup alone (legal-form rule) (all) | 72 | 64/72 (89%) | 63/72 (88%) | 1 | 63/72 (88%) | 49/51 (96%) |
+| lookup alone (legal-form rule) (chain) | 48 | 47/48 (98%) | 46/48 (96%) | 1 | 46/48 (96%) | 35/36 (97%) |
+| lookup alone (legal-form rule) (local) | 24 | 17/24 (71%) | 17/24 (71%) | 0 | 17/24 (71%) | 14/15 (93%) |
+Model: 109 requests, 171774 in, 22826 out, about 0.214 USD.
+
+ALLDONE

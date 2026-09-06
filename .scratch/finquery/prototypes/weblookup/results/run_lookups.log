@@ -1,0 +1,33 @@
+LIDL Vertriebs GmbH                token='lidl'                       1s/0f -> Groceries/Supermarket 0.99   4.5s
+    queries: ['what is lidl']
+dm drogerie markt                  token='dm drogerie'                0s/0f -> Groceries/Drugstore 0.99   1.9s
+NETTO MARKEN-DISCOUNT              token='netto marken discount'      0s/0f -> Groceries/Supermarket 0.99   1.7s
+Lieferando.de                      token='lieferando'                 1s/0f -> Dining/Delivery 0.95   4.0s
+    queries: ['lieferando']
+DEAN AND DAVID                     token='dean david'                 1s/0f -> Dining/Takeaway 0.90   5.4s
+    queries: ['dean david restaurant']
+Döner Haus Kreuzberg               token='doener haus kreuzberg'      0s/0f -> Dining/Takeaway 0.95   1.7s
+Cafe Milchbart                     token='cafe milchbart'             1s/0f -> Dining/Cafe 0.95   4.0s
+    queries: ['cafe milchbart']
+VAPIANO Berlin Mitte               token='vapiano mitte'              1s/0f -> Dining/Restaurant 0.95   4.7s
+    queries: ['vapiano mitte']
+UBER BV                            token='uber'                       0s/0f -> Transport/Ride hailing 0.95   2.0s
+SHELL DEUTSCHLAND                  token='shell'                      0s/0f -> Transport/Fuel 0.95   1.9s
+Telekom Deutschland GmbH           token='telekom'                    1s/0f -> Communication/Mobile 0.95   4.1s
+    queries: ['telekom deutschland']
+ADOBE SYSTEMS SOFTWARE             token='adobe systems software'     1s/0f -> Subscriptions/Software 0.95   4.4s
+    queries: ['adobe systems software']
+BVG Berliner Verkehrsbetriebe      token='bvg berliner verkehrsbetriebe' 0s/0f -> Transport/Public transport 0.99   1.8s
+Vattenfall Europe Sales GmbH       token='vattenfall sales'           1s/0f -> Housing/Electricity 0.95   4.8s
+    queries: ['vattenfall sales']
+Allianz Versicherungs-AG           token='allianz versicherungs'      0s/0f -> Insurance/None 0.95   1.8s
+Sparkasse Geldautomat              token='sparkasse geldautomat'      0s/0f -> Cash/Cash withdrawal 0.99   1.5s
+Hausverwaltung Bergmann GmbH       token='hausverwaltung bergmann'    1s/0f -> Housing/Rent 0.95   4.2s
+    queries: ['hausverwaltung bergmann']
+Mustermann Systems GmbH            token='mustermann systems'         2s/0f -> Shopping/Electronics 0.20   6.8s
+    queries: ['mustermann systems', '"mustermann systems" gmbh unternehmen']
+Zahnarztpraxis Dr. Lorenz          token='zahnarztpraxis dr lorenz'   1s/0f -> Health/Doctor 0.95   5.0s
+    queries: ['zahnarztpraxis dr lorenz']
+Apotheke am Markt                  token='apotheke'                   0s/0f -> Health/Pharmacy 0.99   2.4s
+PayPal Europe S.a.r.l.             token=''                           REFUSED -> None/None 0.00   0.0s
+21 strings, 20 lookups ran, 0 of them fetched a page, mean 3.4 s, model requests 32, tokens in 48125 out 4001, about 0.051 USD.
