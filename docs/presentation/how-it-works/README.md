@@ -1,7 +1,7 @@
 # How FinQuery works, one note per slide
 
 These are the presenter's notes on the system itself, written so that either of us can explain
-every part without the code open. One file per slide of `../index.html`. Each file has the
+every part without the code open. One file per slide of the deck built in Claude Design from `../BRIEF.md`. Each file has the
 same shape: the claim in one line, how it works as a numbered flow, where the model is and is
 not in the loop, the decisions we made and why, the numbers with their source, and the three
 sentences to say. The long versions with file and function references are `docs/explainers/`.

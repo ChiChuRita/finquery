@@ -1,8 +1,8 @@
 # Presentation notes, 2026-09-07 (8 minutes talk, 2 minutes questions)
 
-Open `docs/presentation/index.html` in a browser. Arrow keys or space move, `N` toggles the
-speaker notes under each slide, `P` prints to PDF (landscape, background graphics on). The
-slides are English; the notes are the timing and the sentences to say.
+The deck is built in Claude Design from `BRIEF.md` (one section per slide, with the diagrams
+described). These notes are the timing and the sentences to say; `how-it-works/` explains each
+part.
 
 ## Timing
 
