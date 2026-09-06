@@ -1,0 +1,40 @@
+# The query adapter on Gemma 4 E4B: the fast seat, the one every sub-agent runs on.
+#
+# The numbers come from docs/research/finetuning-data-2026-09-06.md section 5 and were settled
+# with the user on 2026-09-06. r = 16 on E4B because larger ranks were found unstable below 9B;
+# alpha = 2r; the projections of the attention pathway and the MLP and nothing else, because
+# the GGUF converter rejects an adapter that carries the embeddings or the head.
+name: query-e4b
+adapter: query
+base: /sc/scratch/rahul.singh/finquery-hf/gemma-4-E4B-it
+samples: /sc/scratch/rahul.singh/finquery-training/data/query.jsonl
+output: /sc/scratch/rahul.singh/finquery-training/runs/query-e4b
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  # The attention and MLP projections of the language model, as a regular expression rather
+  # than a list of seven names. Gemma 4 wraps the projections of its vision and audio towers in
+  # `Gemma4ClippableLinear`, which PEFT refuses outright, and a bare `q_proj` matches those too
+  # (research note section 5; the cluster confirmed it on 2026-09-06 with "Target module
+  # Gemma4ClippableLinear is not supported"). Anchoring on `language_model.layers` picks the
+  # projections that are plain linear layers and nothing else. `auto` is not the answer here:
+  # PEFT's own default is q_proj and v_proj alone, 0.06 percent of the parameters, and QLoRA's
+  # finding is that rank stops mattering once every layer is adapted. `train.py` reads back what
+  # really got a LoRA and refuses an embedding or the head there.
+  target_modules: '.*language_model\.layers\.\d+\.(self_attn\.[qkvo]_proj|mlp\.(gate|up|down)_proj)'
+
+train:
+  epochs: 3
+  lr: 2e-4
+  scheduler: cosine
+  warmup_ratio: 0.03
+  weight_decay: 0.01
+  # The prompts are about 3,000 tokens; train.py reports the true p100 before the first step.
+  seq_len: 4096
+  # Effective batch 16: LoRA tolerates a large batch worse than a full fine-tune, and TRL asks
+  # for an effective batch under 32.
+  per_device_batch: 1
+  grad_accum: 16
+  seed: 7

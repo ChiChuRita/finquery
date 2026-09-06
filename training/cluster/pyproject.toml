@@ -1,0 +1,59 @@
+# The training environment, separate from the product's so its lock stays lean.
+#
+#     cd training/cluster && uv sync        # on a GPU node, never on the login node
+#
+# Two things are deliberately absent. llama-cpp-python, because nothing here loads a GGUF: the
+# conversion and the adapter benchmark run in the product's own environment one directory up.
+# And `finquery` itself, because installing it would pull that CUDA build in for an eleven
+# minute compile that this environment never uses. `train.py` and `quick_eval.py` put the
+# repository's `src/` and `bench/` on `sys.path` instead, and the product's pure-Python
+# dependencies (the prompt builders, the guard, the self-check) are listed below beside the
+# training stack, so the same prompts are built here as in the app.
+[project]
+name = "finquery-training"
+version = "0.1.0"
+description = "QLoRA training, quick evaluation and GGUF conversion for the FinQuery adapters"
+# Pinned to one minor version, not floored: the product runs 3.12 and a training environment
+# that quietly moved to whatever uv's newest managed build is would be a second variable in a
+# comparison that is meant to have one.
+requires-python = "==3.12.*"
+dependencies = [
+    # The training stack. Pinned rather than floored: a run that reproduces a number six weeks
+    # from now is worth more than a patch release. These are the versions of 2026-09-06.
+    "accelerate==1.14.0",
+    "bitsandbytes==0.50.2",
+    "datasets==5.0.1",
+    "peft==0.20.0",
+    # The PyPI wheel, which carries its own CUDA runtime: the node has the driver (590.48) and
+    # the toolkit in scratch is only there for the llama-cpp-python build one directory up.
+    "torch==2.14.0",
+    "transformers==5.16.1",
+    "trl==1.12.0",
+    # Gemma 4 is multimodal, so anything that reaches for `AutoProcessor` reaches for
+    # `Gemma4Processor`, which needs Pillow and torchvision to import at all. `train.py` and
+    # `quick_eval.py` both hand the tokenizer over instead, because there is no image in a
+    # sample, but the two are here so a stray `AutoProcessor` is a mistake and not a dead job.
+    "pillow==12.3.0",
+    "torchvision==0.29.0",
+    # What the converter and the checks need.
+    "gguf==0.19.0",
+    "huggingface-hub==1.30.0",
+    "pyyaml==6.0.3",
+    "sentencepiece==0.2.2",
+    # The product's pure-Python halves, so quick_eval builds the prompts the app builds and
+    # scores them with the guard and the self-check the app uses.
+    "pydantic-ai-slim>=2.39.0",
+    "pydantic-settings>=2.15.0",
+    "quickjs>=1.19.4",
+    "sqlalchemy>=2.0.52",
+    "sqlglot>=30.18.0",
+]
+
+[tool.uv]
+# A dependency manifest, not a package: there is nothing here to build a wheel from.
+package = false
+# uv's own Python, never the node's. Triton compiles a small CUDA shim at the first backward
+# pass and needs `Python.h` for it; the cluster's /usr/bin/python3.12 has no development
+# headers, so a run on it fails at step one with "compilation terminated". uv's standalone
+# build carries its headers, and it lives in scratch, which is not mounted noexec.
+python-preference = "only-managed"

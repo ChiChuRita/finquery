@@ -363,15 +363,20 @@ class LocalStack:
             lock.release()
 
     @asynccontextmanager
-    async def with_adapter(self, name: AdapterName) -> AsyncIterator[Slot]:
-        """Hold the fast seat with one sub-agent's adapter attached.
+    async def with_adapter(self, name: AdapterName, spec: ModelSpec = LOCAL_FAST) -> AsyncIterator[Slot]:
+        """Hold the seat of `spec` with one sub-agent's adapter attached.
 
         A missing adapter file is not an error: the run goes ahead on the base weights and the
         audit note is published to `adapter_note()`, from where the model puts it on the
         response metadata. A sub-agent asks for this by setting `finquery_adapter` in its model
         settings, never by calling here directly.
+
+        In the app `spec` is always the fast slot, because every sub-agent runs there (ADR 0002
+        and 0013) and that is where the shipped adapters are trained for. It is a parameter
+        because the benchmark can ask for an adapter over a chat model, and attaching that to
+        the fast seat would score E4B while the run claimed to be scoring the 12B.
         """
-        async with self.holding("fast", LOCAL_FAST) as loaded:
+        async with self.holding(spec.seat, spec) as loaded:
             with self.adapters.attached_to(name, loaded) as note:
                 with audited(note.text if note is not None else None):
                     yield loaded

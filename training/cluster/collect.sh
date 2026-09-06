@@ -14,11 +14,22 @@ ROOT=${FQ_ROOT:-/sc/scratch/rahul.singh}
 REPO=$ROOT/finquery
 LOGS=$REPO/training/cluster/logs
 
+mode=candidates
+if [ "${1:-}" = "--adapters" ]; then
+  mode=adapters
+elif [ $# -gt 0 ]; then
+  echo "usage: collect.sh [--adapters]" >&2
+  exit 2
+fi
+
 here=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$here"
 results=bench/results
 today=$(date +%Y%m%d)
 compare=$results/$today-cluster-compare.md
+if [ "$mode" = adapters ]; then
+  compare=$results/$today-adapters-compare.md
+fi
 
 echo "== results from $REMOTE"
 rsync -az "$REMOTE:$REPO/bench/results/" "$results/"
@@ -32,6 +43,43 @@ wc -l < "$results/$today-cluster-jobs.txt" | xargs echo "lines:"
 # The newest run of one model on one set, and nothing if there is none: a set whose jobs have
 # not come back yet is a line in the document, not a dead script.
 newest() { ls -1 "$results"/*"-$1-$2.json" 2> /dev/null | tail -1 || true; }
+
+if [ "$mode" = adapters ]; then
+  # Before and after per base per task. `finquery-bench compare` of two runs is exactly this
+  # question: the two tables side by side, and the datapoints that changed hands.
+  {
+    cat <<'HEADER'
+# The adapters against the vanilla bases
+
+Each pair is one base on one set, once on the vanilla weights and once with the LoRA adapter of
+that sub-agent attached, on the cluster GPU through llama-cpp with CUDA. Same set, same seed,
+same database, one model per job, so the only thing that differs between the two columns of a
+pair is the adapter.
+
+These are the reported numbers. The quick evaluation in
+`training/cluster/<run>/eval/curve.md` is what chose the checkpoint that was converted; it runs
+on the HF weights with no grammar and is indicative only.
+HEADER
+    for base in local-gemma-4-e4b local-gemma-4-12b; do
+      for pair in "sql query" "chart chart"; do
+        set_name=${pair% *}
+        adapter=${pair#* }
+        before=$(newest "$base" "$set_name")
+        after=$(newest "$base+$adapter" "$set_name")
+        echo
+        if [ -z "$before" ] || [ -z "$after" ]; then
+          echo "### $base on the $set_name set"
+          echo
+          echo "Not both halves are back yet: before ${before:-missing}, after ${after:-missing}."
+          continue
+        fi
+        uv run finquery-bench compare "$before" "$after"
+      done
+    done
+  } > "$compare"
+  echo "== written $compare"
+  exit 0
+fi
 
 {
   cat <<'HEADER'

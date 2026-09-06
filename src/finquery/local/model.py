@@ -202,7 +202,7 @@ class LlamaCppModel(Model):
         attaching E4B's LoRA to a 12B, which is not the same model.
         """
         if adapter is not None and self._spec.seat == "fast":
-            async with self._stack.with_adapter(adapter) as loaded:  # type: ignore[arg-type]
+            async with self._stack.with_adapter(adapter, self._spec) as loaded:  # type: ignore[arg-type]
                 yield loaded
             return
         note = None if adapter is None else (
