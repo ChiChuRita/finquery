@@ -33,7 +33,7 @@ In words:
    wherever Python 3.12 and a browser are.
 2. The UI is a React single-page app: a sidebar with the profile switcher and the conversation
    list, tabs for open conversations, the transcript (AI Elements components), the composer with
-   attachments, a model picker, and pages for Dashboard, Transactions, Imports, Memory, Feedback,
+   attachments, a model picker, and pages for Dashboard, Transactions, Imports, Memory,
    Settings and Onboarding.
 3. A message is posted to the chat endpoint. The server appends only the newest client message
    to its own persisted history, opens a turn row before the model is called, assembles the
@@ -73,7 +73,7 @@ In words:
 7. `src/finquery/db.py:Profile`, `Conversation`, `Turn` (`model_messages_json`,
    `ui_messages_json`, `model_slot`, `interrupted`, `finished`).
 8. `frontend/src/routes.tsx:router`: `/`, `/c/$conversationId`, `/dashboard`, `/import`,
-   `/transactions`, `/memory`, `/feedback`, `/settings`, `/onboarding`.
+   `/transactions`, `/memory`, `/settings`, `/onboarding`.
 9. `frontend/src/components/chat-view.tsx:ChatView`: `useChat` with `DefaultChatTransport`,
    `prepareSendMessagesRequest` (only the newest message), `prepareReconnectToStreamRequest`
    (the stream URL), `resume` when the conversation is running and this view did not start it;
@@ -149,7 +149,7 @@ In words:
 - **Why does `useChat` send only the newest message?** The server owns the history, and the
   endpoint trims to the last message anyway (ADR 0001).
 - **Where are the pages other than chat?** Dashboard (11), Transactions (10), Imports (08),
-  Memory (03), Feedback (14), Settings and Onboarding.
+  Memory (03), Settings and Onboarding.
 
 ## What is not finished
 

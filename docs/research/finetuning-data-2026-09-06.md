@@ -119,8 +119,8 @@ held-out perplexity rose there while generation quality still improved
 
 ## 5. Starting hyperparameters
 
-Same stack as `training/preference/train_dpo.py`: TRL, PEFT, bitsandbytes, transformers, datasets,
-accelerate.
+The stack the removed DPO script used (ticket 59 took it out): TRL, PEFT, bitsandbytes,
+transformers, datasets, accelerate.
 
 | | Gemma 4 E4B (fast slot) | Qwen3.5 9B | Gemma 4 12B |
 | --- | --- | --- | --- |
@@ -220,7 +220,7 @@ split may only seed.
 
 ## 9. GGUF conversion for llama.cpp, and what breaks
 
-The path is the one `training/preference/README.md` already names:
+The path is the one the removed training README already named:
 
     python llama.cpp/convert_lora_to_gguf.py --base <base model dir> --outtype f16 <adapter dir> \
       --outfile models/adapters/query.gguf

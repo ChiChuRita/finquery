@@ -56,7 +56,7 @@ In words:
 | --- | --- | --- | --- |
 | query | `run_sql` | `query`, `chart`, the bench | `src/finquery/query/subagent.py:query_agent` |
 | result check | `judge_result` | `run_query` | `src/finquery/query/check.py:check_agent` |
-| chart plan | `chart_plan` | `chart`, dashboard preview, Regenerate | `src/finquery/chart/subagent.py:plan_agent` |
+| chart plan | `chart_plan` | `chart`, dashboard preview, the render-failure retry | `src/finquery/chart/subagent.py:plan_agent` |
 | chart code | `chart_code` | same | `src/finquery/chart/subagent.py:code_agent` |
 | categorizer | `categorize` | imports, cards, receipt legs | `src/finquery/categorize/subagent.py:categorizer_agent` |
 | statement reader | `read_statement` | `import_file` for a PDF or a scanned page | `src/finquery/extract/subagent.py:statement_agent` |

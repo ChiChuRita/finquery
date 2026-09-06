@@ -51,20 +51,21 @@ switch on web lookup, and then only a scrubbed merchant name does, logged before
 | 10 | [transactions-and-changesets.md](10-transactions-and-changesets.md) | Every edit is deterministic code; bulk edits are previews the user applies |
 | 11 | [dashboard.md](11-dashboard.md) | A dashboard that stores statements, never figures |
 
-### The four electives claimed
+### The electives claimed
 
 | # | File | Sheet bullet | Status |
 | --- | --- | --- | --- |
 | 12 | [elective-context-management.md](12-elective-context-management.md) | intelligent context management: compression, isolation, selection | done |
 | 13 | [elective-subagents.md](13-elective-subagents.md) | sub-agent deployment as tool calls (extra credit for a non-waiting controller not claimed) | done |
-| 14 | [elective-preference-optimization.md](14-elective-preference-optimization.md) | preference optimisation via human feedback: a choice of outputs plus LoRA training code | done for the choice, partial for the training |
 | 15 | [elective-web-search.md](15-elective-web-search.md) | repeated self-controlled web search that finds and visits pages | done |
 
-Built but not claimed as electives: multimodal ingestion (08) and sandboxed execution of
-generated chart code (07, JavaScript rather than Python). Dropped on 2026-09-01 and never
-claimed: extensible user-provided tools and secure Python execution (`git show
-archive/old-main:DECISIONS.md`). Not built: adaptive RAG, concurrent multi-user, prompt caching,
-Tree-of-Thought.
+Built and then removed on 2026-09-06: preference optimisation via human feedback. It was a
+real feature for two days and it is gone from the product, not merely unclaimed;
+[14](14-elective-preference-optimization.md) is the note on what it was, what it measured and
+why it went. Built but not claimed as an elective: sandboxed execution of generated chart code
+(07, JavaScript rather than Python). Dropped on 2026-09-01 and never claimed: extensible
+user-provided tools and secure Python execution (`git show archive/old-main:DECISIONS.md`). Not
+built: adaptive RAG, concurrent multi-user, prompt caching, Tree-of-Thought.
 
 ## The order to read in
 
@@ -74,7 +75,7 @@ Tree-of-Thought.
 4. 13 (sub-agents): how every model call is made.
 5. 07, 08, 09: the three big flows.
 6. 10, 11: the pages.
-7. 12, 14, 15: the remaining electives.
+7. 12 and 15: the remaining electives.
 8. 04 and 05 last: what the numbers say and what is not done.
 
 ## Conventions in these files

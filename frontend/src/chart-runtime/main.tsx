@@ -41,7 +41,7 @@ const FRAME_INSET = { top: 6, side: 12 }
 /** How finely a `nice: true` euro axis rounds its end, and how many ticks it then draws.
  *
  * TanStack Charts rounds a nice axis to the tick count it will draw, one tick per 48 pixels of
- * plot height: a 300 pixel frame in a Regenerate pair asked for three, so 13.800 EUR became an
+ * plot height: a 300 pixel frame in a side by side pair asked for three, so 13.800 EUR became an
  * axis to 20.000 EUR, and a legend under the plot left the top gridline unlabelled. The two
  * counts are one number here, so the end stays near the data and the last gridline always has
  * its label: 0, 5.000, 10.000, 15.000 for 13.800 EUR, whatever the width and the legend. */

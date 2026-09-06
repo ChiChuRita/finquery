@@ -164,7 +164,7 @@ In words:
   question of the local Qwen and the hosted Qwen side by side.
 - **Is llama-cpp-python an agent framework that implements an elective?** No. It runs the
   weights. Pydantic AI carries the stream and dispatches tools. Sub-agents, compression, memory,
-  preferences and the web loop are our code (ADR 0001, `.scratch/finquery/spec.md`).
+  and the web loop are our code (ADR 0001, `.scratch/finquery/spec.md`).
 - **Where are the two fine-tuned models?** Two LoRA adapters over the same E4B base, one for the
   query sub-agent and one for the chart sub-agent. The attach path, the registry, the audit note
   and the bench `--adapter` flag exist; the adapters themselves are not trained yet. See 04.

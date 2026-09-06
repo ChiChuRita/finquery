@@ -24,8 +24,7 @@ In words, what the video has to show and where the script already covers it:
 2. Electives: intelligent context management (the context badge in step 21, the divider with
    `FINQUERY_CONTEXT_BUDGET=6000` from "What is not in the live script"); sub-agents (the query
    step and the check narration in steps 7 to 10, the chart chain of thought in step 11, the
-   categorizer behind step 3); preference optimisation (thumbs and the Regenerate pair in steps
-   23 and 24, the Feedback page and its export); self-controlled web search (steps 25 to 27 with
+   categorizer behind step 3); self-controlled web search (steps 23 to 25 with
    the outbound log).
 3. The real-world use case that benefits from the electives: an unknown card payment on a real
    statement. The categorizer cannot place it, the web lookup finds and reads the merchant's page

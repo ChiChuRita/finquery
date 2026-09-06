@@ -121,6 +121,10 @@ through llama-cpp-python, where the two fine-tuned adapters slot in later.
 
 ### Preference optimization
 
+**Amended 2026-09-06 (ticket 59): built, then removed.** Stories 61 to 65 shipped on 2026-09-04
+and were taken out of the product on 2026-09-06. They are not requirements any more. See the
+amendment at the end of this file and `docs/explainers/14-elective-preference-optimization.md`.
+
 61. As a user, I want thumbs up and down on every assistant answer ("Was this response useful?"), so that I can give feedback in one click.
 62. As a user, I want thumbs on every chart ("Was this chart useful?") and a Regenerate that draws a second chart so I can pick the better one, so that chart quality improves.
 63. As a user, I want every rating and every pick stored as a preference record with the prompt, the chosen and the rejected output, the SQL and the chart code, so that training data accumulates while I use the app.
@@ -208,6 +212,9 @@ through llama-cpp-python, where the two fine-tuned adapters slot in later.
 - Synthetic dataset generator: one canonical year of a German household, emitting CSV, a Sparkasse-layout text PDF and a few bill images, shipped in fixtures and used by tests.
 
 ### Preference optimization
+
+**Amended 2026-09-06 (ticket 59): removed from the product.** What follows is what was built and
+is now only in the history.
 
 - Thumbs on answers and charts write preference records. Chart Regenerate produces a second chart for the same prompt; the pick stores chosen and rejected. Answer thumbs down offers an optional A/B: a second answer at higher temperature, the pick stores the pair.
 - Feedback page lists records and exports a JSONL training set. A training folder contains the DPO export and train script targeting the fast slot's adapters (script exists; running it is a later phase).

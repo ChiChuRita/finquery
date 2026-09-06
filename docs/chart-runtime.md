@@ -266,7 +266,7 @@ The frame owns what the code may not: `height: 280`, the responsive width, the p
 `svgAnimation: { duration: 320, easing: 'ease-out' }`, the `ariaLabel` (the chart's title) and
 the language the month labels are written in. It also decides how finely a `nice: true` axis
 rounds its end: TanStack Charts rounds to the tick count it will draw, one tick per 48 pixels of
-plot height, so a 300 pixel frame in a Regenerate pair took 13.800 EUR to an axis ending at
+plot height, so a 300 pixel frame in a side by side pair took 13.800 EUR to an axis ending at
 20.000 EUR, and a legend under the plot left the top gridline without a label. The frame
 rewrites `nice: true` to `nice: 4` and gives that axis `ticks: { count: 4 }` before it renders,
 so the end stays near the data and the last gridline is always labelled: 0, 5.000, 10.000,
@@ -347,7 +347,7 @@ no colour, the figures instead. On a drawn chart it names that chart and carries
 own figures, and it ends with "describe only this chart, never one from an earlier turn": a
 second chart in a row was answered with the first one's sentence, word for word, on 2026-09-05,
 and the cure is leaving nothing to reach back for. The card shows the title, the frame, the
-thumbs and Regenerate, and, on demand, the request, the plan, the repairs, the SQL and the rows.
+Add to dashboard, and, on demand, the request, the plan, the repairs, the SQL and the rows.
 
 ## When the browser refuses anyway
 
@@ -363,10 +363,3 @@ happy with. The frame posts its error to the card, and the card posts it to
   on the turn and the card swaps its content.
 
 One retry per chart, ever: the recorded failure is the flag, so a second report only records.
-
-Regenerate runs this whole path again for the same request through
-`POST /api/preferences/chart-alternative`, which is not a chat turn: the second chart lives in
-the card, both are shown side by side, and the pick stores the two definitions with the shared
-SQL as a preference record (`src/finquery/preferences.py`). That pair is the chart adapter's
-training data, which is why the payload carries the plan and the statement and not just the
-drawing.

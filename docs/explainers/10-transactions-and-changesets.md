@@ -103,7 +103,7 @@ In words:
 | --- | --- | --- |
 | 10.000 rows | first page in 7 ms, offset 9000 in 22 ms; the table scrolls to row 9998 instantly | ticket 04 |
 | Bulk changeset in chat, local | proposal 66 s (12 Amazon Prime rows), Apply instant | `docs/demo-script.md` |
-| Thumbs, Pick, Apply, Undo | instant, no model | `docs/demo-script.md` |
+| Apply, Undo | instant, no model | `docs/demo-script.md` |
 | Split from a bill photo, then the table | three legs written, parent shows the split badge, legs sum to the parent | ticket 11, ticket 30 (Edeka, Rossmann, OBI: 3, 2 and 4 legs) |
 | Edge cases | 14 defects found and fixed with tests, 3 of them silent data loss or corruption in the CSV reader | ticket 31 |
 | Stale path | amount changed underneath a proposed split, Apply is 409 with the reason | ticket 09 |

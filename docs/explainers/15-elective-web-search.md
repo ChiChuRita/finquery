@@ -142,7 +142,8 @@ In words:
   line the model reads as a new question (ticket 42).
 - The person rule errs towards refusing: "ROFU Kinderland" (two words, no business word) is not
   looked up. That costs a lookup and never a name.
-- `lookup_merchant` is never rerun by the preference A/B, so a thumbs down cannot send a token
+- `lookup_merchant` runs only from a turn the user asked for: nothing in the app reruns a
+  finished turn behind their back, so no button can send a token
   out (ticket 30).
 
 ## What we measured

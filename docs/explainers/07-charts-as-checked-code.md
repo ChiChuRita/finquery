@@ -108,9 +108,8 @@ In words:
 | Chart benchmark, Qwen3.5 9B | 40 % figure match, 60 % drawn, 38 % first attempt, 2.08 model calls per chart; doughnut 12 %, area 0 % | `bench/README.md` |
 | Chart benchmark, Gemma 4 E4B on the laptop | 48 % figure match, 100 % SQL valid, 86 % shape match, 73 % drawn, 46 % first attempt, median 36.0 s, 63 requests in 2527.5 s | `bench/results/20260905T183745Z-local-fast-chart.md` |
 | E4B per shape, local | line 90 %, bar_horizontal 83 %, bar 67 %, doughnut 38 % (12 % drawn), area 0 %, sankey 0 % | same file |
-| Demo, local | area chart 96 s; horizontal bars 86 s; doughnut 118 s and not drawn (no `color` channel on `radialArc`, three rounds); Regenerate 28 s | `docs/demo-script.md`, ticket 17 |
+| Demo, local | area chart 96 s; horizontal bars 86 s; doughnut 118 s and not drawn (no `color` channel on `radialArc`, three rounds) | `docs/demo-script.md`, ticket 17 |
 | Repair framing | three rounds that only said "write it again" returned the same finding three times before the correction framing | `docs/chart-runtime.md` |
-| Regenerate | one press gives a different chart where the review needed three (server retries up to 3) | ticket 22 |
 
 ## Three sentences for the talk
 

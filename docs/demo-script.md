@@ -137,7 +137,7 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
     while it runs: the chart sub-agent's work is a chain of thought there, one step at a time
     (planned, queried, wrote, a step per repair round, checked), the current one active and the
     rest pending, and it stays as the finished chain afterwards. The card carries the shape
-    badge, the SQL and its 12 rows, Regenerate and thumbs. Hover a month.
+    badge, the SQL, its 12 rows and Add to dashboard. Hover a month.
 12. **"Show my five biggest merchants of 2025 as horizontal bars."** 86 s. A ranking with
     long labels reads as horizontal bars; five bars, the landlord longest. Toggle the theme
     once here: the chart repaints in the other palette. (Not the doughnut, see below.)
@@ -217,7 +217,7 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
     Then press **Stop**. The partial thinking, tool steps and text stay, chipped "Stopped": Stop
     is the only thing that ends a turn. Switch the composer back to **Gemma 4 E4B**.
 
-### 11. The context badge, the download, thumbs, a Regenerate pair (fast)
+### 11. The context badge and the download (fast)
 
 22. Click the percentage in the conversation header: used tokens over the 32k budget, the
     model, memories in the prompt, and the note that past 60 percent the older turns are
@@ -227,17 +227,11 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
     the charts with their plan and SQL, the changesets with their status and rows, the Question
     cards with the answers given, the attachments as links. Open the file: the audit trail
     leaves the machine as a file you can read.
-24. **Thumbs up** the Qwen answer: instant, "This response was useful" stays pressed.
-25. Back in the charts conversation (its tab), press **Regenerate** on the area chart. 28 s.
-    Two charts side by side, "Both charts drew the rows of the same query. Pick the better
-    one." Press **Pick** under one: "Stored as a preference pair". Open `/feedback`: the
-    records, and Export JSONL.
-
 ### 12. Web lookup with the outbound log (fast)
 
-26. Settings, **Web lookup** on. The card says "Off" turned to "On" and the outbound log is
+24. Settings, **Web lookup** on. The card says "Off" turned to "On" and the outbound log is
     still empty: "nothing has ever left this machine for this profile".
-27. New chat: **"Was ist Combi Verbrauchermarkt?"** The lookup step shows the merchant token
+25. New chat: **"Was ist Combi Verbrauchermarkt?"** The lookup step shows the merchant token
     that left, "1 search, 1 page read" with the page as a link, the sentence it quoted out of
     that page with the host under it, and the category it suggests. The quote is checked in
     code to occur word for word in what the steps returned, and the page was read by the loop
@@ -245,7 +239,7 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
     over this card. Keep away from "Hausverwaltung Bergmann": the loop finds a real property
     manager of that name in another city, and the card then says "unsure" for a reason nobody
     wants to explain on a stage.
-28. Back to Settings: the outbound log lists both requests, their targets and the token, and
+26. Back to Settings: the outbound log lists both requests, their targets and the token, and
     nothing else. Ask the same merchant in a second chat: the card says "from the lookup cache
     of this profile, nothing left the machine" and the log has no new row. Then drop the Combi
     receipt (the private receipt set, `fixtures/private/`) on the composer, or the Saurüsselalm
@@ -255,13 +249,13 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 
 ### 13. A second import, in the background, then the Imports overview (fast)
 
-29. Drop `sparkasse-2025.csv` on the composer a second time and send it. 58 s. **While it
+27. Drop `sparkasse-2025.csv` on the composer a second time and send it. 58 s. **While it
     runs, switch to another conversation**: the spinner on its tab and its sidebar row is the
     import carrying on without you, and `/import` shows that row as **Still importing** with a
     Continue in chat button. Come back and watch the rest arrive. Every one of its 433 bookings
     is already there, so the import writes nothing and asks about the duplicates on a card.
     Leave the card unanswered.
-30. Open `/import`. It imports nothing itself, it is the overview of what every past import
+28. Open `/import`. It imports nothing itself, it is the overview of what every past import
     produced. Two rows: the first with 433 imported, the second with "433 undecided" in amber
     and a **Continue in chat** link. Click it: the conversation with the open card. Back on
     `/import`, **Delete** the second import: the confirmation names what goes with it (its
@@ -270,7 +264,7 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 
 ### 14. The Transactions page with the split (no model)
 
-31. Open `/transactions`. 433 rows. Type "edeka" into the search, set From 01.03.2025 to
+29. Open `/transactions`. 433 rows. Type "edeka" into the search, set From 01.03.2025 to
     31.03.2025: the EDEKA row of 14.03.2025 has a chevron. Expand it: the two legs from step
     16, summing to the parent. Edit one category inline (click the cell, pick, click away: it
     saves). Clear the filters.
@@ -306,8 +300,7 @@ Measured on 2026-09-05 on the local provider, before the result check and the gr
 | Switch chat mid-turn and come back, reload mid-turn | either | instant, the turn is untouched |
 | Stop | either | under a second after the click |
 | Download the conversation as markdown | none | instant |
-| Regenerate a chart | fast | 28 s |
-| Thumbs, Pick, Apply, Undo | none | instant |
+| Apply, Undo | none | instant |
 | Web lookup (one search, one page read) | fast | 53 s |
 | Second import of the same CSV (433 duplicate candidates) | fast | 58 s |
 | Statement PDF, 15 pages, 433 bookings, reconciled (not in the live script) | fast | 1458 s |
@@ -336,8 +329,6 @@ Measured on 2026-09-05 on the local provider, before the result check and the gr
   conversation. On the local provider that is a quarter of an hour of turns, so the script
   shows the badge and says what happens past 60 percent instead of getting there. To show the
   divider live, start the server with `FINQUERY_CONTEXT_BUDGET=6000` for one conversation.
-- **The A/B on a thumbs down.** It works (a second answer at a higher temperature with only
-  the query tool, then a pick), and it costs another minute. Mention it, do it if time allows.
 - **The benchmarks.** They are numbers, not a screen: 152 SQL questions and 63 chart requests
   with gold rows computed from reference SQL. If somebody asks how good the models really are,
   the answer is `bench/README.md`, not a live run.
@@ -355,14 +346,15 @@ Measured on 2026-09-05 on the local provider, before the result check and the gr
 - The composer is closed and you wanted to type: that chat is still answering, in every tab.
   Wait for it or press Stop. Whatever you typed stays in the box as a draft.
 - A chart card says it could not be drawn: the answer under it gives the figures instead, by
-  design. Press Regenerate once; the second attempt usually draws.
+  design. The server already drew it a second time by itself; ask for the chart again if the
+  picture matters more than the figures.
 - The model answers in the wrong language: onboarding's answer language (Settings, Setup, or
   the language rule in the prompt) is what fixes it, not repeating the question.
 - **Answer the open Question card before typing the next question.** A card left open while
   the conversation moves on still works, but the demo reads better in order.
 - A step misfires: every one has a fallback in the same words one step earlier. The doughnut
   falls back to the horizontal bars of step 12, the flatmate question to the rent question on
-  Qwen (step 20), the lookup to the second import (step 29), the chart the assistant keeps by
+  Qwen (step 20), the lookup to the second import (step 27), the chart the assistant keeps by
   itself to the one added by hand in step 13, and the PDF to the pre-imported profile. If the laptop itself
   gives up, `FINQUERY_PROVIDER=openrouter` runs the identical script hosted, and
   `FINQUERY_OPENROUTER_FAST_MODEL` points the fast slot at a stronger model for one step.

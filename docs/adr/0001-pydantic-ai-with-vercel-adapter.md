@@ -37,4 +37,6 @@ the project and none of it is a course elective.
   the transcript renders). They are derived from the same run, UI messages through
   `VercelAIAdapter.dump_messages`.
 - The course rule that no library may implement an elective holds: sub-agents, compression,
-  memory, preferences and web search are our code; Pydantic AI only carries the stream.
+  memory and web search are our code; Pydantic AI only carries the stream. Preference
+  optimisation was in that list until 2026-09-06, when the feature was removed (ticket 59,
+  `docs/explainers/14-elective-preference-optimization.md`).

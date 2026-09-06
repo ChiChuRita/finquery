@@ -5,8 +5,8 @@ tempting, it is listed as avoided so the vocabulary stays stable.
 
 ## Data
 
-**Profile**: the isolation boundary. Every account, transaction, category, rule, memory,
-conversation and preference record belongs to exactly one profile. A default profile is created
+**Profile**: the isolation boundary. Every account, transaction, category, rule, memory and
+conversation belongs to exactly one profile. A default profile is created
 at startup. Avoid: user, workspace, account (an account is a bank account, see below).
 
 **Onboarding**: the three steps and the finish a profile opens with the first time: which
@@ -101,12 +101,6 @@ proposal.
 when the rows moved after the preview was computed, so it refuses to apply. `superseded` when a
 newer changeset for the same rows arrived. An applied changeset that was undone becomes
 `discarded` with its applied time still on it. Avoid: pending, cancelled, expired.
-
-**Preference record**: a prompt, a chosen output, a rejected output, the kind (answer or
-chart), the SQL and chart code involved, and the rating (`up`, `down` or `pick`). A thumb fills
-one side (up the chosen, down the rejected), a pick fills both, which is what a DPO export
-reads. One record per rated thing, so a second click replaces it. Training data for the
-adapters. Avoid: feedback, rating (the rating is one field of the record).
 
 **Merchant token**: the scrubbed merchant string that is the only thing allowed to leave the
 machine for a web lookup. Never amounts, dates, IBANs, card numbers or personal names. Avoid:

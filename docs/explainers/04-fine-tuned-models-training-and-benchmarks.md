@@ -6,7 +6,7 @@ sub-agent, attached per sub-agent run on the fast slot. **Neither is trained yet
 is the loop around them: two hand-checked benchmark sets (152 SQL questions, 63 chart requests)
 with gold computed by executing reference SQL, a runner that scores any model through the real
 sub-agent path with an `--adapter` flag, a static validation page, a held-out third, the adapter
-registry with a lock and an audit note, a DPO export of preference records and a train script.
+registry with a lock and an audit note.
 Ticket 43 (the SFT training data written and judged by Opus sub-agents) has not started.
 
 ## How it works
@@ -23,9 +23,7 @@ flowchart LR
   R --> SC["score: figure match to the cent, SQL valid, first attempt, shape, columns, language, drawn"]
   SC --> RES["results/<timestamp>-<model>-<set>.json and .md"]
   subgraph Loop["adapters"]
-    PR["preference records (thumbs, picks)"] --> EX["export_pairs.py: chart.jsonl, query.jsonl"]
-    T43["ticket 43: Opus-written SFT samples (not started)"]
-    EX --> TR["train_dpo.py: TRL DPOTrainer, 4-bit E4B, LoRA rank 16"]
+    T43["ticket 43: Opus-written SFT samples (not started)"] --> TR["a training run on the fast slot's base, LoRA"]
     TR --> GG["convert_lora_to_gguf, models/adapters/{query,chart}.gguf"]
     GG --> AT["AdapterRegistry.attached_to on the fast slot"]
   end
@@ -76,12 +74,9 @@ In words:
     `src/finquery/local/catalog.py:adapter_path` (`models/adapters/{query,chart}.gguf`),
     `src/finquery/local/model.py:LocalModelSettings` (`finquery_adapter`),
     `src/finquery/local/runtime.py:LocalStack` (`with_adapter`).
-11. Training: `training/preference/export_pairs.py:chart_pairs`, `query_pairs`, `write`;
-    `training/preference/train_dpo.py:load` (`--dry-run` validates without torch), `train` (TRL
-    `DPOTrainer`, `google/gemma-4-E4B-it` in 4-bit, LoRA rank 16, reference-free);
-    `training/preference/README.md` (the loop end to end).
-12. `src/finquery/preferences.py:export_jsonl` and the Feedback page (14) are the data source
-    for the DPO half.
+11. Training: no script in the tree. The DPO half was removed with the preference feature on
+    2026-09-06 (ticket 59, explainer 14); the data it would have read never arrived. Ticket 43
+    writes the SFT samples the first real run will use.
 
 ## Where the model is in the loop, and where it is not
 
@@ -97,9 +92,6 @@ In words:
 - A datapoint that throws is one score, not a dead run.
 - The `split` is written into the files, so a held-out number means the same thing in six
   months.
-- `train_dpo.py --dry-run` fails with one sentence on a missing column, an empty side, or a pair
-  that prefers an output over itself, and warns below 32 pairs.
-- `export_pairs.py` drops a pair whose sides are equal.
 
 ## What we measured
 
@@ -131,20 +123,20 @@ In words:
 ## Likely grader questions
 
 - **Where are the two fine-tuned models?** Not trained. What exists: the attach path with lock
-  and audit note, `--adapter` on the runner, the DPO export and train script, and the held-out
-  split to score them on. Ticket 43 (about 600 query and 300 chart SFT samples written and judged
+  and audit note, `--adapter` on the runner, and the held-out split to score them on. Ticket 43 (about 600 query and 300 chart SFT samples written and judged
   by Opus sub-agents against the production prompts) has not started.
 - **Why did you throw away the first adapter?** It was trained on a prompt framing the product
   never sent and was worth nothing through the real loop (55 % against 55 %). Now the training
-  prompt is the production prompt by construction (`DECISIONS.md`, `training/preference/README.md`).
+  prompt is the production prompt by construction (`DECISIONS.md`, ticket 43).
 - **Why E4B and not Qwen for the adapters?** E4B runs every sub-agent; a comparison on the same
   base weights measures the adapter and nothing else. Qwen is not the slot that writes SQL.
 - **Is the generated half easier?** No: Gemini is within a point of itself on both halves, and
   Qwen is seven points worse on the generated one; the held-out third is 43 % against 57 % for
   Qwen, so it is not a soft third either.
-- **What does DPO need that you do not have?** Pairs. The dry run warns below 32; the Feedback
-  page on a demo profile holds a handful. That is why ticket 43 generates SFT data with a judge
-  rather than waiting for thumbs.
+- **What happened to the DPO half?** It needed pairs, and a personal-finance app used by one
+  person during a build produces a handful: DPO below about 32 pairs mostly measures noise. The
+  feature that collected them was removed on 2026-09-06 (explainer 14), and ticket 43 generates
+  SFT data with a judge instead of waiting for clicks.
 
 ## What is not finished
 

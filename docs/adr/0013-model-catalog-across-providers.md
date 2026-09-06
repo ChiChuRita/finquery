@@ -60,15 +60,16 @@ provider.
   mid-swap. Qwen 9B plus E4B is 13.5 GB and Gemma 12B plus E4B about 12.9 GB; three together
   do not fit in the 18.2 GB Metal working set of a 24 GB Mac, and a seat is what makes that
   structural rather than a rule somebody has to remember.
-- **Storage records the catalog key.** `conversation.model_key`, `turn.model_key`,
-  `profile.default_model_key` and `preference_record.model_key`, all added through
-  `db.NEW_COLUMNS`. The pre-catalog `model_slot` columns stay because an existing database
+- **Storage records the catalog key.** `conversation.model_key`, `turn.model_key` and
+  `profile.default_model_key`, all added through `db.NEW_COLUMNS`. `preference_record.model_key`
+  was a fourth until 2026-09-06, when the preference feature was removed (ticket 59): the table
+  is left alone in databases that have it, and nothing creates or reads it any more. The pre-catalog `model_slot` columns stay because an existing database
   declares them NOT NULL, and their old values are read through `Catalog.key_of`: both `fast`
   and `quality` become the Qwen entry of the configured provider. `fast` was the sub-agent slot,
   never a chat choice a user meant to keep.
 - **The browser is told, never told twice.** `GET /api/models` is the only place a model name
   comes from (`frontend/src/lib/catalog.ts`), so the picker, the turn chips, the context badge,
-  the Feedback list, the models card and the onboarding default cannot name a model the server
+  the models card and the onboarding default cannot name a model the server
   does not offer. There is no list of models in the frontend any more.
 
 ## Consequences

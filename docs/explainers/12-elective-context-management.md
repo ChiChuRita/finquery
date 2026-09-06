@@ -30,7 +30,7 @@ In words, mapped to the sheet's three words:
 **Isolation.**
 
 1. A profile owns accounts, transactions, categories, rules, memories, conversations,
-   changesets, imports, dashboard cards, preference records and the outbound log. Every REST
+   changesets, imports, dashboard cards and the outbound log. Every REST
    read takes `profile_id`, every write carries it, and an id of another profile is a 404 rather
    than a silent no-op.
 2. A chat turn's `ChatDeps.profile_id` comes from the conversation row, and every tool touches
@@ -68,8 +68,7 @@ In words, mapped to the sheet's three words:
 ## The code path
 
 1. Isolation: `src/finquery/db.py:Profile` and the `profile_id` column on `Conversation`,
-   `Transaction`, `Memory`, `Changeset`, `DashboardChart`, `PreferenceRecord`,
-   `OutboundRequest`; `src/finquery/api/profiles.py:get_profile_or_404`;
+   `Transaction`, `Memory`, `Changeset`, `DashboardChart`, `OutboundRequest`; `src/finquery/api/profiles.py:get_profile_or_404`;
    `src/finquery/agent.py:ChatDeps`; `src/finquery/query/guard.py:execute_read_only` (the
    temp view); `src/finquery/edits.py:find_transaction`.
 2. Selection: `src/finquery/agent.py:data_brief`, `answer_language`, `attached_files`,

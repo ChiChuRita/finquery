@@ -52,7 +52,7 @@ flowchart LR
   subgraph Browser["Browser (Vite, React 19, AI Elements, shadcn, TanStack)"]
     Chat["Chat + Question cards"]
     Dash["Dashboard\n(tiles, charts kept from chats,\nevery card re-queried on load,\nover the page date range)"]
-    Tx["Transactions, Imports, Memory, Feedback, Settings"]
+    Tx["Transactions, Imports, Memory, Settings"]
     Frame["Sandboxed chart iframe (TanStack Charts)"]
   end
   subgraph API["FastAPI, one Python process"]
@@ -60,7 +60,7 @@ flowchart LR
     Agent["Chat agent + tools"]
     Sub["Sub-agents\nquery, chart, categorizer, extraction, memory, web lookup"]
     Guard["SQL guard (sqlglot, read-only, profile scoped)"]
-    DB[("SQLite\nprofiles, transactions, splits, taxonomy,\nrules, memories, conversations, changesets,\nimports, dashboards, preferences")]
+    DB[("SQLite\nprofiles, transactions, splits, taxonomy,\nrules, memories, conversations, changesets,\nimports, dashboards")]
   end
   subgraph Models["Two model slots"]
     Fast["fast: Gemma 4 E4B\n(all sub-agents, adapters attach here)"]
@@ -111,7 +111,7 @@ sequenceDiagram
     <div class="step"><b>Fix anything later.</b> Transactions page, splits, changesets with Apply and Discard, Undo on simple edits.</div>
   </div>
 
-  <h2>4. Required features and the four electives</h2>
+  <h2>4. Required features and the electives</h2>
   <div class="grid">
     <div class="card"><h3><span class="dot" style="background:var(--primary)"></span>Required</h3><ul>
       <li><b>uv run finquery</b>, one process, models download on first run</li>
@@ -124,8 +124,6 @@ sequenceDiagram
       <li>Profiles as isolation</li><li>Per-turn assembly: summary, memories, taxonomy</li><li>Rolling summary at 60 percent, editable divider</li><li>Token badge</li></ul></div>
     <div class="card"><h3><span class="dot" style="background:var(--c3)"></span>Sub-agents</h3><ul>
       <li>Query, chart, categorizer, extraction, memory, web lookup</li><li>Forced single tool, reasoning first, worked examples</li><li>Self-check and visible repairs</li><li>Every query judged against the question, one rewrite</li></ul></div>
-    <div class="card"><h3><span class="dot" style="background:var(--c4)"></span>Preference optimization</h3><ul>
-      <li>Thumbs on answers and charts</li><li>Regenerate pair and A/B compare with Pick</li><li>Feedback page, JSONL export, DPO script</li></ul></div>
     <div class="card"><h3><span class="dot" style="background:var(--c5)"></span>Self-directed web search</h3><ul>
       <li>Only a scrubbed merchant token leaves</li><li>The model decides search, fetch or finish within a budget</li><li>Outbound log, cache, off by default</li></ul></div>
   </div>
