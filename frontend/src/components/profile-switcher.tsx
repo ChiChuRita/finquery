@@ -4,7 +4,6 @@ import { CheckIcon, ChevronsUpDownIcon, PencilIcon, PlusIcon, Trash2Icon, UserRo
 import { useState } from 'react'
 
 import { ConfirmDialog, NameDialog } from '@/components/dialogs'
-import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,12 +12,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { SidebarMenuButton } from '@/components/ui/sidebar'
+import { useSidebar } from '@/hooks/use-sidebar'
 import { createProfile, deleteProfile, profilesQuery, renameProfile } from '@/lib/api'
 import { readActiveTab, useWorkspace } from '@/lib/workspace'
 import { cn } from '@/lib/utils'
 
 export function ProfileSwitcher() {
   const { profile, profiles, switchProfile } = useWorkspace()
+  const { isMobile, state } = useSidebar()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [dialog, setDialog] = useState<'create' | 'rename' | 'delete'>()
@@ -42,15 +44,16 @@ export function ProfileSwitcher() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button aria-label="Switch profile" className="h-9 w-full justify-start gap-2 px-2" variant="ghost">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <UserRoundIcon className="size-3.5" />
+          {/* A sidebar row, so the icon rail keeps the avatar and the tooltip names the profile. */}
+          <SidebarMenuButton aria-label="Switch profile" className="flex-1" tooltip={profile?.name ?? 'Profile'}>
+            <span className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-primary/10 text-primary">
+              <UserRoundIcon className="size-3" />
             </span>
-            <span className="min-w-0 flex-1 truncate text-left text-sm">{profile?.name ?? 'Loading...'}</span>
-            <ChevronsUpDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          </Button>
+            <span className="min-w-0 flex-1 truncate text-left">{profile?.name ?? 'Loading...'}</span>
+            <ChevronsUpDownIcon className="text-muted-foreground" />
+          </SidebarMenuButton>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56" side="top">
+        <DropdownMenuContent align="start" className="w-56" side={state === 'collapsed' && !isMobile ? 'right' : 'top'}>
           <DropdownMenuLabel className="text-muted-foreground text-xs">Profiles</DropdownMenuLabel>
           {profiles.map((p) => (
             <DropdownMenuItem key={p.id} onSelect={() => void select(p.id)}>

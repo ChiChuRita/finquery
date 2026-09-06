@@ -91,14 +91,18 @@
     --chart-5: oklch(0.60 0.17 18);
     --chart-6: oklch(0.60 0.12 215);
     --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
+    /* The shell is one canvas: the sidebar, the tabs strip and the page bars sit on the same
+       surface as the content and hairlines do the separating, so the sidebar is the background
+       and its accent is a faint tint of the foreground for the active and hovered row. Cards
+       and the composer keep their own lighter surface (--card). The ring is the app's. */
+    --sidebar: var(--background);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: oklch(0.205 0 0);
     --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-accent: oklch(0 0 0 / 4%);
+    --sidebar-accent-foreground: oklch(0.145 0 0);
     --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --sidebar-ring: oklch(0.70 0.06 165);
 }
 
 .dark {
@@ -130,14 +134,14 @@
     --chart-4: oklch(0.64 0.16 305);
     --chart-5: oklch(0.65 0.17 18);
     --chart-6: oklch(0.66 0.11 215);
-    --sidebar: oklch(0.205 0 0);
+    --sidebar: var(--background);
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: oklch(0.78 0.14 165);
     --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent: oklch(1 0 0 / 7%);
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --sidebar-ring: oklch(0.55 0.06 165);
 }
 
 /* The focus treatment of the shadcn Button, for the links and plain buttons the app draws

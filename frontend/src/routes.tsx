@@ -16,10 +16,11 @@ import { ImportPage } from '@/components/import-page'
 import { MemoryPage } from '@/components/memory-page'
 import { ModelsCard } from '@/components/models-card'
 import { clampStep, OnboardingCard, OnboardingPage } from '@/components/onboarding'
-import { DocumentPage } from '@/components/page'
+import { DocumentPage, PageTrigger } from '@/components/page'
 import { TaxonomyCard } from '@/components/taxonomy-card'
 import { TransactionsPage } from '@/components/transactions-page'
 import { Button } from '@/components/ui/button'
+import { SIDEBAR_COOKIE_NAME, SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { WebLookupCard } from '@/components/web-lookup-card'
 import {
   conversationQuery,
@@ -31,16 +32,19 @@ import {
 import { stashPendingPrompt } from '@/lib/pending'
 import { useWorkspace, WorkspaceProvider } from '@/lib/workspace'
 
+/** The Sidebar component writes its state to a cookie; read it back so a reload keeps the rail. */
+const sidebarOpen = () => !document.cookie.split('; ').includes(`${SIDEBAR_COOKIE_NAME}=false`)
+
 const rootRoute = createRootRoute({
   component: () => (
     <WorkspaceProvider>
-      <div className="flex h-dvh w-full overflow-hidden bg-background">
+      <SidebarProvider className="h-dvh min-h-0 overflow-hidden" defaultOpen={sidebarOpen()}>
         <AppSidebar />
-        <main className="flex min-w-0 flex-1 flex-col">
+        <SidebarInset className="min-w-0 overflow-hidden">
           <ConversationTabs />
           <Outlet />
-        </main>
-      </div>
+        </SidebarInset>
+      </SidebarProvider>
     </WorkspaceProvider>
   ),
 })
@@ -76,6 +80,10 @@ function NewChatPage() {
 
   return (
     <div className="flex h-full flex-col">
+      {/* No page bar here, so the sidebar toggle takes the place it has on every other page. */}
+      <div className="flex h-12 shrink-0 items-center px-6">
+        <PageTrigger />
+      </div>
       <div className="flex flex-1 flex-col items-center justify-center px-6">
         <div className="w-full max-w-3xl">
           <EmptyState onPick={(text) => void start(text)} />

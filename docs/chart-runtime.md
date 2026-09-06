@@ -73,8 +73,8 @@ are always `de-DE`, because the product writes money that way whatever the answe
 
 | Shape            | Marks                                | For                                                |
 | ---------------- | ------------------------------------ | -------------------------------------------------- |
-| `line`           | `lineY`                              | a figure over ordered months or days               |
-| `area`           | `areaY` (+ optional `lineY` outline) | a running total or a filled trend                  |
+| `line`           | `lineY` (+ optional series)          | a figure over ordered months or days, or one line per name |
+| `area`           | `areaY` (+ optional `lineY` outline, + optional series) | a running total or a filled trend |
 | `bar`            | `barY`                               | one figure per named category                      |
 | `bar_horizontal` | `barX`                               | a ranking with long labels                         |
 | `bar_grouped`    | `barY` + `layout: group()` + series  | two dimensions side by side, at most six groups    |
@@ -84,16 +84,24 @@ are always `de-DE`, because the product writes money that way whatever the answe
 
 A series is a `z` or `color` channel: a column name or an accessor. The table lives in
 `src/finquery/chart/shapes.py`, which the plan prompt, the code prompt and the check all read.
-Three flags on a row carry more than the marks do, and they are deliberately not one flag:
+Four flags on a row carry more than the marks do, and they are deliberately not one flag:
 
 - **`series`** means the shape tells its data apart by colour, so it needs a `color` (or `z`)
   channel and a legend. The grouped and stacked bars do; so does a doughnut, whose slices are
   its series. Six colours is the ceiling, because that is how long the theme's palette is: a
   seventh group is painted like the first, and two categories in one picture wearing one colour
   is not a chart anybody can read.
+- **`may_series`** means the shape carries a series when the request asks for one and reads
+  fine without it. The line and the area do: "spending at my five grocery stores per month" is
+  one `lineY` with a `color` channel, five strokes and a legend, and the same request about one
+  store is the plain two-column line with neither. Its rows come long, one per (position, name)
+  pair, like a grouped bar's. Kept apart from `series` because nothing is missing when there is
+  only one column of euros, which is what made the repair loop drop every store but one before
+  ticket 50.
 - **`crossed`** means the shape needs two dimensions that really cross, one figure per (position,
   series) pair. Only the grouped and stacked bars do, which is why a doughnut is not downgraded
-  to bars when its rows carry a single dimension.
+  to bars when its rows carry a single dimension. A line with a series needs its pairs to be
+  unique too, but not to be complete: a store with no booking in March is a gap in one stroke.
 - **`zero_from_mark`** means the mark contributes its own zero baseline to the inferred domain.
   Bars and areas do. A line does not, and has to name the domain itself.
 
@@ -115,7 +123,11 @@ instruction in the same words.
 - A category axis carries names, and a name cannot be read off its neighbours, so every one of
   them is drawn: `axis: { tickLabels: { thin: false } }`, plus `rotate` when the names sit on x.
 - Two marks may not draw two different euro columns with nothing to tell them apart: that stacks
-  income on top of spending into a total nobody asked for.
+  income on top of spending into a total nobody asked for. A mark that carries a series is
+  telling them apart, so it is not what this rule is about.
+- A line or an area with a series draws one stroke per name: `z` and `color` both name the
+  column of names, the euro domain covers every figure in the rows, and the legend goes on. At
+  most six of them, the same ceiling as the bars.
 - Every chart carries `tooltip: { use: tooltip, format: ... }` and formats euros with `eur`.
 - A legend only with more than one series, and then
   `color: { legend: colorLegend({ placement: 'bottom' }) }`.
@@ -150,7 +162,8 @@ record what was asked for instead of drawing it, then judges the recording:
 Two rules are about the rows rather than about the code, so `data_findings(shape, columns,
 rows)` judges them before a line is written and no repair round is spent on them:
 
-- a stacked or grouped bar needs **one figure per (position, series) pair**. Two rows for
+- a chart with a series needs **one figure per (position, series) pair**, which is the stacked
+  and grouped bars and a line or an area whose rows carry a name column. Two rows for
   2025-01 / Groceries cannot be drawn by any definition, and TanStack says so as "A stack
   requires at most one value for each position and series";
 - a sankey needs links that **go somewhere and do not come back**: three columns, so every link
@@ -160,8 +173,9 @@ rows)` judges them before a line is written and no repair round is spent on them
 
 A third case is decided on the rows and downgraded rather than refused: a chart the rows cannot
 carry becomes plain bars, narrated. A grouped or stacked chart whose rows carry a single series
-does, and so does a line or an area over fewer than three points, because a stroke from January
-to July says something about the five months the query did not return.
+does, and so does a line or an area over fewer than three points along its axis, because a stroke
+from January to July says something about the five months the query did not return. Points and
+not rows: five stores over two months are ten rows and still two points each.
 
 A fourth is folded rather than repaired. Folding is arithmetic, so it is not left to a repair
 round and never to the SQL: the rows the card shows are the rows the chart drew, and every fold
@@ -176,6 +190,10 @@ per shape and keyed by what the columns are for, and it runs before a line of co
   asked for each group under its own name and told not to fold: asking the statement for it is
   what produced `CASE ... 'Other'` beside `GROUP BY month`, so every month came back carrying
   several 'Other' rows and no definition could stack them;
+- a **line or an area carrying a series** over more names than the palette has colours keeps the
+  six largest by total and leaves the rest out, naming them in the note. It is the one fold that
+  drops instead of summing: nobody spends money at 'Sonstige', so a seventh line holding the
+  tail is a stroke a reader takes for a shop;
 - a **sankey** row flowing from a name into itself is a total and not a flow, so it is left out
   and the omission is narrated. One such row, which "show me where my income goes" produces
   readily, otherwise refuses the whole graph. Rows that are nothing but self loops are left
