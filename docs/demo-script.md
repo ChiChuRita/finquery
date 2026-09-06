@@ -59,9 +59,10 @@ before the audience arrives: the Models card lists all four entries with their a
 which local model is in the seat, where each file came from (a parked copy or Hugging Face), and
 the sanity check button.
 
-Have the browser at 1440 wide, the theme you prefer (both are fine), and these two files in a
-Finder window: `fixtures/synthetic/bill-edeka-2025-03-14.png` and
-`fixtures/synthetic/sparkasse-2025.csv`.
+Have the browser at 1440 wide, the theme you prefer (both are fine), and these four files in a
+Finder window: `fixtures/synthetic/bill-edeka-2025-03-14.png`,
+`fixtures/synthetic/sparkasse-2025.csv`, `fixtures/synthetic/sparkasse-2025.xlsx` and
+`fixtures/synthetic/statement-excerpt.docx`.
 
 ## The script
 
@@ -268,9 +269,20 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
     bookings, its candidates and the decisions on them), and the list is back to one. That is
     the way back from an import into the wrong profile.
 
+31. Drop `sparkasse-2025.xlsx` on the composer and send it, then `statement-excerpt.docx`.
+    Same year, two more file types: the workbook is read by the same mapping engine (the
+    Sparkasse header is the same preset, and the amounts and dates come out of the cells rather
+    than out of a string, so nothing is parsed with a guessed separator), and the Word document
+    is read by the same extraction sub-agent as a statement PDF, with the verbatim guard on
+    every figure and its two printed balances reconciled. Both hold bookings this profile
+    already has, so both end where a CSV ends: a duplicate card, nothing inserted and nothing
+    dropped. The chip above the message says XLSX and DOCX, and `/import` calls the two rows
+    Excel workbook and Word document. That is the multimodal elective in one gesture: six file
+    types, four readers, one commit.
+
 ### 14. The Transactions page with the split (no model)
 
-31. Open `/transactions`. 433 rows. Type "edeka" into the search, set From 01.03.2025 to
+32. Open `/transactions`. 433 rows. Type "edeka" into the search, set From 01.03.2025 to
     31.03.2025: the EDEKA row of 14.03.2025 has a chevron. Expand it: the two legs from step
     16, summing to the parent. Edit one category inline (click the cell, pick, click away: it
     saves). Clear the filters.
@@ -310,6 +322,8 @@ Measured on 2026-09-05 on the local provider, before the result check and the gr
 | Thumbs, Pick, Apply, Undo | none | instant |
 | Web lookup (one search, one page read) | fast | 53 s |
 | Second import of the same CSV (433 duplicate candidates) | fast | 58 s |
+| The same year as an XLSX (433 duplicate candidates) | fast | to time |
+| The Word excerpt, 15 bookings, one page of text | fast | to time |
 | Statement PDF, 15 pages, 433 bookings, reconciled (not in the live script) | fast | 1458 s |
 
 ## What is not in the live script

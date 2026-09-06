@@ -173,8 +173,11 @@ Import a bank CSV export by dropping it on the chat composer and sending it: the
 the import as a tool call, with the rows read, imported and categorized ticking past in the tool
 step. Sparkasse, DKB, ING, N26, comdirect and Trade Republic are recognized by their CSV headers;
 any other bank gets a mapping proposed by the fast slot and confirmed on a Question card before
-anything is written. Statement PDFs and photos are dropped on the composer the same way, and the
-Sparkasse and Trade Republic statement layouts are recognized by their page headers. Typing "I
+anything is written. An Excel workbook takes the same path one step earlier: openpyxl reads a
+sheet into the same rows, and a cell that is already a date or a number stays one, so nothing is
+parsed back out of a string with a guessed separator. Statement PDFs, Word documents and photos
+are dropped on the composer the same way, and the Sparkasse and Trade Republic statement layouts
+are recognized by their page headers. Typing "I
 paid 12 EUR cash for lunch today" or pasting a few statement lines gives a preview card to
 confirm, and confirming writes the booking and categorizes it.
 
@@ -194,6 +197,10 @@ below the confidence threshold is Needs review, and the assistant asks about tho
 Question cards right there. Each answer becomes a category rule and recategorizes every booking
 of that merchant, and telling the assistant "PayPal to Anna is always Dining" in chat does the
 same.
+
+A Word document is read by the same extraction path as a statement PDF, from the text it carries:
+python-docx returns its paragraphs and table cells in document order, and every figure is held to
+the verbatim guard and to the running balance exactly as a printed page is.
 
 A statement PDF is read from the text layer with pdfplumber, twelve pages at a time on a hosted
 provider and four locally (`FINQUERY_EXTRACTION_PAGE_CONCURRENCY`), and the
@@ -261,7 +268,8 @@ turns that into a DPO dataset and a train script for the two fast-slot adapters.
 training is the phase after this build; see `training/preference/README.md`.
 
 `fixtures/synthetic/` holds the shipped demo dataset, one canonical year of a German household
-as a Sparkasse CSV, a renamed-header CSV, a 15 page text PDF statement that reconciles, and four
+as a Sparkasse CSV, a renamed-header CSV, an Excel workbook with typed cells, a 15 page text PDF
+statement that reconciles, a Word excerpt of fifteen bookings with its two balances, and four
 bill images whose line items sum to a booking in the CSV. Regenerate
 it with `uv run python scripts/generate_synthetic.py`.
 
@@ -288,7 +296,7 @@ merchant token leaves at most once per profile: the result is cached. Search nee
 | `src/finquery/query/` | the query sub-agent, the SQL guard, execution, and `check.py` (the degenerate rewrite and the result check) |
 | `src/finquery/chart/` | the chart sub-agent, the shapes, the fold both callers share, the QuickJS self-check |
 | `src/finquery/dashboard.py` | the tiles, the four default cards, and the guarded run behind every card |
-| `src/finquery/ingest/`, `extract/` | CSV presets and the mapping sub-agent; PDF and photo reading with the verbatim and reconciliation guards |
+| `src/finquery/ingest/`, `extract/` | CSV and XLSX presets and the mapping sub-agent; PDF, DOCX and photo reading with the verbatim and reconciliation guards |
 | `src/finquery/categorize/`, `weblookup/` | rules, merchant dictionary, categorizer sub-agent, review queue; the token scrubber, the keyless search client, the lookup loop and the outbound log |
 | `src/finquery/changesets.py`, `edits.py`, `ask_user.py`, `answers.py` | proposed changes, what may be written, the Question card tool and what its answers do in code |
 | `src/finquery/context.py`, `memory.py`, `onboarding.py`, `preferences.py`, `followups.py` | the per-turn prompt, durable facts, the first-run state, ratings and picks, post-turn suggestions |

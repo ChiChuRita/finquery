@@ -59,11 +59,11 @@ lost: the user answers **Keep both** (insert it) or **Remove** (leave the data a
 Question card in the chat, and the decision stays on the candidate. Avoid: duplicate
 (what is a duplicate is the user's call, not ours), conflict, collision.
 
-**Extraction**: what the extraction sub-agent read out of one PDF or photo, before anything is
-written: the rows with the span each figure was read from, the flags the guards left on them and
-the reconciliation. Stored on the attachment until the review is answered, so the rows that are
-committed are the rows the user was shown. Avoid: parse, OCR (there is no OCR; a page with no
-text layer is looked at by the vision path).
+**Extraction**: what the extraction sub-agent read out of one PDF, Word document or photo,
+before anything is written: the rows with the span each figure was read from, the flags the
+guards left on them and the reconciliation. Stored on the attachment until the review is
+answered, so the rows that are committed are the rows the user was shown. Avoid: parse, OCR
+(there is no OCR; a page with no text layer is looked at by the vision path).
 
 **Verbatim guard**: the rule that an amount, a balance or a date must occur literally in the
 source text of the page it was read from. Avoid: validation.
@@ -76,15 +76,18 @@ row on the running balance, per page and over the whole statement. Its verdict i
 committed silently: it goes to the review step, where it is accepted, corrected or dropped.
 Avoid: invalid row, error row.
 
-**Column mapping**: which column of an uploaded CSV is the date, the amount (or the debit and
-credit pair), the description and the counterparty, plus its date format and decimal separator.
-Always shown to the user before a commit, on the Question card the chat asks it with. Not to be
-confused with a Category rule, which the glossary
-keeps clear of the word mapping. Avoid: schema, layout.
+**Column mapping**: which column of an uploaded CSV or Excel sheet is the date, the amount (or
+the debit and credit pair), the description and the counterparty, plus its date format and
+decimal separator. A workbook cell that is already a number or a date is read as one, whatever
+the mapping says about how figures are written. Always shown to the user before a commit, on the
+Question card the chat asks it with, which is also where a workbook with several sheets is asked
+which sheet it is. Not to be confused with a Category rule, which the glossary keeps clear of
+the word mapping. Avoid: schema, layout.
 
 **Attachment**: a file dropped into the chat composer, stored per conversation and identified by
-its file name, which is also the handle the `import_file` tool takes. The bytes never enter the
-prompt. Avoid: upload (an upload is what the REST import endpoints take), file part.
+its file name, which is also the handle the `import_file` tool takes. Its **kind** is which
+reader takes it: `csv`, `xlsx`, `pdf`, `docx` or `image`. The bytes never enter the prompt.
+Avoid: upload (an upload is what the REST import endpoints take), file part.
 
 **Transaction draft**: one booking extracted from what the user typed or pasted, stored with a
 short ref and inert until they confirm it on the preview card. Confirming writes the booking

@@ -1,8 +1,9 @@
 # 08: Ingestion with two guards on every extracted figure
 
-**Claim:** Every import happens in the chat. A CSV is parsed (six bank presets, or a mapping the
-fast slot proposes and the user confirms on a card), a statement PDF is read page by page by
-the extraction sub-agent which points at literal spans, a photo is read by the vision path, and
+**Claim:** Every import happens in the chat. A CSV and an Excel workbook are parsed (six bank
+presets, or a mapping the fast slot proposes and the user confirms on a card), a statement PDF is
+read page by page by the extraction sub-agent which points at literal spans, a Word document is
+read the same way from its own text, a photo is read by the vision path, and
 two guards decide what may be committed: every figure must be printed in the source text
 (verbatim guard) and the statement must add up (reconciliation guard). What fails goes to a
 review card; nothing is dropped and nothing is inserted silently, including duplicates.
@@ -14,11 +15,11 @@ flowchart TD
   D["file dropped on the composer"] --> S["attachments stored per conversation; the prompt gets only a brief"]
   S --> T["chat agent: import_file(file_name)"]
   T --> K{"kind"}
-  K -->|"csv"| C1["sniff, detect_preset or mapping sub-agent"]
+  K -->|"csv or xlsx"| C1["sniff or read_xlsx, then detect_preset or mapping sub-agent"]
   C1 -->|"unknown layout"| C2["ask_user mapping card, confirm"]
   C1 --> C3["parse"]
   C2 --> C3
-  K -->|"pdf"| P1["read_pdf text layer; render scanned pages at 150 dpi"]
+  K -->|"pdf or docx"| P1["read_pdf text layer, or read_docx; render scanned pages at 150 dpi"]
   P1 --> P2["extraction sub-agent per page (forced read_statement): spans and line numbers"]
   P2 --> P3["to_rows: parse cents and dates in code; verbatim guard"]
   P3 --> P4["reconcile: per row, per page, whole statement"]
@@ -38,11 +39,15 @@ In words:
    agent is told the file name, kind, size and whether it was imported.
 2. `import_file` routes by kind. CSV: sniff delimiter and encoding, match a preset by header
    (Sparkasse, DKB, ING, N26, comdirect, Trade Republic) or ask the mapping sub-agent and show
-   the proposal on a Question card; parse German decimals and dates; commit.
+   the proposal on a Question card; parse German decimals and dates; commit. XLSX: openpyxl reads
+   one sheet into the same shape, and its typed cells (a real date, a real number) correct the
+   mapping's date format and decimal separator before a row is read (ticket 58, explainer 16).
 3. PDF: pdfplumber words are grouped back into printed lines; a page with no text layer is
    rendered and read as an image. One sub-agent call per page (4 in flight locally, 12 hosted)
    returns rows as spans: `date_text`, `amount_text`, `balance_text`, a line number and a
    direction. The cents and the date are parsed from those spans in code.
+3b. DOCX: python-docx reads paragraphs and table cells in document order into one page of text,
+   and from there it is step 3 without the pages, the rendering and the vision path.
 4. The verbatim guard checks each span occurs literally in the page text (a date may be split
    over two printed lines). The reconciliation guard walks the running balance row by row, per
    page and over the statement, against printed opening and closing balances where the layout
@@ -68,7 +73,8 @@ In words:
 4. CSV: `src/finquery/ingest/csv_reader.py:sniff`, `detect_preset`, `mapping_for`, `parse`,
    `parse_amount` (German decimals, parentheses as money out), `parse_date`;
    `src/finquery/ingest/mapping_agent.py:propose` (forced `propose_mapping`, header plus five
-   sample rows).
+   sample rows). XLSX: `src/finquery/ingest/xlsx.py:read_xlsx`, `with_cell_types`.
+   DOCX: `src/finquery/extract/docx.py:read_docx`.
 5. PDF: `src/finquery/extract/pdf.py:read_pdf` (lines with positions), `render` (150 dpi),
    `as_image`; `src/finquery/extract/layouts.py:detect_layout` (Sparkasse, Trade Republic,
    unknown, each with a hint and balance labels); `src/finquery/extract/subagent.py:read_statement_text`
@@ -181,6 +187,7 @@ In words:
   left").
 - Only two statement layouts are recognized by header (Sparkasse, Trade Republic); others get
   the generic hint.
-- OFX, MT940, CAMT and XLSX importers are out of scope (`.scratch/finquery/spec.md`).
+- OFX, MT940 and CAMT importers are out of scope (`.scratch/finquery/spec.md`). XLSX and DOCX
+  were out of scope until ticket 58 claimed the multimodal elective and brought them in.
 - Receipts are measured on twenty public receipts plus one real one; the real Trade Republic
   data is private and never shipped.
