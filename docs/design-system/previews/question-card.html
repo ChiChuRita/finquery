@@ -1,0 +1,18 @@
+<!-- @dsCard group="Components" -->
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../tokens.css"><style>
+body{padding:24px} .card{border:1px solid color-mix(in oklch,var(--primary) 35%,transparent);background:var(--card);border-radius:var(--radius-lg);max-width:520px;padding:14px 16px}
+.t{font-weight:600;font-size:15px;margin-bottom:4px} .m{font-size:12px;color:var(--muted-foreground);margin-bottom:12px}
+.row{border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:8px} .who{display:flex;justify-content:space-between;font-size:13px} .who b{font-weight:600} .amt{font-variant-numeric:tabular-nums;color:var(--muted-foreground)}
+.opts{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0} .opt{font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px 8px} .opt.on{background:var(--sidebar-accent);border-color:var(--foreground)}
+.in{font-size:12px;color:var(--muted-foreground);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px}
+.act{display:flex;justify-content:flex-end;gap:8px;margin-top:6px} .btn{font-size:12px;padding:6px 10px;border-radius:var(--radius-md);border:1px solid var(--border)} .btn.p{background:var(--primary);color:var(--primary-foreground);border-color:transparent;font-weight:600}
+</style></head><body>
+<div class="card">
+<div class="t">Which category do these belong to?</div>
+<div class="m">4 merchants I am not sure about. One answer becomes a rule for every booking of that merchant.</div>
+<div class="row"><div class="who"><b>Jonas Keller (via PayPal)</b><span class="amt">7 bookings, -40,00 €</span></div>
+<div class="opts"><span class="opt on">Transfers, Friends and family</span><span class="opt">Groceries</span><span class="opt">Dining</span><span class="opt">Subscriptions</span><span class="opt">Unknown</span></div>
+<div class="in">or type an answer</div></div>
+<div class="act"><span class="btn">Skip these</span><span class="btn p">Send 1 answer</span></div>
+</div>
+</body></html>

@@ -1,0 +1,21 @@
+<!-- @dsCard group="Diagrams" -->
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../tokens.css"><style>
+body{padding:24px} .flow{display:flex;gap:10px;align-items:stretch}
+.node{border:1px solid var(--border);background:var(--card);border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.3;flex:1}
+.node h4{margin:0 0 4px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--primary)}
+.model{border-color:color-mix(in oklch,var(--chart-2) 45%,transparent)} .model h4{color:var(--chart-2)}
+.guard{border-color:color-mix(in oklch,var(--warning) 45%,transparent);background:color-mix(in oklch,var(--warning) 6%,var(--card))} .guard h4{color:var(--warning)}
+.data{background:var(--muted)} .data h4{color:var(--muted-foreground)}
+.arr{align-self:center;color:var(--muted-foreground);font-size:22px}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--muted-foreground);margin-top:12px} .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle} .l1::before{background:var(--chart-2)} .l2::before{background:var(--warning)} .l3::before{background:var(--muted-foreground)}
+</style></head><body>
+<div class="flow">
+<div class="node model"><h4>Chat agent</h4>Reads the question, calls the query tool.</div><div class="arr">→</div>
+<div class="node model"><h4>Query sub-agent</h4>One SELECT plus a reasoning line.</div><div class="arr">→</div>
+<div class="node guard"><h4>SQL guard</h4>Parsed, scoped, read-only, capped.</div><div class="arr">→</div>
+<div class="node data"><h4>SQLite</h4>Runs it. Rows come back.</div><div class="arr">→</div>
+<div class="node guard"><h4>Check pass</h4>Off-question? One revise.</div><div class="arr">→</div>
+<div class="node"><h4>Answer</h4>SQL and rows shown with the words.</div>
+</div>
+<div class="legend"><span class="l1">a model writes</span><span class="l2">code checks</span><span class="l3">code executes or stores</span></div>
+</body></html>
