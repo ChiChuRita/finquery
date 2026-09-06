@@ -13,7 +13,6 @@ this module no longer draws one.
 stored statement see those days only, and nothing about them is stored.
 """
 
-import json
 from datetime import date, datetime
 from typing import Any
 

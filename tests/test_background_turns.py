@@ -24,7 +24,6 @@ from finquery.api.running import RunningTurn
 from .conftest import (
     Scripts,
     chat_body,
-    default_profile_id,
     distilled,
     is_distillation_request,
     is_followup_request,

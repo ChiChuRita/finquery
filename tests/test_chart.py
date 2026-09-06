@@ -13,7 +13,6 @@ import httpx
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall
 
-from finquery.chart.selfcheck import check_chart_code
 from finquery.chart.selfcheck import RULE_VALUE, check_chart_code
 from finquery.chart.shapes import SHAPE_NAMES
 from finquery.chart.subagent import EXAMPLES

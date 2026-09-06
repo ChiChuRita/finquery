@@ -393,10 +393,6 @@ def _verb(count: int, singular: str, plural: str) -> str:
     return singular if count == 1 else plural
 
 
-def _taxonomy_label(name: str, subcategory: str | None) -> str:
-    return f"{name} under {subcategory}" if subcategory else name
-
-
 def _fields_shown(rows: Sequence[PreviewRow]) -> list[str]:
     """Every column but subcategory, which is only worth a column when a row has one."""
     used = {

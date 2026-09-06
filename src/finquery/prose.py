@@ -247,9 +247,6 @@ class AnswerCheck:
 
 # --------------------------------------------------------------------------- foreign tokens
 
-_SCRIPTS = ("LATIN", "COMMON", "DIGIT")
-"""The scripts a German or English answer is written in. A letter of any other is a leak."""
-
 MAX_FOREIGN_SHARE = 0.3
 """Above this share of the words, the other script is the text and not a stray token in it."""
 

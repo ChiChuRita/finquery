@@ -27,7 +27,6 @@ from finquery_bench.run import Result, run_points
 
 VALIDATE = Path(__file__).resolve().parents[1] / "validate"
 DEFAULT_SEED = 7
-COMMANDS = ("run", "compare", "sample")
 
 
 def _today() -> date:

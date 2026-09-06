@@ -19,8 +19,6 @@ SetName = Literal["sql", "chart", "all"]
 KINDS = ("total", "breakdown", "comparison", "trend", "ranking", "entity", "follow-up", "period")
 """What a SQL question asks for. One per datapoint, so a run can be read per kind."""
 
-DIFFICULTIES = (1, 2, 3)
-
 NO_ANSWER = "none"
 """`answer` of a datapoint whose honest result is that the data holds nothing.
 
