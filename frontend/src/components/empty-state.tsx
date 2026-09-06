@@ -4,7 +4,7 @@ import { Suggestion } from '@/components/ai-elements/suggestion'
 import { transactionCountQuery } from '@/lib/api'
 import { useWorkspace } from '@/lib/workspace'
 
-export const STARTER_SUGGESTIONS = [
+const STARTER_SUGGESTIONS = [
   'What can you help me with?',
   'How much did I spend on groceries in May?',
   'Which subscriptions am I paying for?',

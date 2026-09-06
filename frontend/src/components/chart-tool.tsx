@@ -50,7 +50,7 @@ import {
   type ChartRow,
 } from '@/lib/chart-frame'
 
-export const SHAPE_LABELS: Record<string, string> = {
+const SHAPE_LABELS: Record<string, string> = {
   line: 'Line',
   area: 'Area',
   bar: 'Bars',

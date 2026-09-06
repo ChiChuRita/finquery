@@ -57,7 +57,7 @@ export function forgetConversation(conversationId: string) {
 }
 
 /** The tab that was in front in this profile, so leaving it and coming back lands there. */
-export function rememberActiveTab(profileId: string, conversationId: string) {
+function rememberActiveTab(profileId: string, conversationId: string) {
   localStorage.setItem(activeTabKey(profileId), conversationId)
 }
 
