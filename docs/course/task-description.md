@@ -60,10 +60,13 @@ implemented. Presentations on Monday 2026-09-07. Hand-in as a ZIP archive by Mon
 ## What FinQuery claims (pair, four electives)
 
 Required: all of the above, with the profile as the "group of chats" the memory belongs to, the
-fast and quality slots as the two loadable models, and the query and chart adapters as the two
-fine-tuned models (training in progress, tickets 43 and following). Electives claimed:
-intelligent context management, sub-agent deployment, preference optimisation via human
-feedback, self-controlled web search. Built but not claimed as electives: multimodal ingestion
-(PDF, scans and receipt photos through a vision model), sandboxed execution of generated chart
-code (JavaScript in an isolated frame, not Python). Not built: adaptive RAG, user-provided tools,
-concurrent multi-user, prompt caching, Tree-of-Thought.
+catalog of four chat models (two local, two cloud) as the loadable models, and the query and
+chart adapters as the two fine-tuned models (training in progress, tickets 43 and following).
+Electives claimed, revised 2026-09-06: intelligent context management, sub-agent deployment,
+multimodal ingestion (images, PDFs, text, CSV, XLSX and DOCX through the two local
+vision-language models under the extraction guards; audio is out of scope), self-controlled web
+search. Built and then removed on 2026-09-06: preference optimisation via human feedback (the
+choice UI and the DPO scripts existed; ticket 59 removed them so the product stays simple). Built
+but not claimed: sandboxed execution of generated chart code (JavaScript in an isolated frame,
+not Python). Not built: adaptive RAG, user-provided tools, concurrent multi-user, prompt caching,
+Tree-of-Thought.
