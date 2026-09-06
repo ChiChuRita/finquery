@@ -288,7 +288,7 @@ const names = data.map((row) => String(row.category));
 const tilt = names.length > 6 || names.some((name) => name.length > 9) ? -28 : 0;
 return defineChart({
   marks: [
-    barY(data, { x: 'category', y: 'total_eur', fill: palette[0], radius: 4, maxThickness: 32 }),
+    barY(data, { x: 'category', y: 'total_eur', fill: palette[0], maxThickness: 32 }),
   ],
   scales: {
     x: { scale: () => scaleBand().padding(0.26), axis: { tickLabels: { rotate: tilt, thin: false } } },
@@ -313,7 +313,7 @@ return defineChart({
             code="""\
 return defineChart({
   marks: [
-    barX(data, { x: 'total_eur', y: 'merchant', fill: palette[0], radius: 4, maxThickness: 32 }),
+    barX(data, { x: 'total_eur', y: 'merchant', fill: palette[0], maxThickness: 32 }),
   ],
   scales: {
     x: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
@@ -339,7 +339,7 @@ return defineChart({
 const short = (name) => (name.length > 18 ? name.slice(0, 17) + '.' : name);
 return defineChart({
   marks: [
-    barY(data, { x: 'month', y: 'total_eur', z: 'topic', color: (row) => short(row.topic), layout: group({ padding: 0.12 }), radius: 2, maxThickness: 32 }),
+    barY(data, { x: 'month', y: 'total_eur', z: 'topic', color: (row) => short(row.topic), layout: group({ padding: 0.12 }), maxThickness: 32 }),
   ],
   scales: {
     x: {
@@ -369,7 +369,7 @@ return defineChart({
 const short = (name) => (name.length > 18 ? name.slice(0, 17) + '.' : name);
 return defineChart({
   marks: [
-    barY(data, { x: 'month', y: 'total_eur', z: 'topic', color: (row) => short(row.topic), radius: 2, maxThickness: 32 }),
+    barY(data, { x: 'month', y: 'total_eur', z: 'topic', color: (row) => short(row.topic), maxThickness: 32 }),
   ],
   scales: {
     x: {
@@ -406,7 +406,6 @@ return defineChart({
       marks: [
         radialArc(slices, {
           innerRadius: ({ radius }) => radius * 0.62,
-          cornerRadius: 3,
           color: (slice) => short(slice.merchant),
           key: 'merchant',
         }),
@@ -440,7 +439,6 @@ return defineChart({
       marks: [
         radialArc(slices, {
           innerRadius: ({ radius }) => radius * 0.62,
-          cornerRadius: 3,
           color: (slice) => slice.label,
           key: 'label',
         }),

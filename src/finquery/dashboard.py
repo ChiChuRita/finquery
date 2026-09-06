@@ -160,7 +160,6 @@ return defineChart({
       marks: [
         radialArc(slices, {
           innerRadius: ({ radius }) => radius * 0.62,
-          cornerRadius: 3,
           color: (slice) => short(slice.category),
           key: 'category',
         }),
@@ -200,7 +199,7 @@ ORDER BY month, topic
 INCOME_CODE = """\
 return defineChart({
   marks: [
-    barY(data, { x: 'month', y: 'total_eur', z: 'topic', color: (row) => row.topic, layout: group({ padding: 0.12 }), radius: 2, maxThickness: 32 }),
+    barY(data, { x: 'month', y: 'total_eur', z: 'topic', color: (row) => row.topic, layout: group({ padding: 0.12 }), maxThickness: 32 }),
   ],
   scales: {
     x: {
@@ -231,7 +230,7 @@ LIMIT 10
 MERCHANTS_CODE = """\
 return defineChart({
   marks: [
-    barX(data, { x: 'total_eur', y: 'merchant', fill: palette[0], radius: 4, maxThickness: 32 }),
+    barX(data, { x: 'total_eur', y: 'merchant', fill: palette[0], maxThickness: 32 }),
   ],
   scales: {
     x: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },

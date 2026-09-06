@@ -127,7 +127,9 @@ export function DashboardCard({
   }
 
   return (
-    <ChartCard>
+    // rounded-xl: the radius of every card on a page (the tiles beside it, the imports list, the
+    // settings sections); rounded-lg is the transcript's (ticket 45).
+    <ChartCard className="rounded-xl">
       {/* The same header as the chat card, without its shape badge: with four actions beside
           it the badge cut every title to a word and a half ("Income against..."). The shape is
           named under Details, next to the plan. */}

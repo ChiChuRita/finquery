@@ -137,7 +137,9 @@ export function PairSide({
   children: React.ReactNode
 }) {
   return (
-    <div className={cn('flex min-w-0 flex-col rounded-lg border', picked && 'border-primary ring-1 ring-primary/30')}>
+    // rounded-md: a side sits inside a rounded-lg card, and a nested container steps one radius
+    // down (ticket 45). The picked side keeps its soft ring: it is a highlight, not a second edge.
+    <div className={cn('flex min-w-0 flex-col rounded-md border', picked && 'border-primary ring-1 ring-primary/30')}>
       <div className="flex items-center justify-between gap-2 border-b px-3 py-1.5">
         <span className="truncate font-medium text-xs">{label}</span>
         {note && <span className="shrink-0 text-muted-foreground text-2xs">{note}</span>}

@@ -261,6 +261,9 @@ being regenerated (ticket 36):
   card's surface colour, `radialArc` a 2 px one, so stacked segments, grouped bars and doughnut
   slices are told apart by a hairline of surface rather than by touching. The code's own
   `stroke` wins when it names one.
+- **Corners.** Nothing inside a chart is rounded: `barY`, `barX` and `radialArc` drop a
+  `radius` or `cornerRadius` the code wrote, and the legend's swatches are squares (ticket 45).
+  Rounding stays on the card and on the tooltip, which are the app's chrome, not the chart's.
 - **The doughnut's centre.** `pie` records the total of the slices it allocated, and the frame
   writes it into the hole ("28.535,89 €" over "Total" or "Gesamt", by language). The figure
   is the query's rows added up, never typed.

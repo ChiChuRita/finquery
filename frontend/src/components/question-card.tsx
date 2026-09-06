@@ -166,7 +166,9 @@ export function QuestionCard({
             const chosen = chosenLabel(row, answered ?? [], fallback)
             const choice = choices[row.ref]
             return (
-              <li className="rounded-lg border bg-card p-3" key={row.ref}>
+              // One radius step under the card around it, the way every container nested in a
+              // bordered block steps down (ticket 45).
+              <li className="rounded-md border bg-card p-3" key={row.ref}>
                 <RowHeader row={row} />
                 {answered ? (
                   <p className="mt-2 text-xs">
