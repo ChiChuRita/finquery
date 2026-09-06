@@ -75,7 +75,7 @@ def create_app(
             local if local is not None else build_local_stack(settings, download=settings.provider == "local")
         )
         app.state.models = Catalog(settings, local=app.state.local, resolve=resolve_model)
-        app.state.subagent_settings = subagent_settings(settings)
+        app.state.subagent_settings = subagent_settings()
         app.state.context_budget = context_budget(settings, app.state.local)
         # Nothing calls it until a profile switches web lookup on. See finquery.weblookup.
         app.state.web_client = web_client if web_client is not None else HttpWebClient()

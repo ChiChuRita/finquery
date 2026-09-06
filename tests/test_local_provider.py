@@ -163,9 +163,9 @@ async def test_the_two_local_chat_models_share_one_seat(tmp_path: Path) -> None:
     async with local_client(stack) as client:
         body = (await client.get("/api/models")).json()
         assert body["provider"] == "local"
-        assert body["default_key"] == QWEN
+        assert body["default_key"] == GEMMA
         local_entries = [entry for entry in body["entries"] if entry["provider"] == "local"]
-        assert [entry["key"] for entry in local_entries] == [QWEN, GEMMA]
+        assert [entry["key"] for entry in local_entries] == [GEMMA, QWEN]
         assert all(entry["ready"] and entry["available"] and not entry["loaded"] for entry in local_entries)
         assert all(f["state"] == "ready" for entry in local_entries for f in entry["files"])
         assert [entry["key"] for entry in body["fast_slots"]] == [FAST, "openrouter:fast"]
@@ -173,22 +173,24 @@ async def test_the_two_local_chat_models_share_one_seat(tmp_path: Path) -> None:
 
         profile_id = await default_profile_id(client)
         await turn(client, await new_conversation(client, profile_id, QWEN), "hi")
-        assert [entry["loaded"] for entry in _entries(await client.get("/api/models"))] == [True, False]
+        assert [entry["loaded"] for entry in _entries(await client.get("/api/models"))] == [False, True]
 
         await turn(client, await new_conversation(client, profile_id, GEMMA), "hi")
         after = _entries(await client.get("/api/models"))
         # One seat: the model that answered last is the one that is loaded.
-        assert [entry["loaded"] for entry in after] == [False, True]
+        assert [entry["loaded"] for entry in after] == [True, False]
         assert [entry["n_ctx"] for entry in after] == [32768, 32768]
-        assert stack.loaded_spec("fast") is TINY_MODELS[FAST]
-        # The one that gave up the seat was unloaded, and the fast slot was never touched.
+        # The one that gave up the seat was unloaded, and the fast seat was never taken: with
+        # every sub-agent role on `chat`, nothing this turn asked for the fast slot.
         assert (slots[QWEN].closed, slots[GEMMA].closed, slots[FAST].closed) == (1, 0, 0)
+        assert stack.loaded_spec("fast") is None
+        assert slots[FAST].requests == []
 
-        # Two turns, plus the two post-turn steps each one runs on the fast slot afterwards
-        # (follow-up suggestions and memory distillation).
-        assert len(slots[FAST].requests) == 4
-        assert len(slots[QWEN].requests) == 1
-        assert len(slots[GEMMA].requests) == 1
+        # Each turn is its answer plus the two post-turn steps (follow-up suggestions and
+        # memory distillation), all of them on the entry the conversation runs on rather than
+        # on the fast slot, which is what the default `chat` on every sub-agent role means.
+        assert len(slots[QWEN].requests) >= 3
+        assert len(slots[GEMMA].requests) >= 3
 
 
 async def test_thinking_is_split_out_of_the_text_stream(tmp_path: Path) -> None:
@@ -331,7 +333,7 @@ async def test_stop_ends_the_token_loop_and_keeps_the_partial_turn(tmp_path: Pat
 
             return generate()
 
-    slots = _slots(qwen=SlowSlot("tiny-quality"))
+    slots = _slots(gemma=SlowSlot("tiny-gemma"))
     async with local_client(local_stack(tmp_path, slots)) as client:
         conversation_id = await new_conversation(client, await default_profile_id(client))
         running = asyncio.create_task(
@@ -360,13 +362,13 @@ async def test_download_progress_endpoint_reports_each_file(tmp_path: Path) -> N
         destination.write_bytes(b"y" * file.size)
         report(file.size)
 
-    models = {QWEN: TINY_MODELS[QWEN]}
+    models = {GEMMA: TINY_MODELS[GEMMA]}
     settings = make_settings(provider="local", models_dir=tmp_path / "models")
     stack = LocalStack(
         settings,
         models=models,
         downloads=DownloadManager(settings.models_dir, models=models, fetch=fetch),
-        load=lambda *_: FakeSlot("tiny-quality"),
+        load=lambda *_: FakeSlot("tiny-gemma"),
     )
     async with local_client(stack) as client:
         before = _entries(await client.get("/api/models"))[0]
@@ -385,7 +387,7 @@ async def test_download_progress_endpoint_reports_each_file(tmp_path: Path) -> N
 
         release.set()
         body = await _wait_for_downloads(client)
-        entry = next(e for e in body["entries"] if e["key"] == QWEN)
+        entry = next(e for e in body["entries"] if e["key"] == GEMMA)
         assert entry["ready"] is True and entry["available"] is True
         assert [f["state"] for f in entry["files"]] == ["ready", "ready"]
 
@@ -497,12 +499,12 @@ async def test_models_endpoint_lists_the_whole_catalog_on_openrouter(tmp_path: P
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             body = (await client.get("/api/models")).json()
             assert body["provider"] == "openrouter"
-            assert body["default_key"] == "openrouter:qwen/qwen3.5-9b"
+            assert body["default_key"] == "openrouter:google/gemma-4-26b-a4b-it"
             assert [(entry["key"], entry["label"]) for entry in body["entries"]] == [
-                (QWEN, "Qwen3.5 9B (local)"),
-                ("openrouter:qwen/qwen3.5-9b", "Qwen3.5 9B (cloud)"),
                 (GEMMA, "Gemma 4 12B (local)"),
                 ("openrouter:google/gemma-4-26b-a4b-it", "Gemma 4 26B (cloud)"),
+                (QWEN, "Qwen3.5 9B (local)"),
+                ("openrouter:qwen/qwen3.5-9b", "Qwen3.5 9B (cloud)"),
             ]
             assert [entry["available"] for entry in body["entries"]] == [False, True, False, True]
             assert all("not downloaded" in entry["reason"] for entry in body["entries"] if not entry["available"])
@@ -574,7 +576,9 @@ async def test_every_sub_agent_request_carries_the_output_ceiling(tmp_path: Path
 
     The chat turn keeps the model's default ceiling; every request a sub-agent makes behind
     it (here the follow-up suggestions and the memory distillation after the answer) carries
-    `SUBAGENT_MAX_TOKENS`, which is what stops a page of extraction running until n_ctx.
+    `SUBAGENT_MAX_TOKENS`, which is what stops a page of extraction running until n_ctx. The
+    roles run on the chat entry here, which is the default since ticket 61, so this is also
+    where a sub-agent on a big model gets the same ceiling as one on the fast slot.
     """
     from finquery.local.model import MAX_TOKENS
     from finquery.providers import SUBAGENT_MAX_TOKENS
@@ -583,8 +587,8 @@ async def test_every_sub_agent_request_carries_the_output_ceiling(tmp_path: Path
     async with local_client(local_stack(tmp_path, slots)) as client:
         await turn(client, await new_conversation(client, await default_profile_id(client), GEMMA), "Hi")
 
-    chat = slots[GEMMA].requests[0]
-    others = slots[FAST].requests
+    chat, *others = slots[GEMMA].requests
+    assert slots[FAST].requests == [], "no role asked for the fast slot"
     assert chat["tool_choice"] == "auto"
     assert chat["max_tokens"] == MAX_TOKENS
     assert others, "the post-turn sub-agents never ran"

@@ -127,7 +127,7 @@ class Lookups:
 
         try:
             # Sub-agents are pinned to the fast slot whatever the conversation runs on.
-            model = self.resolve_model("fast")
+            model = self.resolve_model("weblookup")
         except ProviderNotAvailable as exc:
             return Lookup(token=token.text, error=f"The web lookup is unavailable: {exc}")
 

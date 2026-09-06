@@ -1,12 +1,26 @@
 """Process configuration, read from the environment and the local .env file."""
 
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import AfterValidator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Provider = Literal["openrouter", "local"]
+
+
+def _a_model_a_role_can_run_on(value: str) -> str:
+    """A sub-agent role setting is one of the two model roles or a catalog key.
+
+    Checked here so a typo in `.env` is a startup error naming the variable, not a 503 the
+    first time that one sub-agent runs.
+    """
+    if value in ("chat", "fast") or value.startswith(("local:", "openrouter:")):
+        return value
+    raise ValueError("expected `chat`, `fast` or a catalog key such as local:gemma-4-12b")
+
+
+SubagentModel = Annotated[str, AfterValidator(_a_model_a_role_can_run_on)]
 
 
 class Settings(BaseSettings):
@@ -43,15 +57,26 @@ class Settings(BaseSettings):
     local provider (one model, serialized anyway) and 12 on a hosted one, where the pages really
     do run in parallel (FINQUERY_EXTRACTION_PAGE_CONCURRENCY)."""
     openrouter_fast_model: str = "google/gemma-4-26b-a4b-it"
-    """The hosted sub-agent slot: what every sub-agent of a cloud chat entry runs on
-    (FINQUERY_OPENROUTER_FAST_MODEL). Its local counterpart is Gemma 4 E4B."""
-    openrouter_quality_model: str = "qwen/qwen3.5-9b"
-    openrouter_second_chat_model: str = "google/gemma-4-26b-a4b-it"
-    """The two hosted chat entries of the catalog, in the order the picker lists them
-    (FINQUERY_OPENROUTER_QUALITY_MODEL, FINQUERY_OPENROUTER_SECOND_CHAT_MODEL). The defaults are
-    Qwen3.5 9B, the model class the local provider ships, and the closest hosted Gemma 4 there
-    is: OpenRouter has no Gemma 4 12B. Any OpenRouter id works here to try another model without
-    a code change. See docs/adr/0013-model-catalog-across-providers.md."""
+    """The hosted sub-agent slot: what a sub-agent role set to `fast` runs on when the chat is
+    on a cloud entry (FINQUERY_OPENROUTER_FAST_MODEL). Its local counterpart is Gemma 4 E4B.
+    The two hosted chat entries are not settings: they are the catalog's own two ids
+    (`finquery.catalog.HOSTED_CHAT_MODELS`), so both are listed even when this slot happens to
+    point at one of them, which is what development on one hosted model does."""
+
+    # One setting per sub-agent role (FINQUERY_SUBAGENT_MODEL_<ROLE>). Each takes `chat` (the
+    # conversation's own entry, the default), `fast` (its provider's sub-agent slot) or a
+    # catalog key that pins the role to one model. See finquery.catalog.Catalog.for_role.
+    subagent_model_query: SubagentModel = "chat"
+    subagent_model_chart: SubagentModel = "chat"
+    subagent_model_categorizer: SubagentModel = "chat"
+    subagent_model_extraction: SubagentModel = "chat"
+    subagent_model_memory: SubagentModel = "chat"
+    subagent_model_summary: SubagentModel = "chat"
+    subagent_model_weblookup: SubagentModel = "chat"
+
+    def subagent_model(self, role: str) -> str:
+        """What one sub-agent role is set to. See `finquery.providers.SUBAGENT_ROLES`."""
+        return str(getattr(self, f"subagent_model_{role}"))
 
 
 def page_concurrency(settings: Settings) -> int:

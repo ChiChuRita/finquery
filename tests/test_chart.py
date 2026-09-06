@@ -274,8 +274,8 @@ async def test_a_scripted_chart_passes_the_check_and_reaches_the_transcript(
     _, chunks = await chat(conversation_id, "Zeig mir die Ausgaben pro Monat als Diagramm.")
 
     # The chat model, the chart sub-agent, the query sub-agent, the follow-up step and the
-    # distillation pass.
-    assert scripts.roles == ["chat", "fast", "fast", "fast", "fast"]
+    # distillation pass, each asked for by its own role.
+    assert scripts.roles == ["chat", "chart", "query", "summary", "memory"]
     types = [str(c["type"]) for c in chunks]
     # The plan is narrated while the tool runs: after the call, before its result.
     assert types.index("tool-input-available") < types.index("reasoning-start") < types.index("tool-output-available")
@@ -629,8 +629,8 @@ async def test_an_empty_profile_gets_no_chart_and_calls_no_sub_agent(
 
     _, chunks = await chat(conversation_id, "Zeig mir ein Diagramm.")
 
-    # The chat model, the follow-up step and the distillation pass: no sub-agent.
-    assert scripts.roles == ["chat", "fast", "fast"]
+    # The chat model, the follow-up step and the distillation pass: no chart sub-agent.
+    assert scripts.roles == ["chat", "summary", "memory"]
     output = chart_output(chunks)
     assert output["code"] is None
     assert output["sql"] is None

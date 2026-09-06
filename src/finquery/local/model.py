@@ -47,7 +47,7 @@ from pydantic_ai.usage import RequestUsage
 
 from finquery.local import gemma, qwen
 from finquery.local.catalog import ModelSpec
-from finquery.local.runtime import LocalStack, Slot, adapter_note
+from finquery.local.runtime import LocalStack, Slot, adapter_note, audited
 from finquery.local.wire import Event, Sampling, WireFormat, WireName
 from finquery.providers import ModelRole
 
@@ -194,12 +194,23 @@ class LlamaCppModel(Model):
 
     @asynccontextmanager
     async def _hold(self, adapter: str | None) -> AsyncIterator[Slot]:
-        """Take the slot for this request, with the sub-agent's adapter attached if asked."""
-        if adapter is None:
-            async with self._stack.holding(self._spec.seat, self._spec) as loaded:
-                yield loaded
-        else:
+        """Take the seat for this request, with the sub-agent's adapter attached if asked.
+
+        An adapter is trained against the fast seat's base weights (Gemma 4 E4B, ADR 0006), so
+        it is only ever attached there. A sub-agent role that runs on the chat entry asks for
+        its adapter the same way and simply does not get one: the alternative would be
+        attaching E4B's LoRA to a 12B, which is not the same model.
+        """
+        if adapter is not None and self._spec.seat == "fast":
             async with self._stack.with_adapter(adapter) as loaded:  # type: ignore[arg-type]
+                yield loaded
+            return
+        note = None if adapter is None else (
+            f"The {adapter} adapter is trained on the fast slot's weights, and this run is on "
+            f"{self._spec.label}, so it answered on the base weights."
+        )
+        async with self._stack.holding(self._spec.seat, self._spec) as loaded:
+            with audited(note):
                 yield loaded
 
 

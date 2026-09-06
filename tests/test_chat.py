@@ -59,10 +59,10 @@ async def test_health(client: httpx.AsyncClient) -> None:
     assert response.json() == {
         "provider": "openrouter",
         "models": [
-            "local:qwen3.5-9b",
-            "openrouter:qwen/qwen3.5-9b",
             "local:gemma-4-12b",
             "openrouter:google/gemma-4-26b-a4b-it",
+            "local:qwen3.5-9b",
+            "openrouter:qwen/qwen3.5-9b",
         ],
     }
 

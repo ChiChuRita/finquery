@@ -17,7 +17,7 @@ import threading
 import time
 from collections.abc import AsyncIterator, Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
@@ -44,6 +44,16 @@ T = TypeVar("T")
 def adapter_note() -> str | None:
     """The audit note for the run in progress, if it fell back to the base weights."""
     return _note.get()
+
+
+@contextmanager
+def audited(text: str | None) -> Iterator[None]:
+    """Publish one audit note for the length of a run, so the model can put it on its response."""
+    token = _note.set(text)
+    try:
+        yield
+    finally:
+        _note.reset(token)
 
 
 class Slot(Protocol):
@@ -350,8 +360,5 @@ class LocalStack:
         """
         async with self.holding("fast", LOCAL_FAST) as loaded:
             with self.adapters.attached_to(name, loaded) as note:
-                token = _note.set(note.text if note is not None else None)
-                try:
+                with audited(note.text if note is not None else None):
                     yield loaded
-                finally:
-                    _note.reset(token)

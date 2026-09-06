@@ -887,9 +887,9 @@ async def _prompt_for(
         return assembly
     folded = turns_to_fold(turns, through)
     try:
-        # Sub-agents are pinned to the fast slot of the entry's provider, whatever the
-        # conversation runs on.
-        model = resolve("fast")
+        # The summary role, like every sub-agent role, is one setting: the chat entry by
+        # default, the provider's fast slot or a pinned catalog key.
+        model = resolve("summary")
     except ProviderNotAvailable:
         logger.warning("cannot compress: the fast slot is unavailable", exc_info=True)
         return assembly
@@ -1195,9 +1195,9 @@ async def chat(request: Request, conversation_id: str) -> Response:
         prompts = _user_prompts(produced) or _user_prompts(turn)
         if not prompts:
             return []
-        # Sub-agents are pinned to the fast slot whatever the conversation runs on.
+        # Follow-ups are the second half of the summary role: a short pass over the turn.
         return await suggest_followups(
-            resolve("fast"),
+            resolve("summary"),
             state.subagent_settings,
             prompts[-1],
             _assistant_text(produced),
@@ -1213,7 +1213,7 @@ async def chat(request: Request, conversation_id: str) -> Response:
         with state.session_factory() as session:
             known = [memory.text for memory in list_memories(session, profile_id)]
         facts = await distill_memories(
-            resolve("fast"),
+            resolve("memory"),
             state.subagent_settings,
             prompts[-1],
             answer,

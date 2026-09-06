@@ -315,7 +315,7 @@ async def read_bill_image(
     for a price, a discount left out (ticket 42).
     """
     image = pdf.as_image(data)
-    model = resolve_model("fast")
+    model = resolve_model("extraction")
     bill = await read_bill(model, image, today=today, model_settings=model_settings)
     extraction = check_bill(bill, today=today)
     if extraction is None or not (findings := _rereadable(extraction)):
@@ -478,7 +478,7 @@ async def group_items(
     ]
     try:
         guesses = await categorize_merchants(
-            resolve_model("fast"), entries, taxonomy, model_settings=model_settings
+            resolve_model("categorizer"), entries, taxonomy, model_settings=model_settings
         )
     except Exception as exc:  # noqa: BLE001 - a failed guess means one leg per item, not a crash
         logger.warning("the line items of a bill could not be categorized: %s", exc)

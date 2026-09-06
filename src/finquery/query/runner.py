@@ -168,7 +168,7 @@ async def run_query(
     if context.transaction_count == 0:
         return QueryOutcome(request=request, summary=NO_DATA, error=NO_DATA)
     try:
-        model = resolve_model("fast")
+        model = resolve_model("query")
     except ProviderNotAvailable as exc:
         unavailable = f"The query sub-agent is unavailable: {exc}"
         return QueryOutcome(request=request, summary=unavailable, error=unavailable)

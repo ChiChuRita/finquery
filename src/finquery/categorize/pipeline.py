@@ -378,7 +378,7 @@ async def _ask_model(
     if not groups:
         return {}, 0, None
     try:
-        model = resolve_model("fast")
+        model = resolve_model("categorizer")
     except ProviderNotAvailable as exc:
         return {}, 0, f"The categorizer is unavailable: {exc}"
 

@@ -26,6 +26,25 @@ MODEL_ROLES: tuple[ModelRole, ...] = get_args(ModelRole)
 entry, `fast` the sub-agent slot of that entry's provider. On the local provider the two are
 also the two seats in memory (`finquery.local.runtime`)."""
 
+SubagentRole = Literal["query", "chart", "categorizer", "extraction", "memory", "summary", "weblookup"]
+SUBAGENT_ROLES: tuple[SubagentRole, ...] = get_args(SubagentRole)
+"""The jobs a sub-agent is started for, each with a model setting of its own
+(`FINQUERY_SUBAGENT_MODEL_<ROLE>`, default `chat`). Thirteen sub-agents share these seven roles,
+because what a setting is for is choosing a model for a kind of work, not for a module:
+
+- `query` writes SQL and judges its own result;
+- `chart` plans a chart and writes its code;
+- `categorizer` guesses categories for merchants, from an import, a card or a receipt's legs;
+- `extraction` reads a file: a statement page, a receipt, a CSV header's mapping, or the
+  bookings out of what the user typed;
+- `memory` distills what a turn established;
+- `summary` writes the rolling summary and the follow-up suggestions;
+- `weblookup` decides the next step of a web lookup.
+"""
+
+Role = ModelRole | SubagentRole
+"""What a caller asks a resolver for: one of the two model roles, or one sub-agent role."""
+
 KNOWN_LABELS: dict[str, str] = {
     "google/gemma-4-26b-a4b-it": "Gemma 4 26B",
     "qwen/qwen3.5-9b": "Qwen3.5 9B",
@@ -33,11 +52,6 @@ KNOWN_LABELS: dict[str, str] = {
 """What the UI calls the hosted models it ships with. The local labels live on the catalog
 entries; both reach the browser through `GET /api/models`, so a selector never names a model
 that is not running. See docs/adr/0006 for why the quality slot is Qwen."""
-
-
-def openrouter_chat_models(settings: Settings) -> tuple[str, str]:
-    """The two hosted ids offered as chat entries, from the settings."""
-    return settings.openrouter_quality_model, settings.openrouter_second_chat_model
 
 
 def openrouter_label(model_id: str) -> str:
@@ -54,7 +68,7 @@ def openrouter_label(model_id: str) -> str:
     label = " ".join(words)
     return f"{label} ({variant})" if variant else label
 
-ModelResolver = Callable[[ModelRole], Model]
+ModelResolver = Callable[[Role], Model]
 """What a tool or a sub-agent is given: a role to a model, already bound to one catalog entry.
 `finquery.catalog.Catalog.resolver` makes one."""
 
@@ -161,17 +175,17 @@ and is retried once, instead of running away.
 """
 
 
-def subagent_settings(settings: Settings) -> ModelSettings:
-    """Overrides for a sub-agent run on the fast slot.
+def subagent_settings() -> ModelSettings:
+    """Overrides for a sub-agent run, whatever model the role resolved to.
 
     A sub-agent answers one question behind a tool call and its thinking is never shown, so
     reasoning is turned off: on OpenRouter that is the difference between three and eleven
     seconds for a suggestion nobody asked to wait for. Locally the model itself turns thinking
-    off for a forced single tool, so there is nothing to override. Both providers get the
-    same output ceiling, `SUBAGENT_MAX_TOKENS`.
+    off for a forced single tool, and it ignores the OpenRouter key. Every model gets the same
+    output ceiling, `SUBAGENT_MAX_TOKENS`, which is why these settings do not depend on the
+    provider: since ticket 61 a role can run on the chat entry, and a bigger model is not a
+    reason for a sub-agent to think or to write more.
     """
-    if settings.provider == "openrouter":
-        from pydantic_ai.models.openrouter import OpenRouterModelSettings
+    from pydantic_ai.models.openrouter import OpenRouterModelSettings
 
-        return OpenRouterModelSettings(openrouter_reasoning={"enabled": False}, max_tokens=SUBAGENT_MAX_TOKENS)
-    return ModelSettings(max_tokens=SUBAGENT_MAX_TOKENS)
+    return OpenRouterModelSettings(openrouter_reasoning={"enabled": False}, max_tokens=SUBAGENT_MAX_TOKENS)

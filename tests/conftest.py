@@ -56,10 +56,12 @@ class Scripts:
     Tests assign `scripts.fast = ...` for a streamed chat turn and `scripts.fast_call = ...`
     for a sub-agent that runs to completion (the CSV mapping proposal, for instance). That pair
     answers every role of every entry unless the test says otherwise: `scripts.quality` takes
-    over the chat side, and `scripts.entries[key] = ...` scripts one catalog entry on its own.
+    over the chat side, and `scripts.entries[key] = ...` scripts one catalog entry on its own,
+    for every role that resolves to it.
 
     `resolved` is what the app asked for, `(entry key, role)` per call, which is how a test
-    checks that a sub-agent ran on the fast slot of the right provider.
+    checks which model each sub-agent role was resolved to. A role is `chat`, `fast` or one of
+    the sub-agent roles (`finquery.providers.SUBAGENT_ROLES`).
     """
 
     def __init__(self) -> None:
@@ -72,9 +74,9 @@ class Scripts:
 
     def resolve(self, key: str, role: str) -> FunctionModel:
         self.resolved.append((key, role))
-        if role == "chat" and (scripted := self.entries.get(key)) is not None:
+        if (scripted := self.entries.get(key)) is not None:
             return FunctionModel(_collected(scripted), stream_function=scripted, model_name=f"scripted-{key}")
-        name = "fast" if role == "fast" else ("quality" if self.quality or self.quality_call else "fast")
+        name = "quality" if role == "chat" and (self.quality or self.quality_call) else "fast"
         stream = getattr(self, name)
         call = getattr(self, f"{name}_call")
         assert stream is not None or call is not None, f"test did not script the {name} model"

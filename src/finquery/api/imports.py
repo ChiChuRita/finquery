@@ -348,7 +348,7 @@ async def extract_upload(request: Request, file: UploadFile = File(...)) -> Extr
     state = request.app.state
     resolve = profile_resolver(state)
     try:
-        resolve("fast")
+        resolve("extraction")
     except ProviderNotAvailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     try:

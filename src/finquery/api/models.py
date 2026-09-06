@@ -4,7 +4,8 @@
 chip or the History can never name a model that is not listed. It answers with every catalog
 entry across both providers (`finquery.catalog`), each with its availability and, for a local
 one, the download progress the Settings card draws its bars from. The sub-agent fast slot of
-each provider comes with it, because it is a model the app runs that nobody picks.
+each provider comes with it, because it is a model the app runs that nobody picks, and so does
+every sub-agent role with the model its setting resolves to.
 """
 
 from fastapi import APIRouter, HTTPException, Request
@@ -51,6 +52,18 @@ class AdapterOut(BaseModel):
     present: bool
 
 
+class RoleOut(BaseModel):
+    """One sub-agent role: what it is set to, and what that is right now."""
+
+    role: str
+    setting: str
+    """`chat`, `fast`, or a catalog key pinning the role to one model."""
+    key: str
+    label: str
+    """The model the role resolves to for a chat on `default_key`. A conversation on another
+    entry moves every role set to `chat` or `fast` with it."""
+
+
 class ModelsOut(BaseModel):
     provider: Provider
     """What `FINQUERY_PROVIDER` says, which decides the default entry and nothing else."""
@@ -58,6 +71,8 @@ class ModelsOut(BaseModel):
     entries: list[EntryOut]
     fast_slots: list[EntryOut]
     """The sub-agent slot of each provider. Never a chat choice, so never in `entries`."""
+    roles: list[RoleOut]
+    """Every sub-agent role with its setting, so the models card can say which model does what."""
     adapters: list[AdapterOut]
     downloading: bool
 
@@ -108,6 +123,15 @@ def _catalog_out(request: Request) -> ModelsOut:
         default_key=catalog.default_key,
         entries=[_entry_out(catalog, entry) for entry in catalog.entries],
         fast_slots=[_entry_out(catalog, entry) for entry in catalog.fast_slots.values()],
+        roles=[
+            RoleOut(
+                role=role,
+                setting=catalog.settings.subagent_model(role),
+                key=entry.key,
+                label=entry.label,
+            )
+            for role, entry in catalog.role_targets(catalog.default_key).items()
+        ],
         adapters=[AdapterOut(name=a.name, path=a.path, present=a.present) for a in stack.adapters.states()]
         if stack is not None
         else [],

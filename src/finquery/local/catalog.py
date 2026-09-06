@@ -134,10 +134,13 @@ LOCAL_GEMMA_12B = ModelSpec(
     ),
 )
 
-LOCAL_CHAT_MODELS: tuple[ModelSpec, ...] = (LOCAL_QWEN, LOCAL_GEMMA_12B)
-"""The two local chat models. They share one seat: 9B plus E4B is 13.5 GB and 12B plus E4B is
-about 12.9 GB, and the three together do not fit in the Metal working set of a 24 GB Mac, so
-choosing one drains and unloads the other (`LocalStack.holding`)."""
+LOCAL_CHAT_MODELS: tuple[ModelSpec, ...] = (LOCAL_GEMMA_12B, LOCAL_QWEN)
+"""The two local chat models, the shipped one first. Gemma 4 12B is what a new conversation
+starts on since the cluster benchmark of 2026-09-06 (87 percent figure match on the SQL set
+against Qwen3.5 9B's 70 and E4B's 66, 81 against 42 and 45 on charts); Qwen3.5 9B stays as the
+alternative. They share one seat: 12B plus E4B is about 12.9 GB and 9B plus E4B 13.5 GB, and the
+three together do not fit in the Metal working set of a 24 GB Mac, so choosing one drains and
+unloads the other (`LocalStack.holding`)."""
 
 LOCAL_MODELS: dict[str, ModelSpec] = {spec.key: spec for spec in (LOCAL_FAST, *LOCAL_CHAT_MODELS)}
 

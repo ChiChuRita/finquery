@@ -254,7 +254,7 @@ async def run_chart(
     if context.transaction_count == 0:
         return _failed(request, NO_DATA)
     try:
-        model = resolve_model("fast")
+        model = resolve_model("chart")
     except ProviderNotAvailable as exc:
         return _failed(request, f"The chart sub-agent is unavailable: {exc}")
 

@@ -280,7 +280,7 @@ async def _mapping_for_file(
 
     await report("mapping", "No preset knows this header, asking the model for a mapping")
     try:
-        model = resolve_model("fast")
+        model = resolve_model("extraction")
         proposal = await propose(sniffed, record.file_name, model=model, model_settings=model_settings)
     except (ProviderNotAvailable, MappingUnusable) as exc:
         return None, "", "", {"status": "mapping_failed", "file": record.file_name, "error": str(exc)}

@@ -155,7 +155,7 @@ async def extract_statement(
         nonlocal done, rereads
         async with semaphore:
             try:
-                model = resolve_model("fast")
+                model = resolve_model("extraction")
                 image = photo if photo is not None else None
                 # Only a PDF page can be rasterized, so only a PDF page is looked at instead
                 # of read. A DOCX with almost no text is a short document, not a scan.
