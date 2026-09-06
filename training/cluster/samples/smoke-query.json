@@ -1,0 +1,182 @@
+{
+  "about": [
+    "Forty query samples for the smoke run, and nothing else: this is a fixture that proves the",
+    "training loop works end to end before any real data exists, not training data. The real",
+    "files come from ticket 62's training/data/assemble.py and have thousands of rows over six",
+    "households.",
+    "",
+    "Each row names a datapoint in the train half of bench/sql-benchmark.json and carries the one",
+    "thing the benchmark does not: the reasoning line the sub-agent has to write before its SQL.",
+    "The statement itself is the datapoint's own reference statement, which build_gold.py has",
+    "already run through the guard against the synthetic year, so a target here is a statement",
+    "that really answers its question. Only generated datapoints are used, because those are",
+    "written in euros the way this prompt's rules ask for them, and none of the nine ids the",
+    "query prompt's own worked examples are drawn from is in the list.",
+    "",
+    "smoke_samples.py turns this into the JSONL train.py reads, building each prompt with the",
+    "product's own query_prompt so a fixture cannot drift from the app."
+  ],
+  "adapter": "query",
+  "samples": [
+    {
+      "id": "g001-total",
+      "reasoning": "September 2025, so 2025-09-01 to 2025-09-30; spending, so amount < 0; no topic filter; one figure."
+    },
+    {
+      "id": "g006-total",
+      "reasoning": "Aldi is a merchant, so match it over description and counterparty together; the first quarter is 2025-01-01 to 2025-03-31; spending; one figure."
+    },
+    {
+      "id": "g008-total",
+      "reasoning": "Lieferando is a merchant and not a category, so one LIKE term over the booking text and the counterparty; the year 2025; spending; one figure."
+    },
+    {
+      "id": "g009-total",
+      "reasoning": "Handykosten ohne Festnetz is the subcategory Mobile, so it belongs in subcategory and never in category; the year 2025; spending."
+    },
+    {
+      "id": "g002-breakdown",
+      "reasoning": "one row per subcategory of Transport, and the bookings without one are their own bucket rather than dropped; the year 2025; spending; the largest first."
+    },
+    {
+      "id": "g003-breakdown",
+      "reasoning": "income, so amount > 0; one row per subcategory with the count the question asks for as a second column; the year 2025."
+    },
+    {
+      "id": "g004-breakdown",
+      "reasoning": "one row per merchant inside the category Subscriptions, never one row per booking; the year 2025; spending."
+    },
+    {
+      "id": "g005-breakdown",
+      "reasoning": "one row per subcategory of Shopping with the total and the number of purchases; the uncategorized ones are their own bucket; the year 2025; spending."
+    },
+    {
+      "id": "g006-breakdown",
+      "reasoning": "last month is the range the household paragraph spells out, 2025-11-01 to 2025-11-30; one row per category with the uncategorized bookings as one honest bucket; spending."
+    },
+    {
+      "id": "g002-comparison",
+      "reasoning": "two periods, so one row each and not one number: this month is 2025-12-01 to 2025-12-31 and last month 2025-11-01 to 2025-11-30; spending; group by the month."
+    },
+    {
+      "id": "g003-comparison",
+      "reasoning": "Public transport and Ride hailing are subcategories of Transport, so they go in subcategory; one row each; the year 2025; spending."
+    },
+    {
+      "id": "g004-comparison",
+      "reasoning": "two quarters, so one row each: Q3 is 2025-07-01 to 2025-09-30 and Q4 2025-10-01 to 2025-12-31; Supermarkt is the subcategory Supermarket; spending."
+    },
+    {
+      "id": "g005-comparison",
+      "reasoning": "income against spending in one answer, so the sign decides the group and both are reported positive; the year 2025; one row each."
+    },
+    {
+      "id": "g006-comparison",
+      "reasoning": "Restaurant and Delivery are subcategories of Dining, so they go in subcategory and never in category; one row each; the year 2025; spending."
+    },
+    {
+      "id": "g001-trend",
+      "reasoning": "one row per month so the direction is visible; a month is strftime('%Y-%m', booked_on); category Shopping; the year 2025; spending."
+    },
+    {
+      "id": "g002-trend",
+      "reasoning": "the second half of 2025 is 2025-07-01 to 2025-12-31; category Transport; one row per month; spending."
+    },
+    {
+      "id": "g003-trend",
+      "reasoning": "one row per month of 2025; Housing is left out, and a booking with no category is not Housing, so the NULLs stay in; spending."
+    },
+    {
+      "id": "g004-trend",
+      "reasoning": "Drogerien is the subcategory Drugstore; one row per month of 2025; spending."
+    },
+    {
+      "id": "g005-trend",
+      "reasoning": "income, so amount > 0 and the sum is reported as it stands; one row per month of 2025."
+    },
+    {
+      "id": "g007-trend",
+      "reasoning": "Lidl is a merchant, matched over description and counterparty together; one row per month of 2025; spending."
+    },
+    {
+      "id": "g001-ranking",
+      "reasoning": "one row per month, the three dearest only; the year 2025; spending; sort by the total and cut at three."
+    },
+    {
+      "id": "g003-ranking",
+      "reasoning": "the most Abbuchungen is a count and not a figure, so order by the count; one row per merchant; the year 2025; spending; cut at five."
+    },
+    {
+      "id": "g005-ranking",
+      "reasoning": "single bookings and not a group, so one row per booking; smallest means the smallest amount of money, and spending rows are negative, so it is ORDER BY amount DESC; the year 2025; the alias says which end."
+    },
+    {
+      "id": "g006-ranking",
+      "reasoning": "one row per month of 2025, the three cheapest, so order the totals ascending and cut at three; spending."
+    },
+    {
+      "id": "g007-ranking",
+      "reasoning": "an average per booking, so AVG and not SUM; one row per merchant with at least three bookings, which is a HAVING and not a WHERE; the year 2025; spending; the five largest averages."
+    },
+    {
+      "id": "g008-ranking",
+      "reasoning": "single bookings and not a group; the largest payments are ORDER BY amount ASC because spending is negative; November 2025; cut at three."
+    },
+    {
+      "id": "g001-entity",
+      "reasoning": "Fitness First is a merchant, so one LIKE term over description and counterparty together; the year 2025; spending; one figure."
+    },
+    {
+      "id": "g004-entity",
+      "reasoning": "the question asks how often and how much, so a count and a total in one row; ALDI SUED is written with an umlaut in this data, so the LIKE term leaves that letter open; the year 2025; spending."
+    },
+    {
+      "id": "g005-entity",
+      "reasoning": "the count and the average per order in one row, so COUNT and AVG and not SUM; Lieferando as one LIKE term; the year 2025; spending."
+    },
+    {
+      "id": "g006-entity",
+      "reasoning": "letztes Quartal is the range the household paragraph spells out, 2025-07-01 to 2025-09-30; Uber as one LIKE term over the text and the counterparty; spending."
+    },
+    {
+      "id": "g009-entity",
+      "reasoning": "per month, so one row per month rather than one figure; Dean and David as one LIKE term; the year 2025; spending."
+    },
+    {
+      "id": "g012-entity",
+      "reasoning": "two quarters compared, so one row each: Q3 is 2025-07-01 to 2025-09-30 and Q4 2025-10-01 to 2025-12-31; Steinecke as one LIKE term; spending."
+    },
+    {
+      "id": "g013-entity",
+      "reasoning": "the question asks for the single months and their sums, so one row per month; Allianz as one LIKE term; the year 2025; spending."
+    },
+    {
+      "id": "g001-follow-up",
+      "reasoning": "the follow-up keeps 2025 from the question before it and changes the topic to Fitness, which is a subcategory; spending; one figure."
+    },
+    {
+      "id": "g003-follow-up",
+      "reasoning": "the follow-up keeps Transport and 2025 from the question before it and asks for the breakdown, so one row per subcategory instead of one figure; spending."
+    },
+    {
+      "id": "g004-follow-up",
+      "reasoning": "the follow-up keeps October 2025 from the question before it and changes the category to Groceries; spending; one figure."
+    },
+    {
+      "id": "g006-follow-up",
+      "reasoning": "the follow-up keeps November 2025 from the question before it; the single biggest is one booking, so no grouping, and the largest payment is ORDER BY amount ASC because spending is negative."
+    },
+    {
+      "id": "g007-follow-up",
+      "reasoning": "the follow-up keeps Drogerieartikel, the subcategory Drugstore, and 2025 from the question before it; how often is a count and not a figure."
+    },
+    {
+      "id": "g001-period",
+      "reasoning": "the first quarter of 2025 is 2025-01-01 to 2025-03-31; spending; no topic filter; one figure."
+    },
+    {
+      "id": "g006-period",
+      "reasoning": "the question names the divisor itself, thirty days, so the average is the total over 30 and not over the days that carry a booking; November 2025; spending."
+    }
+  ]
+}
