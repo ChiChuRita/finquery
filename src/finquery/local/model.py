@@ -199,7 +199,7 @@ class LlamaCppModel(Model):
             async with self._stack.holding(self._spec.seat, self._spec) as loaded:
                 yield loaded
         else:
-            async with self._stack.with_adapter(adapter) as loaded:  # type: ignore[arg-type]
+            async with self._stack.with_adapter(adapter, self._spec) as loaded:  # type: ignore[arg-type]
                 yield loaded
 
 
