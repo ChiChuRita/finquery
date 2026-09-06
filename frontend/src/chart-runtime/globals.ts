@@ -20,6 +20,7 @@ import {
   stack,
   text,
 } from '@tanstack/charts'
+import type { ChartColorLegend, ColorLegendOptions, SceneNode, SceneRect } from '@tanstack/charts'
 import { sankeyDiagram } from '@tanstack/charts/network/sankey'
 import { pie, polar, radialArc } from '@tanstack/charts/polar'
 import { scaleBand } from '@tanstack/charts/scales/band'
@@ -135,12 +136,45 @@ const withDefaults = <T,>(mark: Mark<T>, defaults: (options: Options) => Options
 
 const hasSeries = (options: Options) => options !== undefined && ('z' in options || 'color' in options)
 
-// The 2px surface gap of the dataviz method: touching marks are told apart by a hairline of the
-// surface, never by a stroke of their own. Stacked and grouped bars get one, a doughnut's slices
-// get one, a lone bar stays as it is.
-const seriesGap = (surface: string) => (options: Options) =>
-  hasSeries(options) ? { stroke: surface, strokeWidth: 1, ...options } : options
-const sliceGap = (surface: string) => (options: Options) => ({ stroke: surface, strokeWidth: 2, ...options })
+/** The options without the keys the frame overrules. */
+const without = (options: Options, ...keys: string[]): Options => {
+  if (options === undefined) return options
+  const kept = { ...options }
+  for (const key of keys) delete kept[key]
+  return kept
+}
+
+// Nothing inside a chart is rounded (ticket 45): a bar's `radius` and a slice's `cornerRadius`
+// are dropped whatever the code wrote, so a stored card takes the square look on reload without
+// being regenerated. The 2px surface gap of the dataviz method stays: touching marks are told
+// apart by a hairline of the surface, never by a stroke of their own. Stacked and grouped bars
+// get one, a doughnut's slices get one, a lone bar stays as it is.
+const seriesGap = (surface: string) => (options: Options) => {
+  const square = without(options, 'radius')
+  return hasSeries(square) ? { stroke: surface, strokeWidth: 1, ...square } : square
+}
+const sliceGap = (surface: string) => (options: Options) => ({
+  stroke: surface,
+  strokeWidth: 2,
+  ...without(options, 'cornerRadius'),
+})
+
+/** The legend's swatch as a square: the marks it stands for have no round corner, so it has none.
+ *
+ * The categorical legend draws a dot of radius 4 per series and nothing in its options changes
+ * that, so the frame swaps each dot for a rect of the same size on the way to the renderer. The
+ * gradient and stepped legends already draw rects and pass through untouched. */
+const squareSwatches = (node: SceneNode): SceneNode => {
+  if (node.kind === 'group') return { ...node, children: node.children.map(squareSwatches) }
+  if (node.kind !== 'dot' || !node.key.startsWith('legend-dot:')) return node
+  const { kind: _dot, x, y, radius, ...rest } = node
+  const swatch: SceneRect = { ...rest, kind: 'rect', x: x - radius, y: y - radius, width: 2 * radius, height: 2 * radius }
+  return swatch
+}
+const squareLegend = (options?: ColorLegendOptions): ChartColorLegend => {
+  const legend = colorLegend(options)
+  return { ...legend, render: (context) => squareSwatches(legend.render(context)) }
+}
 
 /** `pie`, recording the total of what it allocated. */
 const recordingPie =
@@ -167,7 +201,7 @@ const SHARED: Record<string, unknown> = {
   scaleBand,
   scalePoint,
   scaleOrdinal,
-  colorLegend,
+  colorLegend: squareLegend,
   tooltip,
   eur,
   eurShort,
