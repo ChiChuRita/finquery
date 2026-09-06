@@ -29,30 +29,38 @@ ssh "$REMOTE" "cd '$LOGS' && grep -H -e 'on the .* set' -e '^real' -e 'error' -e
   > "$results/$today-cluster-jobs.txt" || true
 wc -l < "$results/$today-cluster-jobs.txt" | xargs echo "lines:"
 
-newest() { ls -1 "$results"/*"-$1-$2.json" 2> /dev/null | tail -1; }
+# The newest run of one model on one set, and nothing if there is none: a set whose jobs have
+# not come back yet is a line in the document, not a dead script.
+newest() { ls -1 "$results"/*"-$1-$2.json" 2> /dev/null | tail -1 || true; }
 
 {
   cat <<'HEADER'
 # The three local candidates on the HPI cluster
 
-Gemma 4 E4B, Qwen3.5 9B and Gemma 4 12B, Q4_K_M through llama-cpp with CUDA, one A100 per job,
-32k context, the same wire formats and the same sub-agent paths the laptop runs. The SQL and
-chart tables are the primary numbers: they score the sub-agent, which is where an adapter
-attaches. The end-to-end table runs the whole chat turn in front of the sub-agent on 30 training
-cases, so the gap between the two is routing and phrasing loss.
+Gemma 4 E4B, Qwen3.5 9B and Gemma 4 12B, Q4_K_M through llama-cpp with CUDA, one RTX PRO 6000
+per job, 32k context, the same wire formats and the same sub-agent paths the laptop runs. The
+seconds are seconds on that one GPU, which is not the laptop's: the tokens per second table
+below is what the laptop costs.
+
+The SQL and chart tables are the primary numbers: they score the sub-agent, which is where an
+adapter attaches. The end-to-end table runs the whole chat turn in front of the sub-agent on 30
+training cases, so the gap between the two is routing and phrasing loss.
 HEADER
   for set_name in sql chart e2e; do
-    files=()
+    # A space separated list rather than an array: the laptop's bash is 3.2, where reading the
+    # length of an empty array under `set -u` is itself an error. No result path has a space.
+    files=""
     for model in local-gemma-4-e4b local-qwen3.5-9b local-gemma-4-12b; do
       file=$(newest "$model" "$set_name")
-      [ -n "$file" ] && files+=("$file")
+      if [ -n "$file" ]; then files="$files $file"; fi
     done
-    if [ ${#files[@]} -eq 0 ]; then
+    if [ -z "$files" ]; then
       echo; echo "### $set_name set"; echo; echo "No run of this set has come back yet."
       continue
     fi
     echo
-    uv run finquery-bench compare "${files[@]}"
+    # shellcheck disable=SC2086 - the splitting is the point
+    uv run finquery-bench compare $files
   done
   cat <<'FOOTER'
 
