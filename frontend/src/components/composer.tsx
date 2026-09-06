@@ -32,10 +32,11 @@ import { ModelPicker } from '@/components/model-picker'
 import type { ModelKey } from '@/lib/api'
 import { readDraft, writeDraft } from '@/lib/workspace'
 
-/** What the server stores (see `finquery.attachments`): a bank CSV, a statement PDF, a bill photo.
- *  The extensions are for the file dialog, the media types are what the drop is checked against. */
+/** What the server stores (see `finquery.attachments`): a bank CSV or Excel export, a statement
+ *  PDF or Word document, a bill photo. The extensions are for the file dialog, the media types
+ *  are what the drop is checked against. Audio is not on the list: nothing here reads it. */
 const ACCEPT =
-  '.csv,.tsv,.txt,.pdf,text/csv,text/plain,text/tab-separated-values,application/csv,application/vnd.ms-excel,application/pdf,image/*'
+  '.csv,.tsv,.txt,.xlsx,.xlsm,.pdf,.docx,text/csv,text/plain,text/tab-separated-values,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*'
 const MAX_FILES = 5
 const MAX_FILE_BYTES = 20 * 1024 * 1024
 
@@ -46,7 +47,8 @@ const MAX_FILE_BYTES = 20 * 1024 * 1024
  * match what the server answers for the same three refusals (`finquery.attachments`).
  */
 const REJECTED: Record<string, string> = {
-  accept: 'FinQuery reads a CSV export, a statement PDF or a photo. That file is none of the three.',
+  accept:
+    'FinQuery reads a CSV or Excel export, a statement PDF, a Word document or a photo. That file is none of those.',
   max_file_size: `A file has to be under ${MAX_FILE_BYTES / (1024 * 1024)} MB. Export a shorter date range from your bank and attach that.`,
   max_files: `One message carries at most ${MAX_FILES} files. Send these and attach the rest after.`,
 }
@@ -135,9 +137,9 @@ function AttachButton() {
   const attachments = usePromptInputAttachments()
   return (
     <PromptInputButton
-      aria-label="Attach a CSV, PDF or photo"
+      aria-label="Attach a CSV, Excel, PDF, Word file or photo"
       onClick={() => attachments.openFileDialog()}
-      tooltip="Attach a CSV, a statement PDF or a photo"
+      tooltip="Attach a CSV or Excel export, a statement PDF, a Word document or a photo"
       type="button"
       variant="ghost"
     >
@@ -146,7 +148,27 @@ function AttachButton() {
   )
 }
 
-/** One chip: a photo by its thumbnail, a CSV or a PDF by its icon, both with the name and an X.
+/** Which reader will take this file, in one word, the way the server's `kind_of` decides it
+ *  (`finquery.attachments`): by the extension first, because a browser reports a CSV as three
+ *  different media types depending on the platform. */
+const KINDS: Record<string, string> = {
+  csv: 'CSV',
+  tsv: 'CSV',
+  txt: 'CSV',
+  xlsx: 'XLSX',
+  xlsm: 'XLSX',
+  pdf: 'PDF',
+  docx: 'DOCX',
+}
+
+function kindOf(file: AttachmentData): string {
+  const name = getAttachmentLabel(file)
+  const suffix = name.slice(name.lastIndexOf('.') + 1).toLowerCase()
+  return KINDS[suffix] ?? (getMediaCategory(file) === 'image' ? 'Photo' : 'File')
+}
+
+/** One chip: a photo by its thumbnail, a CSV or a PDF by its icon, both with the name, the kind
+ *  it will be read as, and an X.
  *
  * A photo gets a hover card with the picture at readable size, which is the one thing the old
  * chip row could not do: a receipt is told from another receipt by looking at it, not by its
@@ -160,6 +182,11 @@ function Chip({ file, onRemove }: { file: AttachmentData; onRemove: () => void }
     <Attachment data={file} onRemove={onRemove}>
       <AttachmentPreview />
       <AttachmentInfo className="max-w-48 text-xs" />
+      {/* Five kinds go in and three readers take them, so the chip says which one this file
+          is before the assistant is asked to read it. */}
+      <span className="shrink-0 rounded bg-muted px-1 py-0.5 font-medium text-[10px] text-muted-foreground uppercase">
+        {kindOf(file)}
+      </span>
       <AttachmentRemove className="opacity-100" label={`Remove ${label}`} />
     </Attachment>
   )
