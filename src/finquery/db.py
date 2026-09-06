@@ -183,8 +183,15 @@ class WebLookup(Base):
     category: Mapped[str | None] = mapped_column(String(60), default=None)
     subcategory: Mapped[str | None] = mapped_column(String(60), default=None)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    capped: Mapped[bool] = mapped_column(Boolean, default=False)
+    """True when no source named the merchant, so the confidence was held down (ticket 53)."""
     searches: Mapped[int] = mapped_column(Integer, default=0)
     fetches: Mapped[int] = mapped_column(Integer, default=0)
+    evidence: Mapped[str] = mapped_column(String(500), default="")
+    """The sentence the finish quoted, checked to occur verbatim in what the steps returned."""
+    evidence_url: Mapped[str | None] = mapped_column(String(500), default=None)
+    pages_json: Mapped[str] = mapped_column(Text, default="[]")
+    """The URLs whose text was really read, as a JSON list, so a cache hit still says so."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -663,6 +670,12 @@ NEW_COLUMNS: dict[str, dict[str, str]] = {
         "previous_json": "TEXT",
         "removed_at": "DATETIME",
         "default_key": "VARCHAR(40)",
+    },
+    "web_lookup": {
+        "capped": "BOOLEAN NOT NULL DEFAULT 0",
+        "evidence": "VARCHAR(500) NOT NULL DEFAULT ''",
+        "evidence_url": "VARCHAR(500)",
+        "pages_json": "TEXT NOT NULL DEFAULT '[]'",
     },
 }
 

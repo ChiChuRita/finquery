@@ -98,8 +98,16 @@ def store_lookup(
     confidence: float,
     searches: int,
     fetches: int,
+    evidence: str = "",
+    evidence_url: str | None = None,
+    pages: Sequence[str] = (),
+    capped: bool = False,
 ) -> None:
-    """Keep what one lookup found, so this token never leaves this profile again."""
+    """Keep what one lookup found, so this token never leaves this profile again.
+
+    The evidence quote and the pages that were read are kept with it, because the card shows
+    them and a cache hit has to show the same card as the lookup that filled it.
+    """
     with factory() as session:
         row = session.scalars(
             select(WebLookup).where(WebLookup.profile_id == profile_id, WebLookup.merchant_token == token)
@@ -112,8 +120,12 @@ def store_lookup(
         row.category = category
         row.subcategory = subcategory
         row.confidence = confidence
+        row.capped = capped
         row.searches = searches
         row.fetches = fetches
+        row.evidence = evidence[:500]
+        row.evidence_url = evidence_url
+        row.pages_json = json.dumps(list(pages))
         session.commit()
 
 
@@ -143,6 +155,10 @@ class OutboundJournal:
 
     def after(self, handle: str, status: str) -> None:
         settle_request(self.factory, handle, status)
+
+
+def pages_of(row: WebLookup) -> list[str]:
+    return [str(url) for url in json.loads(row.pages_json or "[]")]
 
 
 def sources_of(row: WebLookup) -> list[Source]:

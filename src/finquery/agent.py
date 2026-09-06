@@ -1066,6 +1066,15 @@ async def import_file(
             confirmed=confirmed,
             resolve_model=ctx.deps.resolve_model,
             model_settings=ctx.deps.subagent_settings,
+            # A receipt uses this to recognize the shop its header names, and it is None for a
+            # profile that has web lookup off, so "off" is still the absence of the object.
+            lookups=lookups_for(
+                ctx.deps.session_factory,
+                ctx.deps.profile_id,
+                client=ctx.deps.web_client,
+                resolve_model=ctx.deps.resolve_model,
+                model_settings=ctx.deps.subagent_settings,
+            ),
             report=partial(report_progress, ctx),
         )
 

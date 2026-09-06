@@ -258,7 +258,17 @@ export interface LookupMerchantOutput {
   category: string | null
   subcategory: string | null
   confidence: number
+  /** True when no source's title or host carried the token, so the confidence was held down
+   * to 0.6 in code. The card says "unsure" rather than showing a percentage as if it meant
+   * the same thing as one the sources earned. */
+  capped: boolean
+  /** One sentence out of a snippet or a page, checked in code to occur there word for word. */
+  evidence: string
+  /** Which page or result that sentence was quoted from, when it could be told. */
+  evidence_url: string | null
   sources: LookupSource[]
+  /** The URLs whose text was really read, so "1 page read" is a link and not a claim. */
+  pages: string[]
   searches: number
   fetches: number
   /** True when the answer came from the profile's cache, so nothing left this time. */

@@ -28,11 +28,15 @@ from finquery.taxonomy import DEFAULT_TAXONOMY
 from finquery.weblookup.client import Hit, HttpWebClient, Page
 
 HERE = Path(__file__).resolve().parent
-RESULTS = HERE / "results"
+# A rerun writes into its own folder and reads its own cache, so the review's own artifacts
+# stay as they were measured: PROTO_RESULTS=results-53 for the rerun of ticket 53.
+RESULTS = HERE / os.environ.get("PROTO_RESULTS", "results")
 ROOT = HERE.parents[3]
-MODEL_ID = "google/gemini-3.8-flash"
+MODEL_ID = os.environ.get("PROTO_MODEL", "google/gemini-3.8-flash")
 PRICE_IN, PRICE_OUT = 0.75 / 1_000_000, 3.75 / 1_000_000
-"""OpenRouter list price of the model on 2026-09-06, USD per token, for the cost column."""
+"""OpenRouter list price of Gemini 3.8 Flash on 2026-09-06, USD per token, for the cost column.
+A rerun on another model prints that arithmetic and not its bill: take the real figure from the
+credit meter before and after."""
 
 TAXONOMY = tuple((name, subs) for name, subs in DEFAULT_TAXONOMY.items())
 

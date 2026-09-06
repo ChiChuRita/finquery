@@ -14,12 +14,19 @@ Every request is written to the outbound log before it is made (`store.OutboundJ
 - `client`: keyless search through `ddgs`, one page fetch through `httpx`
 - `loop`: the decision agent and the loop our code runs
 - `store`: the outbound log and the per-token cache
-- `service`: `lookups_for`, the one place the switch is read
+- `service`: `lookups_for`, the one place the switch is read, and the three ways in
+  (`merchant` for the chat tool, `merchants` for an import batch, `store` for a receipt header)
 """
 
 from finquery.weblookup.client import Hit, HttpWebClient, Page, SearchUnavailable, WebClient
 from finquery.weblookup.loop import MAX_FETCHES, MAX_SEARCHES, Decision, Outcome, lookup_prompt, run_loop
-from finquery.weblookup.scrub import MerchantToken, looks_like_a_person, safe_query, scrub
+from finquery.weblookup.scrub import (
+    MerchantToken,
+    has_legal_form,
+    looks_like_a_person,
+    safe_query,
+    scrub,
+)
 from finquery.weblookup.service import Lookup, Lookups, lookups_for
 from finquery.weblookup.store import Source, recent_log, web_lookup_enabled
 
@@ -37,6 +44,7 @@ __all__ = [
     "SearchUnavailable",
     "Source",
     "WebClient",
+    "has_legal_form",
     "lookup_prompt",
     "looks_like_a_person",
     "lookups_for",

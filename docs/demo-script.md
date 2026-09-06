@@ -217,11 +217,21 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 
 26. Settings, **Web lookup** on. The card says "Off" turned to "On" and the outbound log is
     still empty: "nothing has ever left this machine for this profile".
-27. New chat: **"What is dean&david on my statement?"** 53 s. The lookup step shows the
-    merchant token that left, the searches, the category it suggests and the sources under the
-    answer.
-28. Back to Settings: the outbound log lists the request, its target and the token, and
-    nothing else. Switch web lookup off again.
+27. New chat: **"Was ist Combi Verbrauchermarkt?"** The lookup step shows the merchant token
+    that left, "1 search, 1 page read" with the page as a link, the sentence it quoted out of
+    that page with the host under it, and the category it suggests. The quote is checked in
+    code to occur word for word in what the steps returned, and the page was read by the loop
+    itself because one result was the shop's own site. Say the three sentences of explainer 15
+    over this card. Keep away from "Hausverwaltung Bergmann": the loop finds a real property
+    manager of that name in another city, and the card then says "unsure" for a reason nobody
+    wants to explain on a stage.
+28. Back to Settings: the outbound log lists both requests, their targets and the token, and
+    nothing else. Ask the same merchant in a second chat: the card says "from the lookup cache
+    of this profile, nothing left the machine" and the log has no new row. Then drop the Combi
+    receipt (the private receipt set, `fixtures/private/`) on the composer, or the Saurüsselalm
+    one: the draft is titled with the shop and
+    carries its category, and the log still has the one token on it, never a line item. Switch
+    web lookup off again.
 
 ### 13. A second import, in the background, then the Imports overview (fast)
 

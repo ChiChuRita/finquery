@@ -549,12 +549,24 @@ async def test_a_bill_that_matches_nothing_previews_a_new_transaction(
     output = outputs_of(chunks)[0]
 
     assert output["status"] == "bill_draft"
+    # The printed header is a merchant the seed dictionary knows, so the draft is titled with
+    # the shop's own name and the header stays on as the counterparty (ticket 53). No request
+    # was made for it: the dictionary is read first and this profile has web lookup off anyway.
+    assert output["store"] == {
+        "title": "OBI",
+        "category": "Shopping",
+        "subcategory": "Home",
+        "summary": "hardware store",
+        "via": "dictionary",
+        "evidence": "",
+        "sources": [],
+    }
     assert output["drafts"] == [
         {
             "ref": "t1",
             "booked_on": "2025-07-19",
             "amount_cents": -1249,
-            "description": "OBI Markt",
+            "description": "OBI",
             "counterparty": "OBI Markt",
             "account": "Cash",
         }
@@ -576,11 +588,11 @@ async def test_a_bill_that_matches_nothing_previews_a_new_transaction(
     )
     assert second.status_code == 200, second.text
     added = [out for out in outputs_of(parse_sse(second.text)) if out.get("status") == "added"][0]
-    assert (added["amount_cents"], added["description"]) == (-1249, "OBI Markt")
+    assert (added["amount_cents"], added["description"]) == (-1249, "OBI")
 
     rows = await rows_of(client, profile_id)
     assert len(rows) == before + 1
-    written = next(row for row in rows if row["description"] == "OBI Markt")
+    written = next(row for row in rows if row["description"] == "OBI")
     assert (written["amount_cents"], written["booked_on"], written["source"]) == (-1249, "2025-07-19", "manual")
 
 
@@ -975,7 +987,7 @@ async def test_a_receipt_with_no_readable_date_asks_for_it_instead_of_booking_to
 
     rows = await rows_of(client, profile_id)
     assert len(rows) == before + 1
-    written = next(row for row in rows if row["description"] == "OBI Markt")
+    written = next(row for row in rows if row["description"] == "OBI")
     assert written["booked_on"] == "2025-07-19", "the typed date is the one that was written"
 
 

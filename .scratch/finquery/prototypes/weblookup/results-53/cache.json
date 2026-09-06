@@ -1,0 +1,658 @@
+{
+ "lidl": {
+  "token": "lidl",
+  "summary": "Lidl is a German discount supermarket chain selling groceries and household items.",
+  "category": "Groceries",
+  "subcategory": "Supermarket",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Lidl",
+    "title": "Lidl - Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 1,
+  "seconds": 10.005935334018432,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "lidl store what is",
+   "lidl store what is"
+  ],
+  "fetched": [
+   "https://en.wikipedia.org/wiki/Lidl"
+  ],
+  "evidence": "IndustryRetail",
+  "capped": false
+ },
+ "dm drogerie": {
+  "token": "dm drogerie",
+  "summary": "German drugstore chain selling health and beauty products.",
+  "category": "Groceries",
+  "subcategory": "Drugstore",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Dm-drogerie_markt",
+    "title": "dm-drogerie markt - Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 1,
+  "seconds": 8.550309082958847,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "what is dm drogerie company"
+  ],
+  "fetched": [
+   "https://en.wikipedia.org/wiki/Dm-drogerie_markt"
+  ],
+  "evidence": "German multinational retail store chain",
+  "capped": false
+ },
+ "netto marken discount": {
+  "token": "netto marken discount",
+  "summary": "Netto Marken-Discount is a German chain of discount supermarkets.",
+  "category": "Groceries",
+  "subcategory": "Supermarket",
+  "confidence": 1.0,
+  "sources": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Netto_Marken-Discount",
+    "title": "Netto Marken-Discount - Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 1,
+  "seconds": 10.848573707975447,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "what is netto marken discount"
+  ],
+  "fetched": [
+   "https://en.wikipedia.org/wiki/Netto_Marken-Discount"
+  ],
+  "evidence": "German chain of discount supermarkets",
+  "capped": false
+ },
+ "lieferando": {
+  "token": "lieferando",
+  "summary": "Delivery platform, not a merchant in the spending sense.",
+  "category": "Dining",
+  "subcategory": "Delivery",
+  "confidence": 0.8,
+  "sources": [
+   {
+    "url": "https://www.lieferando.de/en",
+    "title": "Lieferando.de | Food Delivery, Groceries & More Near You"
+   },
+   {
+    "url": "https://www.crunchbase.com/organization/lieferando",
+    "title": "Lieferando - Crunchbase Company Profile & Funding"
+   }
+  ],
+  "searches": 1,
+  "fetches": 1,
+  "seconds": 9.378604750032537,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "what is lieferando"
+  ],
+  "fetched": [
+   "https://www.lieferando.de/en"
+  ],
+  "evidence": "Order food, groceries & more with Lieferando.de.",
+  "capped": false
+ },
+ "dean david": {
+  "token": "dean david",
+  "summary": "German health-oriented fast food chain selling salads, bowls and sandwiches.",
+  "category": "Dining",
+  "subcategory": "Takeaway",
+  "confidence": 0.7,
+  "sources": [
+   {
+    "url": "https://www.muenchenwiki.de/wiki/Dean_&_david",
+    "title": "Dean & david – München Wiki"
+   }
+  ],
+  "searches": 1,
+  "fetches": 1,
+  "seconds": 12.700027374958154,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "dean david what is"
+  ],
+  "fetched": [
+   "https://en.wikipedia.org/wiki/Dean_David"
+  ],
+  "evidence": "",
+  "capped": false
+ },
+ "doener haus kreuzberg": {
+  "token": "doener haus kreuzberg",
+  "summary": "Döner Haus is a German fast-food brand serving kebabs and wraps at grills and restaurants.",
+  "category": "Dining",
+  "subcategory": "Restaurant",
+  "confidence": 0.8,
+  "sources": [
+   {
+    "url": "https://wolt.com/de/deu/nuremberg/restaurant/kreuzberg-doener",
+    "title": "Kreuzberg Döner | Wolt | Lieferservice | Nürnberg"
+   },
+   {
+    "url": "https://wolt.com/en/deu/berlin/restaurant/doener-haus-berlin93",
+    "title": "Doener Haus | Wolt | Delivery | Berlin"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 18.300622000009753,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "doener haus kreuzberg"
+  ],
+  "fetched": [],
+  "evidence": "Do you miss the warm breeze of an oriental grill? Then Doener Haus is the right place for you.",
+  "capped": false
+ },
+ "cafe milchbart": {
+  "token": "cafe milchbart",
+  "summary": "Children's café in Prenzlauer Berg, Berlin offering birthday parties for kids.",
+  "category": "Dining",
+  "subcategory": "Cafe",
+  "confidence": 0.85,
+  "sources": [
+   {
+    "url": "https://www.berliner-freizeit-tipps.de/eltern-kind-cafe-milchbart-im-prenzlauerberg/",
+    "title": "Eltern Kind Cafe Milchbart im Prenzlauer Berg | Kindercafé s in Berlin"
+   },
+   {
+    "url": "https://www.bizarchiv.de/café-milchbart",
+    "title": "Café Milchbart | Berlin - bizarchiv.de"
+   }
+  ],
+  "searches": 2,
+  "fetches": 1,
+  "seconds": 11.353210458008107,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "cafe milchbart Unternehmen",
+   "Cafe Milchbart Berlin",
+   "Cafe Milchbart Berlin"
+  ],
+  "fetched": [
+   "https://web2.cylex.de/firma-home/milchbart-8132169.html"
+  ],
+  "evidence": "Eltern Kind Cafe Milchbart im Prenzlauer Berg | Kindercafé s in Berlin",
+  "capped": false
+ },
+ "vapiano mitte": {
+  "token": "vapiano mitte",
+  "summary": "Vapiano is a known Italian bistro chain.",
+  "category": "Dining",
+  "subcategory": "Restaurant",
+  "confidence": 0.6,
+  "sources": [],
+  "searches": 4,
+  "fetches": 0,
+  "seconds": 26.143402832967695,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "vapiano mitte was ist entreprises",
+   "vapiano mitte was ist entreprises",
+   "vapiano mitte was ist",
+   "vapiano mitte what is shop",
+   "vapiano mitte was ist"
+  ],
+  "fetched": [],
+  "evidence": "vapiano is a known Italian bistro chain.",
+  "capped": false
+ },
+ "uber": {
+  "token": "uber",
+  "summary": "Uber is a ride-hailing service provider operating via a mobile app.",
+  "category": "Transport",
+  "subcategory": "Ride hailing",
+  "confidence": 0.6,
+  "sources": [],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 6.688436500029638,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "uber Unternehmen",
+   "uber Unternehmen"
+  ],
+  "fetched": [],
+  "evidence": "",
+  "capped": true
+ },
+ "shell": {
+  "token": "shell",
+  "summary": "Shell is a major global petroleum and petrochemical company.",
+  "category": "Transport",
+  "subcategory": "Fuel",
+  "confidence": 0.6,
+  "sources": [],
+  "searches": 2,
+  "fetches": 0,
+  "seconds": 9.012873874977231,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "what is shell",
+   "what is shell",
+   "shell Unternehmen"
+  ],
+  "fetched": [],
+  "evidence": "",
+  "capped": true
+ },
+ "telekom": {
+  "token": "telekom",
+  "summary": "Telekom is a German telecommunications company offering mobile, landline, internet, and TV services.",
+  "category": "Communication",
+  "subcategory": "Mobile",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Telekom_Deutschland",
+    "title": "Telekom Deutschland - Wikipedia"
+   },
+   {
+    "url": "https://de.wikipedia.org/wiki/Telekom_Deutschland",
+    "title": "Telekom Deutschland - Wikipedia"
+   }
+  ],
+  "searches": 3,
+  "fetches": 1,
+  "seconds": 14.869160165952053,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "telekom Unternehmen",
+   "telekom Unternehmen",
+   "telekom t",
+   "telekom Deutschland"
+  ],
+  "fetched": [
+   "https://en.wikipedia.org/wiki/Telekom_Deutschland"
+  ],
+  "evidence": "Telekom Deutschland GmbH (formerly T-Mobile Deutschland GmbH) is a German telecommunications company owned by Deutsche Telekom. Telekom offers landline phone, broadband, IPTV and mobile telephony services.",
+  "capped": false
+ },
+ "adobe systems software": {
+  "token": "adobe systems software",
+  "summary": "Adobe Systems Software sells creative and productivity software products.",
+  "category": "Subscriptions",
+  "subcategory": "Software",
+  "confidence": 0.6,
+  "sources": [],
+  "searches": 2,
+  "fetches": 0,
+  "seconds": 8.241447165957652,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "adobe systems software merchant",
+   "adobe systems software merchant",
+   "adobe systems software company"
+  ],
+  "fetched": [],
+  "evidence": "None found as search failed.",
+  "capped": true
+ },
+ "bvg berliner verkehrsbetriebe": {
+  "token": "bvg berliner verkehrsbetriebe",
+  "summary": "BVG is the Berlin public transport operator, responsible for buses and trains in the city.",
+  "category": "Transport",
+  "subcategory": "Public transport",
+  "confidence": 0.6,
+  "sources": [],
+  "searches": 2,
+  "fetches": 0,
+  "seconds": 9.439600292011164,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "bvg berliner verkehrsbetriebe",
+   "bvg berliner verkehrsbetriebe",
+   "bvg berliner verkehrsbetriebe Unternehmen"
+  ],
+  "fetched": [],
+  "evidence": "",
+  "capped": true
+ },
+ "vattenfall sales": {
+  "token": "vattenfall sales",
+  "summary": "Swedish multinational power company providing electricity and heat.",
+  "category": "Housing",
+  "subcategory": "Electricity",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Vattenfall",
+    "title": "Vattenfall - Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 1,
+  "seconds": 10.295490333985072,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "what is vattenfall sales",
+   "what is vattenfall sales"
+  ],
+  "fetched": [
+   "https://en.wikipedia.org/wiki/Vattenfall"
+  ],
+  "evidence": "",
+  "capped": false
+ },
+ "allianz versicherungs": {
+  "token": "allianz versicherungs",
+  "summary": "Allianz is a major German insurance provider with a subsidiary doing life insurance, fitting the Insurance category.",
+  "category": "Insurance",
+  "subcategory": null,
+  "confidence": 0.9,
+  "sources": [
+   {
+    "url": "https://www.allianz.com/de/ueber-uns/wer-wir-sind/auf-einen-blick.html",
+    "title": "Auf einen Blick | Allianz"
+   }
+  ],
+  "searches": 1,
+  "fetches": 1,
+  "seconds": 11.166881999990437,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "allianz versicherungs was ist"
+  ],
+  "fetched": [
+   "https://de.wikipedia.org/wiki/Allianz_SE"
+  ],
+  "evidence": "Der Allianz Konzern ist einer der weltweit führenden Versicherer und Vermögensverwalter",
+  "capped": false
+ },
+ "sparkasse geldautomat": {
+  "token": "sparkasse geldautomat",
+  "summary": "Sparkasse ATM is a cash withdrawal machine provided by the Sparkasse bank.",
+  "category": "Cash",
+  "subcategory": "Cash withdrawal",
+  "confidence": 0.9,
+  "sources": [
+   {
+    "url": "https://www.sparkasse.de/pk/ratgeber/finanzplanung/banking-tipps/so-funktionieren-geldautomaten.html",
+    "title": "Wie funktioniert ein Geldautomat? - Sparkasse.de"
+   }
+  ],
+  "searches": 1,
+  "fetches": 1,
+  "seconds": 7.506127749977168,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "what is sparkasse geldautomat"
+  ],
+  "fetched": [
+   "https://de.wikipedia.org/wiki/Geldautomat"
+  ],
+  "evidence": "Geldautomaten erleichtern unser Leben immens: Sie sorgen dafür, dass überall Bargeld in der Nähe ist.",
+  "capped": false
+ },
+ "hausverwaltung bergmann": {
+  "token": "hausverwaltung bergmann",
+  "summary": "German property management company collecting fees or services for housing.",
+  "category": "Housing",
+  "subcategory": "Rent",
+  "confidence": 0.6,
+  "sources": [],
+  "searches": 3,
+  "fetches": 0,
+  "seconds": 38.27775583398761,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "was ist hausverwaltung bergmann",
+   "was ist hausverwaltung bergmann",
+   "Unternehmen hausverwaltung bergmann",
+   "Firma hausverwaltung bergmann"
+  ],
+  "fetched": [],
+  "evidence": "The token \"hausverwaltung bergmann\" failed 3 searches. It translates to property management.",
+  "capped": true
+ },
+ "mustermann systems": {
+  "token": "mustermann systems",
+  "summary": "German production specialist for professional audio systems, including sound modules and projectors for industrial and public venues.",
+  "category": "Shopping",
+  "subcategory": "Electronics",
+  "confidence": 0.6,
+  "sources": [],
+  "searches": 2,
+  "fetches": 0,
+  "seconds": 8.854098707961384,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "mustermann systems Firma",
+   "mustermann systems Firma",
+   "mustermann systems"
+  ],
+  "fetched": [],
+  "evidence": "",
+  "capped": true
+ },
+ "zahnarztpraxis dr lorenz": {
+  "token": "zahnarztpraxis dr lorenz",
+  "summary": "German dental practice Dr. Lorenz offering dentist services",
+  "category": "Health",
+  "subcategory": "Doctor",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.zahnarzt-lorenz.de/",
+    "title": "Willkommen | Zahnarztpraxis Dr. Carsten Lorenz"
+   }
+  ],
+  "searches": 2,
+  "fetches": 1,
+  "seconds": 14.607069333957043,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "zahnarztpraxis dr lorenz",
+   "zahnarztpraxis dr lorenz",
+   "Unternehmen zahnarztpraxis dr lorenz"
+  ],
+  "fetched": [
+   "https://www.zahnarzt-lorenz.de/"
+  ],
+  "evidence": "Wir nehmen uns Zeit für eine ausführliche Diagnostik und Aufklärung über Ihre Mundgesundheit.",
+  "capped": false
+ },
+ "apotheke": {
+  "token": "apotheke",
+  "summary": "German pharmacy selling medicines and health products",
+  "category": "Health",
+  "subcategory": "Pharmacy",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Apotheke",
+    "title": "Apotheke – Wikipedia"
+   }
+  ],
+  "searches": 2,
+  "fetches": 1,
+  "seconds": 10.658100333006587,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "apotheke",
+   "apotheke Unternehmen",
+   "apotheke Unternehmen"
+  ],
+  "fetched": [
+   "https://de.wikipedia.org/wiki/Apotheke"
+  ],
+  "evidence": "Verkauf von Medikamenten",
+  "capped": false
+ },
+ "combi frisch nebenan": {
+  "token": "combi frisch nebenan",
+  "summary": "German supermarket chain; Combi frisch nebenan is a branch type.",
+  "category": "Shopping",
+  "subcategory": "Supermarket",
+  "confidence": 0.9,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Combi_(Supermarkt)",
+    "title": "Combi (Supermarkt) – Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 1,
+  "seconds": 9.592329500010237,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "was ist combi frisch nebenan"
+  ],
+  "fetched": [
+   "https://de.wikipedia.org/wiki/Combi_(Supermarkt)"
+  ],
+  "evidence": "",
+  "capped": false
+ },
+ "hit tankstelle": {
+  "token": "hit tankstelle",
+  "summary": "Search for this merchant string failed; likely a name confusion or typo, possibly related to gas stations.",
+  "category": "Transport",
+  "subcategory": "Fuel",
+  "confidence": 0.3,
+  "sources": [],
+  "searches": 2,
+  "fetches": 0,
+  "seconds": 8.131883792055305,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "hit tankstelle",
+   "hit tankstelle",
+   "hit tankstelle"
+  ],
+  "fetched": [],
+  "evidence": "",
+  "capped": false
+ },
+ "sauruesselalm": {
+  "token": "sauruesselalm",
+  "summary": "Likely a mountain hut or alpine restaurant with no web presence.",
+  "category": "Dining",
+  "subcategory": "Restaurant",
+  "confidence": 0.6,
+  "sources": [],
+  "searches": 3,
+  "fetches": 0,
+  "seconds": 13.69379566697171,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "was ist sauruesselalm unternehmen",
+   "was ist sauruesselalm unternehmen",
+   "sauruesselalm was dort",
+   "sauruesselalm"
+  ],
+  "fetched": [],
+  "evidence": "",
+  "capped": true
+ },
+ "schloecker": {
+  "token": "schloecker",
+  "summary": "No search results found for Schloecker; it may be non-existent or not indexed.",
+  "category": "Unknown",
+  "subcategory": "None",
+  "confidence": 0.0,
+  "sources": [],
+  "searches": 4,
+  "fetches": 0,
+  "seconds": 28.905024375009816,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "Schloecker",
+   "Schloecker",
+   "Schloecker Unternehmen",
+   "Schloecker was ist das",
+   "Schloecker filiale"
+  ],
+  "fetched": [],
+  "evidence": "",
+  "capped": false
+ },
+ "vogtlandbahn": {
+  "token": "vogtlandbahn",
+  "summary": "vogtlandbahn is a regional train operator brand in Saxony, Germany.",
+  "category": "Transport",
+  "subcategory": "Public transport",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Vogtlandbahn",
+    "title": "Vogtlandbahn – Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 1,
+  "seconds": 10.072340416023508,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "what is vogtlandbahn"
+  ],
+  "fetched": [
+   "https://de.wikipedia.org/wiki/Vogtlandbahn"
+  ],
+  "evidence": "",
+  "capped": false
+ },
+ "hans glueck burgergrill": {
+  "token": "hans glueck burgergrill",
+  "summary": "German franchise restaurant chain selling burgers",
+  "category": "Dining",
+  "subcategory": "Restaurant",
+  "confidence": 0.9,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Hans_im_Glück_(Restaurantkette)",
+    "title": "Hans im Glück (Restaurantkette) – Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 1,
+  "seconds": 10.949876166996546,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "what is hans glueck burgergrill"
+  ],
+  "fetched": [
+   "https://de.wikipedia.org/wiki/Hans_im_Glück_(Restaurantkette)"
+  ],
+  "evidence": "",
+  "capped": false
+ }
+}

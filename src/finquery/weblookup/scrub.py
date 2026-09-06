@@ -14,13 +14,25 @@ counterparty is only the payment processor, the booking text) reads as a person 
 business, no lookup happens at all and nothing leaves. That is why `scrub` returns a token that
 can be empty with a reason instead of a best-effort string.
 
-The rule for a person, from the spec: exactly two capitalized words with no legal form.
-`BUSINESS_WORDS` is what keeps a two-word company ("Hausverwaltung Bergmann", "Mustermann
-Systems") out of that rule. Being wrong in that direction costs a lookup; being wrong in the
-other direction would leak a name, so anything ambiguous counts as a person.
+The rule for a person is read in this order, and the order is the whole privacy argument
+(ticket 53, the review of 2026-09-06):
 
-TODO: a booking text that spells a person in lower case is not recognized (the rule is about
-capitalized words). A list of common given names is the upgrade path if a real export needs it.
+1. **A legal form anywhere wins.** `GmbH`, `AG`, `SE`, `KG`, `e.V.`, `a.G.`, `B.V.`, `& Co` and
+   the rest are the strongest business signal a booking carries, and they are read before the
+   words are counted. Before this they were dropped as uninformative and what was left ("Sixt
+   ... Autovermietung", "ERGO Versicherung") was counted as two words and refused: 24 of the 28
+   refusals in the review's set were companies.
+2. **A common German given name in either position refuses.** "Anna Weber", "ANNA WEBER" and
+   "Weber Anna" are all a person, and this fires before the business-word exemption, so "Anna
+   Bauer" is a person even though "Bauer" ends in a trade.
+3. **Then the old two-word rule**: exactly two capitalized words with no business word.
+
+The legal form is read from the same string the person rule reads, never from the counterparty
+when the counterparty is only the processor: a PayPal booking names `PayPal Europe S.a.r.l.`
+as the counterparty and a friend in the text, and reading the form there would send the friend.
+
+Being wrong towards refusing costs a lookup; being wrong the other way would leak a name, so
+anything ambiguous still counts as a person.
 """
 
 import re
@@ -68,14 +80,71 @@ BUSINESS_WORDS = (
     "druck", "garten", "elektro", "sanitaer", "auto", "mobil", "pharma", "labor", "agentur",
     "verlag", "handel", "vertrieb", "zentrum", "center", "haus", "hof", "stube", "laden",
     "discount", "digital", "software", "telekom", "energy", "farm", "brauerei", "kiosk",
+    "tankstelle", "parfuemerie", "fernsehen", "mobility",
 )
 
+# The same signal at the other end of the word: a trade that starts a compound rather than
+# ending one. "Versicherungs-AG", "Metzgerei", "Physiotherapie", "Tankstellen", "Parfuemerie",
+# "Einrichtungsmaerkte", "Fernsehen", "Mobility", "Capital" and "Entertainment" were all read
+# as surnames while `BUSINESS_WORDS` only matched an ending (F2 of the review).
+BUSINESS_STEMS = (
+    "versicher", "metzger", "physio", "tankstell", "parfuem", "einrichtung", "fernseh",
+    "mobility", "capital", "entertainment",
+)
+
+# The two hundred most common German given names, folded the way `fold` folds them. Plain data
+# on purpose: a name list is the upgrade path ADR 0010 named, and it is only ever read, never
+# sent. A name here in either position of a two-word counterparty refuses the whole lookup.
+GIVEN_NAMES = frozenset(
+    """
+    alexander alina amelie andrea andreas angelika anna annika anton antonia barbara ben
+    benjamin bernd bernhard birgit bjoern brigitte bruno carla carolin caroline charlotte
+    christian christiane christina christoph claudia clara constantin cornelia daniel daniela
+    david dennis dieter dirk doris dominik dorothea elena elias elisabeth elke ella emil emilia
+    emma erik erika ernst eva fabian felix finn florian frank franz franziska frieda friedrich
+    gabriele georg gerhard gisela greta gudrun guenter hannah hanna hans harald heike heinrich
+    heinz helena helga helmut henri henry herbert hermann holger horst ida ingrid irene iris
+    isabel isabella jan jana jasmin jennifer jens jessica joachim johanna johannes jonas
+    jonathan joerg josef judith julia julian juergen karin karl katharina katrin kerstin kevin
+    klaus konstantin lara lars laura lea lena leon leonie liam lina lisa louisa luca lukas
+    ludwig luisa luise manfred manuel marcel marco maria marie mario marion markus marlene
+    martin martina mathilda matthias maximilian melanie michael michaela mika mila monika
+    moritz nele nico niklas nils nina noah norbert oliver oskar paul paula petra philipp
+    rainer ralf regina reinhard renate rene richard rita robert rolf romy rudolf sabine sara
+    sarah sebastian silke silvia simon simone sophia sophie stefan stefanie stephan stephanie
+    susanne sven tanja theo thomas tim tobias tom ulrich ulrike ursula ute uwe valentin
+    vanessa verena vincent volker waltraud walter werner wilhelm wolfgang yvonne
+    """.split()
+)
+
+# A word the merchant key drops as noise that is half a merchant's name in a search token.
+# `Zeit Online` folded to `zeit` alone (F4), because "online" is the channel a bank prints
+# ("ONLINE UEBERWEISUNG") and not usually part of a name. Only a word on this fixed list can
+# come back, so nothing personal can arrive this way.
+KEPT_NOISE = ("online",)
+
 _IBAN = re.compile(r"^[a-z]{2}\d{2}[a-z0-9]{6,}$")
-_HAS_DIGIT = re.compile(r"\d")
+_NUMBERISH = re.compile(r"\d\d")
+"""Two digits next to each other: an amount, a date, a branch, a card or a reference number.
+A brand keeps a lone digit (`o2`, `1und1`, `3M`), which is how F4's `1&1 Telecom` keeps its
+name instead of leaving as `telecom`."""
+
 _LEGAL_FORMS = {
-    "gmbh", "mbh", "ag", "kg", "kgaa", "ohg", "ek", "ug", "se", "co", "sarl", "sa", "rl",
-    "bv", "nv", "ab", "as", "inc", "ltd", "plc", "llc", "eg", "gbr", "mbb",
+    "gmbh", "ggmbh", "mbh", "ag", "kg", "kgaa", "ohg", "ek", "ug", "se", "co", "sarl", "sa",
+    "rl", "bv", "nv", "ab", "as", "inc", "ltd", "plc", "llc", "eg", "gbr", "mbb", "ev", "srl",
+    "spa", "aps", "oy",
 }
+"""Read off the token, so a legal form never becomes part of what is searched for."""
+
+LEGAL_FORMS = _LEGAL_FORMS - {"ab", "as", "co", "rl"}
+"""Read as the business signal that short-circuits the person rule. Four forms are left out of
+it because they are also ordinary words a booking text can carry on its own; `& Co` is caught
+by `AND_CO` instead, and `S.a.r.l.` arrives here as `sarl`."""
+
+AND_CO = ("& co", "&co", "u. co")
+_ABBREVIATION = re.compile(r"(?:[a-zà-ÿ]\.){2,}")
+_ACRONYM_DOT = re.compile(r"(?<![A-Za-zÀ-ÿ])([A-Za-zÀ-ÿ])\.(?=[A-Za-zÀ-ÿ])")
+_AMPERSAND_DIGITS = re.compile(r"(\d)\s*&\s*(\d)")
 
 
 @dataclass(frozen=True)
@@ -105,16 +174,39 @@ def _informative(word: str) -> bool:
         return False
     if _IBAN.match(word):
         return False
-    # An amount, a card, customer or reference number, or an amount with its currency glued on
-    # ("00eur"). A two-character name with a digit is a brand, not a number ("o2").
-    return not (_HAS_DIGIT.search(word) and len(word) > 2)
+    return not _NUMBERISH.search(word)
 
 
 def _business_word(word: str) -> bool:
     """Does this word name a trade or a legal shape rather than a person?"""
     # Both forms, because dropping the plural s would also eat the s of "Autohaus".
     forms = {word, word[:-1]} if word.endswith("s") and len(word) > 3 else {word}
+    if any(form.startswith(stem) for form in forms for stem in BUSINESS_STEMS):
+        return True
     return any(form == business or form.endswith(business) for form in forms for business in BUSINESS_WORDS)
+
+
+def has_legal_form(text: str) -> bool:
+    """Does this string carry a legal form anywhere in it?
+
+    Read on the text as printed, with abbreviations squashed first (`e.V.` to `ev`, `a.G.` to
+    `ag`, `S.a.r.l.` to `sarl`), because folding splits them into single letters that say
+    nothing. `& Co` counts too: "Sixt GmbH & Co Autovermietung KG" is a company by any reading.
+    """
+    squashed = _ABBREVIATION.sub(lambda match: match.group(0).replace(".", ""), text.casefold())
+    if any(form in squashed for form in AND_CO):
+        return True
+    return any(word in LEGAL_FORMS for word in re.split(r"[^a-z0-9à-ÿ]+", squashed))
+
+
+def _normalized(text: str) -> str:
+    """`E.ON` to `EON` and `1&1` to `1und1`, so a brand's short parts survive the fold.
+
+    Folding splits on every non-alphanumeric character and single characters are dropped, so
+    `E.ON Energie` left as `on energie` and `1&1 Telecom` as `telecom` (F4): a token that is
+    not the merchant, in the outbound log for the user to read.
+    """
+    return _ACRONYM_DOT.sub(r"\1", _AMPERSAND_DIGITS.sub(r"\1und\2", text))
 
 
 def _capitalized_words(text: str) -> list[str]:
@@ -126,22 +218,34 @@ def _capitalized_words(text: str) -> list[str]:
     ]
 
 
-def looks_like_a_person(description: str, counterparty: str | None = None) -> bool:
-    """Exactly two capitalized words, no legal form and no business word: a person.
+def _name_source(description: str, counterparty: str | None) -> str:
+    """The string the person rule reads, exactly as `merchant_of` reads it.
 
-    The counterparty is the field to read, exactly as `merchant_of` reads it, except when it is
-    only the processor that moved the money: a PayPal booking names PayPal as the counterparty
-    and the person in the booking text.
+    The counterparty, except when it is only the processor that moved the money: a PayPal
+    booking names PayPal as the counterparty and the person in the booking text. Everything
+    below reads this and nothing else, the legal form included, so `PayPal Europe S.a.r.l.`
+    can never make a friend's name look like a company.
     """
-    source = counterparty if counterparty and _capitalized_words(counterparty) else description
+    return counterparty if counterparty and _capitalized_words(counterparty) else description
+
+
+def looks_like_a_person(description: str, counterparty: str | None = None) -> bool:
+    """Whether this booking names a person. The order is in the module docstring."""
+    source = _name_source(description, counterparty)
+    if has_legal_form(source):
+        return False
     words = _capitalized_words(source)
     if len(words) != NAME_WORDS:
         return False
     folded = [fold(word) for word in words]
-    if any(_business_word(word) for word in folded):
-        return False
     # A merchant the app already knows is a merchant, whatever its name looks like.
-    return lookup(" ".join(folded)) is None and all(lookup(word) is None for word in folded)
+    if lookup(fold(source)) is not None or lookup(" ".join(folded)) is not None:
+        return False
+    if any(lookup(word) is not None for word in folded):
+        return False
+    if any(word in GIVEN_NAMES for word in folded):
+        return True
+    return not any(_business_word(word) for word in folded)
 
 
 def scrub(description: str, counterparty: str | None = None) -> MerchantToken:
@@ -155,8 +259,13 @@ def scrub(description: str, counterparty: str | None = None) -> MerchantToken:
             "That booking names a person, and a person's name never leaves this machine, so "
             "nothing was looked up.",
         )
-    key = merchant_of(description, counterparty).key
+    described = _normalized(description)
+    party = _normalized(counterparty) if counterparty else None
+    key = merchant_of(described, party).key
     words = [word for word in key.split() if _informative(word)][:MAX_TOKEN_WORDS]
+    for word in fold(party or described).split():
+        if word in KEPT_NOISE and word not in words and len(words) < MAX_TOKEN_WORDS:
+            words.append(word)
     token = " ".join(words)[:MAX_TOKEN_CHARS].strip()
     if len(token) < MIN_TOKEN_CHARS:
         return MerchantToken(
@@ -175,7 +284,7 @@ def safe_query(query: str, token: MerchantToken) -> str:
     carries a number or reads as a date, and falls back to the token itself when the query lost
     the merchant on the way.
     """
-    words = [word for word in query.split() if not _HAS_DIGIT.search(word) and fold(word) not in DATE_WORDS]
+    words = [word for word in query.split() if not _NUMBERISH.search(word) and fold(word) not in DATE_WORDS]
     cleaned = " ".join(words)[: MAX_TOKEN_CHARS * 2].strip()
     if not cleaned or token.text not in fold(cleaned):
         return token.text

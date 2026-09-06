@@ -94,6 +94,9 @@ class Knowledge:
     error: str | None = None
     queries: list[str] = field(default_factory=list)
     fetched: list[str] = field(default_factory=list)
+    evidence: str = ""
+    """The quoted sentence, once the loop had one to give (ticket 53)."""
+    capped: bool = False
 
     @property
     def placed(self) -> bool:
@@ -167,6 +170,8 @@ class WebKnowledge:
             error=outcome.error,
             queries=[e.target for e in mine if e.kind == "search"],
             fetched=[e.target for e in mine if e.kind == "fetch"],
+            evidence=outcome.evidence,
+            capped=outcome.capped,
         )
         # Same rule as the app: a lookup with no conclusion is not cached.
         if knowledge.summary:
