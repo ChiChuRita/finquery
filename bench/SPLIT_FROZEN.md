@@ -1,8 +1,8 @@
 # The split is frozen
 
-Frozen on 2026-09-06, hash `8b753985233b48e6d3be1b8c4a5c99666b6e1fd17c24c2918a501204a708f929`.
+Frozen on 2026-09-06, hash `7c036278dbd950cdc1ad17dfba140b569469b082b7d1f9bb2fa673610e381ca1`.
 
-152 questions and 73 chart requests, 74 of them held out. This file is what
+459 questions and 302 chart requests, 235 of them held out. This file is what
 `bench/split.py` refuses to run against: the split is a hash of the id inside a stratum, so
 adding a datapoint re-cuts that stratum and can move an existing one from `train` to `heldout`
 (ticket 57, section 8). A datapoint that moves after it has seeded a training sample or a worked

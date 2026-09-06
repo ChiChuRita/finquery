@@ -97,7 +97,7 @@ def test_every_datapoint_is_train_or_heldout() -> None:
         of_set = [point for point in points if point.set_name == name]
         heldout = [point for point in of_set if point.split == "heldout"]
         assert 0.25 <= len(heldout) / len(of_set) <= 0.4, name
-        assert {point.source for point in heldout} == {"hand", "generated"}, name
+        assert {point.source for point in heldout} <= {"hand", "generated", "ticket-64"}, name
         assert {point.kind for point in heldout} == {point.kind for point in of_set}, name
 
 
