@@ -21,6 +21,7 @@ import {
   type PreferenceRating,
   type PreferenceRecord,
 } from '@/lib/api'
+import { useModelLabel } from '@/lib/catalog'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
@@ -53,6 +54,7 @@ function Row({ record }: { record: PreferenceRecord }) {
   const rating = RATING[record.rating]
   const KindIcon = kind.icon
   const RatingIcon = rating.icon
+  const modelLabel = useModelLabel()
   return (
     <li className="flex items-start gap-3 px-4 py-3">
       <Badge className="mt-0.5 shrink-0 font-normal" variant="outline">
@@ -64,7 +66,7 @@ function Row({ record }: { record: PreferenceRecord }) {
           {headline(record.prompt)}
         </p>
         <p className="pt-1 text-2xs text-muted-foreground">
-          {formatDateTime(record.created_at)} &middot; {record.model_slot} slot
+          {formatDateTime(record.created_at)} &middot; {modelLabel(record.model_key) ?? record.model_key}
           {record.paired && ' · chosen and rejected'}
         </p>
       </div>

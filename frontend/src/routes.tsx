@@ -27,7 +27,7 @@ import {
   conversationsQuery,
   createConversation,
   settingsQuery,
-  type ModelSlot,
+  type ModelKey,
 } from '@/lib/api'
 import { stashPendingPrompt } from '@/lib/pending'
 import { useWorkspace, WorkspaceProvider } from '@/lib/workspace'
@@ -54,10 +54,10 @@ function NewChatPage() {
   const queryClient = useQueryClient()
   const { profile } = useWorkspace()
   const { data: settings } = useQuery(settingsQuery(profile?.id))
-  const [slot, setSlot] = useState<ModelSlot>()
+  const [modelKey, setModelKey] = useState<ModelKey>()
   const [creating, setCreating] = useState(false)
   // Until the user picks one for this chat, a new conversation starts on the profile's default.
-  const chosen = slot ?? settings?.default_model_slot ?? 'fast'
+  const chosen = modelKey ?? settings?.default_model_key
 
   // A profile that has never seen the setup opens it instead of an empty chat, once.
   const pending = settings?.onboarding_state === 'not_started'
@@ -69,7 +69,7 @@ function NewChatPage() {
     if (creating || !profile) return
     setCreating(true)
     try {
-      const conversation = await createConversation(profile.id, chosen)
+      const conversation = await createConversation(profile.id, chosen ?? null)
       stashPendingPrompt(conversation.id, { text: text || undefined, files })
       void queryClient.invalidateQueries(conversationsQuery(profile.id))
       await navigate({ to: '/c/$conversationId', params: { conversationId: conversation.id } })
@@ -89,9 +89,9 @@ function NewChatPage() {
           <EmptyState onPick={(text) => void start(text)} />
           <Composer
             autoFocus
-            onSlotChange={setSlot}
+            modelKey={chosen}
+            onModelChange={setModelKey}
             onSubmit={start}
-            slot={chosen}
             status={creating ? 'submitted' : 'ready'}
           />
         </div>

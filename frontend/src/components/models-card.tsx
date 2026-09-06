@@ -11,9 +11,9 @@ import {
   modelsQuery,
   runSanityCheck,
   startModelDownload,
+  type CatalogEntry,
   type ModelFile,
   type SanityReport,
-  type SlotModel,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -62,29 +62,42 @@ function FileRow({ file }: { file: ModelFile }) {
   )
 }
 
-/** One slot: which model fills it and how ready it is.
+/** What the badge on one model says.
  *
- * "resident" is a fact about a GGUF sitting in this process's memory, so it is only said on
- * the local provider. A hosted model is neither resident nor on disk; it is simply reachable.
+ * "loaded" is a fact about a GGUF sitting in this process's memory, and the two local chat
+ * models share one seat, so at most one of them ever says it. A cloud model is neither loaded
+ * nor on disk; it is simply reachable, or it has no API key.
  */
-function SlotBlock({ model, local }: { model: SlotModel; local: boolean }) {
-  const state = local ? (model.loaded ? 'resident' : model.ready ? 'on disk' : 'incomplete') : 'hosted'
+function modelState(model: CatalogEntry): { text: string; variant: 'warning' | 'secondary' | 'success' } {
+  if (model.provider === 'openrouter') {
+    return model.available ? { text: 'cloud', variant: 'success' } : { text: 'no API key', variant: 'warning' }
+  }
+  if (model.swapping) return { text: 'loading', variant: 'secondary' }
+  if (model.loaded) return { text: 'loaded', variant: 'success' }
+  return model.ready ? { text: 'on disk', variant: 'secondary' } : { text: 'incomplete', variant: 'warning' }
+}
+
+/** One model the app runs: what it is, where it is, and how ready it is. */
+function ModelBlock({ model, note }: { model: CatalogEntry; note?: string }) {
+  const state = modelState(model)
   return (
     <div className="rounded-lg border p-3">
       <div className="flex items-baseline justify-between gap-3">
         <div className="min-w-0">
           <p className="font-medium text-sm">
             {model.label}
-            <span className="ml-2 font-normal font-mono text-muted-foreground text-xs">{model.name}</span>
+            <span className="ml-2 font-normal font-mono text-muted-foreground text-xs">{model.key}</span>
           </p>
           <p className="text-2xs text-muted-foreground">
-            {model.slot} slot
+            {note ?? 'chat model'}
             {model.n_ctx ? ` - ${(model.n_ctx / 1024).toFixed(0)}k context` : ''}
-            {model.n_ctx ? (model.loaded ? ` - resident, loaded in ${model.load_seconds}s` : ' - loads on first use') : ''}
+            {model.loaded && model.load_seconds ? ` - loaded in ${model.load_seconds}s` : ''}
+            {model.provider === 'local' && !model.loaded && model.ready ? ' - loads on first use' : ''}
           </p>
+          {!model.available && model.reason && <p className="pt-0.5 text-2xs text-warning-foreground">{model.reason}</p>}
         </div>
-        <Badge className="shrink-0" variant={state === 'incomplete' ? 'warning' : state === 'on disk' ? 'secondary' : 'success'}>
-          {state}
+        <Badge className="shrink-0" variant={state.variant}>
+          {state.text}
         </Badge>
       </div>
       {model.files.length > 0 && <ul className="mt-2 divide-y">{model.files.map((f) => <FileRow file={f} key={f.filename} />)}</ul>}
@@ -146,8 +159,9 @@ export function ModelsCard() {
       </p>
     )
 
-  const local = data.provider === 'local'
-  const missing = data.models.some((m) => !m.ready)
+  const localModels = [...data.entries, ...data.fast_slots].filter((model) => model.provider === 'local')
+  const missing = localModels.some((model) => !model.ready)
+  const loaded = localModels.filter((model) => model.loaded).map((model) => model.label)
 
   return (
     <section aria-labelledby="models-heading" className="rounded-xl border bg-card p-4">
@@ -157,33 +171,36 @@ export function ModelsCard() {
             Models
           </h2>
           <p className="text-muted-foreground text-xs">
-            Provider <span className="font-mono">{data.provider}</span>
-            {local
-              ? ` - ${data.models.map((model) => model.label).join(' and ')} in this process through llama.cpp`
-              : ' - hosted, nothing to download'}
+            New chats start on <span className="font-mono">{data.default_key}</span>, which is what{' '}
+            <span className="font-mono">FINQUERY_PROVIDER={data.provider}</span> decides. Every entry below can be
+            chosen per chat, whichever provider it is on.
+            {loaded.length > 0 && ` Loaded through llama.cpp right now: ${loaded.join(' and ')}.`}
           </p>
         </div>
-        {local && (
-          <div className="flex gap-2">
-            <Button disabled={!missing || data.downloading} onClick={() => download.mutate()} size="sm" variant="outline">
-              {data.downloading ? <Spinner data-icon="inline-start" /> : <DownloadIcon data-icon="inline-start" />}
-              {data.downloading ? 'Downloading' : missing ? 'Download missing files' : 'All files on disk'}
-            </Button>
-            <Button disabled={missing || check.isPending} onClick={() => check.mutate()} size="sm">
-              {check.isPending && <Spinner data-icon="inline-start" />}
-              {check.isPending ? 'Checking both models' : 'Run sanity check'}
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <Button disabled={!missing || data.downloading} onClick={() => download.mutate()} size="sm" variant="outline">
+            {data.downloading ? <Spinner data-icon="inline-start" /> : <DownloadIcon data-icon="inline-start" />}
+            {data.downloading ? 'Downloading' : missing ? 'Download missing files' : 'All files on disk'}
+          </Button>
+          <Button disabled={missing || check.isPending} onClick={() => check.mutate()} size="sm">
+            {check.isPending && <Spinner data-icon="inline-start" />}
+            {check.isPending ? 'Checking the local models' : 'Run sanity check'}
+          </Button>
+        </div>
       </div>
 
       <div className="mt-3 flex flex-col gap-2">
-        {data.models.map((model) => (
-          <SlotBlock key={model.slot} local={local} model={model} />
+        {data.entries.map((model) => (
+          <ModelBlock key={model.key} model={model} />
+        ))}
+        {/* The sub-agent slots are models the app runs that nobody picks, so they are listed
+            here and never in the chooser. */}
+        {data.fast_slots.map((model) => (
+          <ModelBlock key={model.key} model={model} note="sub-agent fast slot" />
         ))}
       </div>
 
-      {local && (
+      {data.adapters.length > 0 && (
         <div className="mt-3">
           <p className="font-medium text-xs">Adapters</p>
           <ul className="mt-1 flex flex-col gap-0.5">
@@ -216,11 +233,7 @@ export function ModelsCard() {
         <div className="mt-3 flex flex-col gap-2">
           <p className="font-medium text-xs">Sanity check</p>
           {reports.map((report) => (
-            <CheckReport
-              key={report.slot}
-              label={data.models.find((model) => model.slot === report.slot)?.label ?? report.slot}
-              report={report}
-            />
+            <CheckReport key={report.key} label={report.label} report={report} />
           ))}
         </div>
       )}
