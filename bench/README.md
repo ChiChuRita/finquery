@@ -15,7 +15,7 @@ app (ADR 0004).
 | File | What is in it |
 | --- | --- |
 | `sql-benchmark.json` | 152 questions: German and English, kind and difficulty, an optional conversation prefix, the reference SQL and its rows |
-| `chart-benchmark.json` | 71 chart requests: each with the shape it should get, the shapes that would do as well, the column roles, the reference SQL and its rows |
+| `chart-benchmark.json` | 73 chart requests: each with the shape it should get, the shapes that would do as well, the column roles, the reference SQL and its rows |
 
 Half of each set was written by hand and half was drafted by a model and then judged one by one
 (`source: "hand"` or `"generated"`, and the generated ones also carry a `generated` tag). Every
@@ -66,15 +66,15 @@ The chart set, by shape:
 | bar | 17 | 10 | 7 | 9 | 7 |
 | line | 14 | 9 | 5 | 7 | 5 |
 | doughnut | 8 | 4 | 4 | 5 | 2 |
-| area | 6 | 3 | 3 | 4 | 1 |
+| area | 8 | 5 | 3 | 5 | 2 |
 | bar_horizontal | 6 | 3 | 3 | 2 | 2 |
 | bar_grouped | 8 | 5 | 3 | 4 | 2 |
 | bar_stacked | 6 | 3 | 3 | 2 | 1 |
 | sankey | 6 | 3 | 3 | 3 | 3 |
 | difficulty 1 | 4 | 4 | 0 | 2 | 1 |
 | difficulty 2 | 39 | 18 | 21 | 21 | 13 |
-| difficulty 3 | 28 | 18 | 10 | 13 | 9 |
-| **all** | **71** | 40 | 31 | 36 | 23 |
+| difficulty 3 | 30 | 20 | 10 | 14 | 10 |
+| **all** | **73** | 42 | 31 | 37 | 24 |
 
 Two of the newest are the line's own hard case, one per language (`33-grocery-lines-de` and
 `34-grocery-lines-en`, ticket 50): five grocery shops over twelve months, which is five strokes
@@ -88,7 +88,11 @@ grouped bar with the period as the series and the category as the position, long
 before it, which is the one figure in this year that really crosses zero: six months below the
 baseline and five above it. `39-average-line-en` and `40-...-de` ask where the average lies,
 which is the reference line: the statement returns the twelve months and nothing else, and the
-chart computes the mean of the rows it was handed.
+chart computes the mean of the rows it was handed. `41-cumulative-halves-en` and `42-...-de` are
+the pacing chart, a running total inside each period with the period as the series: two bands
+lying over each other, the answer read off the gap. Two years would be the same picture with
+the year as the series, and the shipped dataset holds one year, so its two halves are the
+periods.
 
 Adding those six re-cut two strata, so `20-daily-march-en` moved from the held-out third into
 the training two thirds and both German twins of the new pairs went the other way. That is the
@@ -102,7 +106,7 @@ and a grouping, and calling one of those easy would have been flattery.
 
 Every datapoint carries `split`, `train` or `heldout`. A model fine-tuned on examples drawn from
 the set it is then scored on is scored on its memory, so about a third of each set is kept out of
-the examples: 50 of the 152 questions and 23 of the 71 charts. The rule is
+the examples: 50 of the 152 questions and 24 of the 73 charts. The rule is
 `finquery_bench.splits`, run through `uv run python bench/split.py`, and it is written into the
 files rather than drawn at run time, so a number from the held-out half means the same thing in
 six months as it does today. It is stratified over kind (shape for charts), hand against

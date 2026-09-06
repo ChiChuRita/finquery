@@ -880,6 +880,49 @@
       }
     },
     {
+      "id": "17-two-halves-en",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Compare my total spending in the first half of 2025 with the second half in a chart.",
+      "prefix": [],
+      "tags": [
+        "two periods",
+        "two bars only",
+        "bar"
+      ],
+      "why": "Two bars and nothing else. A line between two points would draw a trend through six months nobody asked about.",
+      "shape": "bar",
+      "also": [
+        "bar_horizontal"
+      ],
+      "roles": [
+        "label",
+        "value"
+      ],
+      "answer": "",
+      "source": "hand",
+      "split": "heldout",
+      "sql": "SELECT CASE WHEN booked_on < '2025-07-01' THEN 'H1' ELSE 'H2' END AS half, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY half ORDER BY half",
+      "gold": {
+        "columns": [
+          "half",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "half": "H1",
+            "total_eur": 13976.39
+          },
+          {
+            "half": "H2",
+            "total_eur": 14559.5
+          }
+        ]
+      }
+    },
+    {
       "id": "21-groceries-months-en",
       "set": "chart",
       "kind": "line",
@@ -958,89 +1001,6 @@
           {
             "month": "2025-12",
             "total_eur": 280.7
-          }
-        ]
-      }
-    },
-    {
-      "id": "24-net-per-month-de",
-      "set": "chart",
-      "kind": "bar",
-      "difficulty": 2,
-      "language": "de",
-      "question": "Zeig den monatlichen Saldo 2025, also Einnahmen minus Ausgaben, als Diagramm.",
-      "prefix": [],
-      "tags": [
-        "negative and positive together",
-        "German",
-        "zero baseline"
-      ],
-      "why": "The one chart whose figures can be negative, so the zero line is inside the plot and not under it.",
-      "shape": "bar",
-      "also": [
-        "line"
-      ],
-      "roles": [
-        "label",
-        "value"
-      ],
-      "answer": "",
-      "source": "hand",
-      "split": "heldout",
-      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(SUM(amount), 2) AS net_eur FROM transaction_view WHERE booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY month ORDER BY month",
-      "gold": {
-        "columns": [
-          "month",
-          "net_eur"
-        ],
-        "rows": [
-          {
-            "month": "2025-01",
-            "net_eur": 305.96
-          },
-          {
-            "month": "2025-02",
-            "net_eur": 584.66
-          },
-          {
-            "month": "2025-03",
-            "net_eur": 559.23
-          },
-          {
-            "month": "2025-04",
-            "net_eur": 620.16
-          },
-          {
-            "month": "2025-05",
-            "net_eur": 539.54
-          },
-          {
-            "month": "2025-06",
-            "net_eur": 548.96
-          },
-          {
-            "month": "2025-07",
-            "net_eur": 89.2
-          },
-          {
-            "month": "2025-08",
-            "net_eur": 571.16
-          },
-          {
-            "month": "2025-09",
-            "net_eur": 297.56
-          },
-          {
-            "month": "2025-10",
-            "net_eur": 649.06
-          },
-          {
-            "month": "2025-11",
-            "net_eur": 429.86
-          },
-          {
-            "month": "2025-12",
-            "net_eur": 503.66
           }
         ]
       }
@@ -1346,87 +1306,6 @@
       }
     },
     {
-      "id": "g003-area",
-      "set": "chart",
-      "kind": "area",
-      "difficulty": 2,
-      "language": "de",
-      "question": "Zeig die aufgelaufenen Ausgaben fuer Wohnen ueber das Jahr 2025 als Flaechendiagramm.",
-      "prefix": [],
-      "tags": [
-        "category running total",
-        "monthly area",
-        "generated"
-      ],
-      "why": "Filtering for a specific category and computing a monthly cumulative running total.",
-      "shape": "area",
-      "also": [],
-      "roles": [
-        "position",
-        "value"
-      ],
-      "answer": "",
-      "source": "generated",
-      "split": "train",
-      "sql": "WITH monthly_housing AS ( SELECT strftime('%Y-%m', booked_on) AS month, -SUM(amount) AS spent FROM transaction_view WHERE amount < 0 AND category = 'Housing' AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY month ) SELECT month, ROUND(SUM(spent) OVER (ORDER BY month), 2) AS total_eur FROM monthly_housing ORDER BY month",
-      "gold": {
-        "columns": [
-          "month",
-          "total_eur"
-        ],
-        "rows": [
-          {
-            "month": "2025-01",
-            "total_eur": 78.0
-          },
-          {
-            "month": "2025-02",
-            "total_eur": 156.0
-          },
-          {
-            "month": "2025-03",
-            "total_eur": 234.0
-          },
-          {
-            "month": "2025-04",
-            "total_eur": 312.0
-          },
-          {
-            "month": "2025-05",
-            "total_eur": 390.0
-          },
-          {
-            "month": "2025-06",
-            "total_eur": 468.0
-          },
-          {
-            "month": "2025-07",
-            "total_eur": 546.0
-          },
-          {
-            "month": "2025-08",
-            "total_eur": 624.0
-          },
-          {
-            "month": "2025-09",
-            "total_eur": 702.0
-          },
-          {
-            "month": "2025-10",
-            "total_eur": 780.0
-          },
-          {
-            "month": "2025-11",
-            "total_eur": 858.0
-          },
-          {
-            "month": "2025-12",
-            "total_eur": 936.0
-          }
-        ]
-      }
-    },
-    {
       "id": "g004-doughnut",
       "set": "chart",
       "kind": "doughnut",
@@ -1678,6 +1557,103 @@
             "month": "2025-06",
             "topic": "Public transport",
             "total_eur": 84.2
+          }
+        ]
+      }
+    },
+    {
+      "id": "42-cumulative-halves-de",
+      "set": "chart",
+      "kind": "area",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Vergleiche, wie sich meine Ausgaben im ersten und im zweiten Halbjahr 2025 aufsummiert haben.",
+      "prefix": [],
+      "tags": [
+        "running total per period",
+        "German",
+        "area with two series"
+      ],
+      "why": "The German one. 'Aufsummiert' is the running total and 'vergleiche' is the second series: one band per half, both starting at the first month of their own half.",
+      "shape": "area",
+      "also": [
+        "line"
+      ],
+      "roles": [
+        "position",
+        "series",
+        "value"
+      ],
+      "answer": "",
+      "source": "hand",
+      "split": "train",
+      "sql": "WITH monthly AS (SELECT CASE WHEN booked_on < '2025-07-01' THEN 'Erstes Halbjahr' ELSE 'Zweites Halbjahr' END AS half, CAST(strftime('%m', booked_on) AS INTEGER) AS month_number, -SUM(amount) AS spent FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY half, month_number) SELECT CAST(CASE WHEN month_number > 6 THEN month_number - 6 ELSE month_number END AS TEXT) AS month_of_half, half, ROUND(SUM(spent) OVER (PARTITION BY half ORDER BY month_number), 2) AS cumulative_eur FROM monthly ORDER BY half, month_number",
+      "gold": {
+        "columns": [
+          "month_of_half",
+          "half",
+          "cumulative_eur"
+        ],
+        "rows": [
+          {
+            "month_of_half": "1",
+            "half": "Erstes Halbjahr",
+            "cumulative_eur": 2544.04
+          },
+          {
+            "month_of_half": "2",
+            "half": "Erstes Halbjahr",
+            "cumulative_eur": 4809.38
+          },
+          {
+            "month_of_half": "3",
+            "half": "Erstes Halbjahr",
+            "cumulative_eur": 7100.15
+          },
+          {
+            "month_of_half": "4",
+            "half": "Erstes Halbjahr",
+            "cumulative_eur": 9364.89
+          },
+          {
+            "month_of_half": "5",
+            "half": "Erstes Halbjahr",
+            "cumulative_eur": 11675.35
+          },
+          {
+            "month_of_half": "6",
+            "half": "Erstes Halbjahr",
+            "cumulative_eur": 13976.39
+          },
+          {
+            "month_of_half": "1",
+            "half": "Zweites Halbjahr",
+            "cumulative_eur": 2760.8
+          },
+          {
+            "month_of_half": "2",
+            "half": "Zweites Halbjahr",
+            "cumulative_eur": 5039.64
+          },
+          {
+            "month_of_half": "3",
+            "half": "Zweites Halbjahr",
+            "cumulative_eur": 7592.08
+          },
+          {
+            "month_of_half": "4",
+            "half": "Zweites Halbjahr",
+            "cumulative_eur": 9793.02
+          },
+          {
+            "month_of_half": "5",
+            "half": "Zweites Halbjahr",
+            "cumulative_eur": 12213.16
+          },
+          {
+            "month_of_half": "6",
+            "half": "Zweites Halbjahr",
+            "cumulative_eur": 14559.5
           }
         ]
       }

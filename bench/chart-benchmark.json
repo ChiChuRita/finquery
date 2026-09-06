@@ -5995,6 +5995,192 @@
           }
         ]
       }
+    },
+    {
+      "id": "41-cumulative-halves-en",
+      "language": "en",
+      "prompt": "Compare how my spending added up over the first half of 2025 and over the second half.",
+      "shape": "area",
+      "also": [
+        "line"
+      ],
+      "covers": [
+        "running total per period",
+        "period as the series",
+        "area with two series"
+      ],
+      "difficulty": 3,
+      "roles": [
+        "position",
+        "series",
+        "value"
+      ],
+      "why": "The pacing chart every app draws for 'am I ahead of where I was': a running total inside each period, the period as the series, so the two bands lie over each other and the answer is the gap between them. `SUM(-amount) OVER (PARTITION BY the period ORDER BY the month)`, and the axis is the month inside the period, not the month of the year. Two years would be the same picture with `year` as the series; this dataset holds one year, so its two halves are the periods.",
+      "source": "hand",
+      "sql": "WITH monthly AS (SELECT CASE WHEN booked_on < '2025-07-01' THEN 'First half' ELSE 'Second half' END AS half, CAST(strftime('%m', booked_on) AS INTEGER) AS month_number, -SUM(amount) AS spent FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY half, month_number) SELECT CAST(CASE WHEN month_number > 6 THEN month_number - 6 ELSE month_number END AS TEXT) AS month_of_half, half, ROUND(SUM(spent) OVER (PARTITION BY half ORDER BY month_number), 2) AS cumulative_eur FROM monthly ORDER BY half, month_number",
+      "split": "heldout",
+      "gold": {
+        "columns": [
+          "month_of_half",
+          "half",
+          "cumulative_eur"
+        ],
+        "rows": [
+          {
+            "month_of_half": "1",
+            "half": "First half",
+            "cumulative_eur": 2544.04
+          },
+          {
+            "month_of_half": "2",
+            "half": "First half",
+            "cumulative_eur": 4809.38
+          },
+          {
+            "month_of_half": "3",
+            "half": "First half",
+            "cumulative_eur": 7100.15
+          },
+          {
+            "month_of_half": "4",
+            "half": "First half",
+            "cumulative_eur": 9364.89
+          },
+          {
+            "month_of_half": "5",
+            "half": "First half",
+            "cumulative_eur": 11675.35
+          },
+          {
+            "month_of_half": "6",
+            "half": "First half",
+            "cumulative_eur": 13976.39
+          },
+          {
+            "month_of_half": "1",
+            "half": "Second half",
+            "cumulative_eur": 2760.8
+          },
+          {
+            "month_of_half": "2",
+            "half": "Second half",
+            "cumulative_eur": 5039.64
+          },
+          {
+            "month_of_half": "3",
+            "half": "Second half",
+            "cumulative_eur": 7592.08
+          },
+          {
+            "month_of_half": "4",
+            "half": "Second half",
+            "cumulative_eur": 9793.02
+          },
+          {
+            "month_of_half": "5",
+            "half": "Second half",
+            "cumulative_eur": 12213.16
+          },
+          {
+            "month_of_half": "6",
+            "half": "Second half",
+            "cumulative_eur": 14559.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "42-cumulative-halves-de",
+      "language": "de",
+      "prompt": "Vergleiche, wie sich meine Ausgaben im ersten und im zweiten Halbjahr 2025 aufsummiert haben.",
+      "shape": "area",
+      "also": [
+        "line"
+      ],
+      "covers": [
+        "running total per period",
+        "German",
+        "area with two series"
+      ],
+      "difficulty": 3,
+      "roles": [
+        "position",
+        "series",
+        "value"
+      ],
+      "why": "The German one. 'Aufsummiert' is the running total and 'vergleiche' is the second series: one band per half, both starting at the first month of their own half.",
+      "source": "hand",
+      "sql": "WITH monthly AS (SELECT CASE WHEN booked_on < '2025-07-01' THEN 'Erstes Halbjahr' ELSE 'Zweites Halbjahr' END AS half, CAST(strftime('%m', booked_on) AS INTEGER) AS month_number, -SUM(amount) AS spent FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY half, month_number) SELECT CAST(CASE WHEN month_number > 6 THEN month_number - 6 ELSE month_number END AS TEXT) AS month_of_half, half, ROUND(SUM(spent) OVER (PARTITION BY half ORDER BY month_number), 2) AS cumulative_eur FROM monthly ORDER BY half, month_number",
+      "split": "train",
+      "gold": {
+        "columns": [
+          "month_of_half",
+          "half",
+          "cumulative_eur"
+        ],
+        "rows": [
+          {
+            "month_of_half": "1",
+            "half": "Erstes Halbjahr",
+            "cumulative_eur": 2544.04
+          },
+          {
+            "month_of_half": "2",
+            "half": "Erstes Halbjahr",
+            "cumulative_eur": 4809.38
+          },
+          {
+            "month_of_half": "3",
+            "half": "Erstes Halbjahr",
+            "cumulative_eur": 7100.15
+          },
+          {
+            "month_of_half": "4",
+            "half": "Erstes Halbjahr",
+            "cumulative_eur": 9364.89
+          },
+          {
+            "month_of_half": "5",
+            "half": "Erstes Halbjahr",
+            "cumulative_eur": 11675.35
+          },
+          {
+            "month_of_half": "6",
+            "half": "Erstes Halbjahr",
+            "cumulative_eur": 13976.39
+          },
+          {
+            "month_of_half": "1",
+            "half": "Zweites Halbjahr",
+            "cumulative_eur": 2760.8
+          },
+          {
+            "month_of_half": "2",
+            "half": "Zweites Halbjahr",
+            "cumulative_eur": 5039.64
+          },
+          {
+            "month_of_half": "3",
+            "half": "Zweites Halbjahr",
+            "cumulative_eur": 7592.08
+          },
+          {
+            "month_of_half": "4",
+            "half": "Zweites Halbjahr",
+            "cumulative_eur": 9793.02
+          },
+          {
+            "month_of_half": "5",
+            "half": "Zweites Halbjahr",
+            "cumulative_eur": 12213.16
+          },
+          {
+            "month_of_half": "6",
+            "half": "Zweites Halbjahr",
+            "cumulative_eur": 14559.5
+          }
+        ]
+      }
     }
   ]
 }
