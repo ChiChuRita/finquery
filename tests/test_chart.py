@@ -110,18 +110,26 @@ FOLDED_DOUGHNUT_CODE = DOUGHNUT_CODE.replace(
 )
 
 
-def ask_chart_then_report(request: str):
-    """A chat turn that calls `chart` and then reports what the tool returned."""
+def ask_chart_then_report(request: str, keep: bool = False):
+    """A chat turn that calls `chart` and then reports what the tool returned.
+
+    `keep` is the agent's own decision about a chart worth tracking (ticket 44), so a test that
+    wants a kept chart scripts the same call the model would make.
+    """
 
     async def fn(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
         result = _last_chart_return(messages)
         if result is None:
-            yield {0: DeltaToolCall(name="chart", json_args=json.dumps({"request": request}))}
+            arguments: dict[str, object] = {"request": request}
+            if keep:
+                arguments["keep"] = True
+            yield {0: DeltaToolCall(name="chart", json_args=json.dumps(arguments))}
             return
         if result["error"]:
             yield f"I could not draw that: {result['error']}"
         else:
-            yield f"Here is {result['title']} ({result['shape']}) over {result['row_count']} rows."
+            kept = " It is on your dashboard." if result.get("kept") else ""
+            yield f"Here is {result['title']} ({result['shape']}) over {result['row_count']} rows.{kept}"
 
     return fn
 

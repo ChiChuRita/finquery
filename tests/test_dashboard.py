@@ -5,11 +5,18 @@ the assertions are about what that statement returns when the endpoint runs it, 
 the refresh test changes the data between two calls.
 """
 
+import json
+
 import httpx
+import pytest
+from pydantic_ai.messages import ModelMessage, ToolReturnPart
+from pydantic_ai.models.function import AgentInfo, DeltaToolCall
+from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.chart.selfcheck import check_chart_code
 from finquery.chart.shapes import Shape
-from finquery.dashboard import DEFAULTS
+from finquery.dashboard import DEFAULTS, keep_chat_chart
+from finquery.query.guard import SqlRejected
 
 from .conftest import Chat, Scripts, new_conversation, tool_call_of, turn_of
 from .test_chart import (
@@ -193,7 +200,7 @@ async def test_a_chart_drawn_in_a_chat_is_pinned_to_the_dashboard(
     assert card["row_count"] == output["row_count"]
 
     pins = (await client.get("/api/dashboard/pins", params={"profile_id": profile_id})).json()
-    assert pins["call_ids"] == [call_id]
+    assert pins["charts"] == [{"call_id": call_id, "chart_id": card["id"]}]
 
     # A second Add to dashboard finds the card it already made instead of a second one.
     twice = await client.post(
@@ -255,43 +262,21 @@ async def test_a_pinned_stacked_chart_draws_the_rows_it_drew_in_the_chat(
     assert refreshed.json()["rows"] == output["rows"]
 
 
-async def test_a_chart_asked_for_on_the_dashboard_is_previewed_before_it_is_kept(
-    client: httpx.AsyncClient, scripts: Scripts, profile_id: str
+async def test_the_page_no_longer_draws_a_chart_of_its_own(
+    client: httpx.AsyncClient, profile_id: str
 ) -> None:
-    await import_synthetic(client, profile_id)
-    scripts.fast_call = scripted_chart(plan=LINE_PLAN, sql=MONTHLY_SQL, codes=[LINE_CODE])  # type: ignore[assignment]
-
+    """Charts are asked for in a chat. The two routes the Add line used are gone (ticket 44)."""
     preview = await client.post(
         "/api/dashboard/charts/preview",
         json={"profile_id": profile_id, "request": "spending on groceries per month"},
     )
-    assert preview.status_code == 200, preview.text
-    chart = preview.json()
-    assert chart["rendered"] is True
-    assert chart["plan"]
-    # Nothing is stored until the user keeps it.
-    assert len((await dashboard(client, profile_id))["charts"]) == 4
-
+    # 405, not 404: "preview" now reads as a chart id, and that path has a GET and nothing else.
+    assert preview.status_code == 405
     kept = await client.post(
         "/api/dashboard/charts",
-        json={
-            "profile_id": profile_id,
-            "chart": {
-                "title": chart["title"],
-                "shape": chart["shape"],
-                "language": chart["language"],
-                "request": chart["request"],
-                "plan": chart["plan"],
-                "sql": chart["sql"],
-                "code": chart["code"],
-                "notes": chart["notes"],
-            },
-        },
+        json={"profile_id": profile_id, "chart": {"title": "x", "shape": "line", "sql": "", "code": ""}},
     )
-    assert kept.status_code == 201, kept.text
-    assert kept.json()["created_from"] == "dashboard"
-    assert kept.json()["position"] == 4
-    assert [card["title"] for card in (await dashboard(client, profile_id))["charts"]][-1] == chart["title"]
+    assert kept.status_code == 404
 
 
 async def test_a_card_is_renamed_and_moved(client: httpx.AsyncClient, profile_id: str) -> None:
@@ -343,15 +328,18 @@ async def test_refresh_runs_the_statement_again_and_says_when(
 
 
 async def test_a_statement_that_no_longer_runs_says_so_on_its_card(
-    client: httpx.AsyncClient, profile_id: str
+    client: httpx.AsyncClient, profile_id: str, session_factory: sessionmaker[Session]
 ) -> None:
     """A card whose query breaks is a sentence on that card, never a page that will not load."""
     await import_synthetic(client, profile_id)
-    kept = await client.post(
-        "/api/dashboard/charts",
-        json={
-            "profile_id": profile_id,
-            "chart": {
+    await dashboard(client, profile_id)
+    with session_factory() as session:
+        # A statement the guard admits and SQLite refuses: the column existed when the card was
+        # made and does not now, which is what a deleted category looks like from here.
+        keep_chat_chart(
+            session,
+            profile_id,
+            {
                 "title": "Groceries per month",
                 "shape": "line",
                 "language": "en",
@@ -361,37 +349,33 @@ async def test_a_statement_that_no_longer_runs_says_so_on_its_card(
                 "code": LINE_CODE,
                 "notes": [],
             },
-        },
-    )
-    assert kept.status_code == 201, kept.text
-    card = kept.json()
+            call_id="call-broken",
+        )
+
+    page = await dashboard(client, profile_id)
+    card = page["charts"][-1]
     assert card["error"] is not None
     assert "no longer runs" in card["error"]
     assert "no such column" in card["error"]
     assert card["rows"] == []
     # The rest of the page is unharmed.
-    page = await dashboard(client, profile_id)
     assert len(page["charts"]) == 5
     assert [default["error"] for default in page["charts"][:4]] == [None] * 4
 
 
 async def test_a_statement_the_guard_refuses_is_never_stored(
-    client: httpx.AsyncClient, profile_id: str
+    client: httpx.AsyncClient, profile_id: str, session_factory: sessionmaker[Session]
 ) -> None:
-    refused = await client.post(
-        "/api/dashboard/charts",
-        json={
-            "profile_id": profile_id,
-            "chart": {
-                "title": "Everything",
-                "shape": "bar",
-                "sql": "SELECT * FROM profile",
-                "code": LINE_CODE,
-            },
-        },
-    )
-    assert refused.status_code == 422, refused.text
-    assert "profile may not be read" in refused.json()["detail"]
+    """The guard runs before a card exists, whichever way the chart got here."""
+    await dashboard(client, profile_id)
+    with session_factory() as session:
+        with pytest.raises(SqlRejected, match="profile may not be read"):
+            keep_chat_chart(
+                session,
+                profile_id,
+                {"title": "Everything", "shape": "bar", "sql": "SELECT * FROM profile", "code": LINE_CODE},
+                call_id="call-refused",
+            )
     assert len((await dashboard(client, profile_id))["charts"]) == 4
 
 
@@ -422,3 +406,295 @@ SHAPES_WITH_A_DEFAULT: set[Shape] = {default.shape for default in DEFAULTS}
 
 def test_the_defaults_cover_four_different_shapes() -> None:
     assert len(SHAPES_WITH_A_DEFAULT) == len(DEFAULTS)
+
+
+# The long-term half of ticket 44: a chart the agent keeps, and the five tools that manage the
+# cards from a chat. Every one of them is driven through the chat endpoint with the scripted
+# model, so what is asserted is what the browser would have received.
+
+
+def call_then_report(tool: str, arguments: dict[str, object]):
+    """A chat turn that calls one tool once and then writes what came back."""
+
+    async def fn(messages: list[ModelMessage], _info: AgentInfo):
+        result = _last_return(messages, tool)
+        if result is None:
+            yield {0: DeltaToolCall(name=tool, json_args=json.dumps(arguments))}
+            return
+        yield str(result.get("say") or result.get("title") or result.get("count") or "done")
+
+    return fn
+
+
+def _last_return(messages: list[ModelMessage], tool: str) -> dict | None:
+    for message in reversed(messages):
+        for part in message.parts:
+            if isinstance(part, ToolReturnPart) and part.tool_name == tool:
+                assert isinstance(part.content, dict)
+                return part.content
+            if part.part_kind == "user-prompt":
+                return None
+    return None
+
+
+def tool_output(chunks: list[dict[str, object]]) -> dict:
+    outputs = [c["output"] for c in chunks if c["type"] == "tool-output-available"]
+    assert len(outputs) == 1, chunks
+    assert isinstance(outputs[0], dict)
+    return outputs[0]
+
+
+async def kept_chart(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str, keep: bool = True
+) -> tuple[dict, list[dict[str, object]]]:
+    """One chat turn whose chart the agent decided to keep, and its chunks."""
+    scripts.fast = ask_chart_then_report("spending on groceries per month", keep=keep)
+    scripts.fast_call = scripted_chart(plan=LINE_PLAN, sql=MONTHLY_SQL, codes=[LINE_CODE])  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+    _, chunks = await chat(conversation_id, "Track my groceries per month, please.")
+    return chart_output(chunks), chunks
+
+
+async def test_a_chart_the_agent_keeps_is_stored_once_and_reported_by_the_pins(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """`keep=true` makes a dashboard card from inside the tool, under that call id alone.
+
+    The turn row does not exist yet when the tool runs, so the card carries no turn id: the
+    pins endpoint matches on the call id, which is what makes the card in the transcript read
+    "On the dashboard" after a reload.
+    """
+    await import_synthetic(client, profile_id)
+    output, chunks = await kept_chart(client, scripts, chat, profile_id)
+    call_id = tool_call_of(chunks, "chart")
+    assert output["kept"] is True
+    assert output["dashboard_chart_id"]
+
+    page = await dashboard(client, profile_id)
+    assert len(page["charts"]) == 5
+    card = page["charts"][-1]
+    assert card["id"] == output["dashboard_chart_id"]
+    assert card["created_from"] == "chat"
+    assert card["title"] == output["title"]
+    assert card["row_count"] == output["row_count"]
+
+    pins = (await client.get("/api/dashboard/pins", params={"profile_id": profile_id})).json()
+    assert pins["charts"] == [{"call_id": call_id, "chart_id": card["id"]}]
+
+    # Add to dashboard on the same chart finds the card the tool already made.
+    again = await client.post(
+        "/api/dashboard/charts/from-turn",
+        json={"profile_id": profile_id, "turn_id": turn_of(chunks), "tool_call_id": call_id},
+    )
+    assert again.status_code == 201, again.text
+    assert again.json()["id"] == card["id"]
+    assert len((await dashboard(client, profile_id))["charts"]) == 5
+
+
+async def test_a_chart_the_agent_does_not_keep_is_not_stored(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    await import_synthetic(client, profile_id)
+    output, _ = await kept_chart(client, scripts, chat, profile_id, keep=False)
+    assert output["kept"] is False
+    assert output["dashboard_chart_id"] is None
+    assert len((await dashboard(client, profile_id))["charts"]) == 4
+    assert (await client.get("/api/dashboard/pins", params={"profile_id": profile_id})).json() == {
+        "charts": []
+    }
+
+
+async def test_a_chart_that_was_never_drawn_is_not_kept(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """An empty profile draws nothing, and a card of a chart nobody saw is worse than none."""
+    scripts.fast = ask_chart_then_report("spending on groceries per month", keep=True)
+    conversation_id = await new_conversation(client, profile_id)
+    _, chunks = await chat(conversation_id, "Track my groceries per month, please.")
+    output = chart_output(chunks)
+    assert output["code"] is None
+    assert output["kept"] is False
+    assert len((await dashboard(client, profile_id))["charts"]) == 4
+
+
+async def test_the_charts_on_the_dashboard_are_listed_and_shown_from_the_chat(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    await import_synthetic(client, profile_id)
+    cards = (await dashboard(client, profile_id))["charts"]
+
+    scripts.fast = call_then_report("dashboard_charts", {})
+    conversation_id = await new_conversation(client, profile_id)
+    _, chunks = await chat(conversation_id, "What is on my dashboard?")
+    listed = tool_output(chunks)
+    assert listed["count"] == 4
+    assert [chart["chart_id"] for chart in listed["charts"]] == [card["id"] for card in cards]
+    assert [chart["position"] for chart in listed["charts"]] == [0, 1, 2, 3]
+
+    line = next(card for card in cards if card["shape"] == "line")
+    scripts.fast = call_then_report("show_dashboard_chart", {"chart_id": line["id"]})
+    _, chunks = await chat(conversation_id, "Show me the spending chart.")
+    shown = tool_output(chunks)
+    assert shown["card_id"] == line["id"]
+    assert shown["rendered"] is True
+    assert shown["code"] == line["code"]
+    # The rows are this moment's, not the ones the card was made from.
+    assert shown["rows"] == line["rows"]
+
+
+async def test_a_chart_the_chat_edits_keeps_its_place_and_its_previous_version(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    await import_synthetic(client, profile_id)
+    cards = (await dashboard(client, profile_id))["charts"]
+    target = cards[1]
+
+    respond = scripted_chart(plan=LINE_PLAN, sql=MONTHLY_SQL, codes=[LINE_CODE])
+    scripts.fast_call = respond  # type: ignore[assignment]
+    scripts.fast = call_then_report(
+        "edit_dashboard_chart", {"chart_id": target["id"], "request": "as a line over twelve months"}
+    )
+    conversation_id = await new_conversation(client, profile_id)
+    _, chunks = await chat(conversation_id, "Make that one a line chart.")
+    edited = tool_output(chunks)
+    call_id = tool_call_of(chunks, "edit_dashboard_chart")
+    assert edited["applied"] is True
+    assert edited["previous_title"] == target["title"]
+    assert edited["title"] == LINE_PLAN["title"]
+    assert edited["undo_call_id"] == call_id
+
+    # The sub-agent was told which chart it was changing.
+    plan_prompt = respond.prompts["plan"][0]  # type: ignore[attr-defined]
+    assert f'title: "{target["title"]}"' in plan_prompt
+    assert "This chart already exists and the user is changing it" in plan_prompt
+
+    page = await dashboard(client, profile_id)
+    assert len(page["charts"]) == 4
+    card = page["charts"][1]
+    assert card["id"] == target["id"]
+    assert card["position"] == 1, "an edit keeps the card where it was"
+    assert card["title"] == LINE_PLAN["title"]
+    assert card["code"] == LINE_CODE
+    assert card["undo_call_id"] == call_id
+
+    undone = await client.post(
+        f"/api/dashboard/charts/{target['id']}/undo",
+        json={"profile_id": profile_id, "call_id": call_id},
+    )
+    assert undone.status_code == 200, undone.text
+    assert undone.json()["title"] == target["title"]
+    assert undone.json()["code"] == target["code"]
+    assert undone.json()["undo_call_id"] is None
+
+    twice = await client.post(
+        f"/api/dashboard/charts/{target['id']}/undo",
+        json={"profile_id": profile_id, "call_id": call_id},
+    )
+    assert twice.status_code == 409
+    assert "already undone" in twice.json()["detail"]
+
+
+async def test_a_chart_is_renamed_and_removed_from_the_chat_with_an_undo_each(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    await import_synthetic(client, profile_id)
+    cards = (await dashboard(client, profile_id))["charts"]
+    target = cards[0]
+    conversation_id = await new_conversation(client, profile_id)
+
+    scripts.fast = call_then_report(
+        "rename_dashboard_chart", {"chart_id": target["id"], "title": "My monthly spending"}
+    )
+    _, chunks = await chat(conversation_id, "Call the first chart My monthly spending.")
+    renamed = tool_output(chunks)
+    rename_call = tool_call_of(chunks, "rename_dashboard_chart")
+    assert renamed["applied"] is True
+    assert renamed["previous_title"] == target["title"]
+    assert renamed["title"] == "My monthly spending"
+    assert (await dashboard(client, profile_id))["charts"][0]["title"] == "My monthly spending"
+
+    back = await client.post(
+        f"/api/dashboard/charts/{target['id']}/undo",
+        json={"profile_id": profile_id, "call_id": rename_call},
+    )
+    assert back.status_code == 200, back.text
+    assert (await dashboard(client, profile_id))["charts"][0]["title"] == target["title"]
+
+    scripts.fast = call_then_report("remove_dashboard_chart", {"chart_id": target["id"]})
+    _, chunks = await chat(conversation_id, "Take that chart off the dashboard.")
+    removed = tool_output(chunks)
+    remove_call = tool_call_of(chunks, "remove_dashboard_chart")
+    assert removed["applied"] is True
+    after = await dashboard(client, profile_id)
+    assert [card["id"] for card in after["charts"]] == [card["id"] for card in cards[1:]]
+    assert [card["position"] for card in after["charts"]] == [0, 1, 2]
+
+    # A removed card is not on the dashboard, and is still there to be put back.
+    restored = await client.post(
+        f"/api/dashboard/charts/{target['id']}/undo",
+        json={"profile_id": profile_id, "call_id": remove_call},
+    )
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["removed_at"] is None
+    assert [card["id"] for card in (await dashboard(client, profile_id))["charts"]] == [
+        card["id"] for card in cards
+    ]
+
+
+async def test_the_dashboard_narrows_to_a_date_range(
+    client: httpx.AsyncClient, profile_id: str
+) -> None:
+    """The range reaches the guard's own view, so the tiles and every card see those days only."""
+    await import_synthetic(client, profile_id)
+    whole = await dashboard(client, profile_id)
+    assert whole["range"] == {
+        "since": None,
+        "until": None,
+        "first_day": "2025-01-01",
+        "last_day": "2025-12-28",
+    }
+    assert whole["tiles"]["month"] == "2025-12"
+
+    narrowed = (
+        await client.get(
+            "/api/dashboard",
+            params={"profile_id": profile_id, "from": "2025-02-01", "to": "2025-04-30"},
+        )
+    ).json()
+    assert narrowed["range"]["since"] == "2025-02-01"
+    assert narrowed["range"]["until"] == "2025-04-30"
+    assert narrowed["range"]["last_day"] == "2025-12-28", "the bounds are the data's, not the range's"
+    # "This month" is the newest month the range holds, which is what the tiles say.
+    assert narrowed["tiles"]["month"] == "2025-04"
+    assert narrowed["tiles"]["spent_eur"] < whole["tiles"]["spent_eur"]
+
+    line = next(card for card in narrowed["charts"] if card["shape"] == "line")
+    months = [row["month"] for row in line["rows"]]
+    assert months == ["2025-02", "2025-03", "2025-04"]
+    assert len(months) < len(
+        [row["month"] for row in next(c for c in whole["charts"] if c["shape"] == "line")["rows"]]
+    )
+
+    # A refresh answers the same days as the page it was pressed on.
+    refreshed = await client.post(
+        f"/api/dashboard/charts/{line['id']}/refresh",
+        json={"profile_id": profile_id, "since": "2025-02-01", "until": "2025-04-30"},
+    )
+    assert refreshed.status_code == 200, refreshed.text
+    assert [row["month"] for row in refreshed.json()["rows"]] == months
+
+
+async def test_a_range_that_reads_backwards_is_refused(
+    client: httpx.AsyncClient, profile_id: str
+) -> None:
+    await import_synthetic(client, profile_id)
+    reversed_range = await client.get(
+        "/api/dashboard", params={"profile_id": profile_id, "from": "2025-06-01", "to": "2025-03-01"}
+    )
+    assert reversed_range.status_code == 422
+    assert "on or before" in reversed_range.json()["detail"]
+
+    not_a_day = await client.get(
+        "/api/dashboard", params={"profile_id": profile_id, "from": "last month"}
+    )
+    assert not_a_day.status_code == 422
