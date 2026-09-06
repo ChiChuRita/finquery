@@ -1912,7 +1912,7 @@
           }
         ]
       },
-      "split": "train"
+      "split": "heldout"
     },
     {
       "id": "21-groceries-months-en",
@@ -2683,7 +2683,7 @@
           }
         ]
       },
-      "split": "heldout"
+      "split": "train"
     },
     {
       "id": "30-groceries-stacked-quarters-en",
@@ -2901,6 +2901,561 @@
         ]
       },
       "split": "train"
+    },
+    {
+      "id": "33-grocery-lines-de",
+      "language": "de",
+      "prompt": "Wie viel habe ich 2025 pro Monat bei Rewe, Edeka, Lidl, Aldi und dm ausgegeben, als Linien?",
+      "shape": "line",
+      "also": [],
+      "covers": [
+        "several series",
+        "month period",
+        "named merchants",
+        "German",
+        "line"
+      ],
+      "difficulty": 3,
+      "roles": [
+        "position",
+        "series",
+        "value"
+      ],
+      "why": "Five shops over twelve months, which is one line each and a legend, not one line and not sixty bars. The rows come long, one per month and shop, and they are sparse: no shop has a booking in every month, so a stroke may have a gap in it.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, coalesce(title, counterparty, description) AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' AND coalesce(title, counterparty, description) IN ('REWE', 'EDEKA', 'Lidl', 'ALDI', 'dm') GROUP BY month, merchant ORDER BY month, merchant",
+      "split": "heldout",
+      "gold": {
+        "columns": [
+          "month",
+          "merchant",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "merchant": "EDEKA",
+            "total_eur": 137.0
+          },
+          {
+            "month": "2025-01",
+            "merchant": "Lidl",
+            "total_eur": 92.1
+          },
+          {
+            "month": "2025-01",
+            "merchant": "REWE",
+            "total_eur": 59.9
+          },
+          {
+            "month": "2025-02",
+            "merchant": "ALDI",
+            "total_eur": 40.4
+          },
+          {
+            "month": "2025-02",
+            "merchant": "Lidl",
+            "total_eur": 83.7
+          },
+          {
+            "month": "2025-02",
+            "merchant": "REWE",
+            "total_eur": 100.8
+          },
+          {
+            "month": "2025-02",
+            "merchant": "dm",
+            "total_eur": 21.2
+          },
+          {
+            "month": "2025-03",
+            "merchant": "ALDI",
+            "total_eur": 110.5
+          },
+          {
+            "month": "2025-03",
+            "merchant": "EDEKA",
+            "total_eur": 73.83
+          },
+          {
+            "month": "2025-03",
+            "merchant": "REWE",
+            "total_eur": 26.8
+          },
+          {
+            "month": "2025-03",
+            "merchant": "dm",
+            "total_eur": 20.9
+          },
+          {
+            "month": "2025-04",
+            "merchant": "ALDI",
+            "total_eur": 49.3
+          },
+          {
+            "month": "2025-04",
+            "merchant": "Lidl",
+            "total_eur": 68.1
+          },
+          {
+            "month": "2025-04",
+            "merchant": "dm",
+            "total_eur": 21.0
+          },
+          {
+            "month": "2025-05",
+            "merchant": "ALDI",
+            "total_eur": 118.4
+          },
+          {
+            "month": "2025-05",
+            "merchant": "EDEKA",
+            "total_eur": 14.8
+          },
+          {
+            "month": "2025-05",
+            "merchant": "Lidl",
+            "total_eur": 20.4
+          },
+          {
+            "month": "2025-05",
+            "merchant": "REWE",
+            "total_eur": 181.1
+          },
+          {
+            "month": "2025-05",
+            "merchant": "dm",
+            "total_eur": 30.8
+          },
+          {
+            "month": "2025-06",
+            "merchant": "ALDI",
+            "total_eur": 70.0
+          },
+          {
+            "month": "2025-06",
+            "merchant": "EDEKA",
+            "total_eur": 30.8
+          },
+          {
+            "month": "2025-06",
+            "merchant": "dm",
+            "total_eur": 115.1
+          },
+          {
+            "month": "2025-07",
+            "merchant": "ALDI",
+            "total_eur": 30.4
+          },
+          {
+            "month": "2025-07",
+            "merchant": "EDEKA",
+            "total_eur": 35.4
+          },
+          {
+            "month": "2025-07",
+            "merchant": "Lidl",
+            "total_eur": 67.8
+          },
+          {
+            "month": "2025-07",
+            "merchant": "REWE",
+            "total_eur": 140.1
+          },
+          {
+            "month": "2025-08",
+            "merchant": "ALDI",
+            "total_eur": 66.2
+          },
+          {
+            "month": "2025-08",
+            "merchant": "EDEKA",
+            "total_eur": 27.5
+          },
+          {
+            "month": "2025-08",
+            "merchant": "REWE",
+            "total_eur": 16.9
+          },
+          {
+            "month": "2025-08",
+            "merchant": "dm",
+            "total_eur": 33.7
+          },
+          {
+            "month": "2025-09",
+            "merchant": "ALDI",
+            "total_eur": 35.1
+          },
+          {
+            "month": "2025-09",
+            "merchant": "EDEKA",
+            "total_eur": 54.1
+          },
+          {
+            "month": "2025-09",
+            "merchant": "Lidl",
+            "total_eur": 94.3
+          },
+          {
+            "month": "2025-09",
+            "merchant": "REWE",
+            "total_eur": 51.3
+          },
+          {
+            "month": "2025-09",
+            "merchant": "dm",
+            "total_eur": 87.7
+          },
+          {
+            "month": "2025-10",
+            "merchant": "ALDI",
+            "total_eur": 72.1
+          },
+          {
+            "month": "2025-10",
+            "merchant": "EDEKA",
+            "total_eur": 23.9
+          },
+          {
+            "month": "2025-10",
+            "merchant": "Lidl",
+            "total_eur": 55.0
+          },
+          {
+            "month": "2025-10",
+            "merchant": "REWE",
+            "total_eur": 42.6
+          },
+          {
+            "month": "2025-10",
+            "merchant": "dm",
+            "total_eur": 24.2
+          },
+          {
+            "month": "2025-11",
+            "merchant": "ALDI",
+            "total_eur": 22.1
+          },
+          {
+            "month": "2025-11",
+            "merchant": "Lidl",
+            "total_eur": 38.7
+          },
+          {
+            "month": "2025-11",
+            "merchant": "REWE",
+            "total_eur": 50.9
+          },
+          {
+            "month": "2025-11",
+            "merchant": "dm",
+            "total_eur": 11.4
+          },
+          {
+            "month": "2025-12",
+            "merchant": "ALDI",
+            "total_eur": 28.2
+          },
+          {
+            "month": "2025-12",
+            "merchant": "EDEKA",
+            "total_eur": 48.5
+          },
+          {
+            "month": "2025-12",
+            "merchant": "Lidl",
+            "total_eur": 79.2
+          },
+          {
+            "month": "2025-12",
+            "merchant": "REWE",
+            "total_eur": 61.6
+          },
+          {
+            "month": "2025-12",
+            "merchant": "dm",
+            "total_eur": 35.7
+          }
+        ]
+      }
+    },
+    {
+      "id": "34-grocery-lines-en",
+      "language": "en",
+      "prompt": "How much did I spend at Rewe, Edeka, Lidl, Aldi and dm per month in 2025? Draw it as lines.",
+      "shape": "line",
+      "also": [],
+      "covers": [
+        "several series",
+        "month period",
+        "named merchants",
+        "line"
+      ],
+      "difficulty": 3,
+      "roles": [
+        "position",
+        "series",
+        "value"
+      ],
+      "why": "The same five lines asked for in English, so the caption and the month labels are English while the shop names stay as the bookings spell them.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, coalesce(title, counterparty, description) AS merchant, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' AND coalesce(title, counterparty, description) IN ('REWE', 'EDEKA', 'Lidl', 'ALDI', 'dm') GROUP BY month, merchant ORDER BY month, merchant",
+      "split": "train",
+      "gold": {
+        "columns": [
+          "month",
+          "merchant",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "merchant": "EDEKA",
+            "total_eur": 137.0
+          },
+          {
+            "month": "2025-01",
+            "merchant": "Lidl",
+            "total_eur": 92.1
+          },
+          {
+            "month": "2025-01",
+            "merchant": "REWE",
+            "total_eur": 59.9
+          },
+          {
+            "month": "2025-02",
+            "merchant": "ALDI",
+            "total_eur": 40.4
+          },
+          {
+            "month": "2025-02",
+            "merchant": "Lidl",
+            "total_eur": 83.7
+          },
+          {
+            "month": "2025-02",
+            "merchant": "REWE",
+            "total_eur": 100.8
+          },
+          {
+            "month": "2025-02",
+            "merchant": "dm",
+            "total_eur": 21.2
+          },
+          {
+            "month": "2025-03",
+            "merchant": "ALDI",
+            "total_eur": 110.5
+          },
+          {
+            "month": "2025-03",
+            "merchant": "EDEKA",
+            "total_eur": 73.83
+          },
+          {
+            "month": "2025-03",
+            "merchant": "REWE",
+            "total_eur": 26.8
+          },
+          {
+            "month": "2025-03",
+            "merchant": "dm",
+            "total_eur": 20.9
+          },
+          {
+            "month": "2025-04",
+            "merchant": "ALDI",
+            "total_eur": 49.3
+          },
+          {
+            "month": "2025-04",
+            "merchant": "Lidl",
+            "total_eur": 68.1
+          },
+          {
+            "month": "2025-04",
+            "merchant": "dm",
+            "total_eur": 21.0
+          },
+          {
+            "month": "2025-05",
+            "merchant": "ALDI",
+            "total_eur": 118.4
+          },
+          {
+            "month": "2025-05",
+            "merchant": "EDEKA",
+            "total_eur": 14.8
+          },
+          {
+            "month": "2025-05",
+            "merchant": "Lidl",
+            "total_eur": 20.4
+          },
+          {
+            "month": "2025-05",
+            "merchant": "REWE",
+            "total_eur": 181.1
+          },
+          {
+            "month": "2025-05",
+            "merchant": "dm",
+            "total_eur": 30.8
+          },
+          {
+            "month": "2025-06",
+            "merchant": "ALDI",
+            "total_eur": 70.0
+          },
+          {
+            "month": "2025-06",
+            "merchant": "EDEKA",
+            "total_eur": 30.8
+          },
+          {
+            "month": "2025-06",
+            "merchant": "dm",
+            "total_eur": 115.1
+          },
+          {
+            "month": "2025-07",
+            "merchant": "ALDI",
+            "total_eur": 30.4
+          },
+          {
+            "month": "2025-07",
+            "merchant": "EDEKA",
+            "total_eur": 35.4
+          },
+          {
+            "month": "2025-07",
+            "merchant": "Lidl",
+            "total_eur": 67.8
+          },
+          {
+            "month": "2025-07",
+            "merchant": "REWE",
+            "total_eur": 140.1
+          },
+          {
+            "month": "2025-08",
+            "merchant": "ALDI",
+            "total_eur": 66.2
+          },
+          {
+            "month": "2025-08",
+            "merchant": "EDEKA",
+            "total_eur": 27.5
+          },
+          {
+            "month": "2025-08",
+            "merchant": "REWE",
+            "total_eur": 16.9
+          },
+          {
+            "month": "2025-08",
+            "merchant": "dm",
+            "total_eur": 33.7
+          },
+          {
+            "month": "2025-09",
+            "merchant": "ALDI",
+            "total_eur": 35.1
+          },
+          {
+            "month": "2025-09",
+            "merchant": "EDEKA",
+            "total_eur": 54.1
+          },
+          {
+            "month": "2025-09",
+            "merchant": "Lidl",
+            "total_eur": 94.3
+          },
+          {
+            "month": "2025-09",
+            "merchant": "REWE",
+            "total_eur": 51.3
+          },
+          {
+            "month": "2025-09",
+            "merchant": "dm",
+            "total_eur": 87.7
+          },
+          {
+            "month": "2025-10",
+            "merchant": "ALDI",
+            "total_eur": 72.1
+          },
+          {
+            "month": "2025-10",
+            "merchant": "EDEKA",
+            "total_eur": 23.9
+          },
+          {
+            "month": "2025-10",
+            "merchant": "Lidl",
+            "total_eur": 55.0
+          },
+          {
+            "month": "2025-10",
+            "merchant": "REWE",
+            "total_eur": 42.6
+          },
+          {
+            "month": "2025-10",
+            "merchant": "dm",
+            "total_eur": 24.2
+          },
+          {
+            "month": "2025-11",
+            "merchant": "ALDI",
+            "total_eur": 22.1
+          },
+          {
+            "month": "2025-11",
+            "merchant": "Lidl",
+            "total_eur": 38.7
+          },
+          {
+            "month": "2025-11",
+            "merchant": "REWE",
+            "total_eur": 50.9
+          },
+          {
+            "month": "2025-11",
+            "merchant": "dm",
+            "total_eur": 11.4
+          },
+          {
+            "month": "2025-12",
+            "merchant": "ALDI",
+            "total_eur": 28.2
+          },
+          {
+            "month": "2025-12",
+            "merchant": "EDEKA",
+            "total_eur": 48.5
+          },
+          {
+            "month": "2025-12",
+            "merchant": "Lidl",
+            "total_eur": 79.2
+          },
+          {
+            "month": "2025-12",
+            "merchant": "REWE",
+            "total_eur": 61.6
+          },
+          {
+            "month": "2025-12",
+            "merchant": "dm",
+            "total_eur": 35.7
+          }
+        ]
+      }
     },
     {
       "id": "g001-bar",

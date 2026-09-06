@@ -15,7 +15,7 @@ app (ADR 0004).
 | File | What is in it |
 | --- | --- |
 | `sql-benchmark.json` | 152 questions: German and English, kind and difficulty, an optional conversation prefix, the reference SQL and its rows |
-| `chart-benchmark.json` | 63 chart requests: each with the shape it should get, the shapes that would do as well, the column roles, the reference SQL and its rows |
+| `chart-benchmark.json` | 65 chart requests: each with the shape it should get, the shapes that would do as well, the column roles, the reference SQL and its rows |
 
 Half of each set was written by hand and half was drafted by a model and then judged one by one
 (`source: "hand"` or `"generated"`, and the generated ones also carry a `generated` tag). Every
@@ -64,7 +64,7 @@ The chart set, by shape:
 | shape | n | hand | generated | German | heldout |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | bar | 15 | 8 | 7 | 8 | 6 |
-| line | 10 | 5 | 5 | 5 | 4 |
+| line | 12 | 7 | 5 | 6 | 5 |
 | doughnut | 8 | 4 | 4 | 5 | 2 |
 | area | 6 | 3 | 3 | 4 | 1 |
 | bar_horizontal | 6 | 3 | 3 | 2 | 2 |
@@ -73,8 +73,13 @@ The chart set, by shape:
 | sankey | 6 | 3 | 3 | 3 | 3 |
 | difficulty 1 | 4 | 4 | 0 | 2 | 1 |
 | difficulty 2 | 39 | 18 | 21 | 21 | 13 |
-| difficulty 3 | 20 | 10 | 10 | 9 | 6 |
-| **all** | **63** | 32 | 31 | 32 | 20 |
+| difficulty 3 | 22 | 12 | 10 | 10 | 7 |
+| **all** | **65** | 34 | 31 | 33 | 21 |
+
+The two newest are the line's own hard case, one per language (`33-grocery-lines-de` and
+`34-grocery-lines-en`, ticket 50): five grocery shops over twelve months, which is five strokes
+and a legend rather than one line or sixty bars. Their rows come long, one per month and shop,
+and they are sparse, because no shop has a booking in every month.
 
 No generated chart came out at difficulty 1: a request the drafter wrote always carried a period
 and a grouping, and calling one of those easy would have been flattery.
@@ -83,7 +88,7 @@ and a grouping, and calling one of those easy would have been flattery.
 
 Every datapoint carries `split`, `train` or `heldout`. A model fine-tuned on examples drawn from
 the set it is then scored on is scored on its memory, so about a third of each set is kept out of
-the examples: 50 of the 152 questions and 20 of the 63 charts. The rule is
+the examples: 50 of the 152 questions and 21 of the 65 charts. The rule is
 `finquery_bench.splits`, run through `uv run python bench/split.py`, and it is written into the
 files rather than drawn at run time, so a number from the held-out half means the same thing in
 six months as it does today. It is stratified over kind (shape for charts), hand against
