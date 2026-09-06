@@ -118,6 +118,16 @@ audit log, history.
 **Web lookup cache**: what one web lookup found about a merchant token, kept per profile so
 that token never leaves twice. Avoid: cache (unqualified), lookup history.
 
+**Evidence**: the one sentence a finished lookup quotes out of a snippet or a page it read,
+held to occurring there word for word before it is shown, the way an extracted figure is held
+to its page. It is what the card puts under the summary, with the source it came from. Avoid:
+citation (a citation is a source URL), snippet, proof.
+
+**Store**: the shop a receipt's printed header names, once the seed dictionary or a web lookup
+has recognized it: a title, a category and one line about what it sells. It titles the draft and
+gives the legs of a split their one line of context. Only the header is ever resolved, never a
+line item. Avoid: merchant (a merchant is what a booking names), vendor, chain.
+
 ## Conversation
 
 **Conversation**: profile-scoped, with a title, a model slot, a rolling summary and its turns.
