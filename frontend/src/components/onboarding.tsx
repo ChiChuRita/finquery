@@ -541,8 +541,8 @@ function PreferencesStep() {
             <FieldLabel htmlFor="default-model">Model for new chats</FieldLabel>
             <FieldDescription>
               Four to choose from, on this machine or in the cloud, and you can switch a chat to another one
-              at any time. Tools always run on the fast model of whichever provider the chat is on. One that
-              is not ready says why.
+              at any time. Tools run on the same model unless a sub-agent role was set to the fast one, and
+              always on the provider the chat is on. One that is not ready says why.
             </FieldDescription>
             <Choices
               id="default-model"
