@@ -4,10 +4,12 @@ import {
   BrainIcon,
   LayoutDashboardIcon,
   MessageSquareIcon,
+  MoonIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
   SettingsIcon,
+  SunIcon,
   TableIcon,
   Trash2Icon,
   UploadIcon,
@@ -16,7 +18,6 @@ import { useState } from 'react'
 
 import { ConfirmDialog } from '@/components/dialogs'
 import { ProfileSwitcher } from '@/components/profile-switcher'
-import { ThemeToggle } from '@/components/theme-toggle'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +42,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { useSidebar } from '@/hooks/use-sidebar'
 import { conversationsQuery, deleteConversation, patchConversation, type Conversation } from '@/lib/api'
+import { useTheme } from '@/lib/theme'
 import { forgetConversation, useWorkspace } from '@/lib/workspace'
 
 /** Navigation is quiet: a row is muted until it is hovered or active, when the component gives
@@ -54,7 +56,8 @@ const PAGES = [
   { to: '/memory', label: 'Memory', icon: BrainIcon },
 ] as const
 
-/** The brand mark and the name. The mark is 32px so it fills the icon rail's square exactly. */
+/** The brand mark and the name. The mark is 32px: it fills the icon rail's square exactly, and
+ *  it is the height of every other row, so the brand row is an h-8 row like the rest. */
 function Brand() {
   return (
     <>
@@ -74,6 +77,8 @@ export function AppSidebar() {
   const params = useParams({ strict: false }) as { conversationId?: string }
   const pathname = useLocation({ select: (location) => location.pathname })
   const { isMobile, setOpenMobile, state } = useSidebar()
+  const { theme, toggle: toggleTheme } = useTheme()
+  const themeLabel = theme === 'dark' ? 'Light theme' : 'Dark theme'
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [renaming, setRenaming] = useState<string>()
@@ -105,10 +110,15 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
+      {/* Two h-8 rows on the header's own padding and gap: 8 + 32 + 8 + 32 + 8 = 88, the height
+          of the tabs strip (h-10) and the page bar (h-12) together, so the brand row ends on the
+          strip's hairline and New chat is centred on the page title. `size="lg"` keeps the rail's
+          unpadded square for the 32px mark; `h-8 p-0` gives the expanded row the height of every
+          other row, with the mark on the icon axis. */}
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild size="lg" tooltip="FinQuery">
+            <SidebarMenuButton asChild className="h-8 p-0" size="lg" tooltip="FinQuery">
               <Link onClick={followed} to="/">
                 <Brand />
               </Link>
@@ -207,12 +217,17 @@ export function AppSidebar() {
                 ))}
               </SidebarMenu>
             ) : (
-              <p className="px-2 py-6 text-center text-muted-foreground text-xs">Your conversations will appear here.</p>
+              // A row where the first conversation will be, on the rows' own inset and height.
+              <p className="flex h-8 items-center px-2 text-muted-foreground text-xs">
+                Your conversations will appear here.
+              </p>
             )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
+      {/* Three rows of one menu, like the pages above: the same height, inset and gap, and in the
+          rail three squares in one column. The theme row names the theme it switches to. */}
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -223,12 +238,21 @@ export function AppSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              aria-label={`Switch to ${themeLabel.toLowerCase()}`}
+              className={ROW}
+              onClick={toggleTheme}
+              tooltip={themeLabel}
+            >
+              {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+              <span>{themeLabel}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <ProfileSwitcher />
+          </SidebarMenuItem>
         </SidebarMenu>
-        {/* Side by side when there is room, one under the other in the rail. */}
-        <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col">
-          <ProfileSwitcher />
-          <ThemeToggle />
-        </div>
       </SidebarFooter>
       <SidebarRail />
 

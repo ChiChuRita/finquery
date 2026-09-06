@@ -45,7 +45,7 @@ export function ProfileSwitcher() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           {/* A sidebar row, so the icon rail keeps the avatar and the tooltip names the profile. */}
-          <SidebarMenuButton aria-label="Switch profile" className="flex-1" tooltip={profile?.name ?? 'Profile'}>
+          <SidebarMenuButton aria-label="Switch profile" tooltip={profile?.name ?? 'Profile'}>
             <span className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-primary/10 text-primary">
               <UserRoundIcon className="size-3" />
             </span>
