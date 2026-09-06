@@ -21,13 +21,14 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, Field
 from pydantic_ai.settings import ModelSettings
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from finquery.categorize.merchants import fold, lookup, merchant_of
 from finquery.categorize.rules import load_categories, taxonomy_of
 from finquery.categorize.subagent import MerchantBatchEntry, categorize_merchants
 from finquery.changesets import ChangesetIntent, SplitLeg, propose, to_out
@@ -38,6 +39,11 @@ from finquery.extract.subagent import Bill, read_bill
 from finquery.formats import day, eur
 from finquery.ingest.typed import ProposedTransaction, preview_card, store_drafts
 from finquery.providers import ModelResolver
+
+if TYPE_CHECKING:
+    # Only a type here: the web lookup imports the categorizer's merchant helpers, and this
+    # module is on the same side of that, so importing it back at runtime would close a circle.
+    from finquery.weblookup import Lookup, Lookups
 
 logger = logging.getLogger(__name__)
 
@@ -357,6 +363,29 @@ def find_match(
 
 
 @dataclass(frozen=True)
+class Store:
+    """The shop a receipt was printed by, once it has been recognized.
+
+    `via` says who recognized it: the seed dictionary, which costs nothing, or the web lookup,
+    which costs a merchant token and only runs for a profile that switched it on. `lookup` is
+    the whole web result when there was one, so the payload can show its evidence.
+    """
+
+    title: str
+    category: str | None
+    subcategory: str | None
+    blurb: str
+    via: str
+    lookup: "Lookup | None" = None
+
+    @property
+    def line(self) -> str:
+        """The one line of context the legs of a split are given. Never a figure, never an item."""
+        place = f", filed under {self.category}" if self.category else ""
+        return f"the receipt is from {self.title}, {self.blurb}{place}".strip()
+
+
+@dataclass(frozen=True)
 class Group:
     """Line items that belong in the same category, which is what becomes one leg."""
 
@@ -366,6 +395,50 @@ class Group:
     amount_cents: int
 
 
+def known_store(header: str) -> Store | None:
+    """The shop behind a receipt header, from the seed dictionary alone. No request, no model.
+
+    Both tries the import pipeline makes: the merchant key, and the key with the header behind
+    it, because "Ecenter EDEKA" folds to a key the first try does not place.
+    """
+    merchant = merchant_of(header, None)
+    entry = lookup(merchant.key) or lookup(f"{merchant.key} {fold(header)}")
+    if entry is None:
+        return None
+    return Store(
+        title=merchant.title if entry.generic else entry.title,
+        category=entry.category,
+        subcategory=entry.subcategory,
+        blurb=entry.blurb,
+        via="dictionary",
+    )
+
+
+async def resolve_store(header: str, session: Session, profile_id: str, lookups: "Lookups | None") -> Store | None:
+    """Which shop this printed header is: the dictionary first, then the web.
+
+    The web half only happens for a profile that switched web lookup on, and only ever with the
+    header: a store's name is not personal, a basket is, so the line items never come near it.
+    A header that reads as an address or a person is refused by the scrubber the way a booking
+    is, and then this is simply None and the draft keeps the header as it was printed.
+    """
+    known = known_store(header)
+    if known is not None or lookups is None:
+        return known
+    taxonomy = taxonomy_of(load_categories(session, profile_id))
+    found = await lookups.store(header, taxonomy)
+    if not found.token or not found.summary or not found.category:
+        return None
+    return Store(
+        title=header.strip()[:60],
+        category=found.category,
+        subcategory=found.subcategory,
+        blurb=found.summary,
+        via="web",
+        lookup=found,
+    )
+
+
 async def group_items(
     session: Session,
     profile_id: str,
@@ -373,14 +446,20 @@ async def group_items(
     *,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None = None,
+    store: Store | None = None,
 ) -> list[Group]:
     """Group the line items by what the categorizer makes of each one.
 
     The categorizer sub-agent is the same one the import uses, asked about article texts instead
     of merchants. A guess it is unsure about still groups: the legs of a split are shown to the
     user before anything is written, so a wrong category costs a click and not a wrong booking.
+
+    `store` is one line about the shop the receipt was printed by, which is what tells `Bio 1L`
+    on a supermarket receipt from `Bio 1L` on a petrol station's. Only the shop: not one item
+    of the basket ever leaves this machine.
     """
     taxonomy = taxonomy_of(load_categories(session, profile_id))
+    context = store.line if store is not None else None
     entries = [
         MerchantBatchEntry(
             key=f"i{index}",
@@ -389,6 +468,7 @@ async def group_items(
             bookings=1,
             average_cents=-abs(item.amount_cents),
             incoming=False,
+            web=context,
         )
         for index, item in enumerate(items)
     ]
@@ -441,6 +521,7 @@ async def split_intent(
     *,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None = None,
+    store: Store | None = None,
 ) -> ChangesetIntent | None:
     """The split this receipt proposes for the booking it matched, or None when it has none.
 
@@ -449,7 +530,12 @@ async def split_intent(
     line item is nothing to split, and that comes back as None.
     """
     groups = await group_items(
-        session, profile_id, extraction.items, resolve_model=resolve_model, model_settings=model_settings
+        session,
+        profile_id,
+        extraction.items,
+        resolve_model=resolve_model,
+        model_settings=model_settings,
+        store=store,
     )
     if len(groups) >= 2:
         legs = [
@@ -479,13 +565,21 @@ async def bill_outcome(
     file_name: str,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None = None,
+    lookups: "Lookups | None" = None,
 ) -> dict[str, Any]:
     """What a read receipt comes to: a proposed split, or a preview of a new booking.
 
     Nothing is written either way. The split is a changeset the user applies from its card; the
     new booking is a draft the user confirms on a preview card, which `add_transaction` then
     writes.
+
+    The printed header is resolved to a shop first (`resolve_store`): the seed dictionary, then
+    the web when the profile switched web lookup on. What that buys is a draft that reads
+    "Combi, supermarket, Groceries" instead of "Combi. Frisch. Nebenan." with no category, and
+    one line of shop context for the legs of a split. The header only: never an item, never the
+    total, never the date.
     """
+    store = await resolve_store(extraction.merchant, session, profile_id, lookups)
     payload: dict[str, Any] = {
         "file": file_name,
         "bill": {
@@ -501,6 +595,16 @@ async def bill_outcome(
             "check": extraction.line,
         },
     }
+    if store is not None:
+        payload["store"] = {
+            "title": store.title,
+            "category": store.category,
+            "subcategory": store.subcategory,
+            "summary": store.blurb,
+            "via": store.via,
+            "evidence": store.lookup.evidence if store.lookup else "",
+            "sources": [source.payload() for source in store.lookup.sources] if store.lookup else [],
+        }
     if "foreign_currency" in extraction.flags:
         # Booking 8,27 PLN as 8,27 EUR is the one mistake on this path that nothing later would
         # catch, so a receipt in another currency is refused with a sentence and never drafted.
@@ -534,6 +638,7 @@ async def bill_outcome(
                 booking,
                 resolve_model=resolve_model,
                 model_settings=model_settings,
+                store=store,
             )
             if extraction.items and "does_not_add_up" not in extraction.flags
             else None
@@ -561,6 +666,10 @@ async def bill_outcome(
             ),
         }
 
+    # The draft's title is the shop's name when one was recognized, because "Combi. Frisch.
+    # Nebenan." is the slogan the till prints and not what the household calls the shop. The
+    # amount, the date and the direction are the receipt's own, as ever.
+    titled = store.title if store is not None else extraction.merchant
     drafts, problems = store_drafts(
         session,
         profile_id,
@@ -570,7 +679,7 @@ async def bill_outcome(
                 booked_on=extraction.booked_on,
                 amount=f"{extraction.total_cents / 100:.2f}",
                 direction=extraction.direction,
-                description=extraction.merchant,
+                description=titled,
                 counterparty=extraction.merchant,
                 account_name=None,
             )
@@ -583,6 +692,14 @@ async def bill_outcome(
         "`card` with `ask_user`, unchanged, and call `add_transaction` with the row's `ref` if "
         "the user confirms it."
     )
+    if store is not None:
+        where = "the merchant dictionary" if store.via == "dictionary" else "a web lookup of the printed header"
+        instruction += (
+            f" The shop was recognized through {where}: {store.title}, {store.blurb}"
+            f"{f', which belongs under {store.category}' if store.category else ''}. Say that in "
+            f"one line, and name that category when the user asks where it goes. Only the shop's "
+            f"name was looked up, never the line items."
+        )
     if not extraction.date_read:
         instruction += (
             " The date could not be read off this receipt, so the row carries today's date and "

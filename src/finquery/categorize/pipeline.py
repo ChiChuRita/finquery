@@ -7,7 +7,9 @@
     2b. Web lookup, only when the profile switched it on: the merchants the dictionary does not
        know are searched for on the web, and what comes back is a placement with a confidence
        like any other, so the threshold and the Question cards keep working unchanged. A
-       merchant it answers does not reach the model. See finquery.weblookup.
+       merchant it placed at or above the threshold does not reach the model; one it was unsure
+       about does, with what the web found under the booking text as a `web:` line, because the
+       model reads the text as well. See finquery.weblookup.
     3. The categorizer sub-agent on the fast slot, in batches, one entry per merchant, with a
        confidence. At or above `CONFIDENCE_THRESHOLD` the row is set; below it the row stays
        Needs review and the merchant becomes a Question card entry.
@@ -108,7 +110,7 @@ class Group:
     def label(self) -> str:
         return f"{self.title} (via {self.via})" if self.via else self.title
 
-    def entry(self) -> MerchantBatchEntry:
+    def entry(self, web: str | None = None) -> MerchantBatchEntry:
         return MerchantBatchEntry(
             key=self.key,
             sample_description=self.sample.description,
@@ -117,6 +119,7 @@ class Group:
             average_cents=self.average_cents,
             incoming=self.total_cents > 0,
             via=self.via,
+            web=web,
         )
 
 
@@ -317,38 +320,47 @@ def _placement_of(categories: list[Category], category: str | None, subcategory:
 
 async def _look_up(
     groups: list[Group], categories: list[Category], lookups: "Lookups"
-) -> tuple[dict[str, Guess], int, int]:
+) -> tuple[dict[str, Guess], dict[str, str], int, int]:
     """Search the web for the merchants the dictionary does not know, busiest first.
 
-    Returns a guess per merchant the lookup placed, how many lookups ran, and how many it
-    refused because nothing about the booking was safe to send (a person's name). A merchant it
-    could not place is left for the model stage.
+    Returns four things: a guess per merchant the lookup placed confidently, a one-line brief
+    per merchant it did not, how many lookups ran, and how many it refused because nothing
+    about the booking was safe to send (a person's name).
 
-    Sequential on purpose: one lookup is its own agent loop and its own network traffic, and
-    the point of the cap is that an import stays quick.
+    A lookup below the threshold no longer takes the merchant away from the model. It rides
+    along as the entry's `web:` line instead, so the model sees what the web found and its own
+    reading of the booking text: the review of 2026-09-06 watched an unsure lookup (Mustermann
+    Systems at 0.20) turn a salary the categorizer had right at 0.90 into a Question card.
+
+    The batch is `Lookups.merchants`, which deduplicates by token, answers a cached or refused
+    token without a request and pauses between the ones that reach the network.
     """
     taxonomy = taxonomy_of(categories)
     answers: dict[str, Guess] = {}
+    briefs: dict[str, str] = {}
+    found = await lookups.merchants(
+        [(group.sample.description, group.sample.counterparty) for group in groups],
+        taxonomy,
+        limit=LOOKUPS_PER_RUN,
+    )
     ran = refused = 0
-    for group in groups:
-        if ran >= LOOKUPS_PER_RUN:
-            break
-        found = await lookups.merchant(group.sample.description, group.sample.counterparty, taxonomy)
-        if not found.token:
+    for group, lookup_result in zip(groups, found, strict=True):
+        if not lookup_result.token:
             # Nothing was safe to send, so nothing was spent either: it does not use the budget.
-            refused += 1
+            refused += bool(lookup_result.error)
             continue
         ran += 1
-        placement = _placement_of(categories, found.category, found.subcategory)
-        if placement is None:
-            continue
-        answers[group.key] = Guess(
-            placement=placement,
-            confidence=found.confidence,
-            title=group.title,
-            blurb=found.summary[:LOOKUP_BLURB_CHARS],
-        )
-    return answers, ran, refused
+        placement = _placement_of(categories, lookup_result.category, lookup_result.subcategory)
+        if placement is not None and lookup_result.confidence >= CONFIDENCE_THRESHOLD:
+            answers[group.key] = Guess(
+                placement=placement,
+                confidence=lookup_result.confidence,
+                title=group.title,
+                blurb=lookup_result.summary[:LOOKUP_BLURB_CHARS],
+            )
+        elif lookup_result.brief:
+            briefs[group.key] = lookup_result.brief[:LOOKUP_BLURB_CHARS]
+    return answers, briefs, ran, refused
 
 
 async def _ask_model(
@@ -357,6 +369,7 @@ async def _ask_model(
     *,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None,
+    briefs: dict[str, str] | None = None,
 ) -> tuple[dict[str, Guess], int, str | None]:
     """Run the categorizer over the groups it is given, batch by batch.
 
@@ -373,7 +386,7 @@ async def _ask_model(
     answers: dict[str, Guess] = {}
     calls = 0
     error: str | None = None
-    for batch in batched([group.entry() for group in groups]):
+    for batch in batched([group.entry((briefs or {}).get(group.key)) for group in groups]):
         calls += 1
         try:
             batch_answers = await categorize_merchants(model, batch, taxonomy, model_settings=model_settings)
@@ -451,15 +464,18 @@ async def categorize_rows(
         else:
             known[group.key] = placement
 
-    # Stage 2b: the web, for the merchants the dictionary does not know.
+    # Stage 2b: the web, for the merchants the dictionary does not know. What it placed
+    # confidently skips the model; what it was unsure about rides along as the entry's `web:`
+    # line instead of taking the merchant away from a model that can read the booking text.
     found: dict[str, Guess] = {}
+    briefs: dict[str, str] = {}
     if lookups is not None and for_model:
-        found, report.lookups, report.lookups_refused = await _look_up(for_model, categories, lookups)
+        found, briefs, report.lookups, report.lookups_refused = await _look_up(for_model, categories, lookups)
         for_model = [group for group in for_model if group.key not in found]
 
     # Stage 3: the categorizer sub-agent, for what is left.
     answers, report.model_calls, report.error = await _ask_model(
-        for_model, categories, resolve_model=resolve_model, model_settings=model_settings
+        for_model, categories, resolve_model=resolve_model, model_settings=model_settings, briefs=briefs
     )
     guesses = {**found, **answers}
 

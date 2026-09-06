@@ -57,9 +57,14 @@ class StubWeb:
     """A scripted search and fetch client that records every call it was asked to make."""
 
     hits: list[Hit] = field(default_factory=lambda: list(KARLS_HITS))
+    by_query: dict[str, list[Hit]] = field(default_factory=dict)
+    """Hits for a query whose results matter, matched on a word of it. Everything else gets
+    `hits`, which is about Karls."""
     page: str = KARLS_PAGE
     calls: list[tuple[str, str]] = field(default_factory=list)
     fail_with: str | None = None
+    fail_times: int | None = None
+    """How many of the failures to raise before answering normally. None is forever."""
     watch: Callable[[], Awaitable[None]] | None = None
     """Run before a call is answered: how a test sees the world as the request goes out."""
 
@@ -67,8 +72,13 @@ class StubWeb:
         self.calls.append(("search", query))
         if self.watch is not None:
             await self.watch()
-        if self.fail_with is not None:
+        if self.fail_with is not None and (self.fail_times is None or self.fail_times > 0):
+            if self.fail_times is not None:
+                self.fail_times -= 1
             raise SearchUnavailable(self.fail_with)
+        for word, hits in self.by_query.items():
+            if word in query:
+                return list(hits)
         return list(self.hits)
 
     async def fetch(self, url: str) -> Page:
@@ -161,6 +171,20 @@ def fast_slot(decide: Decider, guesses: dict[str, tuple[str, str | None, float]]
     return respond
 
 
+def quote_in(prompt: str) -> str:
+    """A sentence out of what the steps really returned, which is what `evidence` has to be.
+
+    The scripts quote the last line of the newest step, the way a model copying a snippet or a
+    sentence of a page would. A script that quotes anything else is testing the guard.
+    """
+    heading = "What your steps returned so far:"
+    tail = prompt.rsplit(heading, 1)[-1] if heading in prompt else ""
+    # The budget sentence sits under the steps and is not something anybody returned.
+    tail = tail.split("Budget left:")[0].split("You have no searches")[0]
+    lines = [line.strip() for line in tail.splitlines() if len(line.strip()) >= 12 and "http" not in line]
+    return lines[-1] if lines else ""
+
+
 def searches_then_finishes(
     times: int = 1,
     *,
@@ -169,7 +193,7 @@ def searches_then_finishes(
     subcategory: str | None = "Supermarket",
     confidence: float = 0.85,
 ) -> Decider:
-    """Search `times` times, then finish. The model's own stop decision."""
+    """Search `times` times, then finish, quoting what the last step returned."""
 
     def decide(prompt: str, token: str, steps: int) -> ModelResponse:
         if steps < times:
@@ -180,6 +204,7 @@ def searches_then_finishes(
             category=category,
             subcategory=subcategory,
             confidence=confidence,
+            evidence=quote_in(prompt),
             sources=urls_in(prompt)[:2],
         )
 
@@ -200,6 +225,7 @@ def searches_then_reads_then_finishes() -> Decider:
             category="Groceries",
             subcategory="Supermarket",
             confidence=0.9,
+            evidence=KARLS_PAGE,
             sources=[urls_in(prompt)[-1]],
         )
 
@@ -217,6 +243,7 @@ def finishes_with_no_confidence() -> Decider:
             summary="a chain of strawberry farms",
             category="Groceries",
             subcategory="Supermarket",
+            evidence=quote_in(prompt),
             sources=urls_in(prompt)[:1],
             confidence=0.8 if "needs `confidence`" in prompt else 0.0,
         )
@@ -352,21 +379,25 @@ async def test_switching_it_on_declares_the_tool_and_only_the_token_leaves(
     assert "lookup_merchant" in turn.declared[0]  # type: ignore[attr-defined]
     # The booking carried an amount and a date. Only the merchant token left.
     assert web_client.searches == ["what is karls"]
-    assert web_client.fetches == []
+    # One of the results is a Wikipedia article about the token, so the loop read it before it
+    # took the finish, whatever the model asked for. See the forced-fetch test below.
+    assert web_client.fetches == ["https://de.wikipedia.org/wiki/Karls"]
     found = outputs(chunks)[0]
     assert found["merchant"] == "karls"
     assert found["category"] == "Groceries"
     assert found["subcategory"] == "Supermarket"
     assert found["confidence"] == 0.85
     assert found["searches"] == 1
-    assert found["fetches"] == 0
+    assert found["fetches"] == 1
+    assert found["pages"] == ["https://de.wikipedia.org/wiki/Karls"]
     assert found["cached"] is False
     assert [source["url"] for source in found["sources"]] == [hit.url for hit in KARLS_HITS]
     assert "strawberry farms" in answer(chunks)
 
     entries = await outbound_log(client, profile_id)
     assert [(e["kind"], e["target"], e["merchant_token"], e["status"]) for e in entries] == [
-        ("search", "what is karls", "karls", "ok")
+        ("fetch", "https://de.wikipedia.org/wiki/Karls", "karls", "ok"),
+        ("search", "what is karls", "karls", "ok"),
     ]
 
 
@@ -467,8 +498,9 @@ async def test_a_finish_with_no_confidence_is_handed_back_once(
     found = outputs(chunks)[0]
     assert found["confidence"] == 0.8, "the second finish carried one"
     assert found["category"] == "Groceries"
-    # Handing the finish back costs a model round trip, never a second request to the web.
-    assert len(web_client.calls) == 1
+    # Handing the finish back costs a model round trip, never a second request to the web: the
+    # one search and the page the loop read for itself are all that went out.
+    assert len(web_client.calls) == 2
     # The refusal is framed as a correction of that decision: what was wrong with it, the
     # model's own reasoning, and what to send instead (ticket 42).
     handed_back = slot.prompts[-1]  # type: ignore[attr-defined]
@@ -485,20 +517,24 @@ async def test_a_cache_hit_avoids_a_second_request(
     scripts.fast_call = fast_slot(searches_then_finishes())  # type: ignore[assignment]
     first = await new_conversation(client, profile_id)
     await chat(first, "Was ist KARLS DANKT?")
-    assert len(web_client.calls) == 1
+    assert len(web_client.calls) == 2
 
     # The same merchant, spelled differently, in another conversation.
     scripts.fast = asks_about("KARLS DANKT 4,20 EUR")
     second = await new_conversation(client, profile_id)
     _, chunks = await chat(second, "Und was ist KARLS?")
 
-    assert len(web_client.calls) == 1, "a merchant token leaves at most once per profile"
-    assert len(await outbound_log(client, profile_id)) == 1
+    assert len(web_client.calls) == 2, "a merchant token leaves at most once per profile"
+    assert len(await outbound_log(client, profile_id)) == 2
     found = outputs(chunks)[0]
     assert found["cached"] is True
     assert found["category"] == "Groceries"
     assert "strawberry farms" in found["summary"]
     assert [source["url"] for source in found["sources"]] == [hit.url for hit in KARLS_HITS]
+    # The card of a cache hit says the same things as the card that filled it, so the evidence
+    # and the page it read are kept with the summary.
+    assert found["evidence"] == KARLS_PAGE
+    assert found["pages"] == ["https://de.wikipedia.org/wiki/Karls"]
 
 
 async def test_the_budget_is_the_ceiling_when_the_model_never_stops(
@@ -546,7 +582,9 @@ async def test_a_search_that_fails_is_reported_and_not_cached(
         "Nothing was learned about this merchant."
     )
     entries = await outbound_log(client, profile_id)
-    assert [e["status"] for e in entries] == ["the search backends are rate limiting us right now"] * 4
+    # Four searches of the budget, and the free retry the first failure was given: five
+    # requests, none of which came back with anything.
+    assert [e["status"] for e in entries] == ["the search backends are rate limiting us right now"] * 5
     # Nothing was learned, so the next attempt is free to try again.
     web_client.fail_with = None
     scripts.fast = asks_about(KARLS)
@@ -585,6 +623,12 @@ async def test_the_lookup_stage_places_what_the_dictionary_does_not_know(
 ) -> None:
     await switch_web_lookup(client, profile_id, True)
     await import_synthetic(client, profile_id)
+    # The results have to name the merchant, or the confidence is capped and the merchant goes
+    # to the model with what was found as context instead (see the cap test below).
+    web_client.by_query = {
+        "hausverwaltung": [Hit("Hausverwaltung Bergmann", "https://example.org/bergmann", "A property manager")],
+        "mustermann": [Hit("Mustermann Systems", "https://example.org/mustermann", "An IT company")],
+    }
     slot = fast_slot(
         searches_then_finishes(summary="a Berlin property manager", category="Housing", subcategory="Rent")
     )
@@ -617,23 +661,33 @@ async def test_the_lookup_stage_places_what_the_dictionary_does_not_know(
     ]
 
 
-async def test_a_low_confidence_lookup_still_becomes_a_question_card(
+async def test_an_unsure_lookup_rides_along_as_context_instead_of_pre_empting_the_model(
     client: httpx.AsyncClient, scripts: Scripts, profile_id: str, web_client: StubWeb
 ) -> None:
+    """F3 of the review: a lookup below the threshold used to take the merchant off the batch.
+
+    The cost was measured on the synthetic employer: the lookup found nothing and said Shopping
+    at 0.20, and the categorizer alone reads "GEHALT", money in, and files Income at 0.90. Now
+    the unsure lookup is one `web:` line under the booking text and the model still answers.
+    """
     await switch_web_lookup(client, profile_id, True)
     await import_synthetic(client, profile_id)
-    scripts.fast_call = fast_slot(  # type: ignore[assignment]
-        searches_then_finishes(summary="unclear, maybe a shop", category="Shopping", subcategory=None, confidence=0.4)
+    slot = fast_slot(
+        searches_then_finishes(summary="unclear, maybe a shop", category="Shopping", subcategory=None, confidence=0.4),
+        guesses={"mustermann systems": ("Income", "Salary", 0.9)},
     )
+    scripts.fast_call = slot  # type: ignore[assignment]
 
     report = await categorize(client, profile_id, await last_import(client, profile_id))
 
     assert report["by_lookup"] == 0, "below the threshold nothing is placed"
-    asked = {question["pattern"]: question for question in report["uncertain"]}
-    assert "hausverwaltung bergmann" in asked
-    # The lookup's guess is the first button of the card, the way the model's guess is.
-    assert asked["hausverwaltung bergmann"]["guess"] == "Shopping"
-    assert asked["hausverwaltung bergmann"]["confidence"] == 0.4
+    # The merchant reached the categorizer, and what the lookup found came with it.
+    batch = slot.categorizer[0]  # type: ignore[attr-defined]
+    assert "mustermann systems" in batch
+    assert "web: unclear, maybe a shop (Shopping)" in batch
+    # And the model's own reading of the booking text is what was filed.
+    salary = await rows_of(client, profile_id, "GEHALT")
+    assert {(row["category"], row["subcategory"]) for row in salary} == {("Income", "Salary")}
 
 async def test_switching_the_lookup_off_mid_loop_stops_the_next_request(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str, web_client: StubWeb

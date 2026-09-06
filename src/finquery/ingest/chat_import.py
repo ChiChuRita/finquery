@@ -30,7 +30,7 @@ decided, so the transcript never shows two cards at once. See `finquery.ingest.d
 
 from collections.abc import Awaitable, Callable
 from datetime import date
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic_ai.settings import ModelSettings
 from sqlalchemy.orm import Session
@@ -57,6 +57,9 @@ from finquery.ingest.csv_reader import (
 )
 from finquery.ingest.mapping_agent import MappingUnusable, propose
 from finquery.providers import ModelResolver, ProviderNotAvailable
+
+if TYPE_CHECKING:
+    from finquery.weblookup import Lookups
 
 CARD_SAMPLE_ROWS = 3
 """Bookings shown on the mapping card: enough to see that the columns landed right."""
@@ -151,9 +154,15 @@ async def import_attachment(
     confirmed: bool = False,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None = None,
+    lookups: "Lookups | None" = None,
     report: Reporter | Callable[..., Awaitable[None]] = _silent,
 ) -> dict[str, Any]:
-    """Turn one stored attachment into transactions, or say why it cannot be done yet."""
+    """Turn one stored attachment into transactions, or say why it cannot be done yet.
+
+    `lookups` is web knowledge for this profile, present only when it switched the feature on
+    (`weblookup.lookups_for` returns None otherwise). A receipt uses it to recognize the shop
+    its header names; nothing else on this path does.
+    """
     record = attachments.find(session, conversation_id, file_name)
     if record is None:
         known = [item.file_name for item in attachments.of_conversation(session, conversation_id)]
@@ -186,6 +195,7 @@ async def import_attachment(
             record,
             resolve_model=resolve_model,
             model_settings=model_settings,
+            lookups=lookups,
             report=report,
         )
     return await _import_csv(
@@ -581,6 +591,7 @@ async def _import_bill(
     *,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None,
+    lookups: "Lookups | None" = None,
     report: Reporter | Callable[..., Awaitable[None]],
 ) -> dict[str, Any]:
     """A photo of a receipt: a split of the booking it matches, or a preview of a new one."""
@@ -621,4 +632,5 @@ async def _import_bill(
         file_name=record.file_name,
         resolve_model=resolve_model,
         model_settings=model_settings,
+        lookups=lookups,
     )
