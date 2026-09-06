@@ -430,7 +430,11 @@ async def resolve_store(header: str, session: Session, profile_id: str, lookups:
     if not found.token or not found.summary or not found.category:
         return None
     return Store(
-        title=header.strip()[:60],
+        # Derived from the printed header the way the categorizer derives a merchant key, never
+        # a name the model wrote: "Combi. Frisch. Nebenan." loses the till's punctuation and the
+        # slogan's full stops and becomes "Combi Frisch Nebenan", which is also the token that
+        # left, so the draft and the outbound log say the same thing.
+        title=merchant_of(header, None).title[:60] or header.strip()[:60],
         category=found.category,
         subcategory=found.subcategory,
         blurb=found.summary,
