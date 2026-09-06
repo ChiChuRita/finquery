@@ -11,7 +11,6 @@ import { Composer } from '@/components/composer'
 import { ConversationTabs } from '@/components/conversation-tabs'
 import { DashboardPage } from '@/components/dashboard-page'
 import { EmptyState } from '@/components/empty-state'
-import { FeedbackPage } from '@/components/feedback-page'
 import { ImportPage } from '@/components/import-page'
 import { MemoryPage } from '@/components/memory-page'
 import { ModelsCard } from '@/components/models-card'
@@ -170,8 +169,6 @@ const importRoute = createRoute({ getParentRoute: () => rootRoute, path: '/impor
 
 const memoryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/memory', component: MemoryPage })
 
-const feedbackRoute = createRoute({ getParentRoute: () => rootRoute, path: '/feedback', component: FeedbackPage })
-
 const transactionsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/transactions',
@@ -210,7 +207,6 @@ export const router = createRouter({
     importRoute,
     transactionsRoute,
     memoryRoute,
-    feedbackRoute,
     settingsRoute,
     onboardingRoute,
   ]),

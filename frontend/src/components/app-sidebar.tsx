@@ -9,7 +9,6 @@ import {
   PlusIcon,
   SettingsIcon,
   TableIcon,
-  ThumbsUpIcon,
   Trash2Icon,
   UploadIcon,
 } from 'lucide-react'
@@ -53,7 +52,6 @@ const PAGES = [
   { to: '/transactions', label: 'Transactions', icon: TableIcon },
   { to: '/import', label: 'Imports', icon: UploadIcon, title: 'What every file you dropped into a chat brought in' },
   { to: '/memory', label: 'Memory', icon: BrainIcon },
-  { to: '/feedback', label: 'Feedback', icon: ThumbsUpIcon },
 ] as const
 
 /** The brand mark and the name. The mark is 32px so it fills the icon rail's square exactly. */

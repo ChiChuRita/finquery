@@ -8,7 +8,6 @@ import {
   Code2Icon,
   DatabaseIcon,
   LayoutDashboardIcon,
-  RefreshCwIcon,
   ShieldCheckIcon,
   WrenchIcon,
   type LucideIcon,
@@ -21,14 +20,12 @@ import {
   ChainOfThoughtStep,
 } from '@/components/ai-elements/chain-of-thought'
 import { Shimmer } from '@/components/ai-elements/shimmer'
-import { FeedbackError, PairGrid, PairSide, Thumbs, useFeedback } from '@/components/feedback'
 import { RowsTable, Section, SqlSection, rowLabel } from '@/components/query-result'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
-  chartAlternative,
   chartRenderFailure,
   dashboardPinsQuery,
   deleteDashboardChart,
@@ -36,7 +33,6 @@ import {
   type ChartDetails,
   type ChartToolOutput,
   type ChartToolPart,
-  type PreferenceRating,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
@@ -442,39 +438,20 @@ export function ChartCardHeader({
   )
 }
 
-/** A drawn chart, its rating, and the second chart a Regenerate produced.
- *
- * The pair lives in the card, not in the transcript: the regenerate is no chat turn, so the
- * second chart is here until the user picks one or leaves the page. What the pick leaves behind
- * is the preference record, and after a reload the card shows the chart the turn stored with a
- * line saying a pair was collected.
- */
+/** A drawn chart in the transcript: the frame, what it was drawn from, and Add to dashboard. */
 function ChartResult({
   output,
   toolCallId,
   turnId,
-  rating,
 }: {
   output: ChartToolOutput
   toolCallId: string
   turnId?: string
-  rating?: PreferenceRating
 }) {
   const { profile } = useWorkspace()
-  const feedback = useFeedback(turnId, toolCallId, rating)
-  const [second, setSecond] = useState<ChartToolOutput>()
-  const [drawing, setDrawing] = useState(false)
   const [problem, setProblem] = useState<string>()
-  const [again, setAgain] = useState(false)
-  const [picked, setPicked] = useState<'original' | 'candidate'>()
   const [redrawn, setRedrawn] = useState<ChartToolOutput>()
   const [retrying, setRetrying] = useState(false)
-  // A side of a pair the browser could not draw. Picking one of two charts means saying which
-  // is better, which nobody can do about an error message (review of 2026-09-04).
-  const [broken, setBroken] = useState<Record<'original' | 'candidate', boolean>>({
-    original: false,
-    candidate: false,
-  })
   // One report per chart: the server retries once, and a remount must not ask again.
   const reported = useRef(false)
   // Which charts of this profile are on the dashboard. One cheap request per profile, shared
@@ -549,38 +526,6 @@ function ChartResult({
     }
   }
 
-  const regenerate = async () => {
-    if (!profile || !turnId || drawing) return
-    setDrawing(true)
-    setProblem(undefined)
-    setAgain(false)
-    try {
-      const alternative = await chartAlternative(profile.id, turnId, toolCallId)
-      if (alternative.error || !alternative.code) {
-        setProblem(alternative.error ?? 'The second chart could not be drawn.')
-        return
-      }
-      // The sub-agent can write exactly the same definition again. There is nothing to pick
-      // between two identical charts, and such a pair would teach a training run nothing.
-      if (alternative.code === code) {
-        setAgain(true)
-        return
-      }
-      setSecond(alternative)
-      setPicked(undefined)
-    } catch (cause) {
-      setProblem(cause instanceof Error ? cause.message : 'The second chart could not be drawn.')
-    } finally {
-      setDrawing(false)
-    }
-  }
-
-  const pick = async (which: 'original' | 'candidate') => {
-    if (!second?.code) return
-    await feedback.pick(which, { code: second.code, shape: second.shape, title: second.title })
-    setPicked(which)
-  }
-
   return (
     <ChartCard>
       <ChartCardHeader shape={chart.shape} title={title} />
@@ -591,49 +536,7 @@ function ChartResult({
           </Shimmer>
         </div>
       )}
-      {code && second?.code ? (
-        <div className="px-3 pb-3">
-          <PairGrid>
-            <PairSide
-              disabled={feedback.busy}
-              label="The first chart"
-              note={SHAPE_LABELS[chart.shape] ?? chart.shape}
-              onPick={() => void pick('original')}
-              picked={picked === 'original'}
-              unavailable={broken.original ? 'This one did not draw.' : undefined}
-            >
-              <ChartFrame
-                code={code}
-                language={language}
-                onError={() => setBroken((sides) => ({ ...sides, original: true }))}
-                rows={chart.rows}
-                title={title}
-              />
-            </PairSide>
-            <PairSide
-              disabled={feedback.busy}
-              label="Drawn again"
-              note={SHAPE_LABELS[second.shape] ?? second.shape}
-              onPick={() => void pick('candidate')}
-              picked={picked === 'candidate'}
-              unavailable={broken.candidate ? 'This one did not draw.' : undefined}
-            >
-              <ChartFrame
-                code={second.code}
-                language={second.language ?? language}
-                onError={() => setBroken((sides) => ({ ...sides, candidate: true }))}
-                rows={second.rows}
-                title={second.title || title}
-              />
-            </PairSide>
-          </PairGrid>
-          <p className="pt-2 text-muted-foreground text-xs">
-            {picked
-              ? 'Stored as a preference pair. Both charts drew the rows of the same query.'
-              : 'Both charts drew the rows of the same query. Pick the better one.'}
-          </p>
-        </div>
-      ) : code ? (
+      {code ? (
         <ChartFrame
           code={code}
           language={language}
@@ -663,10 +566,10 @@ function ChartResult({
       <Footer
         actions={
           <span className="flex items-center gap-1">
-            <FeedbackError message={feedback.error ?? problem} />
-            {again && <span className="text-muted-foreground text-xs">Same chart again</span>}
-            {feedback.rating === 'pick' && !second && (
-              <span className="text-muted-foreground text-xs">Pair collected</span>
+            {problem && (
+              <p className="text-destructive text-xs" role="alert">
+                {problem}
+              </p>
             )}
             {code && pinned && (
               <>
@@ -699,25 +602,6 @@ function ChartResult({
                 Add to dashboard
               </Button>
             )}
-            {code && (
-              <Button
-                className="gap-1.5 text-muted-foreground"
-                disabled={!feedback.ready || drawing || retrying || Boolean(second)}
-                onClick={() => void regenerate()}
-                size="sm"
-                variant="ghost"
-              >
-                <RefreshCwIcon className={drawing ? 'animate-spin' : undefined} />
-                {drawing ? 'Drawing...' : 'Regenerate'}
-              </Button>
-            )}
-            <Thumbs
-              busy={feedback.busy}
-              disabled={!feedback.ready}
-              onRate={(next) => void feedback.rate(next)}
-              rating={feedback.rating}
-              subject="chart"
-            />
           </span>
         }
         output={chart}
@@ -730,12 +614,10 @@ function ChartResult({
 export function ChartToolStep({
   part,
   turnId,
-  rating,
   narration,
 }: {
   part: ChartToolPart
   turnId?: string
-  rating?: PreferenceRating
   /** The turn's thinking so far, which is where the sub-agent narrates its steps. */
   narration?: string
 }) {
@@ -759,6 +641,6 @@ export function ChartToolStep({
     )
   }
   return (
-    <ChartResult output={part.output} rating={rating} toolCallId={part.toolCallId} turnId={turnId} />
+    <ChartResult output={part.output} toolCallId={part.toolCallId} turnId={turnId} />
   )
 }

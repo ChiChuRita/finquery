@@ -7,7 +7,6 @@ import {
   BrainIcon,
   CircleStopIcon,
   CloudIcon,
-  GitCompareIcon,
   HardDriveIcon,
 } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
@@ -35,7 +34,6 @@ import { DashboardChartToolStep, DashboardLineToolStep } from '@/components/dash
 import { Composer } from '@/components/composer'
 import { ContextBadge } from '@/components/context-badge'
 import { EmptyState } from '@/components/empty-state'
-import { AnswerCompare, FeedbackError, Thumbs, useAnswerFeedback } from '@/components/feedback'
 import { AddedToolStep, DuplicatesToolStep, ImportToolStep, PreviewToolStep } from '@/components/import-tool'
 import { LookupToolStep } from '@/components/lookup-tool'
 import { MemoryToolStep } from '@/components/memory-tool'
@@ -46,7 +44,6 @@ import { ReviewToolStep, RuleToolStep } from '@/components/rule-tool'
 import { SummaryDivider } from '@/components/summary-divider'
 import { Step } from '@/components/tool-step'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   chatUrl,
   conversationQuery,
@@ -62,7 +59,6 @@ import {
   type ConversationDetail,
   type ImportProgress,
   type ModelKey,
-  type PreferenceRating,
 } from '@/lib/api'
 import { hasPendingPrompt, takePendingPrompt } from '@/lib/pending'
 import { useCatalog, useModelLabel } from '@/lib/catalog'
@@ -71,15 +67,6 @@ import { readScrollTop, useWorkspace, writeScrollTop } from '@/lib/workspace'
 
 /** Where a turn ran, which is what its chip says next to the model's name. */
 const PROVIDER_ICONS = { local: HardDriveIcon, openrouter: CloudIcon }
-
-/** The only tools whose turn can be answered a second time: read-only, and they draw no card.
- *
- * An allowlist rather than a list of the tools that write, because that list has to be extended
- * by every ticket that adds a tool and a tool left out of it earns the user a refusal they did
- * not ask for. Must stay in step with `preferences.RERUN_TOOLS`, which is what the server both
- * declares on the rerun and refuses a turn against.
- */
-const RERUNNABLE_PARTS = new Set(['tool-query', 'tool-chart'])
 
 /** Whether this message is the one a Question card sits on. */
 const holdsCall = (message: ChatMessage, toolCallId: string) =>
@@ -99,11 +86,6 @@ function withAnswer(part: AskUserPart, output: AskUserOutput): AskUserPart | nul
     input: part.input,
     output,
   }
-}
-
-/** Every rating this chat collected, keyed by the turn and the chart inside it. */
-function ratingsByTarget(conversation: ConversationDetail): Map<string, PreferenceRating> {
-  return new Map(conversation.ratings.map((rating) => [`${rating.turn_id}:${rating.target ?? ''}`, rating.rating]))
 }
 
 export function ChatView({ conversation }: { conversation: ConversationDetail }) {
@@ -264,7 +246,6 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
   // A turn is being answered for this conversation: here, in another tab, or with nobody
   // watching it at all. The composer is closed for all three, and Stop ends any of them.
   const running = streaming || listed.running
-  const ratings = useMemo(() => ratingsByTarget(conversation), [conversation])
   const lastMessage = messages.at(-1)
   const context = latestContext(messages)
   // The turns before this index are the ones the rolling summary stands in for.
@@ -318,7 +299,6 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
                   onAnswer={answerCard}
                   onPickFollowup={(text) => send({ text })}
                   progress={progress}
-                  ratings={ratings}
                   modelKey={modelKey}
                   streaming={streaming}
                 />
@@ -612,8 +592,8 @@ const OPEN_CALL = new Set(['input-streaming', 'input-available', 'approval-reque
 
 /** A Question card of this message that nobody has answered yet.
  *
- * The turn is not finished with the user: offering follow-ups and a rating next to it would
- * invite them away from the one thing it is waiting for.
+ * The turn is not finished with the user: offering follow-ups next to it would invite them
+ * away from the one thing it is waiting for.
  */
 function waitingForAnswer(parts: MessagePart[]): boolean {
   return parts.some((part) => part.type === 'tool-ask_user' && OPEN_CALL.has(part.state))
@@ -678,7 +658,6 @@ function TranscriptMessage({
   isLast,
   streaming,
   modelKey,
-  ratings,
   onPickFollowup,
   onAnswer,
   progress,
@@ -687,25 +666,15 @@ function TranscriptMessage({
   isLast: boolean
   streaming: boolean
   modelKey: ModelKey
-  ratings: Map<string, PreferenceRating>
   onPickFollowup: (text: string) => void
   onAnswer: (toolCallId: string, output: AskUserOutput) => void
   progress: Record<string, ImportProgress[]>
 }) {
   const interrupted = message.metadata?.interrupted === true
   const live = isLast && streaming
-  // The turn behind this message, which is what a rating names. It arrives with the metadata at
-  // the end of the stream, so the thumbs appear when the answer is stored and not before.
+  // The turn behind this message, which is what a chart card of it names. It arrives with the
+  // metadata at the end of the stream, so a card can add its chart to the dashboard at once.
   const turnId = message.metadata?.turn_id
-  const feedback = useAnswerFeedback(turnId, ratings.get(`${turnId}:`))
-  // A turn that used a tool the rerun does not have is not rerun: no A/B is offered for it.
-  const rerunnable = !message.parts.some(
-    (part) => part.type.startsWith('tool-') && !RERUNNABLE_PARTS.has(part.type),
-  )
-  const answerText = message.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => part.text)
-    .join('\n\n')
   // How many durable facts of the profile this turn was given (memory page: /memory).
   const memoriesUsed = message.parts.flatMap((p) => (p.type === 'data-context' ? [p.data.memories] : []))[0] ?? 0
   // The turn's own entry, or the conversation's while the turn is still streaming and has no
@@ -804,7 +773,6 @@ function TranscriptMessage({
                 // made reads them to advance its own rail.
                 narration={live ? parts.find(isReasoning)?.text : undefined}
                 part={part}
-                rating={ratings.get(`${turnId}:${part.toolCallId}`)}
                 turnId={turnId}
               />
             )
@@ -853,44 +821,7 @@ function TranscriptMessage({
               Stopped
             </Badge>
           )}
-          {/* A turn that was cut off before it wrote anything has nothing to rate, and a thumb
-              on it would go into the preference pairs as an opinion about an empty answer. */}
-          {parts.length > 0 && (
-            <span className="ml-auto flex items-center gap-1">
-              <FeedbackError message={feedback.problem} />
-              {feedback.rating === 'pick' && !feedback.second && <span>Pair collected</span>}
-              {feedback.rating === 'down' && rerunnable && !feedback.second && (
-                <Button
-                  className="text-muted-foreground"
-                  disabled={feedback.asking || !feedback.ready}
-                  onClick={() => void feedback.compare()}
-                  size="xs"
-                  variant="ghost"
-                >
-                  <GitCompareIcon data-icon="inline-start" />
-                  {feedback.asking ? 'Answering again...' : 'Compare a second answer'}
-                </Button>
-              )}
-              <Thumbs
-                busy={feedback.busy}
-                disabled={!feedback.ready}
-                onRate={(next) => void feedback.rate(next)}
-                rating={feedback.rating}
-                subject="response"
-              />
-            </span>
-          )}
         </MessageToolbar>
-      )}
-
-      {feedback.second && (
-        <AnswerCompare
-          busy={feedback.busy}
-          onPick={(which) => void feedback.pick(which)}
-          original={answerText}
-          picked={feedback.picked}
-          second={feedback.second}
-        />
       )}
 
       {followups.length > 0 && (
