@@ -23,7 +23,6 @@ from finquery.chart.shapes import (
     MAX_SLICES,
     SHAPE_MENU,
     SHAPE_NAMES,
-    SHAPES,
     Language,
     Shape,
 )
@@ -92,6 +91,12 @@ Rules:
   Monate im Minus") is asked for signed, `ROUND(SUM(amount), 2)` or a signed difference, and
   never as two positive columns: bar draws it above and below the zero line, which is the whole
   answer. Say in the question that the sign is kept.
+- "Aufsummiert", "kumuliert", "cumulative", "wie es sich aufaddiert" is a running total, which
+  is an area over the periods. Compared against another period ("dieses Jahr gegen letztes",
+  "erstes gegen zweites Halbjahr"), it is one band per period: the period is the series, the
+  position is the period's own month or day so both bands start at the same place, and the
+  question asks for the running total inside each period, `SUM(...) OVER (PARTITION BY the
+  period ORDER BY the month)`.
 - "Am I above my usual", "wo mein Durchschnitt liegt", "verglichen mit dem Schnitt": the average
   is a line drawn across the plot by the chart itself, so the shape is the plain line, area or
   bar over the periods and the columns are the two the series needs. Never ask the query for the
@@ -111,18 +116,19 @@ Rules:
   refuses, and "where does my income go" asked plainly is exactly how one gets written.
 """
 
-# Six worked plans, drawn from the training half of the chart benchmark
+# Seven worked plans, drawn from the training half of the chart benchmark
 # (13-doughnut-categories-en, 10-quarter-groups-de, 34-grocery-lines-en,
-# 35-this-month-versus-last-en, 37-change-per-month-en and 40-average-line-de). They are the six
-# decisions the small model gets wrong most: the language of an English request about German
+# 35-this-month-versus-last-en, 37-change-per-month-en, 40-average-line-de and
+# 42-cumulative-halves-de). They are the seven decisions the small model gets wrong most: the language of an English request about German
 # data, a request naming quarters that comes back with months along its axis, a request naming
 # five shops over a year that comes back with one line or with sixty bars, two periods compared
-# that come back as one breakdown, a signed figure that comes back with its sign dropped, and an
-# average asked of the query instead of drawn across the plot. Which half of a pair is the
+# that come back as one breakdown, a signed figure that comes back with its sign dropped, an
+# average asked of the query instead of drawn across the plot, and a running total of two
+# periods that comes back as one line over the lot. Which half of a pair is the
 # example is the hash's choice and not ours: an example drawn from a held-out datapoint teaches
 # the model the answer to a question it is then scored on.
 PLAN_EXAMPLES = f"""\
-Six worked plans:
+Seven worked plans:
 
 Request: Show the share of my 2025 spending by category as a doughnut.
 reasoning:
@@ -192,6 +198,19 @@ the average is arithmetic on these rows, so the query is asked for the months al
    columns month, total_eur,
    question "spending per month of 2025, one row per month, columns month as 'YYYY-MM' and
    total_eur"
+
+Request: Vergleiche, wie sich meine Ausgaben im ersten und im zweiten Halbjahr 2025 aufsummiert
+haben.
+reasoning:
+the request is German, so language de
+"aufsummiert" is a running total, so an area, and "vergleiche" is a second one beside it
+the period is the series, so one band per half and a legend, and the app has the colours for two
+the axis is the month inside the half, 1 to 6, so both bands start at the same place
+-> shape area, language de, title "Ausgaben aufsummiert, Halbjahr gegen Halbjahr",
+   columns month_of_half, half, cumulative_eur,
+   question "spending of 2025 added up inside each half of the year, one row per half and per
+   month of that half, the running total per half, columns month_of_half as '1' to '6', half as
+   'Erstes Halbjahr' or 'Zweites Halbjahr' and cumulative_eur"
 """
 
 CONTRACT = """\
@@ -434,6 +453,32 @@ return defineChart({
   tooltip: {
     use: tooltip,
     format: (point) => point.datum.quarter + ': ' + eur(point.datum.total_eur),
+  },
+});""",
+        ),
+        Example(
+            columns="month_of_half, half, cumulative_eur",
+            reasoning=(
+                "the shape is area and these rows carry a series, so one areaY and one lineY over all of them\n"
+                "the columns are month_of_half, half and cumulative_eur, and cumulative_eur holds the numbers\n"
+                "half names the series, so it is the z and the color channel on both marks and the legend goes on\n"
+                "month_of_half is a name and not a month, so no monthShort and no label dropped\n"
+                "an area rests on zero, so its euro axis is the bare scaleLinear factory"
+            ),
+            code="""\
+return defineChart({
+  marks: [
+    areaY(data, { x: 'month_of_half', y: 'cumulative_eur', z: 'half', color: 'half', fillOpacity: 0.18 }),
+    lineY(data, { x: 'month_of_half', y: 'cumulative_eur', z: 'half', color: 'half', strokeWidth: 2 }),
+  ],
+  scales: {
+    x: { scale: () => scalePoint().padding(0.02), axis: { tickLabels: { thin: false } } },
+    y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
+  },
+  color: { legend: colorLegend({ placement: 'bottom', itemWidth: 150 }) },
+  tooltip: {
+    use: tooltip,
+    format: (point) => point.datum.half + ' ' + point.datum.month_of_half + ': ' + eur(point.datum.cumulative_eur),
   },
 });""",
         ),
@@ -831,13 +876,11 @@ def code_prompt(
     """Everything the code pass sees, including a repair round. Pure function."""
     examples = list(EXAMPLES[plan.shape])
     if plan.shape != "line":
-        # The plain line is the baseline every shape is shown beside its own. A shape that may
-        # carry a series of its own is shown the multi-series line as well, and nothing else is:
-        # five strokes over a merchant column teach a doughnut nothing and cost it its context.
-        # The line's third example, the one with the reference line, stays with the line: the
-        # contract says a rule in a sentence, which is what a shape that rarely wants one needs.
-        borrowed = 2 if SHAPES[plan.shape].may_series else 1
-        examples.extend(EXAMPLES["line"][:borrowed])
+        # The plain line is the baseline every shape is shown beside its own, and it is all
+        # that is borrowed: the line's own second and third examples (five shops, a reference
+        # line) teach nothing to a doughnut, and the area, the other shape that may carry a
+        # series, has an example with two bands of its own since ticket 52.
+        examples.extend(EXAMPLES["line"][:1])
     sections = [
         CONTRACT,
         "Worked examples:\n\n" + "\n\n".join(example.as_prompt() for example in examples),

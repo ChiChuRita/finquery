@@ -525,6 +525,18 @@ EXAMPLE_SQL = {
         "LIKE 'LIDL%' OR counterparty LIKE 'ALDI%' OR counterparty LIKE 'dm %') "
         "GROUP BY 1, 2 ORDER BY 1, 2"
     ),
+    # The area example with two series: a running total inside each half of the year, the half
+    # as the series and the month of that half as the position.
+    "month_of_half, half, cumulative_eur": (
+        "WITH monthly AS (SELECT CASE WHEN booked_on < '2025-07-01' THEN 'Erstes Halbjahr' "
+        "ELSE 'Zweites Halbjahr' END AS half, "
+        "CAST(strftime('%m', booked_on) AS INTEGER) AS month_number, -SUM(amount) AS spent "
+        "FROM transaction_view WHERE amount_cents < 0 GROUP BY 1, 2) "
+        "SELECT CAST(CASE WHEN month_number > 6 THEN month_number - 6 ELSE month_number END AS TEXT) "
+        "AS month_of_half, half, "
+        "ROUND(SUM(spent) OVER (PARTITION BY half ORDER BY month_number), 2) AS cumulative_eur "
+        "FROM monthly ORDER BY half, month_number"
+    ),
     # The doughnut example over a column called `label`, which is not the one the first
     # doughnut example reads.
     "label, total_eur": (
