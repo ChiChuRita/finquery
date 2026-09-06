@@ -83,6 +83,29 @@ def save(payload: dict[str, Any], slug: str, directory: Path = RESULTS) -> tuple
     return as_json, as_markdown
 
 
+def across(payloads: list[dict[str, Any]]) -> str:
+    """One row per model on one set: the table three candidates are read from.
+
+    `compare` says which datapoints changed hands between two runs, which is what a before and
+    after wants. This is the other question: three models on the same set, in one table.
+    """
+    measures = next((_present(payload["summary"]) for payload in payloads if _present(payload["summary"])), ())
+    lines = [
+        f"### {payloads[0]['set']} set",
+        "",
+        "| model | n | " + " | ".join(label for _, label in measures) + " | median s | total s |",
+        "| --- | ---: | " + " | ".join("---:" for _ in measures) + " | ---: | ---: |",
+    ]
+    for payload in payloads:
+        summary = payload["summary"]
+        lines.append(
+            f"| {payload['model']} | {summary['n']} | "
+            + " | ".join(percent(summary.get(key)) for key, _ in measures)
+            + f" | {summary['median_seconds']} | {round(payload['seconds'])} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
 def _by_id(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {result["id"]: result for result in payload["results"]}
 

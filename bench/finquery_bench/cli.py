@@ -3,8 +3,10 @@
     uv run finquery-bench --set sql --model google/gemini-3.8-flash
     uv run finquery-bench --set all --model qwen/qwen3.5-9b --n 20 --seed 7
     uv run finquery-bench --set chart --model local:fast --adapter chart
+    uv run finquery-bench --set e2e --model local:qwen3.5-9b
     uv run finquery-bench --set sql --model qwen/qwen3.5-9b --no-check
     uv run finquery-bench compare bench/results/A.json bench/results/B.json
+    uv run finquery-bench compare bench/results/{A,B,C}-sql.json
     uv run finquery-bench sample --seed 7
 
 `run` is the default, so the first line above needs no subcommand.
@@ -21,7 +23,7 @@ from finquery.settings import Settings
 from finquery_bench.datapoints import SQL_SET, load, pick, read, review_sample
 from finquery_bench.dataset import fresh_database
 from finquery_bench.models import resolve_target
-from finquery_bench.report import RESULTS, compare, save, table
+from finquery_bench.report import RESULTS, across, compare, save, table
 from finquery_bench.report import read as read_run
 from finquery_bench.run import Result, run_points
 
@@ -69,11 +71,20 @@ def command_run(args: argparse.Namespace) -> int:
 
 
 def command_compare(args: argparse.Namespace) -> int:
-    left, right = read_run(args.left), read_run(args.right)
-    if left["set"] != right["set"]:
-        print(f"these runs are of different sets: {left['set']} and {right['set']}", file=sys.stderr)
+    payloads = [read_run(path) for path in args.runs]
+    sets = {payload["set"] for payload in payloads}
+    if len(sets) > 1:
+        print(f"these runs are of different sets: {', '.join(sorted(sets))}", file=sys.stderr)
         return 1
-    print(compare(left, right))
+    # Two runs is a before and after, so it prints what changed hands. More is a field of
+    # candidates, so it prints the table they are chosen from and each one against the first.
+    if len(payloads) == 2:
+        print(compare(*payloads))
+        return 0
+    print(across(payloads))
+    for payload in payloads[1:]:
+        print()
+        print(compare(payloads[0], payload))
     return 0
 
 
@@ -125,7 +136,7 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
 
     runner = commands.add_parser("run", help="score a model on a set")
-    runner.add_argument("--set", default="sql", choices=("sql", "chart", "all"))
+    runner.add_argument("--set", default="sql", choices=("sql", "chart", "all", "e2e"))
     runner.add_argument(
         "--model",
         required=True,
@@ -143,9 +154,8 @@ def build_parser() -> argparse.ArgumentParser:
     runner.add_argument("--out", type=Path, default=RESULTS, help="where the result files go")
     runner.set_defaults(run=command_run)
 
-    comparison = commands.add_parser("compare", help="two result files side by side")
-    comparison.add_argument("left", type=Path)
-    comparison.add_argument("right", type=Path)
+    comparison = commands.add_parser("compare", help="two or more result files side by side")
+    comparison.add_argument("runs", type=Path, nargs="+")
     comparison.set_defaults(run=command_compare)
 
     sample = commands.add_parser("sample", help="write the validation page's review sample")
