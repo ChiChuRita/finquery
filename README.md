@@ -251,15 +251,6 @@ What is stored is the title, the shape, the statement and the checked definition
 every load runs the statement again through the same guard, so a card is as current as the data
 and one whose query stopped running says so on itself instead of breaking the page.
 
-Rate what comes back. Every answer has thumbs in its toolbar and every chart card has thumbs
-plus a Regenerate, which draws the same request a second time and shows both charts side by
-side with a Pick. A thumbs down on an answer offers an A/B: the same message is answered again
-at a higher temperature with only the read-only query tool, and the pick stores the pair. Each
-thumb and each pick is a preference record (prompt, chosen, rejected, kind, rating, slot), the
-Feedback page (`/feedback`) lists them and exports them as JSONL, and `training/preference/`
-turns that into a DPO dataset and a train script for the two fast-slot adapters. Running the
-training is the phase after this build; see `training/preference/README.md`.
-
 `fixtures/synthetic/` holds the shipped demo dataset, one canonical year of a German household
 as a Sparkasse CSV, a renamed-header CSV, a 15 page text PDF statement that reconciles, and four
 bill images whose line items sum to a booking in the CSV. Regenerate
@@ -291,7 +282,7 @@ merchant token leaves at most once per profile: the result is cached. Search nee
 | `src/finquery/ingest/`, `extract/` | CSV presets and the mapping sub-agent; PDF and photo reading with the verbatim and reconciliation guards |
 | `src/finquery/categorize/`, `weblookup/` | rules, merchant dictionary, categorizer sub-agent, review queue; the token scrubber, the keyless search client, the lookup loop and the outbound log |
 | `src/finquery/changesets.py`, `edits.py`, `ask_user.py`, `answers.py` | proposed changes, what may be written, the Question card tool and what its answers do in code |
-| `src/finquery/context.py`, `memory.py`, `onboarding.py`, `preferences.py`, `followups.py` | the per-turn prompt, durable facts, the first-run state, ratings and picks, post-turn suggestions |
+| `src/finquery/context.py`, `memory.py`, `onboarding.py`, `followups.py` | the per-turn prompt, durable facts, the first-run state, post-turn suggestions |
 | `src/finquery/api/` | REST and chat endpoints; `running.py` is the turns being produced right now, each a task with a buffer its readers subscribe to |
 | `src/finquery/local/` | the local provider: catalog, downloads, runtime, the Gemma 4 and Qwen3.5 wire formats, `finquery-check` |
 | `src/finquery/db.py`, `taxonomy.py`, `providers.py`, `settings.py`, `app.py`, `main.py` | the models and the query view, the default categories, the two slots, configuration, the app factory, the CLI |
@@ -299,7 +290,6 @@ merchant token leaves at most once per profile: the result is cached. Search nee
 | `frontend/` | Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router, Query and Charts. `src/chart-runtime/` is a second page: the sandboxed frame charts render in |
 | `bench/` | the two benchmark sets, the runner, the validation page, the results |
 | `tests/` | the HTTP-seam suite |
-| `training/preference/` | the DPO export, the train script and the loop they belong to |
 | `fixtures/synthetic/`, `scripts/` | the shipped dataset and its generator, plus `measure_categorization.py` and `measure_extraction.py` |
 | `docs/` | `overview.html`, `demo-script.md`, `chart-runtime.md` (the contract generated chart code is written against) and `adr/` |
 | `CONTEXT.md`, `.scratch/finquery/` | the domain glossary; the spec and the tickets |
