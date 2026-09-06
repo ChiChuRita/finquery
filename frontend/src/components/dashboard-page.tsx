@@ -28,7 +28,8 @@ import {
   type DateRange,
   type TileMonth,
 } from '@/lib/api'
-import { formatEur, formatEurDelta, formatPercentDelta } from '@/lib/format'
+import { formatDate, formatEur, formatEurDelta, formatPercentDelta } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 
 /** "2025-12" as a month a person reads. The UI is English; the money stays German. */
@@ -99,19 +100,17 @@ function deltasOf(months: TileMonth[], read: (month: TileMonth) => number, way: 
  *
  * The sign carries the direction on its own, so the colour is a second reading of it and never
  * the only one. The line wraps rather than truncating: "vs 6-month average" cut to "vs 6-month
- * ave..." is a comparison the reader has to hover to identify.
+ * ave..." is a comparison the reader has to hover to identify. The two lines of a tile are read
+ * against each other, so their figures are tabular.
  */
 function DeltaLine({ delta }: { delta: Delta }) {
   return (
-    <p className="text-[11px] leading-tight" title={`${delta.label}, ${delta.against}`}>
+    <p title={`${delta.label}, ${delta.against}`}>
       <span
-        className={
-          delta.good === null
-            ? 'whitespace-nowrap text-muted-foreground'
-            : delta.good
-              ? 'whitespace-nowrap text-primary'
-              : 'whitespace-nowrap text-destructive'
-        }
+        className={cn(
+          'whitespace-nowrap tabular-nums',
+          delta.good === null ? 'text-muted-foreground' : delta.good ? 'text-primary' : 'text-destructive',
+        )}
       >
         {formatEurDelta(Math.round(delta.amount * 100))}
         {delta.share !== null && ` (${formatPercentDelta(delta.share)})`}
@@ -123,42 +122,49 @@ function DeltaLine({ delta }: { delta: Delta }) {
   )
 }
 
-/** One headline figure: what it is, what it says, what period it is about, and its comparisons.
+/** One headline figure: what it is, what it says, what period it is about, and two lines under it.
  *
- * The value is the point, so it carries the weight and keeps the font's own figures: tabular
- * digits are for columns that have to line up, and they make a large number look loose.
+ * The four tiles are one row of equal cards: the same padding, the same type scale, and every
+ * slot at the same height, so label, value, period and the two lines sit on the same lines
+ * across the row whatever each card has to say. The value is the point, so it carries the
+ * weight and keeps the font's own figures: tabular digits are for columns that have to line up,
+ * and they make a large number look loose. The card's corners are the chart cards' corners.
  */
 function Tile({
   label,
   value,
   note,
-  deltas = [],
+  children,
 }: {
   label: string
   value: string
   note: ReactNode
-  deltas?: Delta[]
+  /** The two lines under the period, on the caption step: comparisons, or what the figure means. */
+  children: ReactNode
 }) {
   return (
-    <div className="rounded-xl border bg-card px-4 py-3">
+    <div className="flex flex-col rounded-lg border bg-card px-4 py-3">
       <p className="text-muted-foreground text-xs">{label}</p>
       <p className="mt-1 truncate font-semibold text-2xl tracking-tight" title={value}>
         {value}
       </p>
       <p className="mt-0.5 text-muted-foreground text-xs">{note}</p>
-      {deltas.length > 0 && (
-        <div className="mt-2 flex flex-col gap-1">
-          {deltas.map((delta) => (
-            <DeltaLine delta={delta} key={delta.label} />
-          ))}
-        </div>
-      )}
+      <div className="mt-2 flex flex-col gap-1 text-2xs">{children}</div>
     </div>
   )
 }
 
+/** A comparison line for each delta; nothing under a range with nothing to compare against. */
+const deltaLines = (deltas: Delta[]) => deltas.map((delta) => <DeltaLine delta={delta} key={delta.label} />)
+
+/** The days a range covers, the way the range bar writes them. Nothing to count from is said so. */
+const rangeLabel = (range: DashboardRange | undefined) =>
+  range?.first_day && range.last_day
+    ? `${formatDate(range.first_day)} to ${formatDate(range.last_day)}`
+    : 'No bookings yet'
+
 /** The four figures the page opens with, every one of them from a query run just now. */
-function Tiles({ tiles }: { tiles: DashboardTiles }) {
+function Tiles({ tiles, range }: { tiles: DashboardTiles; range: DashboardRange | undefined }) {
   const { profile } = useWorkspace()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -180,43 +186,41 @@ function Tiles({ tiles }: { tiles: DashboardTiles }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      <Tile
-        deltas={deltasOf(tiles.months, (row) => row.spent_eur, 'down-is-good')}
-        label="Spent"
-        note={month}
-        value={euro(tiles.spent_eur)}
-      />
-      <Tile
-        deltas={deltasOf(tiles.months, (row) => row.income_eur, 'up-is-good')}
-        label="Income"
-        note={month}
-        value={euro(tiles.income_eur)}
-      />
-      <Tile
-        deltas={deltasOf(tiles.months, (row) => row.net_eur, 'up-is-good')}
-        label="Net"
-        note={month}
-        value={euro(tiles.net_eur)}
-      />
-      <Tile
-        label="Needs review"
-        note={
-          tiles.review_import_id ? (
+    <div className="grid grid-cols-2 items-stretch gap-4 lg:grid-cols-4">
+      <Tile label="Spent" note={month} value={euro(tiles.spent_eur)}>
+        {deltaLines(deltasOf(tiles.months, (row) => row.spent_eur, 'down-is-good'))}
+      </Tile>
+      <Tile label="Income" note={month} value={euro(tiles.income_eur)}>
+        {deltaLines(deltasOf(tiles.months, (row) => row.income_eur, 'up-is-good'))}
+      </Tile>
+      <Tile label="Net" note={month} value={euro(tiles.net_eur)}>
+        {deltaLines(deltasOf(tiles.months, (row) => row.net_eur, 'up-is-good'))}
+      </Tile>
+      {/* The count is over the whole range, not the newest month, so its period says the days. */}
+      <Tile label="Needs review" note={rangeLabel(range)} value={String(tiles.needs_review)}>
+        <p className="text-muted-foreground">Bookings without a category</p>
+        {tiles.review_import_id ? (
+          <p>
             <Button
-              className="h-auto p-0 text-xs"
+              className="h-auto p-0 text-2xs"
               disabled={opening}
               onClick={() => void review()}
               variant="link"
             >
               {opening ? 'Opening the chat...' : 'Answer them in a chat'}
             </Button>
-          ) : (
-            'Bookings without a category'
-          )
-        }
-        value={String(tiles.needs_review)}
-      />
+          </p>
+        ) : tiles.needs_review > 0 ? (
+          // Bookings that came without an import (typed in by hand) have no card to answer.
+          <p>
+            <Button asChild className="h-auto p-0 text-2xs" variant="link">
+              <Link to="/transactions">Set them in Transactions</Link>
+            </Button>
+          </p>
+        ) : (
+          <p className="text-muted-foreground">Every booking has a category</p>
+        )}
+      </Tile>
     </div>
   )
 }
@@ -388,7 +392,7 @@ export function DashboardPage() {
         <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
           <RangeBar applied={dashboard.data?.range} onChange={setRange} range={range} />
 
-          {dashboard.data && <Tiles tiles={dashboard.data.tiles} />}
+          {dashboard.data && <Tiles range={dashboard.data.range} tiles={dashboard.data.tiles} />}
 
           {problem && (
             <p className="text-destructive text-xs" role="alert">
