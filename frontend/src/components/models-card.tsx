@@ -200,6 +200,26 @@ export function ModelsCard() {
         ))}
       </div>
 
+      {data.roles.length > 0 && (
+        <div className="mt-3">
+          <p className="font-medium text-xs">Sub-agents</p>
+          <p className="text-2xs text-muted-foreground">
+            Which model each job behind a tool runs on, for a chat on{' '}
+            <span className="font-mono">{data.default_key}</span>. A chat on another entry takes every role set to{' '}
+            <span className="font-mono">chat</span> or <span className="font-mono">fast</span> with it.
+          </p>
+          <ul className="mt-1 flex flex-col gap-0.5">
+            {data.roles.map((role) => (
+              <li className="flex items-center gap-2 text-xs" key={role.role}>
+                <span className="w-24 shrink-0 font-medium">{role.role}</span>
+                <span className="w-14 shrink-0 font-mono text-muted-foreground text-2xs">{role.setting}</span>
+                <span className="min-w-0 flex-1 truncate text-muted-foreground">{role.label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {data.adapters.length > 0 && (
         <div className="mt-3">
           <p className="font-medium text-xs">Adapters</p>
@@ -214,7 +234,8 @@ export function ModelsCard() {
                     </>
                   ) : (
                     <>
-                      no file at <span className="font-mono">{adapter.path}</span>, sub-agents run on the base weights
+                      no file at <span className="font-mono">{adapter.path}</span>, a role on the fast slot runs on
+                      the base weights
                     </>
                   )}
                 </span>

@@ -728,6 +728,16 @@ export interface CatalogEntry {
   files: ModelFile[]
 }
 
+/** One sub-agent role and the model it runs on: `chat` (the conversation's own entry, the
+ * default), `fast` (the provider's sub-agent slot) or a catalog key that pins it. */
+export interface SubagentRole {
+  role: string
+  setting: string
+  /** What the setting resolves to for a chat on `default_key`. */
+  key: ModelKey
+  label: string
+}
+
 export interface Models {
   /** What FINQUERY_PROVIDER says, which decides the default entry and nothing else. */
   provider: 'local' | 'openrouter'
@@ -735,6 +745,8 @@ export interface Models {
   entries: CatalogEntry[]
   /** The sub-agent slot of each provider. Never a chat choice, so never in `entries`. */
   fast_slots: CatalogEntry[]
+  /** Every sub-agent role with the model it resolves to right now. */
+  roles: SubagentRole[]
   adapters: { name: string; path: string; present: boolean }[]
   downloading: boolean
 }
