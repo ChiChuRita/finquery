@@ -142,13 +142,15 @@ euro figure last) and `covers` instead of `tags`.
 uv run finquery-bench --set sql   --model google/gemini-3.8-flash
 uv run finquery-bench --set chart --model qwen/qwen3.5-9b
 uv run finquery-bench --set all   --model fast --n 20 --seed 7
+uv run finquery-bench --set e2e   --model local:qwen3.5-9b
 uv run finquery-bench compare bench/results/A.json bench/results/B.json
+uv run finquery-bench compare bench/results/{E4B,Qwen,Gemma12B}-sql.json
 ```
 
 | Flag | Meaning |
 | --- | --- |
-| `--set` | `sql`, `chart` or `all` |
-| `--model` | a slot on the current provider (`fast`, `quality`), any OpenRouter id, or `local:<slot>` |
+| `--set` | `sql`, `chart`, `all`, or `e2e` (the end-to-end subset, below) |
+| `--model` | a catalog key (`local:gemma-4-e4b`, `local:qwen3.5-9b`, `local:gemma-4-12b`), a role on the current provider (`fast`, `quality`), or any OpenRouter id |
 | `--adapter` | `query` or `chart`, a LoRA adapter attached for the whole run (local only) |
 | `--n` | run a sample of this many datapoints instead of all of them |
 | `--seed` | which sample `--n` takes; the same seed is the same datapoints |
@@ -182,6 +184,35 @@ every refusal and the per-datapoint seconds) and `.md` (the table below).
   what a user would wait.
 
 Everything is reported overall, per kind (per shape for charts) and per difficulty.
+
+`compare` with two runs prints them side by side and names the datapoints that changed hands.
+With three or more it prints the table the candidates are chosen from, then each of them
+against the first.
+
+### The end-to-end subset
+
+`--set e2e` is the same datapoints with a whole chat turn in front of the sub-agent: the chat
+agent reads the question, decides which tool to call and writes the request the sub-agent gets,
+and the tool result is held to the same figure match and shape match. The candidate answers both
+roles, so the number is about one model.
+
+Thirty cases, 15 questions and 15 chart requests, cut with a fixed seed from the **training**
+half of each set and stratified over the kinds and the shapes. Fixed in code (`E2E_SEED`), not
+on the command line: three models have to be compared on the same thirty, and so does the same
+model after a fine-tune.
+
+Two things read differently here:
+
+- **figure match** is true when one of the turn's calls carried the gold figures. The chat agent
+  is told to sharpen a request that came back answering less than the question asked, so a turn
+  that got there on its second try got there.
+- **first attempt** is the stricter number: the request it wrote first was already the right one.
+
+A turn that never called the tool at all is a miss whose error says so, which is the routing
+loss this subset exists to measure. The request the chat agent wrote is kept on every result.
+
+The sub-agent sets stay the primary numbers: an adapter attaches to the sub-agent, and this
+subset is 30 cases against their 215.
 
 ## The baseline
 
@@ -380,16 +411,23 @@ a laptop that is also serving a demo.
 | `split.py` | marks every datapoint train or heldout; run it after adding datapoints |
 | `generate.py` | drafts more datapoints with a hosted model, keeps only the ones that run |
 | `finquery_bench/` | the runner: the database, the sets, the scoring, the splits, the tables, the CLI |
+| `finquery_bench/e2e.py` | the end-to-end subset: one chat turn, and the scoring of what its tool gave it |
 | `validate/` | the validation page and its sample |
 | `validation/` | what a review of the whole set found, one file per review |
 | `results/` | one JSON and one markdown table per run |
 | `pyproject.toml` | makes this folder a small package so `uv run finquery-bench` finds it |
 
-The tests are `tests/test_bench.py` in the main suite: gold that rebuilds identically, a
+The cluster runs are `training/cluster/`: the three candidates on all three sets on one A100
+per job, with its own README.
+
+The tests are `tests/test_bench.py` and `tests/test_bench_e2e.py` in the main suite: gold that rebuilds identically, a
 reference that answers nothing and one whose rows carry no figure both failing the build, a
 runner scoring a scripted right and a scripted wrong statement, the compare diff, a review sample
 that is stable for its seed, and a split that is about a third of each set and does not move when
-a datapoint is added elsewhere. No test calls a model.
+a datapoint is added elsewhere. The end-to-end tests cover the subset (thirty training cases,
+stable, spread over the kinds) and the scoring (the first call right, a sharpened second call,
+a turn that called nothing, a chart of the wrong shape), plus one scripted turn through the real
+chat agent. No test calls a model.
 
 ## Check and retry
 
