@@ -227,7 +227,7 @@ def gate_query(candidate: QueryCandidate, session_factory, profile_id: str, cont
     )
 
 
-def _plan_of(candidate: ChartCandidate) -> ChartPlan:
+def plan_of(candidate: ChartCandidate) -> ChartPlan:
     """The candidate's plan as the production model would have answered it."""
     return ChartPlan(
         reasoning=candidate.reasoning_plan,
@@ -274,7 +274,7 @@ def gate_chart(candidate: ChartCandidate, session_factory, profile_id: str, cont
             rows=folded.rows,
             validated_sql=validated,
         )
-    plan, downgrade = _honest_shape(_plan_of(candidate), rows.columns, folded.rows)
+    plan, downgrade = _honest_shape(plan_of(candidate), rows.columns, folded.rows)
     if downgrade is not None:
         return Dropped(
             candidate,

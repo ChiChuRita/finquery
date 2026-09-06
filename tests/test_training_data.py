@@ -185,7 +185,7 @@ def test_a_chart_sample_is_the_plan_and_code_prompts_byte_for_byte(chart_gate: P
             assert sample.user == plan_prompt(candidate.request, context)
         else:
             assert sample.system == CODE_INSTRUCTIONS
-            assert sample.user == code_prompt(gate._plan_of(candidate), row["columns"], row["rows"])
+            assert sample.user == code_prompt(gate.plan_of(candidate), row["columns"], row["rows"])
 
 
 def test_a_repair_sample_carries_the_refusal_and_the_corrected_answer(query_gate: Path, chart_gate: Path):

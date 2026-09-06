@@ -3,7 +3,7 @@
 Every prompt here is built by the production builder, called with the household's own
 `QueryContext`: `query_prompt` and `check_prompt` for the query adapter, `plan_prompt` and
 `code_prompt` for the chart one. Nothing is reworded, nothing is templated a second time, and
-`tests/test_training_assemble.py` compares the assembled text with the builder's output byte for
+`tests/test_training_data.py` compares the assembled text with the builder's output byte for
 byte. A change to a prompt invalidates the set, which is the point.
 
 Each adapter is attached for a whole run and not per call (`bench/finquery_bench/models.py`), so
@@ -36,7 +36,7 @@ from typing import Any
 
 from finquery.chart.subagent import CODE_INSTRUCTIONS, PLAN_INSTRUCTIONS, ChartCode, code_prompt, plan_prompt
 from finquery.local.gemma import QUOTE, TOOL_CALL_CLOSE, TOOL_CALL_OPEN
-from finquery.query.check import CHECK_TOOL, causes
+from finquery.query.check import CHECK_TOOL, causes, check_prompt
 from finquery.query.check import INSTRUCTIONS as CHECK_INSTRUCTIONS
 from finquery.query.runner import figures as figure_lines
 from finquery.query.subagent import INSTRUCTIONS as QUERY_INSTRUCTIONS
@@ -72,10 +72,6 @@ REFUSALS = (gates.GUARD_REFUSED, gates.SQL_FAILED)
 
 REWRITES = (gates.DEGENERATE,)
 """Drops that produce the rewrite prompt: it ran, and it answered nothing."""
-
-
-class NoRevise(UserWarning):
-    """There are no `revise` verdicts to learn from. Named so `stats.md` can say it out loud."""
 
 
 @dataclass
@@ -305,8 +301,6 @@ def _check_samples(batch: Batch, kept_by_question: dict[tuple[str, str], dict[st
 
 
 def _check_prompt(candidate: QueryCandidate, row: dict[str, Any], context: QueryContext) -> str:
-    from finquery.query.check import check_prompt
-
     return check_prompt(
         candidate.question,
         context,
@@ -362,7 +356,7 @@ def chart_samples(batch: Batch) -> list[Sample]:
     for row in batch.kept:
         candidate = ChartCandidate.model_validate(row["candidate"])
         context = batch.context(candidate.household)
-        plan = gates._plan_of(candidate)
+        plan = gates.plan_of(candidate)
         kept_by_request[_key(candidate.household, candidate.request)] = row
         common = {
             "adapter": CHART,
@@ -418,7 +412,7 @@ def _chart_repairs(batch: Batch, kept_by_request: dict[tuple[str, str], dict[str
         if right_row is None:
             continue
         right = ChartCandidate.model_validate(right_row["candidate"])
-        plan = gates._plan_of(right)
+        plan = gates.plan_of(right)
         findings = "\n".join(f"- {finding}" for finding in drop["findings"])
         made.append(
             Sample(
