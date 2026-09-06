@@ -1,5 +1,9 @@
 """Files dropped into the chat composer, stored per conversation.
 
+A bank CSV, an Excel export, a statement PDF, a Word document or a photo of a receipt: what
+`kind_of` answers is which reader of the ingestion pipeline takes the file
+(`finquery.ingest.chat_import`).
+
 The composer sends an attachment as a data URL inside the user message. The bytes are taken out
 of that message before the run starts (`finquery.api.attachments`) and stored here, so:
 
@@ -34,10 +38,21 @@ MAX_FILES_PER_MESSAGE = 5
 BRIEF_FILES = 8
 """Attachments named in the prompt: the newest few, so a long conversation stays small."""
 
-AttachmentKind = Literal["csv", "pdf", "image", "other"]
+AttachmentKind = Literal["csv", "xlsx", "pdf", "docx", "image", "other"]
 
 CSV_SUFFIXES = (".csv", ".tsv", ".txt")
 CSV_MEDIA_TYPES = ("text/csv", "text/tab-separated-values", "application/csv", "text/plain")
+
+XLSX_SUFFIXES = (".xlsx", ".xlsm")
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+DOCX_SUFFIXES = (".docx",)
+DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+ACCEPTED_KINDS = "Attach a CSV or Excel export, a statement PDF, a Word document or a photo."
+"""The one sentence that says what may be attached. The composer says the same
+(`frontend/src/components/composer.tsx`)."""
+
 
 class AttachmentRejected(ValueError):
     """The upload is not something a conversation may carry."""
@@ -56,9 +71,14 @@ def kind_of(file_name: str, media_type: str) -> AttachmentKind:
     """Which reader of the ingestion pipeline can take this file.
 
     The suffix decides before the media type does: browsers report a CSV as `text/csv`,
-    `application/vnd.ms-excel` or `text/plain` depending on the platform.
+    `application/vnd.ms-excel` or `text/plain` depending on the platform, and that last
+    Excel-flavoured type is a CSV far more often than it is a workbook.
     """
     suffix = PurePosixPath(file_name).suffix.lower()
+    if suffix in XLSX_SUFFIXES or media_type.lower() == XLSX_MEDIA_TYPE:
+        return "xlsx"
+    if suffix in DOCX_SUFFIXES or media_type.lower() == DOCX_MEDIA_TYPE:
+        return "docx"
     if suffix in CSV_SUFFIXES or media_type.lower() in CSV_MEDIA_TYPES:
         return "csv"
     if suffix == ".pdf" or media_type.lower() == "application/pdf":
@@ -89,9 +109,7 @@ def store(
         )
     kind = kind_of(upload.file_name, upload.media_type)
     if kind == "other":
-        raise AttachmentRejected(
-            f"{upload.file_name} is not a kind FinQuery can read. Attach a CSV, a PDF or an image."
-        )
+        raise AttachmentRejected(f"{upload.file_name} is not a kind FinQuery can read. {ACCEPTED_KINDS}")
 
     digest = sha256(upload.data).hexdigest()
     existing = session.scalars(

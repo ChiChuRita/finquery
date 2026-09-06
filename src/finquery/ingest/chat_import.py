@@ -12,10 +12,15 @@ import really produced. Progress is reported through `report` as it goes; see
 
 Three readers, one router. The kind of the attachment decides:
 
-- a **CSV** is read here, as it always was.
+- a **CSV** is read here, as it always was, and an **XLSX** is read one step earlier by
+  `finquery.ingest.xlsx` and then treated as one: same header detection, same presets, same
+  mapping card. A workbook with more than one sheet holding bookings puts a sheet picker on
+  that card.
 - a **PDF** is a bank statement: `finquery.extract.statement` reads its pages and the guards
   check them. A statement that reconciles with nothing flagged is imported straight away, the
-  same way a preset CSV is; anything else comes back as a review card first (ADR 0011).
+  same way a preset CSV is; anything else comes back as a review card first (ADR 0011). A
+  **DOCX** is the same reader over the document's own text, so a statement pasted into Word is
+  held to the verbatim guard exactly as a printed page is.
 - an **image** is a receipt: `finquery.extract.bill` reads its line items and either proposes a
   split of the booking it matches or previews a new one. A photo dropped into a chat is a till
   receipt, which is what makes this the right guess to make here; a photo of a statement page is
@@ -28,7 +33,7 @@ about them (`duplicate_card`); the merchants that need a category wait until the
 decided, so the transcript never shows two cards at once. See `finquery.ingest.duplicates`.
 """
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import date
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -40,6 +45,7 @@ from finquery.ask_user import MAPPING_CONFIRMATION, AskApply, AskOption, AskUser
 from finquery.categorize import QUESTIONS_PER_CARD, categorize_import, pending_questions, review_card
 from finquery.db import Attachment, Import
 from finquery.extract.bill import bill_outcome, read_bill_image
+from finquery.extract.docx import IGNORED as DOCX_IGNORED
 from finquery.extract.pdf import PdfUnreadable
 from finquery.extract.review import review_card as extraction_review_card
 from finquery.extract.statement import Extraction, commit_extraction, extract_statement
@@ -56,6 +62,8 @@ from finquery.ingest.csv_reader import (
     sniff,
 )
 from finquery.ingest.mapping_agent import MappingUnusable, propose
+from finquery.ingest.xlsx import IGNORED as XLSX_IGNORED
+from finquery.ingest.xlsx import Workbook, read_xlsx, with_cell_types
 from finquery.providers import ModelResolver, ProviderNotAvailable
 
 if TYPE_CHECKING:
@@ -66,6 +74,8 @@ CARD_SAMPLE_ROWS = 3
 
 CONFIRM = "confirm"
 REJECT = "reject"
+SHEET = "sheet:"
+"""What a sheet button on the mapping card answers with, followed by the sheet's name."""
 
 
 class Reporter(Protocol):
@@ -78,14 +88,29 @@ async def _silent(stage: str, message: str, **counts: int) -> None:
     return None
 
 
-def mapping_card(file_name: str, proposal: Mapping, note: str, samples: list[str]) -> AskUser:
+def mapping_card(
+    file_name: str,
+    proposal: Mapping,
+    note: str,
+    samples: list[str],
+    *,
+    sheet: str | None = None,
+    sheets: Sequence[str] = (),
+) -> AskUser:
     """The card that asks whether a proposed column mapping is right.
 
     No rows, two buttons: the card is one decision, not a list of them. What the mapping says
     and the first bookings it produced are in the note, which is what makes the decision
     answerable at a glance.
+
+    A workbook whose bookings could be on another sheet gets one button per other sheet, so the
+    two questions it raises (which sheet, which columns) are one card and not two.
     """
-    lines = [note.strip(), "", "How I read the columns:"]
+    others = [name for name in sheets if name != sheet]
+    lines = [note.strip(), ""]
+    if sheet is not None and others:
+        lines += [f"Read from the sheet {sheet}, of {len(sheets)} sheets with bookings on them.", ""]
+    lines += ["How I read the columns:"]
     lines += [f"  {label}: {value}" for label, value in _mapping_lines(proposal)]
     lines += ["", f"The first {len(samples)} bookings that come out of it:"]
     lines += [f"  {sample}" for sample in samples]
@@ -94,6 +119,7 @@ def mapping_card(file_name: str, proposal: Mapping, note: str, samples: list[str
         note="\n".join(lines),
         options=[
             AskOption(label="Yes, import it", value=CONFIRM),
+            *(AskOption(label=f"Read the sheet {name} instead", value=f"{SHEET}{name}") for name in others),
             AskOption(label="No, the mapping is wrong", value=REJECT),
         ],
         allow_free_text=False,
@@ -152,6 +178,7 @@ async def import_attachment(
     file_name: str,
     account_name: str | None = None,
     confirmed: bool = False,
+    sheet: str | None = None,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None = None,
     lookups: "Lookups | None" = None,
@@ -162,6 +189,9 @@ async def import_attachment(
     `lookups` is web knowledge for this profile, present only when it switched the feature on
     (`weblookup.lookups_for` returns None otherwise). A receipt uses it to recognize the shop
     its header names; nothing else on this path does.
+
+    `sheet` names a sheet of a workbook, which is what the sheet buttons of the mapping card
+    ask for. It is ignored by every other kind.
     """
     record = attachments.find(session, conversation_id, file_name)
     if record is None:
@@ -177,7 +207,7 @@ async def import_attachment(
             "message": f"`{record.file_name}` was already imported. Nothing was imported twice.",
             "file": record.file_name,
         }
-    if record.kind == "pdf":
+    if record.kind in ("pdf", "docx"):
         return await _import_statement(
             session,
             profile_id,
@@ -204,6 +234,7 @@ async def import_attachment(
         record,
         account_name=account_name,
         confirmed=confirmed,
+        sheet=sheet,
         resolve_model=resolve_model,
         model_settings=model_settings,
         report=report,
@@ -216,6 +247,7 @@ async def _mapping_for_file(
     sniffed: Sniffed,
     *,
     confirmed: bool,
+    book: Workbook | None = None,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None,
     report: Reporter | Callable[..., Awaitable[None]],
@@ -225,12 +257,17 @@ async def _mapping_for_file(
     A recognized bank never reaches the model. An unknown layout is proposed once, stored on the
     attachment and returned as a card; the confirmed second call reads the stored proposal back,
     so what gets committed is the mapping the user saw and not one the model wrote again.
+
+    `book` is the workbook the rows came out of, when they came out of one. Whatever the preset
+    or the model said about how figures are written, a cell that is already a number or a date
+    is read as one (`ingest.xlsx.with_cell_types`), so the card shows the amounts the sheet
+    really holds.
     """
     preset = detect_preset(sniffed.header)
     if preset is not None:
         await report("mapping", f"Recognized as a {preset.label} export", columns=len(sniffed.header))
         return (
-            mapping_for(preset, sniffed.header),
+            _for_cells(mapping_for(preset, sniffed.header), book),
             preset.account_name,
             preset.name,
             None,
@@ -259,18 +296,30 @@ async def _mapping_for_file(
             },
         )
 
-    record.mapping_json = proposal.mapping.model_dump_json()
+    mapping = _for_cells(proposal.mapping, book)
+    record.mapping_json = mapping.model_dump_json()
     record.account_name = proposal.account_name
     session.commit()
-    card = mapping_card(record.file_name, proposal.mapping, proposal.note, _samples(sniffed, proposal.mapping))
+    card = mapping_card(
+        record.file_name,
+        mapping,
+        proposal.note,
+        _samples(sniffed, mapping),
+        sheet=book.sheet if book else None,
+        sheets=book.sheets if book else (),
+    )
     return (
-        proposal.mapping,
+        mapping,
         proposal.account_name,
         "",
         {
             "status": "confirm_mapping",
             "file": record.file_name,
-            "mapping": proposal.mapping.model_dump(),
+            # Which sheet this proposal is about, so a second call about another one is not the
+            # same call again.
+            "sheet": book.sheet if book else None,
+            "sheets": list(book.sheets) if book else [],
+            "mapping": mapping.model_dump(),
             # What the sub-agent said about the layout, for the tool step. Named so it cannot be
             # read as a field of the card: it used to be `note`, the card's own field name, and
             # a title and a `note` are exactly what the model built its own button-less card
@@ -280,14 +329,34 @@ async def _mapping_for_file(
             "card": card.model_dump(mode="json"),
             "instruction": (
                 "Pass the fields of this `card` to `ask_user` unchanged, including its "
-                "`options`: they are the two buttons the user answers with, and a card without "
+                "`options`: they are the buttons the user answers with, and a card without "
                 "them cannot be answered at all. Then, if the user answers "
                 f"{CONFIRM!r}, call `import_file` again for this file with confirmed=true. "
+                f"If the answer starts with {SHEET!r}, call `import_file` again for this file "
+                "with `sheet` set to the rest of that answer and confirmed=false, which reads "
+                "that sheet and asks about its columns. "
                 "If they answer anything else, import nothing and offer to read the file again with "
                 "the columns they name."
             ),
         },
     )
+
+
+def _for_cells(mapping: Mapping, book: Workbook | None) -> Mapping:
+    """The mapping as the cells really are, for a workbook. A CSV has no cells, only text."""
+    return with_cell_types(mapping, book) if book is not None else mapping
+
+
+def _read_rows(record: Attachment, sheet: str | None) -> tuple[Sniffed, Workbook | None]:
+    """The rows of this file, and the workbook they came from when it was one.
+
+    A CSV is sniffed. A workbook is read one sheet at a time: the one asked for, the one a
+    previous call to this file settled on, or the first sheet with bookings under a header.
+    """
+    if record.kind != "xlsx":
+        return sniff(record.data), None
+    book = read_xlsx(record.data, sheet=sheet or record.sheet_name)
+    return book.sniffed, book
 
 
 async def _import_csv(
@@ -297,21 +366,31 @@ async def _import_csv(
     *,
     account_name: str | None,
     confirmed: bool,
+    sheet: str | None = None,
     resolve_model: ModelResolver,
     model_settings: ModelSettings | None,
     report: Reporter | Callable[..., Awaitable[None]],
 ) -> dict[str, Any]:
     try:
-        sniffed = sniff(record.data)
+        sniffed, book = _read_rows(record, sheet)
     except CsvUnreadable as exc:
         return {"status": "unreadable", "file": record.file_name, "error": str(exc)}
-    await report("read", f"Read {len(sniffed.rows)} rows from {record.file_name}", rows_read=len(sniffed.rows))
+    if book is not None and record.sheet_name != book.sheet:
+        # Another sheet is another table, so a mapping proposed for the last one does not
+        # describe it and is asked about again.
+        record.sheet_name, record.mapping_json = book.sheet, None
+        session.commit()
+    where = f" (sheet {book.sheet})" if book is not None and len(book.sheets) > 1 else ""
+    await report(
+        "read", f"Read {len(sniffed.rows)} rows from {record.file_name}{where}", rows_read=len(sniffed.rows)
+    )
 
     mapping, suggested_account, preset, pending = await _mapping_for_file(
         session,
         record,
         sniffed,
         confirmed=confirmed,
+        book=book,
         resolve_model=resolve_model,
         model_settings=model_settings,
         report=report,
@@ -338,6 +417,7 @@ async def _import_csv(
         mapping=mapping,
         account_name=account,
         file_name=record.file_name,
+        kind=record.kind,
         preset=preset or None,
         skipped_count=len(parsed.issues),
     )
@@ -345,7 +425,7 @@ async def _import_csv(
     record.mapping_json = mapping.model_dump_json()
     record.account_name = account
     session.commit()
-    return await _imported(
+    payload = await _imported(
         session,
         profile_id,
         committed,
@@ -354,6 +434,9 @@ async def _import_csv(
         model_settings=model_settings,
         report=report,
     )
+    # One line about what the reader passed over, so the answer can say it rather than imply
+    # that a workbook's charts and pictures were looked at.
+    return {**payload, "ignored": XLSX_IGNORED} if book is not None else payload
 
 
 async def _imported(
@@ -488,7 +571,7 @@ async def _import_statement(
     model_settings: ModelSettings | None,
     report: Reporter | Callable[..., Awaitable[None]],
 ) -> dict[str, Any]:
-    """A statement PDF: read it, check it, and import it only if nothing needs a decision.
+    """A statement PDF or Word document: read it, check it, import it if nothing needs a decision.
 
     The extraction is stored on the attachment before anything else happens, exactly as a
     proposed CSV mapping is: the review card is answered in a later request, and what gets
@@ -499,6 +582,8 @@ async def _import_statement(
         extraction = Extraction.model_validate_json(record.extraction_json)
     else:
         try:
+            # `kind` is what decides how the file is turned into pages: a PDF page by page, a
+            # DOCX as its own text.
             extraction = await extract_statement(
                 record.data,
                 file_name=record.file_name,
@@ -544,6 +629,8 @@ async def _import_statement(
         "reconciled": extraction.reconciliation.status,
         "account": extraction.account_name,
     }
+    if record.kind == "docx":
+        read["ignored"] = DOCX_IGNORED
 
     if extraction.needs_review:
         return {
