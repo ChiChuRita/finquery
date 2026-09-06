@@ -115,7 +115,7 @@ export function AppSidebar() {
           strip's hairline and New chat is centred on the page title. `size="lg"` keeps the rail's
           unpadded square for the 32px mark; `h-8 p-0` gives the expanded row the height of every
           other row, with the mark on the icon axis. */}
-      <SidebarHeader>
+      <SidebarHeader className="px-4 group-data-[collapsible=icon]:px-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="h-8 p-0" size="lg" tooltip="FinQuery">
@@ -137,7 +137,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
+        <SidebarGroup className="px-4 group-data-[collapsible=icon]:px-2">
           <SidebarGroupContent>
             <SidebarMenu>
               {PAGES.map((page) => (
@@ -161,7 +161,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {/* The rail has no room for titles, so this whole group folds away with it. */}
-        <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+        <SidebarGroup className="px-4 group-data-[collapsible=icon]:hidden">
           <SidebarGroupLabel>Recent</SidebarGroupLabel>
           <SidebarGroupContent>
             {conversations.length > 0 ? (
@@ -228,7 +228,7 @@ export function AppSidebar() {
 
       {/* Three rows of one menu, like the pages above: the same height, inset and gap, and in the
           rail three squares in one column. The theme row names the theme it switches to. */}
-      <SidebarFooter>
+      <SidebarFooter className="px-4 group-data-[collapsible=icon]:px-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild className={ROW} isActive={pathname === '/settings'} tooltip="Settings">
