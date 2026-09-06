@@ -4,6 +4,22 @@ const dayTime = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyl
 
 export const formatEur = (cents: number) => money.format(cents / 100)
 
+/** A signed euro figure: "+73,80 €", "-73,80 €", "0,00 €". For a difference, never for a total.
+ *
+ * `Intl` writes the minus itself and nothing in front of a positive number, so the plus is
+ * added here. The sign is what says which way a delta went without relying on its colour. */
+export const formatEurDelta = (cents: number) =>
+  `${cents > 0 ? '+' : ''}${money.format(cents / 100)}`
+
+const percent = new Intl.NumberFormat('de-DE', {
+  style: 'percent',
+  maximumFractionDigits: 1,
+  signDisplay: 'exceptZero',
+})
+
+/** A signed share, from a ratio: 0.032 becomes "+3,2 %". */
+export const formatPercentDelta = (ratio: number) => percent.format(ratio)
+
 /** What an amount cell shows while it is being edited: plain, German, no currency symbol. */
 export const amountInput = (cents: number) => (cents / 100).toFixed(2).replace('.', ',')
 

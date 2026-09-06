@@ -1183,12 +1183,23 @@ export interface DashboardChart extends ChartDetails {
   position: number
   /** default or chat: seeded on the first visit, or kept from a chart drawn in a chat. */
   created_from: string
+  /** Which shipped default this card is, or null for a card that came from a chat. It is what
+   *  Restore default cards matches on, and it survives a rename, a move and an edit. */
+  default_key?: string | null
   created_at: string
   refreshed_at: string | null
   /** When it was taken off the dashboard. Only a card asked for by id can say so. */
   removed_at?: string | null
   /** The chat tool call whose change one Undo would take back. Null once it was undone. */
   undo_call_id?: string | null
+}
+
+/** One month of the tiles' statement. The page subtracts two of these and averages the rest. */
+export interface TileMonth {
+  month: string
+  spent_eur: number
+  income_eur: number
+  net_eur: number
 }
 
 export interface DashboardTiles {
@@ -1198,6 +1209,9 @@ export interface DashboardTiles {
   income_eur: number
   net_eur: number
   needs_review: number
+  /** The last seven months the range holds, oldest first, out of the same statement the three
+   *  figures above come from. Every delta on this page is arithmetic on these rows. */
+  months: TileMonth[]
   /** The import whose questions the Needs review tile opens in a chat, when one is waiting. */
   review_import_id: string | null
 }
@@ -1293,6 +1307,20 @@ export const patchDashboardChart = (
 
 export const deleteDashboardChart = (profileId: string, id: string) =>
   request<void>(`/api/dashboard/charts/${id}?profile_id=${profileId}`, { method: 'DELETE' })
+
+/** Put back the shipped default cards this profile is missing, matched by their key.
+ *
+ * A default that was renamed, moved or edited counts as present, and no card the user made is
+ * ever touched. `added` names what arrived, so the page can say that nothing was missing. */
+export const restoreDefaultCharts = (profileId: string, range: DateRange = WHOLE_HISTORY) =>
+  request<{ added: string[]; charts: DashboardChart[] }>('/api/dashboard/restore-defaults', {
+    method: 'POST',
+    body: JSON.stringify({
+      profile_id: profileId,
+      since: range.from || null,
+      until: range.to || null,
+    }),
+  })
 
 /** Run one card's statement again, over the days the page is showing. Every load runs it too;
  *  this says when it last happened. */

@@ -533,6 +533,11 @@ class DashboardChart(Base):
     """The sub-agent's own notes (repair rounds, folds), so the card's details read like chat."""
     created_from: Mapped[str] = mapped_column(String(16), default="dashboard")
     """default, chat or dashboard: whether it was seeded, pinned from a turn or asked for here."""
+    default_key: Mapped[str | None] = mapped_column(String(40), default=None)
+    """Which of the shipped defaults this card is (`finquery.dashboard.DEFAULTS`), or null for a
+    card that came from a chat. It survives a rename, a move and an edit, so "Restore default
+    cards" adds the ones a profile is missing and leaves everything else alone. A card seeded
+    before ticket 51 has none, which makes it the user's card rather than a default."""
     source_turn_id: Mapped[str | None] = mapped_column(
         ForeignKey("turn.id", ondelete="SET NULL"), default=None, index=True
     )
@@ -657,6 +662,7 @@ NEW_COLUMNS: dict[str, dict[str, str]] = {
     "dashboard_chart": {
         "previous_json": "TEXT",
         "removed_at": "DATETIME",
+        "default_key": "VARCHAR(40)",
     },
 }
 
