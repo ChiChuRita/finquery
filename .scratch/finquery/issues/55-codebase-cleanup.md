@@ -4,7 +4,7 @@
 
 **Blocked by:** none; tickets 53 (weblookup, categorize, extract/bill, the lookup card) and 54 (providers, settings, local/, api/models, api/chat, db model columns, slots.ts, model selector, onboarding default model) run in parallel and own those files: leave them alone and list what you would have done there under Comments
 
-**Status:** ready-for-agent
+**Status:** done
 
 Rules:
 - Behaviour does not change. Every step is verified by `uv run pytest`, `npm run build` and `oxlint`; a removal that a test relied on means the test was the only caller, so remove both only when the test tested the removed thing itself.
@@ -13,10 +13,10 @@ Rules:
 - YAGNI applies to the cleanup itself: no new abstractions, no renames for taste, no reformatting sweeps. A refactor is only made when it deletes code.
 - Write the audit first (file, what, why, action) under Comments, then act in small commits grouped by area, each green.
 
-- [ ] Audit list written (Python, frontend, docs, scripts, fixtures, dependencies)
-- [ ] Removals and merges done, each commit green (pytest, build, oxlint), oxlint count at or below 41
-- [ ] Docs references verified; stale docs fixed or removed
-- [ ] A short Comments note: lines removed, files removed, dependencies removed, what was left for tickets 53 and 54, anything found that needs a decision
+- [x] Audit list written (Python, frontend, docs, scripts, fixtures, dependencies)
+- [x] Removals and merges done, each commit green (pytest, build, oxlint), oxlint count at or below 41
+- [x] Docs references verified; stale docs fixed or removed
+- [x] A short Comments note: lines removed, files removed, dependencies removed, what was left for tickets 53 and 54, anything found that needs a decision
 
 ## Comments
 
@@ -66,3 +66,34 @@ Checked and deliberately left alone:
 Nothing was touched under `src/finquery/weblookup/`, `categorize/`, `extract/bill.py`,
 `providers.py`, `settings.py`, `local/`, `api/models.py`, `api/chat.py`, `db.py`,
 `frontend/src/lib/slots.ts`, the model selector or the onboarding model step (tickets 53 and 54).
+
+### Result
+
+Three commits after the audit, each green on `uv run pytest`, `npm run build` and `npx oxlint`.
+
+- **20 lines deleted, 3 changed, no file removed.** The three changed lines are the dropped
+  `export` keywords.
+- **Dependencies:** one, `date-fns`, gone from `frontend/package.json`. It stays in the lock as
+  `react-day-picker`'s own dependency, which is where the calendar was getting it from anyway.
+  Nothing was removed from `pyproject.toml`: every dependency there is imported, and
+  `python-multipart` is what FastAPI needs for `UploadFile` even though no file names it.
+- **oxlint:** 41 before, 38 after.
+- **pytest:** 348 passed, 4 skipped before and after. No test was removed.
+- **Docs:** `docs/explainers/check_refs.py` passes at 395 references, and the same check widened
+  to `docs/adr`, `docs/research`, `docs/course`, `bench/README.md`, `README.md` and `CONTEXT.md`
+  reports 47 references with no failure. The one hit it raises, `docs/guides/choosing-a-chart.md`
+  in `docs/research/charts-and-dashboard-2026-09-06.md`, is a path inside the TanStack package,
+  not ours. No stale doc was found, so none was fixed or removed.
+- **Left for tickets 53 and 54:** nothing. Nothing dead was found in `weblookup/`, `categorize/`,
+  `extract/bill.py`, `providers.py`, `settings.py`, `local/`, `api/models.py`, `api/chat.py`,
+  `db.py`, `slots.ts` or the model selector, so there is no list to hand over. The five methods
+  the scan flagged there (`_TextExtractor.handle_*` in `weblookup/client.py`,
+  `LlamaCppStreamedResponse._get_event_iterator` in `local/model.py`) are framework overrides,
+  called by `HTMLParser` and by Pydantic AI.
+
+Nothing needs a decision. The honest finding is that the repository was already tight: no dead
+endpoint (all eighteen the scan flagged are reached by `lib/api.ts` or a test), no unused
+fixture, no stale script, no commented-out code, no `console.log`, no passed-ceiling `TODO`.
+What was left is the 38 oxlint warnings, and the reason they stay is in the audit table above:
+30 want a file split, which the ticket's own YAGNI rule forbids, and the other 8 are behaviour
+changes, not cleanup. If they are wanted, they are a ticket of their own.
