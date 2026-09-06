@@ -6,12 +6,13 @@
 #
 # Wraps convert.sh with the environment train.sbatch uses. FQ_MODELS is where the adapter lands
 # (`<models>/adapters/<name>.gguf`): the shared models directory for E4B, the 12B's own copy for
-# the 12B (bench.sbatch explains why).
+# the 12B (bench.sbatch explains why). The GPU is pinned to the RTX PRO 6000: the llama-cpp build
+# on scratch was compiled on that card and aborts on an A100 (job 2515222, 2026-09-07).
 #SBATCH --job-name=fq-convert
 #SBATCH --account=sci-lippert-intelligent-agents
 #SBATCH --partition=gpu-batch
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:rtx_pro_6000:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --time=01:00:00
