@@ -92,7 +92,7 @@ async def test_the_defaults_are_created_once_per_profile_and_stay_removed(
     first = await dashboard(client, profile_id)
     assert [card["title"] for card in first["charts"]] == [default.title for default in DEFAULTS]
     assert [card["default_key"] for card in first["charts"]] == [default.key for default in DEFAULTS]
-    assert [card["position"] for card in first["charts"]] == [0, 1, 2, 3, 4, 5]
+    assert [card["position"] for card in first["charts"]] == list(range(len(DEFAULTS)))
     assert {card["created_from"] for card in first["charts"]} == {"default"}
 
     again = await dashboard(client, profile_id)
@@ -103,15 +103,15 @@ async def test_the_defaults_are_created_once_per_profile_and_stay_removed(
     )
     assert removed.status_code == 204
     after = await dashboard(client, profile_id)
-    assert len(after["charts"]) == 5
-    assert [card["position"] for card in after["charts"]] == [0, 1, 2, 3, 4]
+    assert len(after["charts"]) == len(DEFAULTS) - 1
+    assert [card["position"] for card in after["charts"]] == list(range(len(DEFAULTS) - 1))
 
 
 async def test_each_profile_has_its_own_dashboard(client: httpx.AsyncClient, profile_id: str) -> None:
     other = (await client.post("/api/profiles", json={"name": "Second"})).json()["id"]
     mine = await dashboard(client, profile_id)
     theirs = await dashboard(client, other)
-    assert len(theirs["charts"]) == 6
+    assert len(theirs["charts"]) == len(DEFAULTS)
     assert {card["id"] for card in mine["charts"]}.isdisjoint({card["id"] for card in theirs["charts"]})
 
     refused = await client.patch(
@@ -156,6 +156,22 @@ async def test_every_default_draws_from_the_rows_its_own_statement_returns(
     assert len({row["category"] for row in comparison["rows"]}) <= 6
     pairs = [(row["period"], row["category"]) for row in comparison["rows"]]
     assert len(pairs) == len(set(pairs)), "grouped bars need one figure per pair"
+    # The pacing line carries two series, which is what makes the self-check above demand the
+    # legend it passed with, and each stroke is a running total that never falls.
+    pacing = by_key["month_pacing"]
+    assert pacing["columns"] == ["day", "period", "running_eur"]
+    assert {row["period"] for row in pacing["rows"]} == {"This month", "Last month"}
+    for period in ("This month", "Last month"):
+        stroke = [row for row in pacing["rows"] if row["period"] == period]
+        assert [row["day"] for row in stroke] == sorted(row["day"] for row in stroke)
+        assert all(
+            second["running_eur"] >= first["running_eur"]
+            for first, second in zip(stroke, stroke[1:], strict=False)
+        )
+    # The newest stroke ends on the month's whole spending, which is the Spent tile itself.
+    newest = [row for row in pacing["rows"] if row["period"] == "This month"][-1]
+    assert newest["running_eur"] == page["tiles"]["spent_eur"]
+
     # The heuristic is named on the card, because a bar that looks like a fact has to say so.
     regular = by_key["regular_payments"]
     assert "heuristic" in regular["plan"]
@@ -232,7 +248,7 @@ async def test_an_empty_profile_gets_zero_tiles_and_cards_without_rows(
         "months": [],
         "review_import_id": None,
     }
-    assert len(page["charts"]) == 6
+    assert len(page["charts"]) == len(DEFAULTS)
     assert all(card["row_count"] == 0 and card["error"] is None for card in page["charts"])
 
 
@@ -270,7 +286,7 @@ async def test_a_chart_drawn_in_a_chat_is_pinned_to_the_dashboard(
     )
     assert twice.status_code == 201
     assert twice.json()["id"] == card["id"]
-    assert len((await dashboard(client, profile_id))["charts"]) == 7
+    assert len((await dashboard(client, profile_id))["charts"]) == len(DEFAULTS) + 1
 
 
 async def test_a_pinned_stacked_chart_draws_the_rows_it_drew_in_the_chat(
@@ -394,7 +410,7 @@ async def test_a_card_is_renamed_and_moved(client: httpx.AsyncClient, profile_id
     assert moved.status_code == 200
     after = (await dashboard(client, profile_id))["charts"]
     assert [card["title"] for card in after][0] == "My merchants"
-    assert [card["position"] for card in after] == [0, 1, 2, 3, 4, 5]
+    assert [card["position"] for card in after] == list(range(len(DEFAULTS)))
     assert [card["id"] for card in after][1:] == [card["id"] for card in cards[:-1]]
 
 
@@ -460,8 +476,8 @@ async def test_a_statement_that_no_longer_runs_says_so_on_its_card(
     assert "no such column" in card["error"]
     assert card["rows"] == []
     # The rest of the page is unharmed.
-    assert len(page["charts"]) == 7
-    assert [default["error"] for default in page["charts"][:6]] == [None] * 6
+    assert len(page["charts"]) == len(DEFAULTS) + 1
+    assert [default["error"] for default in page["charts"][: len(DEFAULTS)]] == [None] * len(DEFAULTS)
 
 
 async def test_a_statement_the_guard_refuses_is_never_stored(
@@ -477,7 +493,7 @@ async def test_a_statement_the_guard_refuses_is_never_stored(
                 {"title": "Everything", "shape": "bar", "sql": "SELECT * FROM profile", "code": LINE_CODE},
                 call_id="call-refused",
             )
-    assert len((await dashboard(client, profile_id))["charts"]) == 6
+    assert len((await dashboard(client, profile_id))["charts"]) == len(DEFAULTS)
 
 
 async def test_a_chart_that_was_never_drawn_cannot_be_pinned(
@@ -513,6 +529,7 @@ def test_every_default_has_a_key_of_its_own() -> None:
         "month_over_month",
         "regular_payments",
         "top_merchants",
+        "month_pacing",
     ]
 
 
@@ -579,7 +596,7 @@ async def test_a_chart_the_agent_keeps_is_stored_once_and_reported_by_the_pins(
     assert output["dashboard_chart_id"]
 
     page = await dashboard(client, profile_id)
-    assert len(page["charts"]) == 7
+    assert len(page["charts"]) == len(DEFAULTS) + 1
     card = page["charts"][-1]
     assert card["id"] == output["dashboard_chart_id"]
     assert card["created_from"] == "chat"
@@ -596,7 +613,7 @@ async def test_a_chart_the_agent_keeps_is_stored_once_and_reported_by_the_pins(
     )
     assert again.status_code == 201, again.text
     assert again.json()["id"] == card["id"]
-    assert len((await dashboard(client, profile_id))["charts"]) == 7
+    assert len((await dashboard(client, profile_id))["charts"]) == len(DEFAULTS) + 1
 
 
 async def test_a_chart_the_agent_does_not_keep_is_not_stored(
@@ -606,7 +623,7 @@ async def test_a_chart_the_agent_does_not_keep_is_not_stored(
     output, _ = await kept_chart(client, scripts, chat, profile_id, keep=False)
     assert output["kept"] is False
     assert output["dashboard_chart_id"] is None
-    assert len((await dashboard(client, profile_id))["charts"]) == 6
+    assert len((await dashboard(client, profile_id))["charts"]) == len(DEFAULTS)
     assert (await client.get("/api/dashboard/pins", params={"profile_id": profile_id})).json() == {
         "charts": []
     }
@@ -622,7 +639,7 @@ async def test_a_chart_that_was_never_drawn_is_not_kept(
     output = chart_output(chunks)
     assert output["code"] is None
     assert output["kept"] is False
-    assert len((await dashboard(client, profile_id))["charts"]) == 6
+    assert len((await dashboard(client, profile_id))["charts"]) == len(DEFAULTS)
 
 
 async def test_the_charts_on_the_dashboard_are_listed_and_shown_from_the_chat(
@@ -635,9 +652,9 @@ async def test_the_charts_on_the_dashboard_are_listed_and_shown_from_the_chat(
     conversation_id = await new_conversation(client, profile_id)
     _, chunks = await chat(conversation_id, "What is on my dashboard?")
     listed = tool_output(chunks)
-    assert listed["count"] == 6
+    assert listed["count"] == len(DEFAULTS)
     assert [chart["chart_id"] for chart in listed["charts"]] == [card["id"] for card in cards]
-    assert [chart["position"] for chart in listed["charts"]] == [0, 1, 2, 3, 4, 5]
+    assert [chart["position"] for chart in listed["charts"]] == list(range(len(DEFAULTS)))
 
     line = next(card for card in cards if card["default_key"] == "spending_per_month")
     scripts.fast = call_then_report("show_dashboard_chart", {"chart_id": line["id"]})
@@ -677,7 +694,7 @@ async def test_a_chart_the_chat_edits_keeps_its_place_and_its_previous_version(
     assert "This chart already exists and the user is changing it" in plan_prompt
 
     page = await dashboard(client, profile_id)
-    assert len(page["charts"]) == 6
+    assert len(page["charts"]) == len(DEFAULTS)
     card = page["charts"][1]
     assert card["id"] == target["id"]
     assert card["position"] == 1, "an edit keeps the card where it was"
@@ -735,7 +752,7 @@ async def test_a_chart_is_renamed_and_removed_from_the_chat_with_an_undo_each(
     assert removed["applied"] is True
     after = await dashboard(client, profile_id)
     assert [card["id"] for card in after["charts"]] == [card["id"] for card in cards[1:]]
-    assert [card["position"] for card in after["charts"]] == [0, 1, 2, 3, 4]
+    assert [card["position"] for card in after["charts"]] == list(range(len(DEFAULTS) - 1))
 
     # A removed card is not on the dashboard, and is still there to be put back.
     restored = await client.post(
@@ -883,21 +900,21 @@ async def test_restore_default_cards_adds_only_what_is_missing(
     assert restored.status_code == 200, restored.text
     assert restored.json()["added"] == ["regular_payments"]
     after = restored.json()["charts"]
-    assert len(after) == 6
+    assert len(after) == len(DEFAULTS)
     # A default the user renamed is present, so it is left alone rather than added again.
     assert [card["title"] for card in after if card["default_key"] == "top_merchants"] == [
         "Who I pay"
     ]
     back = next(card for card in after if card["default_key"] == "regular_payments")
     assert back["id"] != removed["id"]
-    assert back["position"] == 5, "a restored card lands at the end, not in the middle"
+    assert back["position"] == len(DEFAULTS) - 1, "a restored card lands at the end"
     assert back["row_count"] > 1, "and it is a query, not a copy of what was removed"
 
     # Nothing to do the second time.
     again = await client.post("/api/dashboard/restore-defaults", json={"profile_id": profile_id})
     assert again.status_code == 200
     assert again.json()["added"] == []
-    assert len(again.json()["charts"]) == 6
+    assert len(again.json()["charts"]) == len(DEFAULTS)
 
 
 async def test_restore_default_cards_leaves_a_profile_seeded_before_this_ticket_alone(
@@ -922,4 +939,4 @@ async def test_restore_default_cards_leaves_a_profile_seeded_before_this_ticket_
     charts = restored["charts"]
     assert [card["id"] for card in charts[:4]] == old_ids
     assert [card["default_key"] for card in charts[:4]] == [None] * 4
-    assert [card["position"] for card in charts] == list(range(10))
+    assert [card["position"] for card in charts] == list(range(len(DEFAULTS) + 4))

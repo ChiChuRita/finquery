@@ -411,9 +411,75 @@ return defineChart({
   },
 });"""
 
+# 7. Am I ahead of last month today? Spending added up day by day, two months on one line
+# chart (ticket 50 gave the line its optional series).
+#
+# The x axis is the day of the month and not a date, which is the whole point: the two months
+# lie on top of each other, so the gap between the strokes on day 18 is what this month is
+# ahead or behind by. The columns come in the order day, period, euros, which is what
+# `fold_rows` reads a line's series off.
+PACING_SQL = f"""
+WITH per_day AS (
+  SELECT CAST(strftime('%d', booked_on) AS INTEGER) AS day,
+         CASE
+           WHEN strftime('%Y-%m', booked_on) = strftime('%Y-%m', {LATEST_DAY})
+           THEN 'This month' ELSE 'Last month'
+         END AS period,
+         ROUND(-SUM(amount), 2) AS eur
+  FROM transaction_view
+  WHERE amount < 0
+    AND booked_on >= date({LATEST_DAY}, 'start of month', '-1 month')
+  GROUP BY period, day
+)
+SELECT day,
+       period,
+       ROUND(SUM(eur) OVER (PARTITION BY period ORDER BY day), 2) AS running_eur
+FROM per_day
+ORDER BY day, period
+"""
+
+# The day numbers are printed every five days and on the first. Every label is kept
+# (`thin: false`), because the layout dropping one would leave a stroke standing over blank
+# space; which of them carries text is this code's decision, and thirty-one numbers under a
+# 280 pixel frame is a smudge.
+PACING_CODE = """\
+const amounts = data.map((row) => row.running_eur);
+return defineChart({
+  marks: [
+    lineY(data, { x: 'day', y: 'running_eur', z: 'period', color: 'period', strokeWidth: 2 }),
+  ],
+  scales: {
+    x: {
+      scale: () => scalePoint().padding(0.06),
+      axis: {
+        ticks: { format: (day) => (Number(day) === 1 || Number(day) % 5 === 0 ? String(day) : '') },
+        tickLabels: { thin: false },
+      },
+    },
+    y: {
+      scale: scaleLinear().domain([Math.min(0, ...amounts), Math.max(0, ...amounts)]),
+      nice: true,
+      grid: true,
+      axis: { ticks: { format: eurShort } },
+    },
+  },
+  color: { legend: colorLegend({ placement: 'bottom', itemWidth: 150 }) },
+  tooltip: {
+    use: tooltip,
+    format: (point) => point.datum.period + ', day ' + point.datum.day + ': ' + eur(point.datum.running_eur),
+  },
+});"""
+
+PACING_PLAN = (
+    "Chart plan: line, columns day, period and running_eur. A FinQuery default. Spending added "
+    "up from the first of the month, the newest month of the range against the one before it, "
+    "so the two strokes can be read against each other on the same day number. A month that is "
+    "not over yet is a stroke that stops where the bookings stop."
+)
+
 # The order is the order of the questions a household asks: where is the trend going, are we
 # living within our income, where does the money go, what changed, what is fixed, who gets the
-# most. It is also the position order on the page.
+# most, and am I ahead of last month today. It is also the position order on the page.
 DEFAULTS: tuple[DefaultChart, ...] = (
     DefaultChart("spending_per_month", "Spending per month", "bar", MONTHLY_SQL, MONTHLY_CODE),
     DefaultChart(
@@ -442,6 +508,7 @@ DEFAULTS: tuple[DefaultChart, ...] = (
     DefaultChart(
         "top_merchants", "Top ten merchants", "bar_horizontal", MERCHANTS_SQL, MERCHANTS_CODE
     ),
+    DefaultChart("month_pacing", "Month pacing", "line", PACING_SQL, PACING_CODE, plan=PACING_PLAN),
 )
 
 
