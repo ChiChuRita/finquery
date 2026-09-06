@@ -141,7 +141,7 @@ Figure match, exact to the cent, on 2026-09-05:
 | --- | --- | ---: | ---: |
 | Gemini 3.8 Flash | dev reference, not shipped | 93 %, **95 %** with the current prompt | 92 %, **97 %** after ticket 42 |
 | Qwen3.5 9B | quality, hosted and local | 57 %, **69 %** with the current prompt | 40 % |
-| Gemma 4 E4B | local fast slot, every sub-agent | **57 %** (median 9.2 s per question) | not run |
+| Gemma 4 E4B | local fast slot, every sub-agent | **57 %** (median 9.2 s per question) | **48 %** (73 % drawn) |
 
 The E4B run is the one local number and it was taken on the baseline prompt, so it has no second
 figure yet. Read the second figure in each SQL cell as the prompt alone: those runs are
