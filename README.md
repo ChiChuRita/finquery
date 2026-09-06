@@ -6,7 +6,8 @@ queries, never from the model.
 
 One picture of the whole thing: `docs/overview.html` (open it in a browser, no build step).
 The live demo, step by step and with measured timings: `docs/demo-script.md`. What the models
-actually score: `bench/README.md`.
+actually score: `bench/README.md`. One explainer per feature and elective, with the code path,
+the measurements and what is not finished: `docs/explainers/README.md`.
 
 ## Run
 
