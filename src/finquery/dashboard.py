@@ -18,8 +18,9 @@ about it.
 """
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -29,6 +30,22 @@ from finquery.chart.fold import fold_rows
 from finquery.chart.shapes import Shape
 from finquery.db import DashboardChart, Profile, Transaction, utcnow
 from finquery.query.guard import SqlFailed, SqlRejected, execute_read_only, validate_sql
+from finquery.query.runner import figures
+
+
+@dataclass(frozen=True)
+class Range:
+    """The days the whole page is narrowed to, or neither, which is all of them.
+
+    Nothing about it is stored: it arrives as two query parameters, is handed to the guard for
+    every statement on the page, and comes back in the response so the page can label itself.
+    """
+
+    since: date | None = None
+    until: date | None = None
+
+
+NO_RANGE = Range()
 
 # What the tiles and the twelve-month charts count as now: the day of the newest booking.
 LATEST_DAY = "(SELECT MAX(booked_on) FROM transaction_view)"
@@ -62,10 +79,19 @@ class Tiles:
     needs_review: int = 0
 
 
-def read_tiles(session: Session, profile_id: str) -> Tiles:
-    """Spent, earned, net and Needs review, from two guarded statements."""
-    money = execute_read_only(session, validate_sql(MONEY_SQL), profile_id).rows
-    review = execute_read_only(session, validate_sql(REVIEW_SQL), profile_id).rows
+def read_tiles(session: Session, profile_id: str, window: Range = NO_RANGE) -> Tiles:
+    """Spent, earned, net and Needs review, from two guarded statements.
+
+    Inside the range, "this month" is the newest month the range holds: `LATEST_DAY` reads
+    `MAX(booked_on)` of the same narrowed view the statement runs against, so a range that ends
+    in March makes the tiles say March.
+    """
+    money = execute_read_only(
+        session, validate_sql(MONEY_SQL), profile_id, since=window.since, until=window.until
+    ).rows
+    review = execute_read_only(
+        session, validate_sql(REVIEW_SQL), profile_id, since=window.since, until=window.until
+    ).rows
     needs_review = int(review[0]["needs_review"]) if review else 0
     if not money:
         return Tiles(needs_review=needs_review)
@@ -279,14 +305,34 @@ def ensure_defaults(session: Session, profile: Profile) -> None:
 
 
 def cards_of(session: Session, profile_id: str) -> list[DashboardChart]:
-    """This profile's cards, left to right."""
+    """This profile's cards, left to right. A removed one is not on the dashboard."""
     return list(
         session.scalars(
             select(DashboardChart)
-            .where(DashboardChart.profile_id == profile_id)
+            .where(DashboardChart.profile_id == profile_id, DashboardChart.removed_at.is_(None))
             .order_by(DashboardChart.position, DashboardChart.created_at)
         )
     )
+
+
+BOUNDS_SQL = """
+SELECT MIN(booked_on) AS first_day, MAX(booked_on) AS last_day
+FROM transaction_view
+"""
+
+
+def bounds(session: Session, profile_id: str) -> tuple[str | None, str | None]:
+    """The first and the last day this profile has a booking on, or two Nones.
+
+    Through the guard like everything else on this page, so it counts the same bookings the
+    cards do (a split counts as its children, never as its parent). The range picker is bounded
+    by these two days and its presets are counted back from the last one, the way the tiles and
+    the twelve-month defaults already count from the newest booking.
+    """
+    rows = execute_read_only(session, validate_sql(BOUNDS_SQL), profile_id).rows
+    if not rows or rows[0]["first_day"] is None:
+        return None, None
+    return str(rows[0]["first_day"]), str(rows[0]["last_day"])
 
 
 def has_data(session: Session, profile_id: str) -> bool:
@@ -335,7 +381,7 @@ class CardRows:
     error: str | None = None
 
 
-def run_card(session: Session, card: DashboardChart) -> CardRows:
+def run_card(session: Session, card: DashboardChart, window: Range = NO_RANGE) -> CardRows:
     """Run one stored statement through the guard, scoped to the card's own profile, and fold it.
 
     The fold is the same function the runner ran before the definition was ever written
@@ -349,11 +395,41 @@ def run_card(session: Session, card: DashboardChart) -> CardRows:
     except SqlRejected as exc:
         return CardRows(error=REJECTED.format(reason=exc))
     try:
-        result = execute_read_only(session, validated, card.profile_id)
+        result = execute_read_only(
+            session, validated, card.profile_id, since=window.since, until=window.until
+        )
     except SqlFailed as exc:
         return CardRows(error=FAILED.format(reason=exc))
     folded = fold_rows(card.shape, result.columns, result.rows, language=card.language)
     return CardRows(columns=result.columns, rows=folded.rows)
+
+
+def card_chart(session: Session, card: DashboardChart) -> dict[str, Any]:
+    """One card as a chart payload, in the shape the `chart` tool returns.
+
+    The chat tools that show or edit a card answer with this, so the card in the transcript is
+    the same component as any other chart and the figures the model quotes come from a statement
+    that ran just now, like everywhere else.
+    """
+    result = run_card(session, card)
+    return {
+        "card_id": card.id,
+        "on_dashboard": True,
+        "request": card.request,
+        "title": card.title,
+        "shape": card.shape,
+        "language": card.language,
+        "plan": card.plan,
+        "sql": card.sql,
+        "columns": result.columns,
+        "rows": result.rows,
+        "row_count": len(result.rows),
+        "figures": figures(result.columns, result.rows),
+        "code": card.code if result.error is None else None,
+        "notes": notes_of(card),
+        "error": result.error,
+        "rendered": result.error is None and bool(result.rows),
+    }
 
 
 def notes_of(card: DashboardChart) -> list[str]:
@@ -370,3 +446,153 @@ def touch(session: Session, card: DashboardChart) -> datetime:
     card.refreshed_at = utcnow()
     session.commit()
     return card.refreshed_at
+
+
+# What a change from a chat can take back: everything about the drawing, and nothing about where
+# the card sits. An edit keeps its position, so Undo has no position to restore.
+VERSIONED = ("title", "shape", "language", "plan", "sql", "code", "notes_json")
+
+
+class NothingToUndo(ValueError):
+    """This card has no stored previous version, or the one it has belongs to another change."""
+
+
+def _version(card: DashboardChart) -> dict[str, Any]:
+    return {name: getattr(card, name) for name in VERSIONED}
+
+
+def _previous(card: DashboardChart) -> dict[str, Any] | None:
+    """The stored previous version, and never a crash over a column a hand wrote."""
+    if not card.previous_json:
+        return None
+    try:
+        previous = json.loads(card.previous_json)
+    except ValueError:
+        return None
+    return previous if isinstance(previous, dict) else None
+
+
+def undo_call_id(card: DashboardChart) -> str | None:
+    """The chat tool call whose change one Undo on this card would take back.
+
+    A card in a transcript compares it with its own call id: equal means its Undo still applies,
+    anything else (a newer change on the same card, an Undo that already ran) means the button
+    reads Undone.
+    """
+    previous = _previous(card)
+    return str(previous["call_id"]) if previous and previous.get("call_id") else None
+
+
+def stash(card: DashboardChart, call_id: str | None) -> None:
+    """Keep the version this card has now, so the change about to happen can be undone once."""
+    card.previous_json = json.dumps({"call_id": call_id, **_version(card)}) if call_id else None
+
+
+def undo(session: Session, card: DashboardChart, *, call_id: str | None = None) -> DashboardChart:
+    """Put the card back the way it was before its last change from a chat. Once.
+
+    A removal stashed the version it removed, so restoring that version and clearing
+    `removed_at` is one operation for all three changes. `call_id` is the caller saying which
+    change it means: a card that has moved on since is not silently rolled back to something
+    else, it says so.
+    """
+    previous = _previous(card)
+    if previous is None:
+        raise NothingToUndo("That change was already undone.")
+    if call_id is not None and previous.get("call_id") != call_id:
+        raise NothingToUndo("This chart changed again after that, so that change cannot be undone.")
+    for name in VERSIONED:
+        if name in previous:
+            setattr(card, name, previous[name])
+    card.removed_at = None
+    card.previous_json = None
+    session.commit()
+    renumber(session, card.profile_id)
+    return card
+
+
+def apply_edit(
+    session: Session, card: DashboardChart, chart: Mapping[str, Any], call_id: str
+) -> DashboardChart:
+    """Replace the drawing on a card with a freshly written one, keeping its place."""
+    stash(card, call_id)
+    card.title = str(chart.get("title") or card.title)
+    card.shape = str(chart.get("shape") or card.shape)
+    card.language = str(chart.get("language") or card.language)
+    card.request = str(chart.get("request") or card.request)
+    card.plan = str(chart.get("plan") or "")
+    card.sql = validate_sql(str(chart.get("sql") or ""))
+    card.code = str(chart["code"])
+    card.notes_json = json.dumps(list(chart.get("notes") or []))
+    card.refreshed_at = utcnow()
+    session.commit()
+    return card
+
+
+def rename(session: Session, card: DashboardChart, title: str, call_id: str) -> DashboardChart:
+    """A new title, no model call, and nothing else about the card touched."""
+    stash(card, call_id)
+    card.title = title.strip()
+    session.commit()
+    return card
+
+
+def remove(session: Session, card: DashboardChart, *, call_id: str | None = None) -> DashboardChart:
+    """Take a card off the dashboard, keeping the row so an Undo has something to restore.
+
+    Removed from a chat it is undoable, which is what `call_id` stores. Removed on the page it
+    is not: that button asks for a confirmation first, and a previous version left on the row
+    would let some older card in some transcript restore the wrong thing.
+    """
+    stash(card, call_id)
+    card.removed_at = utcnow()
+    session.commit()
+    renumber(session, card.profile_id)
+    return card
+
+
+def keep_chat_chart(
+    session: Session,
+    profile_id: str,
+    chart: Mapping[str, Any],
+    *,
+    call_id: str,
+    turn_id: str | None = None,
+) -> DashboardChart:
+    """Put a chart drawn in a chat on the dashboard, once per tool call.
+
+    The tool call id is the identity, because the `chart` tool stores a kept chart while its own
+    turn row is still being written: the same call arriving again (Add to dashboard on a chart
+    the agent already kept, a second browser tab) finds the card it already made. A card that was
+    removed comes back at the end rather than being made a second time.
+    """
+    existing = session.scalars(
+        select(DashboardChart).where(
+            DashboardChart.profile_id == profile_id, DashboardChart.source_call_id == call_id
+        )
+    ).first()
+    if existing is not None:
+        if turn_id and existing.source_turn_id is None:
+            existing.source_turn_id = turn_id
+        if existing.removed_at is not None:
+            existing.removed_at = None
+            existing.previous_json = None
+            session.commit()
+            move(session, existing, len(cards_of(session, profile_id)))
+        session.commit()
+        return existing
+    return append(
+        session,
+        profile_id,
+        title=str(chart.get("title") or chart.get("request") or "Chart"),
+        shape=str(chart.get("shape") or "bar"),
+        language=str(chart.get("language") or "en"),
+        request=str(chart.get("request") or ""),
+        plan=str(chart.get("plan") or ""),
+        sql=validate_sql(str(chart.get("sql") or "")),
+        code=str(chart["code"]),
+        notes_json=json.dumps(list(chart.get("notes") or [])),
+        created_from="chat",
+        source_turn_id=turn_id,
+        source_call_id=call_id,
+    )

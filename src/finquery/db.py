@@ -502,9 +502,15 @@ class DashboardChart(Base):
     view as a question in the chat (ADR 0004), so a card is as current as the data and no number
     on it was ever cached.
 
-    `source_turn_id` and `source_call_id` are the chat chart this card was pinned from, which is
+    `source_turn_id` and `source_call_id` are the chat chart this card was kept from, which is
     what lets that card in the transcript say it is on the dashboard, and what makes a second
     click on Add to dashboard find the card it already made instead of a second one.
+
+    The call id alone is the identity. A chart the agent keeps by itself is stored from inside
+    the tool, where the turn row does not exist yet, so `source_turn_id` is null there and only
+    Add to dashboard fills it. What makes a card unique is therefore `(profile_id,
+    source_call_id)`, enforced in `finquery.dashboard.keep_chat_chart`: the table's own
+    constraint cannot do it, because SQLite counts two NULL turn ids as different rows.
     """
 
     __tablename__ = "dashboard_chart"
@@ -531,6 +537,14 @@ class DashboardChart(Base):
         ForeignKey("turn.id", ondelete="SET NULL"), default=None, index=True
     )
     source_call_id: Mapped[str | None] = mapped_column(String(64), default=None)
+    previous_json: Mapped[str | None] = mapped_column(Text, default=None)
+    """The version this card had before the last change from a chat, so Undo has something to
+    put back: the title, the shape, the language, the plan, the statement, the code, the notes,
+    and the id of the tool call that made the change. One version deep, which is what one Undo
+    button on one card in the transcript needs."""
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    """When it was taken off the dashboard. The row stays so an Undo can put it back, and every
+    read of the dashboard hides it."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     """When the user last asked for the numbers again. A load refreshes them anyway."""
@@ -639,6 +653,10 @@ NEW_COLUMNS: dict[str, dict[str, str]] = {
     },
     "attachment": {
         "extraction_json": "TEXT",
+    },
+    "dashboard_chart": {
+        "previous_json": "TEXT",
+        "removed_at": "DATETIME",
     },
 }
 
