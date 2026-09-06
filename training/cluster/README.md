@@ -42,9 +42,11 @@ Paths on the cluster, all in scratch because home has 26 GB free and one GGUF is
 - Slurm needs `--account=sci-lippert-intelligent-agents` and `--nodes=1` beside a `--gres`.
 - `gpu-shortrun` takes no batch jobs (interactive only) and caps a job at one hour, so the jobs
   go to `gpu-batch`, which is the same nodes with a seven day limit.
-- Every job asks for one A100, so the median seconds of two models are seconds on one GPU.
-  The build is compiled for 8.0, 9.0, 10.0 and 12.0, so it also runs on the GH200, B200 and
-  RTX PRO 6000 nodes if a rerun wants them.
+- Every job asks for the same GPU, so the median seconds of two models are seconds on one GPU.
+  It is one RTX PRO 6000 (`--gres=gpu:rtx_pro_6000:1`): the partition's twenty A100s were all
+  allocated when this ran, and there were free Blackwell cards. The build is compiled for 8.0,
+  9.0, 10.0 and 12.0, so a rerun on the A100, B200 or GH200 nodes needs no rebuild, but every
+  job of one comparison has to be on one type.
 - The nodes have the driver and nothing else: no `module`, no `nvcc`, no CUDA headers. The
   toolkit is installed from NVIDIA's runfile into scratch, which needs no root.
 - `/sc/home` is mounted `noexec`, so uv, its Python and the virtual environment all live in

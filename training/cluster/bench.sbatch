@@ -5,13 +5,14 @@
 #
 # `run_all.sh` submits the nine of these. The partition is `gpu-batch` because `gpu-shortrun`
 # takes no batch jobs (it is interactive only) and caps a job at an hour, which the SQL set on
-# a 12B model does not fit into. Every job asks for one A100, so the seconds in two tables are
-# seconds on the same GPU.
+# a 12B model does not fit into. Every job asks for one RTX PRO 6000, so the seconds in two
+# tables are seconds on the same GPU: all twenty A100s of the partition were allocated when
+# these ran, and a comparison whose speed column mixes two GPUs says nothing.
 #SBATCH --job-name=fq-bench
 #SBATCH --account=sci-lippert-intelligent-agents
 #SBATCH --partition=gpu-batch
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:a100:1
+#SBATCH --gres=gpu:rtx_pro_6000:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
 #SBATCH --time=05:00:00
