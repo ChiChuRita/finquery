@@ -613,7 +613,8 @@ async def test_the_shipped_pair_loads_together_and_the_check_reports_the_headroo
     # Both seats are filled at the same time, which is the whole point of the pair check.
     assert stack.loaded_spec("fast") is not None and stack.loaded_spec("fast").key == FAST  # type: ignore[union-attr]
     assert stack.loaded_spec("chat") is TINY_MODELS[GEMMA]
-    assert report.headroom_gb == round(report.working_set_gb - report.resident_gb, 1)
+    # The three figures are rounded separately, so the difference may be off by one tenth.
+    assert abs(report.headroom_gb - (report.working_set_gb - report.resident_gb)) <= 0.11
     assert report.resident_gb > 0
 
 
