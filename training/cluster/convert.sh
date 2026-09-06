@@ -84,21 +84,21 @@ mkdir -p "$(dirname "$OUT")"
 
 step() { printf '\n== %s\n' "$*"; }
 
-step "1/5 the PEFT config of $CHECKPOINT"
+step "convert 1/5: the PEFT config of $CHECKPOINT"
 uv run --project "$TRAINING" python "$TRAINING/check_adapter.py" config "$CHECKPOINT"
 
-step "2/5 convert_lora_to_gguf.py, f16, into $OUT"
+step "convert 2/5: convert_lora_to_gguf.py, f16, into $OUT"
 time uv run --project "$TRAINING" python "$LLAMA/convert_lora_to_gguf.py" \
   --base "$BASE" --outtype f16 --outfile "$OUT" "$CHECKPOINT"
 
-step "3/5 the converted file"
+step "convert 3/5: the converted file"
 uv run --project "$TRAINING" python "$TRAINING/check_adapter.py" gguf "$OUT"
 
-step "4/5 a dry-run load through the product's own adapter path"
+step "convert 4/5: a dry-run load through the product's own adapter path"
 cd "$REPO"
 FINQUERY_MODELS_DIR=$MODELS uv run --offline python training/cluster/dry_load.py --adapter "$NAME"
 
-step "5/5 $CASES benchmark cases with the adapter attached"
+step "convert 5/5: $CASES benchmark cases with the adapter attached"
 set_name=sql
 if [ "$NAME" = "chart" ]; then set_name=chart; fi
 FINQUERY_PROVIDER=local FINQUERY_MODELS_DIR=$MODELS \

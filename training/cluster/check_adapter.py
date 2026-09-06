@@ -47,13 +47,27 @@ def check_config(directory: Path) -> int:
     return 0
 
 
+GGUF_EMBEDDINGS = ("token_embd.weight", "per_layer_token_embd.weight", "output.weight")
+"""The tensors llama.cpp names the embeddings and the head, exactly.
+
+Matched whole and not as substrings: `attn_output.weight` ends in `output.weight` and is the
+attention output projection, which is one of the seven this adapter is meant to carry. Checking
+for the substring failed the first converted adapter of 2026-09-06 on all 42 of them.
+"""
+
+
+def _is_embedding(tensor: str) -> bool:
+    base = tensor.removesuffix(".lora_a").removesuffix(".lora_b")
+    return base in GGUF_EMBEDDINGS or any(bad in base for bad in FORBIDDEN_MODULES)
+
+
 def check_gguf(path: Path) -> int:
     """The converted file: no embeddings among the tensors, one global alpha in the metadata."""
     from gguf import GGUFReader
 
     reader = GGUFReader(str(path))
     names = [tensor.name for tensor in reader.tensors]
-    carried = [name for name in names if any(bad in name for bad in (*FORBIDDEN_MODULES, "token_embd", "output.weight"))]
+    carried = [name for name in names if _is_embedding(name)]
     if carried:
         raise SystemExit(
             f"{path} carries {carried}. llama.cpp rejects an adapter with embeddings, and on a "
