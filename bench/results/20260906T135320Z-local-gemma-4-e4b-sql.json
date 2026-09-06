@@ -1,0 +1,303 @@
+{
+  "model": "local:gemma-4-e4b",
+  "set": "sql",
+  "started_at": "2026-09-06T13:53:20+00:00",
+  "seconds": 58.4,
+  "seed": 7,
+  "check": true,
+  "n": 5,
+  "summary": {
+    "n": 5,
+    "figure_match": 1.0,
+    "sql_valid": 1.0,
+    "first_attempt": 0.8,
+    "shape_match": null,
+    "columns_map": null,
+    "language_ok": null,
+    "drawn": null,
+    "median_seconds": 6.4,
+    "p90_seconds": 25.5,
+    "total_seconds": 58.4,
+    "by_kind": {
+      "comparison": {
+        "n": 2,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 0.5,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 5.8
+      },
+      "ranking": {
+        "n": 1,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 6.0
+      },
+      "total": {
+        "n": 2,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 6.4
+      }
+    },
+    "by_difficulty": {
+      "1": {
+        "n": 1,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 14.8
+      },
+      "2": {
+        "n": 3,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 0.667,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 6.0
+      },
+      "3": {
+        "n": 1,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 6.4
+      }
+    },
+    "by_language": {
+      "de": {
+        "n": 1,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 6.4
+      },
+      "en": {
+        "n": 4,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 0.75,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 14.8
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "s12-cash-total-en",
+      "set": "sql",
+      "kind": "total",
+      "difficulty": 1,
+      "language": "en",
+      "question": "How much cash did I take out in 2025, and how often?",
+      "seconds": 14.76,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS total_eur,\n  COUNT(*) AS bookings\nFROM transaction_view\nWHERE\n  amount < 0 AND category = 'Cash' AND subcategory = 'Cash withdrawal'\nLIMIT 200",
+      "columns": [
+        "total_eur",
+        "bookings"
+      ],
+      "rows": [
+        {
+          "total_eur": 2400.0,
+          "bookings": 20
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": [
+        "Checking the result"
+      ]
+    },
+    {
+      "id": "s27-transport-vs-subscriptions-en",
+      "set": "sql",
+      "kind": "comparison",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Did I spend more on transport or on subscriptions in 2025?",
+      "seconds": 5.83,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND (\n    category = 'Transport' OR category = 'Subscriptions'\n  )\nGROUP BY\n  topic\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Subscriptions",
+          "total_eur": 681.12
+        },
+        {
+          "topic": "Transport",
+          "total_eur": 1426.3
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": [
+        "Checking the result"
+      ]
+    },
+    {
+      "id": "g003-total",
+      "set": "sql",
+      "kind": "total",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Was habe ich im gesamten Jahr 2025 fuer oeffentliche Verkehrsmittel ausgegeben?",
+      "seconds": 6.38,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND subcategory = 'Public transport'\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 888.2
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": [
+        "Checking the result"
+      ]
+    },
+    {
+      "id": "g001-comparison",
+      "set": "sql",
+      "kind": "comparison",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Compare my spending on Dining between Q1 and Q2 2025.",
+      "seconds": 25.48,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 2,
+      "sql": "SELECT\n  CASE\n    WHEN booked_on BETWEEN '2025-01-01' AND '2025-03-31'\n    THEN 'Q1 2025'\n    ELSE 'Q2 2025'\n  END AS period,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND category = 'Dining'\n  AND booked_on BETWEEN '2025-01-01' AND '2025-06-30'\nGROUP BY\n  period\nORDER BY\n  period\nLIMIT 200",
+      "columns": [
+        "period",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "period": "Q1 2025",
+          "total_eur": 242.1
+        },
+        {
+          "period": "Q2 2025",
+          "total_eur": 233.4
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": [
+        "Checking the result",
+        "Rewriting: The statement returned a monthly breakdown for Q1 and Q2 2025 instead of a single comparison between the two quarters."
+      ]
+    },
+    {
+      "id": "g006-ranking",
+      "set": "sql",
+      "kind": "ranking",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Which 3 months had the lowest total spending in 2025?",
+      "seconds": 5.96,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\nGROUP BY\n  month\nORDER BY\n  total_eur ASC\nLIMIT 3",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 2265.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": [
+        "Checking the result"
+      ]
+    }
+  ]
+}

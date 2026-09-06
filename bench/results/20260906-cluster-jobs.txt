@@ -1,0 +1,13 @@
+fq-gemma-4-12b-chart-2513765.out:2026-09-06T17:17:10+02:00 2513765 local:gemma-4-12b on the chart set, gx32
+fq-gemma-4-12b-chart-2513765.out:### local:gemma-4-12b on the chart set
+fq-gemma-4-12b-e2e-2513768.out:2026-09-06T17:46:03+02:00 2513768 local:gemma-4-12b on the e2e set, gx32
+fq-gemma-4-12b-e2e-2513768.out:### local:gemma-4-12b on the e2e set
+fq-gemma-4-12b-sql-2513764.out:2026-09-06T16:45:57+02:00 2513764 local:gemma-4-12b on the sql set, gx32
+fq-gemma-4-12b-sql-2513764.out:### local:gemma-4-12b on the sql set
+fq-gemma-4-e4b-e2e-2513766.out:2026-09-06T17:30:33+02:00 2513766 local:gemma-4-e4b on the e2e set, gx32
+fq-gemma-4-e4b-e2e-2513766.out:### local:gemma-4-e4b on the e2e set
+fq-qwen3.5-9b-chart-2513763.out:2026-09-06T16:22:08+02:00 2513763 local:qwen3.5-9b on the chart set, gx32
+fq-qwen3.5-9b-chart-2513763.out:### local:qwen3.5-9b on the chart set
+fq-qwen3.5-9b-e2e-2513767.out:2026-09-06T17:39:12+02:00 2513767 local:qwen3.5-9b on the e2e set, gx32
+fq-qwen3.5-9b-e2e-2513767.out:### local:qwen3.5-9b on the e2e set
+setup-2513761.out:real	0m12.086s

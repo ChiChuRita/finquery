@@ -8,6 +8,9 @@ which is how a run measures what it is worth.
 
 `QueryOutcome.attempts` is what says whether the first statement was the one that worked, which
 is the number that moves when a model gets better.
+
+The `e2e` set is the same datapoints with a whole chat turn in front of the sub-agent; it is
+scored the same way and lives in `finquery_bench.e2e`.
 """
 
 import time
@@ -291,13 +294,27 @@ async def run_points(
     on_result=None,  # noqa: ANN001 - a progress line, nothing more
 ) -> Run:
     """Run every datapoint in order, one after the other, so the latencies are honest."""
+    # Imported here because the end-to-end path scores its turns with `Result` from this module.
+    from finquery_bench.e2e import run_e2e_point
+
     with session_factory() as session:
         context = load_query_context(session, profile_id, today=today)
     started_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     started = time.perf_counter()
     results: list[Result] = []
+    # One conversation for the whole end-to-end run, and a fresh prompt per datapoint: no turn
+    # sees another turn's history, which is what keeps a case comparable with its sub-agent run.
+    conversation_id = new_conversation(session_factory, profile_id) if set_name == "e2e" else ""
     for point in points:
-        if isinstance(point, SqlPoint):
+        if set_name == "e2e":
+            result = await run_e2e_point(
+                point,
+                target=target,
+                session_factory=session_factory,
+                profile_id=profile_id,
+                conversation_id=conversation_id,
+            )
+        elif isinstance(point, SqlPoint):
             result = await run_sql_point(
                 point,
                 target=target,
@@ -322,3 +339,14 @@ async def run_points(
         results=results,
         check=check,
     )
+
+
+def new_conversation(session_factory: sessionmaker[Session], profile_id: str) -> str:
+    """One conversation row for an end-to-end run, so the turn has somewhere to belong."""
+    from finquery.db import Conversation
+
+    with session_factory() as session:
+        conversation = Conversation(profile_id=profile_id, title="Benchmark")
+        session.add(conversation)
+        session.commit()
+        return conversation.id

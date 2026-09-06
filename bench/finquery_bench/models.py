@@ -2,8 +2,9 @@
 
 Four ways to name one, and the runner needs no code change to move between them:
 
-- `local:qwen3.5-9b` or any other catalog key (`finquery.catalog`), which is what the app itself
-  stores on a conversation;
+- `local:qwen3.5-9b`, `local:gemma-4-12b` or any other catalog key (`finquery.catalog`), which
+  is what the app itself stores on a conversation. `local:gemma-4-e4b` is the sub-agent slot,
+  which the catalog keys `local:fast`;
 - `fast` or `quality`: the pre-catalog names, kept because every recorded run uses them.
   `quality` is the Qwen entry of the configured provider and `fast` its sub-agent slot;
 - `google/gemini-3.8-flash`: any OpenRouter id, resolved directly;
@@ -33,6 +34,14 @@ from finquery.settings import Settings
 LOCAL_PREFIX = "local:"
 LEGACY_SLOTS = {"fast": "fast", "quality": "chat"}
 """The pre-catalog `--model` values, as the role they name on the configured provider."""
+
+LOCAL_ALIASES = {"local:fast": "local:fast", "local:quality": "local:qwen3.5-9b", "local:gemma-4-e4b": "local:fast"}
+"""Names for a local model that are not its catalog key, and what they resolve to.
+
+`local:fast` and `local:quality` are what every recorded run is named after. `local:gemma-4-e4b`
+is the sub-agent slot named after its model, which is how the cluster comparison writes it: there
+E4B is one of three candidates, not the slot behind the other two. The run keeps the name it was
+asked for, so two files never claim to be the same run."""
 
 
 @dataclass(frozen=True)
@@ -82,13 +91,12 @@ def local_target(name_part: str, adapter: str | None, settings: Settings) -> Tar
     from finquery.local.model import LocalModelSettings
 
     stack = build_local_stack(settings, download=False)
-    key = "local:fast" if name_part in ("fast", "quality") else f"{LOCAL_PREFIX}{name_part}"
-    spec = LOCAL_MODELS.get("local:qwen3.5-9b" if name_part == "quality" else key)
+    requested = f"{LOCAL_PREFIX}{name_part}"
+    spec = LOCAL_MODELS.get(LOCAL_ALIASES.get(requested, requested))
     if spec is None:
-        raise RuntimeError(f"{LOCAL_PREFIX}{name_part} is not a local model; try {sorted(LOCAL_MODELS)}")
+        raise RuntimeError(f"{requested} is not a local model; try {sorted(LOCAL_MODELS)} or {sorted(LOCAL_ALIASES)}")
     model = stack.resolve(spec)
-    slot = name_part
-    name = f"{LOCAL_PREFIX}{slot}" + (f"+{adapter}" if adapter else "")
+    name = requested + (f"+{adapter}" if adapter else "")
     model_settings: ModelSettings = LocalModelSettings(max_tokens=SUBAGENT_MAX_TOKENS)
     if adapter:
         model_settings = LocalModelSettings(max_tokens=SUBAGENT_MAX_TOKENS, finquery_adapter=adapter)

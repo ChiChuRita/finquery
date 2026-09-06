@@ -14,7 +14,7 @@ BENCH = Path(__file__).resolve().parents[1]
 SQL_SET = BENCH / "sql-benchmark.json"
 CHART_SET = BENCH / "chart-benchmark.json"
 
-SetName = Literal["sql", "chart", "all"]
+SetName = Literal["sql", "chart", "all", "e2e"]
 
 KINDS = ("total", "breakdown", "comparison", "trend", "ranking", "entity", "follow-up", "period")
 """What a SQL question asks for. One per datapoint, so a run can be read per kind."""
@@ -158,6 +158,8 @@ def load(set_name: SetName) -> list[Point]:
         return list(load_sql())
     if set_name == "chart":
         return list(load_charts())
+    if set_name == "e2e":
+        return e2e_subset()
     return [*load_sql(), *load_charts()]
 
 
@@ -173,6 +175,42 @@ def pick(points: list[Point], *, n: int | None, seed: int) -> list[Point]:
     shuffled = list(points)
     random.Random(seed).shuffle(shuffled)
     return sorted(shuffled[:n], key=lambda point: order[point.id])
+
+
+E2E_SQL = 15
+E2E_CHART = 15
+E2E_SEED = 56
+"""The seed the end-to-end subset is cut with. Fixed in code, not passed on the command line:
+the thirty cases have to be the same thirty for every model of a comparison, and the same ones
+again when the comparison is repeated after a fine-tune."""
+
+TRAIN = "train"
+"""The half of each set the subset is drawn from. The held-out half is what a fine-tuned
+adapter is scored on, and a case the chat agent has already been trained around is not one."""
+
+
+def e2e_subset(seed: int = E2E_SEED) -> list[Point]:
+    """The datapoints that run through the chat agent: 15 questions and 15 chart requests.
+
+    Drawn from the training half of each set, and stratified over the kinds and the shapes the
+    way the review sample is, so thirty cases still cover what a user asks rather than thirteen
+    totals. Small on purpose: a turn here costs a chat model call on top of the sub-agent's, so
+    the subset says whether routing holds up, and the sub-agent sets stay the primary numbers.
+    """
+    return [
+        *_stratified(
+            [point for point in load_sql() if point.split == TRAIN],
+            key=lambda point: point.kind,
+            count=E2E_SQL,
+            seed=seed,
+        ),
+        *_stratified(
+            [point for point in load_charts() if point.split == TRAIN],
+            key=lambda point: point.shape,
+            count=E2E_CHART,
+            seed=seed + 1,
+        ),
+    ]
 
 
 SAMPLE_SQL = 20
