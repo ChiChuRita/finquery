@@ -16,7 +16,6 @@ import {
   FailedBody,
   failureLine,
   Footer,
-  RunningBody,
 } from '@/components/chart-tool'
 import { ConfirmDialog } from '@/components/dialogs'
 import { Button } from '@/components/ui/button'
@@ -223,54 +222,6 @@ export function DashboardCard({
         onOpenChange={(open) => setRemoving(open)}
         open={removing}
         title="Remove this chart?"
-      />
-    </ChartCard>
-  )
-}
-
-/** The chart the Add line just drew, before anybody decided to keep it.
- *
- * It is a card among the cards, in the place the kept one will take, with the plan and the
- * repairs under Details the same way a chart in a chat has them.
- */
-export function PreviewCard({
-  chart,
-  request,
-  busy,
-  onKeep,
-  onDiscard,
-}: {
-  chart?: ChartToolOutput
-  request: string
-  busy: boolean
-  onKeep: () => void
-  onDiscard: () => void
-}) {
-  if (!chart) {
-    return (
-      <ChartCard>
-        <ChartCardHeader title={request} />
-        <RunningBody />
-        <Footer running />
-      </ChartCard>
-    )
-  }
-  return (
-    <ChartCard>
-      <ChartCardHeader shape={chart.code ? chart.shape : undefined} title={chart.title || request} />
-      <CardBody chart={chart} hasData title={chart.title || request} />
-      <Footer
-        actions={
-          <span className="flex items-center gap-1">
-            <Button disabled={busy} onClick={onDiscard} size="sm" variant="ghost">
-              Discard
-            </Button>
-            <Button disabled={busy || !chart.code || Boolean(chart.error)} onClick={onKeep} size="sm">
-              Keep
-            </Button>
-          </span>
-        }
-        output={chart}
       />
     </ChartCard>
   )

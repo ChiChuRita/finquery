@@ -31,7 +31,7 @@ import {
   chartAlternative,
   chartRenderFailure,
   dashboardPinsQuery,
-  dashboardQuery,
+  deleteDashboardChart,
   pinChartToDashboard,
   type ChartDetails,
   type ChartToolOutput,
@@ -477,11 +477,18 @@ function ChartResult({
   // One report per chart: the server retries once, and a remount must not ask again.
   const reported = useRef(false)
   // Which charts of this profile are on the dashboard. One cheap request per profile, shared
-  // by every card in the transcript, so a reload still knows this one is pinned.
+  // by every card in the transcript, so a reload still knows this one is kept.
   const queryClient = useQueryClient()
   const { data: pins } = useQuery(dashboardPinsQuery(profile?.id))
   const [pinning, setPinning] = useState(false)
-  const pinned = pins?.call_ids.includes(toolCallId) ?? false
+  // The agent can keep a chart itself, from inside the tool (ticket 44). That card exists
+  // before the pins query is refetched, so the tool's own answer is read first and the pins
+  // are what a reload reads.
+  const [keptId, setKeptId] = useState<string | undefined>(
+    output.kept ? (output.dashboard_chart_id ?? undefined) : undefined,
+  )
+  const cardId = pins?.charts.find((entry) => entry.call_id === toolCallId)?.chart_id ?? keptId
+  const pinned = cardId !== undefined
 
   // What this card shows: the chart of the turn, or the one a retry drew in its place.
   const chart = redrawn ?? output
@@ -512,11 +519,30 @@ function ChartResult({
     setPinning(true)
     setProblem(undefined)
     try {
-      await pinChartToDashboard(profile.id, turnId, toolCallId)
+      const card = await pinChartToDashboard(profile.id, turnId, toolCallId)
+      setKeptId(card.id)
       await queryClient.invalidateQueries(dashboardPinsQuery(profile.id))
-      void queryClient.invalidateQueries(dashboardQuery(profile.id))
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     } catch (cause) {
       setProblem(cause instanceof Error ? cause.message : 'That chart could not be added.')
+    } finally {
+      setPinning(false)
+    }
+  }
+
+  // The other half of the agent keeping a chart by itself: one click undoes a wrong call, and
+  // the chart stays in this transcript either way.
+  const removeFromDashboard = async () => {
+    if (!profile || !cardId || pinning) return
+    setPinning(true)
+    setProblem(undefined)
+    try {
+      await deleteDashboardChart(profile.id, cardId)
+      setKeptId(undefined)
+      await queryClient.invalidateQueries(dashboardPinsQuery(profile.id))
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    } catch (cause) {
+      setProblem(cause instanceof Error ? cause.message : 'That chart could not be removed.')
     } finally {
       setPinning(false)
     }
@@ -641,17 +667,35 @@ function ChartResult({
             {feedback.rating === 'pick' && !second && (
               <span className="text-muted-foreground text-xs">Pair collected</span>
             )}
-            {code && turnId && (
+            {code && pinned && (
+              <>
+                <span className="flex items-center gap-1 text-muted-foreground text-xs">
+                  <CheckIcon className="size-3.5" />
+                  On the dashboard
+                </span>
+                <Button
+                  className="text-muted-foreground"
+                  disabled={pinning}
+                  onClick={() => void removeFromDashboard()}
+                  size="sm"
+                  title="Take this chart off the dashboard"
+                  variant="ghost"
+                >
+                  Remove
+                </Button>
+              </>
+            )}
+            {code && turnId && !pinned && (
               <Button
                 className="gap-1.5 text-muted-foreground"
-                disabled={pinned || pinning}
+                disabled={pinning}
                 onClick={() => void addToDashboard()}
                 size="sm"
-                title={pinned ? 'This chart is on the dashboard' : 'Keep this chart on the dashboard'}
+                title="Keep this chart on the dashboard"
                 variant="ghost"
               >
-                {pinned ? <CheckIcon /> : <LayoutDashboardIcon />}
-                {pinned ? 'On the dashboard' : 'Add to dashboard'}
+                <LayoutDashboardIcon />
+                Add to dashboard
               </Button>
             )}
             {code && (

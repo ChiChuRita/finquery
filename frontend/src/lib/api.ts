@@ -220,6 +220,9 @@ export interface ChartToolOutput extends ChartDetails {
   summary: string
   /** Whether a chart really reached the screen. False means the answer gives the figures. */
   rendered: boolean
+  /** Whether the agent kept this chart on the dashboard, from inside the tool. */
+  kept?: boolean
+  dashboard_chart_id?: string | null
   /** What the sandboxed frame said when it refused to draw this definition, if it did. */
   render_error?: string | null
   /** True on a chart a server-side retry drew, which is what stops a second retry. */
@@ -434,6 +437,11 @@ export type ChatTools = {
   }
   extract_transaction: { input: { text: string }; output: ExtractTransactionOutput }
   add_transaction: { input: { ref: string }; output: AddTransactionOutput }
+  dashboard_charts: { input: Record<string, never>; output: DashboardListOutput }
+  show_dashboard_chart: { input: { chart_id: string }; output: DashboardChartOutput }
+  edit_dashboard_chart: { input: { chart_id: string; request: string }; output: DashboardChartOutput }
+  rename_dashboard_chart: { input: { chart_id: string; title: string }; output: DashboardLineOutput }
+  remove_dashboard_chart: { input: { chart_id: string }; output: DashboardLineOutput }
 }
 export type QueryToolPart = ToolUIPart<{ query: ChatTools['query'] }>
 export type AskUserPart = ToolUIPart<{ ask_user: ChatTools['ask_user'] }>
@@ -451,6 +459,16 @@ export type LookupMerchantPart = ToolUIPart<{ lookup_merchant: ChatTools['lookup
 export type ImportFilePart = ToolUIPart<{ import_file: ChatTools['import_file'] }>
 export type ExtractTransactionPart = ToolUIPart<{ extract_transaction: ChatTools['extract_transaction'] }>
 export type AddTransactionPart = ToolUIPart<{ add_transaction: ChatTools['add_transaction'] }>
+// One part type for the two tools that answer with a chart, and one for the two that answer
+// with a line: the card is the same either way, minus the Undo an edit carries.
+export type DashboardChartToolPart = ToolUIPart<{
+  show_dashboard_chart: ChatTools['show_dashboard_chart']
+  edit_dashboard_chart: ChatTools['edit_dashboard_chart']
+}>
+export type DashboardLineToolPart = ToolUIPart<{
+  rename_dashboard_chart: ChatTools['rename_dashboard_chart']
+  remove_dashboard_chart: ChatTools['remove_dashboard_chart']
+}>
 
 export type ChatMessage = UIMessage<ChatMetadata, ChatDataParts, ChatTools>
 
@@ -1156,16 +1174,21 @@ export const answerAlternative = (profileId: string, turn_id: string) =>
     body: JSON.stringify({ profile_id: profileId, turn_id }),
   })
 
-// Dashboard: the cards a profile keeps, and the four figures above them.
+// Dashboard: the cards a profile keeps, the four figures above them, and the range they are all
+// narrowed to. Charts are asked for in a chat; this page keeps, shows and reorders them.
 
 /** One card. The definition is stored; the rows came from running its statement just now. */
 export interface DashboardChart extends ChartDetails {
   id: string
   position: number
-  /** default, chat or dashboard: seeded, pinned from a turn, or asked for on the page. */
+  /** default or chat: seeded on the first visit, or kept from a chart drawn in a chat. */
   created_from: string
   created_at: string
   refreshed_at: string | null
+  /** When it was taken off the dashboard. Only a card asked for by id can say so. */
+  removed_at?: string | null
+  /** The chat tool call whose change one Undo would take back. Null once it was undone. */
+  undo_call_id?: string | null
 }
 
 export interface DashboardTiles {
@@ -1179,25 +1202,51 @@ export interface DashboardTiles {
   review_import_id: string | null
 }
 
+/** ISO days, an empty string for an open end. What the page asks for. */
+export interface DateRange {
+  from: string
+  to: string
+}
+
+export const WHOLE_HISTORY: DateRange = { from: '', to: '' }
+
+/** The range that was applied, and the days this profile has bookings on. */
+export interface DashboardRange {
+  since: string | null
+  until: string | null
+  first_day: string | null
+  last_day: string | null
+}
+
 export interface Dashboard {
   /** False for a profile with no bookings at all, which is what the empty cards are about. */
   has_data: boolean
   tiles: DashboardTiles
   charts: DashboardChart[]
+  range: DashboardRange
 }
 
-export const dashboardQuery = (profileId: string | undefined) =>
+const rangeParams = (range: DateRange) =>
+  `${range.from ? `&from=${range.from}` : ''}${range.to ? `&to=${range.to}` : ''}`
+
+/** The page for one profile over one range. The range is part of the key, so the date fields
+ *  and the presets re-query instead of redrawing rows that are about other days. */
+export const dashboardQuery = (profileId: string | undefined, range: DateRange = WHOLE_HISTORY) =>
   queryOptions({
-    queryKey: ['dashboard', { profileId }],
-    queryFn: () => request<Dashboard>(`/api/dashboard?profile_id=${profileId}`),
+    queryKey: ['dashboard', { profileId, from: range.from, to: range.to }],
+    queryFn: () => request<Dashboard>(`/api/dashboard?profile_id=${profileId}${rangeParams(range)}`),
     enabled: profileId !== undefined,
   })
 
-/** The chat charts that are already on the dashboard, so their cards can say so after a reload. */
+/** The chat charts that are already on the dashboard, so their cards can say so after a reload.
+ *  The card id rides along, because such a card can also take itself off again. */
 export const dashboardPinsQuery = (profileId: string | undefined) =>
   queryOptions({
     queryKey: ['dashboard-pins', { profileId }],
-    queryFn: () => request<{ call_ids: string[] }>(`/api/dashboard/pins?profile_id=${profileId}`),
+    queryFn: () =>
+      request<{ charts: { call_id: string; chart_id: string }[] }>(
+        `/api/dashboard/pins?profile_id=${profileId}`,
+      ),
     enabled: profileId !== undefined,
   })
 
@@ -1208,30 +1257,20 @@ export const pinChartToDashboard = (profileId: string, turn_id: string, tool_cal
     body: JSON.stringify({ profile_id: profileId, turn_id, tool_call_id }),
   })
 
-/** Draw a chart from a line of words and store nothing: the card that comes back has Keep on it. */
-export const previewDashboardChart = (profileId: string, text: string) =>
-  request<ChartToolOutput>('/api/dashboard/charts/preview', {
-    method: 'POST',
-    body: JSON.stringify({ profile_id: profileId, request: text }),
+/** One card by id, removed or not. A card in a transcript reads whether its own Undo still
+ *  applies from here, the way a changeset card reads its status from the server. */
+export const dashboardChartQuery = (profileId: string | undefined, id: string | undefined) =>
+  queryOptions({
+    queryKey: ['dashboard-chart', { profileId, id }],
+    queryFn: () => request<DashboardChart>(`/api/dashboard/charts/${id}?profile_id=${profileId}`),
+    enabled: profileId !== undefined && id !== undefined,
   })
 
-/** Keep the chart the preview drew. */
-export const keepDashboardChart = (profileId: string, chart: ChartToolOutput) =>
-  request<DashboardChart>('/api/dashboard/charts', {
+/** Take back the edit, rename or removal a chat applied to a card. Once: a second one is a 409. */
+export const undoDashboardChart = (profileId: string, id: string, callId: string) =>
+  request<DashboardChart>(`/api/dashboard/charts/${id}/undo`, {
     method: 'POST',
-    body: JSON.stringify({
-      profile_id: profileId,
-      chart: {
-        title: chart.title || chart.request,
-        shape: chart.shape,
-        language: chart.language ?? 'en',
-        request: chart.request,
-        plan: chart.plan,
-        sql: chart.sql,
-        code: chart.code,
-        notes: chart.notes,
-      },
-    }),
+    body: JSON.stringify({ profile_id: profileId, call_id: callId }),
   })
 
 export const patchDashboardChart = (
@@ -1247,9 +1286,45 @@ export const patchDashboardChart = (
 export const deleteDashboardChart = (profileId: string, id: string) =>
   request<void>(`/api/dashboard/charts/${id}?profile_id=${profileId}`, { method: 'DELETE' })
 
-/** Run one card's statement again. Every load runs it too; this says when it last happened. */
-export const refreshDashboardChart = (profileId: string, id: string) =>
+/** Run one card's statement again, over the days the page is showing. Every load runs it too;
+ *  this says when it last happened. */
+export const refreshDashboardChart = (
+  profileId: string,
+  id: string,
+  range: DateRange = WHOLE_HISTORY,
+) =>
   request<DashboardChart>(`/api/dashboard/charts/${id}/refresh`, {
     method: 'POST',
-    body: JSON.stringify({ profile_id: profileId }),
+    body: JSON.stringify({
+      profile_id: profileId,
+      since: range.from || null,
+      until: range.to || null,
+    }),
   })
+
+/** `dashboard_charts`: what is on the dashboard, with the id each chart is named by. */
+export interface DashboardListOutput {
+  charts: { chart_id: string; title: string; shape: string; request: string; position: number }[]
+  count: number
+}
+
+/** `show_dashboard_chart` and `edit_dashboard_chart`: a card of the dashboard, drawn in the answer. */
+export interface DashboardChartOutput extends ChartToolOutput {
+  card_id: string
+  on_dashboard?: boolean
+  applied?: boolean
+  previous_title?: string
+  undo_call_id?: string | null
+  say?: string
+}
+
+/** `rename_dashboard_chart` and `remove_dashboard_chart`: one line, and an Undo. */
+export interface DashboardLineOutput {
+  card_id: string
+  kind: 'rename' | 'remove'
+  applied: boolean
+  title: string
+  previous_title?: string
+  undo_call_id?: string | null
+  say: string
+}

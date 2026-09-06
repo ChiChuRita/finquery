@@ -141,9 +141,20 @@ const conversationRoute = createRoute({
   component: ConversationPage,
 })
 
+/** An ISO day, or nothing at all. Anything else in the URL is read as no bound rather than
+ *  sent to the server: the range ends up in a WHERE clause, so only a real day may get there. */
+const isoDay = (value: unknown) =>
+  typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined
+
+// The range is in the search params, so a reload, the back button and a shared link all show
+// the same days. No parameter at all means the whole history.
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dashboard',
+  validateSearch: (search: Record<string, unknown>) => ({
+    from: isoDay(search.from),
+    to: isoDay(search.to),
+  }),
   component: DashboardPage,
 })
 

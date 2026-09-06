@@ -1,25 +1,23 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
-import { ChartColumnIcon, SparklesIcon } from 'lucide-react'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useState, type ReactNode } from 'react'
 
-import { DashboardCard, PreviewCard } from '@/components/dashboard-card'
+import { DashboardCard } from '@/components/dashboard-card'
+import { DateRangePicker } from '@/components/date-range-picker'
 import { PageBar } from '@/components/page'
 import { Button } from '@/components/ui/button'
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import {
   conversationsQuery,
   dashboardPinsQuery,
   dashboardQuery,
   deleteDashboardChart,
-  keepDashboardChart,
   openReviewConversation,
   patchDashboardChart,
-  previewDashboardChart,
   refreshDashboardChart,
-  type ChartToolOutput,
+  type DashboardRange,
   type DashboardTiles,
+  type DateRange,
 } from '@/lib/api'
 import { formatEur } from '@/lib/format'
 import { useWorkspace } from '@/lib/workspace'
@@ -102,69 +100,84 @@ function Tiles({ tiles }: { tiles: DashboardTiles }) {
   )
 }
 
-/** The one line that makes a new card: a request in words, drawn by the chart sub-agent.
+/** A day `months` before this one, in ISO. Enough date arithmetic for four preset chips. */
+function monthsBefore(day: string, months: number): string {
+  const [year, month, date] = day.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1 - months, date)).toISOString().slice(0, 10)
+}
+
+/** The presets, counted back from the newest booking rather than from today, the way the tiles
+ *  and the twelve-month defaults are. A profile with no bookings has nothing to count from. */
+function presetsFor(lastDay: string | null): { label: string; range: DateRange }[] {
+  const all = { label: 'All', range: { from: '', to: '' } }
+  if (!lastDay) return [all]
+  return [
+    { label: 'This month', range: { from: `${lastDay.slice(0, 7)}-01`, to: lastDay } },
+    { label: 'Last 3 months', range: { from: monthsBefore(lastDay, 3), to: lastDay } },
+    { label: 'This year', range: { from: `${lastDay.slice(0, 4)}-01-01`, to: lastDay } },
+    all,
+  ]
+}
+
+const sameRange = (one: DateRange, other: DateRange) => one.from === other.from && one.to === other.to
+
+/** The days the whole page is about: four chips and two date fields.
  *
- * It is the same `run_chart` a chat calls, so it takes about half a minute and shows the plan,
- * the query and any repair in the card's details. Nothing is stored until Keep.
+ * It narrows the tiles and every card in one request, and nothing about it is stored: it lives
+ * in the URL, so a reload, the back button and a shared link all show the same days.
  */
-function AddChart({
-  busy,
-  onDraw,
+function RangeBar({
+  range,
+  applied,
+  onChange,
 }: {
-  busy: boolean
-  onDraw: (request: string) => void
+  range: DateRange
+  applied?: DashboardRange
+  onChange: (next: DateRange) => void
 }) {
-  const [text, setText] = useState('')
-  const submit = () => {
-    const request = text.trim()
-    if (!request || busy) return
-    onDraw(request)
-    setText('')
-  }
+  const presets = presetsFor(applied?.last_day ?? null)
+  const whole = applied?.first_day
+    ? `All · ${applied.first_day.split('-').reverse().join('.')} to ${applied.last_day?.split('-').reverse().join('.')}`
+    : 'All'
   return (
-    <InputGroup className="max-w-2xl">
-      <InputGroupAddon>
-        <ChartColumnIcon className="text-muted-foreground" />
-      </InputGroupAddon>
-      <InputGroupInput
-        aria-label="Add a chart"
-        disabled={busy}
-        onChange={(event) => setText(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') submit()
-        }}
-        placeholder="Add a chart: spending on groceries per month"
-        value={text}
-      />
-      <InputGroupAddon align="inline-end">
-        <InputGroupButton disabled={busy || !text.trim()} onClick={submit} variant="default">
-          {busy ? <Spinner /> : <SparklesIcon />}
-          {busy ? 'Drawing' : 'Draw it'}
-        </InputGroupButton>
-      </InputGroupAddon>
-    </InputGroup>
+    <div className="flex flex-wrap items-center gap-2">
+      {presets.map((preset) => (
+        <Button
+          key={preset.label}
+          onClick={() => onChange(preset.range)}
+          size="sm"
+          variant={sameRange(range, preset.range) ? 'secondary' : 'ghost'}
+        >
+          {preset.label === 'All' ? whole : preset.label}
+        </Button>
+      ))}
+      <span className="ml-auto">
+        <DateRangePicker from={range.from} onChange={onChange} to={range.to} />
+      </span>
+    </div>
   )
 }
 
-/** The dashboard: four figures, the cards this profile keeps, and a line that makes another.
+/** The dashboard: four figures, the cards this profile keeps, and the days they are about.
  *
  * Every number on it was queried when the page loaded, never stored: a card holds a title, a
  * shape, its statement and its checked definition, and the statement is run again here through
- * the same guard the chat uses.
+ * the same guard the chat uses. Charts are asked for in a chat, so this page has no composer:
+ * the ones the assistant kept, and the ones added from a transcript, are what is here.
  */
 export function DashboardPage() {
   const { profile } = useWorkspace()
   const queryClient = useQueryClient()
-  const dashboard = useQuery(dashboardQuery(profile?.id))
+  const navigate = useNavigate()
+  const search = useSearch({ from: '/dashboard' })
+  const range: DateRange = { from: search.from ?? '', to: search.to ?? '' }
+  const dashboard = useQuery(dashboardQuery(profile?.id, range))
   const [busyCard, setBusyCard] = useState<string>()
-  const [request, setRequest] = useState<string>()
-  const [preview, setPreview] = useState<ChartToolOutput>()
-  const [keeping, setKeeping] = useState(false)
   const [problem, setProblem] = useState<string>()
 
   const profileId = profile?.id
   const reload = async () => {
-    if (profileId) await queryClient.invalidateQueries(dashboardQuery(profileId))
+    if (profileId) await queryClient.invalidateQueries(dashboardQuery(profileId, range))
   }
 
   const act = async (id: string, action: () => Promise<unknown>) => {
@@ -180,35 +193,15 @@ export function DashboardPage() {
     }
   }
 
-  const draw = async (text: string) => {
-    if (!profileId) return
-    setRequest(text)
-    setPreview(undefined)
-    setProblem(undefined)
-    try {
-      setPreview(await previewDashboardChart(profileId, text))
-    } catch (cause) {
-      setRequest(undefined)
-      setProblem(cause instanceof Error ? cause.message : 'That chart could not be drawn.')
-    }
-  }
+  // An empty end is left out of the URL rather than written as an empty parameter, so no range
+  // at all is the plain `/dashboard` a shared link should be.
+  const setRange = (next: DateRange) =>
+    void navigate({
+      to: '/dashboard',
+      search: { from: next.from || undefined, to: next.to || undefined },
+      replace: true,
+    })
 
-  const keep = async () => {
-    if (!profileId || !preview) return
-    setKeeping(true)
-    try {
-      await keepDashboardChart(profileId, preview)
-      setPreview(undefined)
-      setRequest(undefined)
-      await reload()
-    } catch (cause) {
-      setProblem(cause instanceof Error ? cause.message : 'That chart could not be kept.')
-    } finally {
-      setKeeping(false)
-    }
-  }
-
-  const drawing = request !== undefined && preview === undefined
   const charts = dashboard.data?.charts ?? []
   const hasData = dashboard.data?.has_data ?? false
 
@@ -216,7 +209,8 @@ export function DashboardPage() {
     <div className="flex h-full min-h-0 flex-col">
       <PageBar title="Dashboard">
         <p className="truncate text-muted-foreground text-xs">
-          Every figure here comes from a query this page just ran.
+          Every figure here comes from a query this page just ran. Ask for a chart in a chat;
+          the ones worth keeping land here.
         </p>
         {dashboard.isFetching && !dashboard.isPending && (
           <Spinner className="size-3.5 text-muted-foreground" />
@@ -225,16 +219,15 @@ export function DashboardPage() {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
         <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
+          <RangeBar applied={dashboard.data?.range} onChange={setRange} range={range} />
+
           {dashboard.data && <Tiles tiles={dashboard.data.tiles} />}
 
-          <div className="flex flex-col gap-2">
-            <AddChart busy={drawing || keeping} onDraw={(text) => void draw(text)} />
-            {problem && (
-              <p className="text-destructive text-xs" role="alert">
-                {problem}
-              </p>
-            )}
-          </div>
+          {problem && (
+            <p className="text-destructive text-xs" role="alert">
+              {problem}
+            </p>
+          )}
 
           {dashboard.isPending || profileId === undefined ? (
             <p className="py-10 text-center text-muted-foreground text-sm">Loading the dashboard...</p>
@@ -242,18 +235,6 @@ export function DashboardPage() {
             // Each card is as tall as its own content: a stretched card would end in a strip
             // of empty surface under its footer, and the cards are not a table.
             <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {request !== undefined && (
-                <PreviewCard
-                  busy={keeping}
-                  chart={preview}
-                  onDiscard={() => {
-                    setPreview(undefined)
-                    setRequest(undefined)
-                  }}
-                  onKeep={() => void keep()}
-                  request={request}
-                />
-              )}
               {charts.map((card, index) => (
                 <DashboardCard
                   busy={busyCard === card.id}
@@ -265,7 +246,7 @@ export function DashboardPage() {
                   onMove={(position) =>
                     act(card.id, () => patchDashboardChart(profileId, card.id, { position }))
                   }
-                  onRefresh={() => act(card.id, () => refreshDashboardChart(profileId, card.id))}
+                  onRefresh={() => act(card.id, () => refreshDashboardChart(profileId, card.id, range))}
                   onRemove={() =>
                     act(card.id, async () => {
                       await deleteDashboardChart(profileId, card.id)
@@ -280,10 +261,15 @@ export function DashboardPage() {
             </div>
           )}
 
-          {!dashboard.isPending && charts.length === 0 && request === undefined && (
-            <p className="py-10 text-center text-muted-foreground text-sm">
-              This dashboard is empty. Ask for a chart above, or add one from a chat.
-            </p>
+          {!dashboard.isPending && charts.length === 0 && (
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <p className="text-muted-foreground text-sm">
+                This dashboard is empty. Ask for a chart in a chat; the ones worth keeping land here.
+              </p>
+              <Button asChild size="sm" variant="outline">
+                <Link to="/">Ask for a chart</Link>
+              </Button>
+            </div>
           )}
         </div>
       </div>
