@@ -10,6 +10,12 @@ __pycache__/
 data/
 models/
 
+# The training data harness is code and committed batches; only what it builds is not.
+!training/data/
+training/data/.db/
+training/data/out/
+training/data/renders/
+
 # Frontend
 frontend/node_modules/
 frontend/dist/

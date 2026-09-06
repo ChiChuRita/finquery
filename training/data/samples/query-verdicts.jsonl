@@ -1,0 +1,3 @@
+{"id": "smoke-q01-student-groceries-de", "verdict": "keep"}
+{"id": "smoke-q03-freelancer-income-per-month-de", "verdict": "fix", "note": "the reasoning did not say that a month without an invoice has no row at all, which is the whole point of this household", "fix": {"reasoning": "period: none is named, so the whole range of the data; filters: none beyond the sign; sign: income, so amount > 0 and the figure stays positive; grouping: one row per month, in order, and the two months with no invoice simply have no row."}}
+{"id": "smoke-w03-family-wrong-month-de", "verdict": "revise", "reason": "it totals December, the month the data ends in, rather than the month before it", "intent": "the total spending of November 2025, which is the month before the newest booking"}
