@@ -98,24 +98,27 @@ function deltasOf(months: TileMonth[], read: (month: TileMonth) => number, way: 
 /** One comparison as a line: the signed euros, the share, and what it is against.
  *
  * The sign carries the direction on its own, so the colour is a second reading of it and never
- * the only one.
+ * the only one. The line wraps rather than truncating: "vs 6-month average" cut to "vs 6-month
+ * ave..." is a comparison the reader has to hover to identify.
  */
 function DeltaLine({ delta }: { delta: Delta }) {
   return (
-    <p className="truncate text-xs" title={`${delta.label}, ${delta.against}`}>
+    <p className="text-[11px] leading-tight" title={`${delta.label}, ${delta.against}`}>
       <span
         className={
           delta.good === null
-            ? 'text-muted-foreground'
+            ? 'whitespace-nowrap text-muted-foreground'
             : delta.good
-              ? 'text-primary'
-              : 'text-destructive'
+              ? 'whitespace-nowrap text-primary'
+              : 'whitespace-nowrap text-destructive'
         }
       >
         {formatEurDelta(Math.round(delta.amount * 100))}
         {delta.share !== null && ` (${formatPercentDelta(delta.share)})`}
       </span>{' '}
-      <span className="text-muted-foreground">{delta.label}</span>
+      {/* Neither half breaks inside itself: a narrow tile puts the label on its own line,
+          rather than splitting "6-month" at its hyphen. */}
+      <span className="whitespace-nowrap text-muted-foreground">{delta.label}</span>
     </p>
   )
 }
@@ -144,7 +147,7 @@ function Tile({
       </p>
       <p className="mt-0.5 text-muted-foreground text-xs">{note}</p>
       {deltas.length > 0 && (
-        <div className="mt-2 flex flex-col gap-0.5">
+        <div className="mt-2 flex flex-col gap-1">
           {deltas.map((delta) => (
             <DeltaLine delta={delta} key={delta.label} />
           ))}
@@ -177,7 +180,7 @@ function Tiles({ tiles }: { tiles: DashboardTiles }) {
   }
 
   return (
-    <div className="grid grid-cols-2 items-start gap-4 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       <Tile
         deltas={deltasOf(tiles.months, (row) => row.spent_eur, 'down-is-good')}
         label="Spent"
