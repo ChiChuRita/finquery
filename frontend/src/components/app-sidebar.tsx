@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useLocation, useNavigate, useParams } from '@tanstack/react-router'
 import {
   BrainIcon,
   LayoutDashboardIcon,
@@ -18,23 +18,35 @@ import { useState } from 'react'
 import { ConfirmDialog } from '@/components/dialogs'
 import { ProfileSwitcher } from '@/components/profile-switcher'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInput,
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+} from '@/components/ui/sidebar'
 import { Spinner } from '@/components/ui/spinner'
+import { useSidebar } from '@/hooks/use-sidebar'
 import { conversationsQuery, deleteConversation, patchConversation, type Conversation } from '@/lib/api'
-import { cn } from '@/lib/utils'
 import { forgetConversation, useWorkspace } from '@/lib/workspace'
 
-/** Every row of the sidebar shares this inset, so the icons form one column under the New chat
- *  button's plus (which sits at the Button's px-2.5 behind a 1px border). */
-const ROW = 'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors hover:bg-sidebar-accent focus-ring'
-const ROW_ICON = 'size-4 shrink-0 text-muted-foreground'
+/** Navigation is quiet: a row is muted until it is hovered or active, when the component gives
+ *  it the faint tint and the full foreground. No accent colour anywhere in the navigation. */
+const ROW = 'text-muted-foreground'
 
 const PAGES = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboardIcon, title: 'The charts this profile keeps' },
@@ -44,27 +56,35 @@ const PAGES = [
   { to: '/feedback', label: 'Feedback', icon: ThumbsUpIcon },
 ] as const
 
-export function Brand({ className }: { className?: string }) {
+/** The brand mark and the name. The mark is 32px so it fills the icon rail's square exactly. */
+function Brand() {
   return (
-    <div className={cn('flex items-center gap-2.5', className)}>
-      <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+    <>
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
         <svg aria-hidden="true" className="size-4" fill="none" viewBox="0 0 16 16">
           <path d="M2 12.5 6 8l3 3 5-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
           <path d="M10.5 5H14v3.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
         </svg>
       </span>
-      <span className="font-heading font-semibold tracking-tight">FinQuery</span>
-    </div>
+      <span className="truncate font-heading font-semibold tracking-tight">FinQuery</span>
+    </>
   )
 }
 
 export function AppSidebar() {
   const { conversations, profile, closeTab } = useWorkspace()
   const params = useParams({ strict: false }) as { conversationId?: string }
+  const pathname = useLocation({ select: (location) => location.pathname })
+  const { isMobile, setOpenMobile, state } = useSidebar()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [renaming, setRenaming] = useState<string>()
   const [deleting, setDeleting] = useState<Conversation>()
+
+  // On a phone the sidebar is a sheet over the page, so following a link closes it.
+  const followed = () => {
+    if (isMobile) setOpenMobile(false)
+  }
 
   const refresh = () => queryClient.invalidateQueries(conversationsQuery(profile?.id))
 
@@ -86,119 +106,133 @@ export function AppSidebar() {
   }
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
-      <div className="flex h-14 items-center px-4">
-        <Link className="rounded-lg focus-ring" to="/">
-          <Brand />
-        </Link>
-      </div>
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild size="lg" tooltip="FinQuery">
+              <Link onClick={followed} to="/">
+                <Brand />
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            {/* The primary action: the one bordered row, so it reads as a button, not a page. */}
+            <SidebarMenuButton asChild tooltip="New chat" variant="outline">
+              <Link onClick={followed} to="/">
+                <PlusIcon className="text-primary" />
+                <span>New chat</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
 
-      <div className="flex flex-col gap-1 px-3 pb-2">
-        <Button asChild className="w-full justify-start" variant="outline">
-          <Link to="/">
-            <PlusIcon data-icon="inline-start" />
-            New chat
-          </Link>
-        </Button>
-        {PAGES.map(({ to, label, icon: Icon, ...rest }) => (
-          <Link activeProps={{ className: 'bg-sidebar-accent font-medium' }} className={ROW} key={to} to={to} {...rest}>
-            <Icon className={ROW_ICON} />
-            {label}
-          </Link>
-        ))}
-      </div>
-
-      <nav aria-label="Conversations" className="flex-1 overflow-y-auto px-3 py-2">
-        {conversations.length > 0 ? (
-          <>
-            <p className="px-2.5 pb-2 font-medium text-2xs text-muted-foreground uppercase tracking-wider">Recent</p>
-            <ul className="flex flex-col gap-0.5">
-              {conversations.map((conversation) => (
-                <li key={conversation.id}>
-                  {renaming === conversation.id ? (
-                    <Input
-                      aria-label="Conversation title"
-                      autoFocus
-                      className="h-8 text-sm"
-                      defaultValue={conversation.title}
-                      onBlur={(event) => void rename(conversation, event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') void rename(conversation, event.currentTarget.value)
-                        if (event.key === 'Escape') setRenaming(undefined)
-                      }}
-                    />
-                  ) : (
-                    <div
-                      className={cn(
-                        'group flex items-center rounded-md transition-colors hover:bg-sidebar-accent',
-                        params.conversationId === conversation.id && 'bg-sidebar-accent',
-                      )}
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {PAGES.map((page) => (
+                <SidebarMenuItem key={page.to}>
+                  <SidebarMenuButton asChild className={ROW} isActive={pathname === page.to} tooltip={page.label}>
+                    {/* In the rail the tooltip names the page, so the longer title waits for
+                        the expanded sidebar or the two would show together. */}
+                    <Link
+                      onClick={followed}
+                      title={state === 'expanded' && 'title' in page ? page.title : undefined}
+                      to={page.to}
                     >
-                      <Link
-                        className={cn(
-                          'flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pl-2.5 text-sm focus-ring',
-                          params.conversationId === conversation.id && 'font-medium',
-                        )}
-                        params={{ conversationId: conversation.id }}
-                        title={conversation.running ? `${conversation.title} (answering)` : conversation.title}
-                        to="/c/$conversationId"
-                      >
-                        {/* A chat answering a turn says so wherever the user is, because the
-                            turn no longer needs anyone to be watching it (ticket 33). */}
-                        {conversation.running ? (
-                          <Spinner aria-label="Answering" className={ROW_ICON} />
-                        ) : (
-                          <MessageSquareIcon className={ROW_ICON} />
-                        )}
-                        <span className="truncate">{conversation.title}</span>
-                      </Link>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            aria-label={`Actions for ${conversation.title}`}
-                            className="mr-1 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 aria-expanded:opacity-100"
-                            size="icon-xs"
-                            variant="ghost"
-                          >
-                            <MoreHorizontalIcon />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem onSelect={() => setRenaming(conversation.id)}>
-                            <PencilIcon />
-                            Rename
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => setDeleting(conversation)} variant="destructive">
-                            <Trash2Icon />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  )}
-                </li>
+                      <page.icon />
+                      <span>{page.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               ))}
-            </ul>
-          </>
-        ) : (
-          <p className="px-2.5 py-6 text-center text-muted-foreground text-xs">Your conversations will appear here.</p>
-        )}
-      </nav>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-      <div className="border-t p-2">
-        <Button asChild className="w-full justify-start text-muted-foreground" size="sm" variant="ghost">
-          <Link activeProps={{ className: 'bg-sidebar-accent text-foreground' }} to="/settings">
-            <SettingsIcon data-icon="inline-start" />
-            Settings
-          </Link>
-        </Button>
-        <div className="mt-1 flex items-center gap-1">
-          <div className="min-w-0 flex-1">
-            <ProfileSwitcher />
-          </div>
+        {/* The rail has no room for titles, so this whole group folds away with it. */}
+        <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel>Recent</SidebarGroupLabel>
+          <SidebarGroupContent>
+            {conversations.length > 0 ? (
+              <SidebarMenu aria-label="Conversations">
+                {conversations.map((conversation) => (
+                  <SidebarMenuItem key={conversation.id}>
+                    {renaming === conversation.id ? (
+                      <SidebarInput
+                        aria-label="Conversation title"
+                        autoFocus
+                        defaultValue={conversation.title}
+                        onBlur={(event) => void rename(conversation, event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') void rename(conversation, event.currentTarget.value)
+                          if (event.key === 'Escape') setRenaming(undefined)
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <SidebarMenuButton asChild className={ROW} isActive={params.conversationId === conversation.id}>
+                          <Link
+                            onClick={followed}
+                            params={{ conversationId: conversation.id }}
+                            title={conversation.running ? `${conversation.title} (answering)` : conversation.title}
+                            to="/c/$conversationId"
+                          >
+                            {/* A chat answering a turn says so wherever the user is, because the
+                                turn no longer needs anyone to be watching it (ticket 33). */}
+                            {conversation.running ? <Spinner aria-label="Answering" /> : <MessageSquareIcon />}
+                            <span>{conversation.title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <SidebarMenuAction aria-label={`Actions for ${conversation.title}`} showOnHover>
+                              <MoreHorizontalIcon />
+                            </SidebarMenuAction>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem onSelect={() => setRenaming(conversation.id)}>
+                              <PencilIcon />
+                              Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setDeleting(conversation)} variant="destructive">
+                              <Trash2Icon />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </>
+                    )}
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            ) : (
+              <p className="px-2 py-6 text-center text-muted-foreground text-xs">Your conversations will appear here.</p>
+            )}
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild className={ROW} isActive={pathname === '/settings'} tooltip="Settings">
+              <Link onClick={followed} to="/settings">
+                <SettingsIcon />
+                <span>Settings</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+        {/* Side by side when there is room, one under the other in the rail. */}
+        <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col">
+          <ProfileSwitcher />
           <ThemeToggle />
         </div>
-      </div>
+      </SidebarFooter>
+      <SidebarRail />
 
       <ConfirmDialog
         action="Delete chat"
@@ -210,6 +244,6 @@ export function AppSidebar() {
         open={deleting !== undefined}
         title="Delete this chat?"
       />
-    </aside>
+    </Sidebar>
   )
 }
