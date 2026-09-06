@@ -1912,7 +1912,7 @@
           }
         ]
       },
-      "split": "heldout"
+      "split": "train"
     },
     {
       "id": "21-groceries-months-en",
@@ -5832,6 +5832,166 @@
           {
             "month": "2025-12",
             "change_eur": -73.8
+          }
+        ]
+      }
+    },
+    {
+      "id": "39-average-line-en",
+      "language": "en",
+      "prompt": "Show my spending per month in 2025 with my average as a reference line.",
+      "shape": "line",
+      "also": [
+        "bar",
+        "area"
+      ],
+      "covers": [
+        "reference line",
+        "average computed from the rows",
+        "line"
+      ],
+      "difficulty": 3,
+      "roles": [
+        "position",
+        "value"
+      ],
+      "why": "Am I above my usual, the question every finance app answers with a line across the plot. The average is not a column and never a figure the model remembers: the statement returns the twelve monthly totals and the chart computes the mean of the rows it was handed, `ruleY([mean(data, 'total_eur')])`.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY month ORDER BY month",
+      "split": "heldout",
+      "gold": {
+        "columns": [
+          "month",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "total_eur": 2544.04
+          },
+          {
+            "month": "2025-02",
+            "total_eur": 2265.34
+          },
+          {
+            "month": "2025-03",
+            "total_eur": 2290.77
+          },
+          {
+            "month": "2025-04",
+            "total_eur": 2264.74
+          },
+          {
+            "month": "2025-05",
+            "total_eur": 2310.46
+          },
+          {
+            "month": "2025-06",
+            "total_eur": 2301.04
+          },
+          {
+            "month": "2025-07",
+            "total_eur": 2760.8
+          },
+          {
+            "month": "2025-08",
+            "total_eur": 2278.84
+          },
+          {
+            "month": "2025-09",
+            "total_eur": 2552.44
+          },
+          {
+            "month": "2025-10",
+            "total_eur": 2200.94
+          },
+          {
+            "month": "2025-11",
+            "total_eur": 2420.14
+          },
+          {
+            "month": "2025-12",
+            "total_eur": 2346.34
+          }
+        ]
+      }
+    },
+    {
+      "id": "40-average-line-de",
+      "language": "de",
+      "prompt": "Zeig meine Ausgaben pro Monat 2025 und wo mein Durchschnitt liegt.",
+      "shape": "line",
+      "also": [
+        "bar",
+        "area"
+      ],
+      "covers": [
+        "reference line",
+        "German",
+        "average computed from the rows"
+      ],
+      "difficulty": 3,
+      "roles": [
+        "position",
+        "value"
+      ],
+      "why": "The German one, and it names no chart type at all: 'wo mein Durchschnitt liegt' is the reference line, and the twelve months are the series it is drawn across.",
+      "source": "hand",
+      "sql": "SELECT strftime('%Y-%m', booked_on) AS month, ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY month ORDER BY month",
+      "split": "train",
+      "gold": {
+        "columns": [
+          "month",
+          "total_eur"
+        ],
+        "rows": [
+          {
+            "month": "2025-01",
+            "total_eur": 2544.04
+          },
+          {
+            "month": "2025-02",
+            "total_eur": 2265.34
+          },
+          {
+            "month": "2025-03",
+            "total_eur": 2290.77
+          },
+          {
+            "month": "2025-04",
+            "total_eur": 2264.74
+          },
+          {
+            "month": "2025-05",
+            "total_eur": 2310.46
+          },
+          {
+            "month": "2025-06",
+            "total_eur": 2301.04
+          },
+          {
+            "month": "2025-07",
+            "total_eur": 2760.8
+          },
+          {
+            "month": "2025-08",
+            "total_eur": 2278.84
+          },
+          {
+            "month": "2025-09",
+            "total_eur": 2552.44
+          },
+          {
+            "month": "2025-10",
+            "total_eur": 2200.94
+          },
+          {
+            "month": "2025-11",
+            "total_eur": 2420.14
+          },
+          {
+            "month": "2025-12",
+            "total_eur": 2346.34
           }
         ]
       }
