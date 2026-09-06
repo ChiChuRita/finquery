@@ -29,7 +29,8 @@ from finquery.changesets import ChangesetError, ChangesetStale
 from finquery.context import context_budget
 from finquery.db import SplitSumError, ensure_default_profile, make_session_factory
 from finquery.edits import TransactionEditError
-from finquery.providers import MODEL_SLOTS, ModelResolver, build_local_stack, build_resolver, subagent_settings
+from finquery.catalog import Catalog, Resolver
+from finquery.providers import build_local_stack, subagent_settings
 from finquery.settings import Settings
 from finquery.weblookup import HttpWebClient, WebClient
 
@@ -42,17 +43,18 @@ FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 def create_app(
     settings: Settings,
     *,
-    resolve_model: ModelResolver | None = None,
+    resolve_model: Resolver | None = None,
     local: "LocalStack | None" = None,
     web_client: WebClient | None = None,
     serve_frontend: bool = True,
 ) -> FastAPI:
     """Build the app.
 
-    Tests pass `resolve_model` to replace both slots with scripted models, `local` to replace
-    the local provider's downloader and loaded models with stubs, and `web_client` to replace
-    the search and page fetch of the web lookup, which is the only thing here that would
-    otherwise leave the machine.
+    Tests pass `resolve_model` to replace every catalog entry with a scripted model (it is
+    called with the entry key and the role, so a test can assert which provider a sub-agent was
+    asked for), `local` to replace the local provider's downloader and loaded models with stubs,
+    and `web_client` to replace the search and page fetch of the web lookup, which is the only
+    thing here that would otherwise leave the machine.
     """
     # PDF pages are read in parallel only where the model really is parallel (a hosted one).
     from finquery.extract import statement as extraction_pages
@@ -66,8 +68,14 @@ def create_app(
         app.state.session_factory = make_session_factory(settings.db_path)
         with app.state.session_factory() as session:
             ensure_default_profile(session)
-        app.state.local = local if local is not None else (build_local_stack(settings) if settings.provider == "local" else None)
-        app.state.resolve_model = resolve_model or build_resolver(settings, local=app.state.local)
+        # Both providers are live at once, so the local stack exists whatever the provider
+        # setting says. Nothing is downloaded or loaded here: an OpenRouter run only gets the
+        # local entries listed with their real availability, and the Settings models card is
+        # where their download starts. See docs/adr/0013.
+        app.state.local = (
+            local if local is not None else build_local_stack(settings, download=settings.provider == "local")
+        )
+        app.state.models = Catalog(settings, local=app.state.local, resolve=resolve_model)
         app.state.subagent_settings = subagent_settings(settings)
         app.state.context_budget = context_budget(settings, app.state.local)
         # Nothing calls it until a profile switches web lookup on. See finquery.weblookup.
@@ -97,7 +105,7 @@ def create_app(
 
     @app.get("/api/health")
     async def health() -> dict[str, object]:
-        return {"provider": settings.provider, "slots": list(MODEL_SLOTS)}
+        return {"provider": settings.provider, "models": [entry.key for entry in app.state.models.entries]}
 
     # A refused write is a validation error the UI shows where it happened, not a 500. One
     # handler for both, so no endpoint has to catch what the data model says no to.

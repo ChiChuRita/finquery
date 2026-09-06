@@ -107,11 +107,13 @@ async def render_failure(request: Request, body: RenderFailureBody) -> RenderFai
         record_chart(session, turn, body.tool_call_id, failed)
         profile_id = conversation.profile_id
         hints = content.chart_hints.get(body.tool_call_id)
+        # The repair runs where the chart ran: the fast slot of this turn's entry's provider.
+        resolve = state.models.resolver(state.models.key_of(turn.model_key or turn.model_slot))
     if spent:
         return RenderFailureOut(retried=False, chart=failed)
 
     outcome = await run_chart(
-        resolve_model=state.resolve_model,
+        resolve_model=resolve,
         model_settings=state.subagent_settings,
         session_factory=state.session_factory,
         profile_id=profile_id,

@@ -71,8 +71,8 @@ async def load_sample_year(request: Request, body: OnboardingBody) -> SampleOut:
         raise HTTPException(status_code=404, detail="The sample year is not shipped with this installation.")
     with state.session_factory() as session:
         profile = get_profile_or_404(session, body.profile_id)
-        slot = profile.default_model_slot
-        conversation = Conversation(profile_id=profile.id, model_slot=slot, title=SAMPLE_TITLE)
+        model_key = state.models.key_of(profile.default_model_key)
+        conversation = Conversation(profile_id=profile.id, model_key=model_key, title=SAMPLE_TITLE)
         session.add(conversation)
         session.flush()
         conversation_id = conversation.id
@@ -91,7 +91,7 @@ async def load_sample_year(request: Request, body: OnboardingBody) -> SampleOut:
             profile.id,
             conversation_id,
             file_name=SAMPLE_CSV.name,
-            resolve_model=state.resolve_model,
+            resolve_model=state.models.resolver(model_key),
             model_settings=state.subagent_settings,
         )
         session.commit()
@@ -111,8 +111,8 @@ async def load_sample_year(request: Request, body: OnboardingBody) -> SampleOut:
             ModelRequest(parts=[ToolReturnPart(tool_name=IMPORT_TOOL, content=payload, tool_call_id=call_id)]),
             ModelResponse(parts=parts),
         ],
-        slot=slot,
-        metadata={"model_slot": slot},
+        model_key=model_key,
+        metadata={"model_key": model_key},
         attachments=attachment_chips,
     )
     return SampleOut(
@@ -130,7 +130,7 @@ async def open_welcome(request: Request, body: OnboardingBody) -> WelcomeOut:
     with state.session_factory() as session:
         profile = get_profile_or_404(session, body.profile_id)
         language = profile.answer_language if profile.answer_language != "follow" else "en"
-        slot = profile.default_model_slot
+        model_key = state.models.key_of(profile.default_model_key)
         context = load_query_context(session, profile.id)
         text = welcome_text(
             language,
@@ -144,7 +144,7 @@ async def open_welcome(request: Request, body: OnboardingBody) -> WelcomeOut:
             language, transaction_count=context.transaction_count, last_booked_on=context.last_booked_on
         )
         title = WELCOME_TITLE[language]
-        conversation = Conversation(profile_id=profile.id, model_slot=slot, title=title)
+        conversation = Conversation(profile_id=profile.id, model_key=model_key, title=title)
         session.add(conversation)
         session.commit()
         conversation_id = conversation.id
@@ -153,8 +153,8 @@ async def open_welcome(request: Request, body: OnboardingBody) -> WelcomeOut:
         state.session_factory,
         conversation_id,
         [ModelResponse(parts=[TextPart(content=text)])],
-        slot=slot,
-        metadata={"model_slot": slot},
+        model_key=model_key,
+        metadata={"model_key": model_key},
         data_parts=[DataUIPart(type=FOLLOWUPS_PART, data={"suggestions": suggestions})],
     )
     return WelcomeOut(conversation_id=conversation_id, title=title, suggestions=suggestions)

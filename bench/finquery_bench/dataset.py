@@ -18,7 +18,7 @@ from finquery.categorize import categorize_import
 from finquery.db import create_profile, make_session_factory
 from finquery.ingest.commit import commit_rows
 from finquery.ingest.csv_reader import detect_preset, mapping_for, parse, sniff
-from finquery.providers import ModelSlot, ProviderNotAvailable
+from finquery.providers import ModelRole, ProviderNotAvailable
 
 REPO = Path(__file__).resolve().parents[2]
 SYNTHETIC_CSV = REPO / "fixtures" / "synthetic" / "sparkasse-2025.csv"
@@ -26,7 +26,7 @@ SYNTHETIC_CSV = REPO / "fixtures" / "synthetic" / "sparkasse-2025.csv"
 PROFILE_NAME = "Benchmark"
 
 
-def no_model(_slot: ModelSlot):  # noqa: ANN201 - it never returns, it raises
+def no_model(_role: ModelRole):  # noqa: ANN201 - it never returns, it raises
     """The resolver the loader hands the categorizer: there is no model in a gold database.
 
     `categorize_rows` treats an unavailable provider as "the model stage placed nothing", so

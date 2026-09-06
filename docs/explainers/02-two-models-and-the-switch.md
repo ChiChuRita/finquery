@@ -1,60 +1,69 @@
-# 02: Two resident local models, one switch
+# 02: Four models to choose from, two of them resident on the laptop
 
-**Claim:** The whole app runs on two models on the laptop through llama-cpp-python, in one
-Python process, with thinking, tool calls and vision on both; the user switches between them
-per conversation; nothing above the provider module knows which model or which provider is
-running.
+**Claim:** The picker offers four chat models across both providers, two of them running on the
+laptop through llama-cpp-python in this Python process with thinking, tool calls and vision;
+the user switches per conversation, and nothing above the catalog module knows which model or
+which provider answered.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-  UI["Composer model picker"] -->|"model_slot on the conversation"| Chat["api/chat.py chat"]
-  Chat -->|"resolve_model(slot)"| Prov["providers.py build_resolver"]
-  Prov -->|"FINQUERY_PROVIDER=openrouter"| OR["HostedModel over OpenRouterModel"]
-  Prov -->|"FINQUERY_PROVIDER=local"| Stack["local/runtime.py LocalStack"]
-  Stack --> Fast["fast: gemma-4-E4B-it Q4_K_M + projector"]
-  Stack --> Quality["quality: Qwen3.5-9B Q4_K_M + projector"]
-  Fast --> Gemma["local/gemma.py wire format"]
-  Quality --> Qwen["local/qwen.py wire format"]
-  Gemma --> PAI["Pydantic AI parts: thinking, text, tool calls"]
-  Qwen --> PAI
+  UI["Composer model picker"] -->|"model_key on the conversation"| Chat["api/chat.py chat"]
+  Chat -->|"catalog.resolver(key)"| Cat["catalog.py Catalog"]
+  Cat -->|"role=chat, local entry"| Seat["local seat: Qwen3.5-9B or gemma-4-12b-it"]
+  Cat -->|"role=chat, cloud entry"| ORchat["HostedModel: qwen/qwen3.5-9b or google/gemma-4-26b-a4b-it"]
+  Cat -->|"role=fast, local entry"| E4B["fast seat: gemma-4-E4B-it, resident"]
+  Cat -->|"role=fast, cloud entry"| ORfast["HostedModel: FINQUERY_OPENROUTER_FAST_MODEL"]
+  Seat --> Wire["local/gemma.py or local/qwen.py wire format"]
+  E4B --> Wire
+  Wire --> PAI["Pydantic AI parts: thinking, text, tool calls"]
+  ORchat --> PAI
+  ORfast --> PAI
 ```
 
 In words:
 
-1. A conversation stores a slot, `fast` or `quality`, never a model name. The composer changes
-   it with `PATCH /api/conversations/{id}` and the next turn uses it.
-2. The chat endpoint asks `resolve_model(slot)` for a Pydantic AI `Model`. That callable was
-   built once at startup from `FINQUERY_PROVIDER`.
-3. On `openrouter` the two slots are `google/gemma-4-26b-a4b-it` and `qwen/qwen3.5-9b` with
-   reasoning enabled. On `local` they are the two GGUF files in the catalog, loaded on first use
-   and kept resident.
+1. A conversation stores a catalog key, never a position: `local:qwen3.5-9b`,
+   `openrouter:qwen/qwen3.5-9b`, `local:gemma-4-12b` or `openrouter:google/gemma-4-26b-a4b-it`.
+   The composer changes it with `PATCH /api/conversations/{id}` and the next turn uses it.
+2. The chat endpoint asks the catalog for a resolver bound to that entry and hands it to the
+   turn. `resolver("chat")` is the entry itself; `resolver("fast")` is the sub-agent slot of
+   that entry's provider. Those two lines are the whole rule.
+3. Both providers are live at the same time. `FINQUERY_PROVIDER` decides one thing: which entry
+   a new conversation starts on. A cloud entry with no `OPENROUTER_API_KEY` and a local entry
+   with no weights are both listed, disabled, with the reason.
 4. Locally every request goes through llama-cpp-python's chat handler with the GGUF's own chat
-   template, on one worker thread per slot. The raw token stream comes back as text, and a wire
+   template, on one worker thread per seat. The raw token stream comes back as text, and a wire
    format module per model splits it into thinking parts, text parts and tool calls.
-5. Everything above (the agent, the tools, the API, the UI) sees Pydantic AI parts and knows
-   nothing about the provider. The model picker labels the slot with the name the running
-   provider really resolved it to (`GET /api/models`).
+5. There are two seats in memory, not three models. Gemma 4 E4B holds the fast seat and stays
+   there. The two local chat models share the other one: choosing the other drains the seat,
+   unloads it and loads the new one at the same context.
+6. Everything above (the agent, the tools, the API, the UI) sees Pydantic AI parts and knows
+   nothing about the provider. Every name on screen comes from `GET /api/models`.
 
 ## The code path
 
 1. `src/finquery/settings.py:Settings`: `provider`, `local_n_ctx` (32768), `models_dir`,
-   `parked_models_dir`, `openrouter_fast_model`, `openrouter_quality_model`.
-2. `src/finquery/providers.py:build_resolver`: returns a `slot -> Model` callable. Construction
-   never touches the network or loads weights.
+   `parked_models_dir`, `openrouter_fast_model` (the hosted sub-agent slot),
+   `openrouter_quality_model` and `openrouter_second_chat_model` (the two hosted chat entries).
+2. `src/finquery/catalog.py:Catalog`: the four entries, their availability with a reason, and
+   `resolver(key)`, which returns the `role -> Model` callable a turn hands to its tools.
+   Construction never touches the network or loads weights.
 3. `src/finquery/providers.py:HostedModel`: the OpenRouter wrapper. It falls back to low
    reasoning effort when a hosted model refuses reasoning off.
 4. `src/finquery/providers.py:subagent_settings` and `SUBAGENT_MAX_TOKENS`: reasoning off on
    OpenRouter, a 3072 token output ceiling on both providers, for every sub-agent call.
-5. `src/finquery/local/catalog.py:LOCAL_MODELS`: the two `ModelSpec` entries with repo, file
-   name, size and sha256 for weights and projector, and which wire format each speaks.
+5. `src/finquery/local/catalog.py:LOCAL_MODELS`: the three `ModelSpec` entries with repo, file
+   name, size and sha256 for weights and projector, which seat each takes and which wire format
+   each speaks.
 6. `src/finquery/local/downloads.py:DownloadManager`: downloads with per-file progress, or
    links in a parked copy whose sha256 matches.
-7. `src/finquery/local/runtime.py:LocalStack`: `resolve` (a `LlamaCppModel` for a slot, 503 if
-   the files are missing), `slot` (load on first use, then resident), `holding` (one lock per
-   slot, re-entrant inside one asyncio task), `with_adapter` (attach a LoRA adapter on the
-   fast slot for one run), `drain` (wait for a cancelled call to leave llama.cpp).
+7. `src/finquery/local/runtime.py:LocalStack`: `resolve` (a `LlamaCppModel` for one model, 503
+   if the files are missing), `slot` (load on first use, then resident), `take_seat` (drain,
+   unload, load, in that order), `holding` (one lock per seat, re-entrant inside one asyncio
+   task, and where the swap happens), `with_adapter` (attach a LoRA adapter on the fast seat
+   for one run), `drain` (wait for a cancelled call to leave llama.cpp).
 8. `src/finquery/local/model.py:LlamaCppModel`: the Pydantic AI `Model`. `request_stream`
    renders messages to the OpenAI-shaped dicts the template expects, decides `enable_thinking`
    (on for a free request, off when a single tool is forced), sets the model's sampling from
@@ -66,19 +75,21 @@ In words:
     `models/adapters/{query,chart}.gguf` under a lock, or yields an audit note when the file is
     missing and the run continues on the base weights.
 11. `src/finquery/local/check.py:check_slot`: the `finquery-check` command. Answer, thinking,
-    tool call and vision on each slot, plus the adapter files' presence.
-12. `src/finquery/api/chat.py:chat` resolves the slot and stamps `model_slot` on every assistant
-    message; `src/finquery/api/chat.py:stop` cancels the token, and the local loop checks it
-    between tokens.
-13. `src/finquery/api/models.py:get_models` carries a label per slot;
-    `frontend/src/lib/slots.ts:useSlotLabel` reads it and
+    tool call and vision on the fast slot and on every local chat model whose weights are on
+    disk, plus the adapter files' presence.
+12. `src/finquery/api/chat.py:chat` reads the conversation's entry and stamps `model_key` on
+    every assistant message; `src/finquery/api/chat.py:stop` cancels the token, and the local
+    loop checks it between tokens.
+13. `src/finquery/api/models.py:get_models` returns the catalog with availability and download
+    progress; `frontend/src/lib/catalog.ts:useCatalog` reads it and
     `frontend/src/components/model-picker.tsx:ModelPicker` shows it.
 
 ## Where the model is in the loop, and where it is not
 
 - The model is in the loop for the chat turn itself, and for every sub-agent call on the fast
-  slot.
-- The model is not in the loop for: which model runs (a setting), how a turn is split into
+  slot of that turn's provider.
+- The model is not in the loop for: which model runs (the conversation's entry, chosen by the
+  user), which provider its sub-agents use (its entry's), how a turn is split into
   thinking, text and tool calls (our splitter, from the template's markers), whether thinking
   is on (a template argument decided by whether a tool is forced), the output ceiling, the
   adapter attach and detach, cancellation, the labels in the UI.
@@ -94,8 +105,12 @@ In words:
   (`tests/test_local_provider.py`, `test_adapter_falls_back_to_base_weights_with_a_note`).
 - A missing model file is a 503 with a sentence that says to open Settings; the app starts
   without any weights on disk.
-- llama.cpp is not reentrant, so one worker thread per slot, one lock per slot, and `drain`
+- llama.cpp is not reentrant, so one worker thread per seat, one lock per seat, and `drain`
   after a cancelled turn so the next turn never enters llama.cpp while the old call is inside.
+  A seat swap drains first for the same reason, before the weights the old call was reading are
+  freed, and only then loads the other chat model.
+- A cloud entry with no API key and a local entry with no weights both answer with one sentence
+  (a 503 the composer shows), never a stack trace, and the picker disables them with it.
 - Template tokens that leak as text (`<turn|>`, a bare `thought` line) are stripped in
   `src/finquery/api/chat.py:TextFilter` and `src/finquery/local/gemma.py:strip_markers`, live
   and on the way into the database.
@@ -121,21 +136,32 @@ In words:
 
 ## Three sentences for the talk
 
-1. "Two models are resident on this laptop at the same time, 13.5 gigabytes together, and the
-   switch in the composer picks which one answers; every sub-agent always runs on the small one."
-2. "There is no OpenAI-compatible server in between: llama-cpp-python runs in-process behind a
+1. "The picker offers four models: Qwen3.5 9B and Gemma 4 12B on this laptop, and Qwen3.5 9B and
+   Gemma 4 26B in the cloud. Two are resident here, 13.5 gigabytes together, and the two local
+   chat models share one seat because three do not fit."
+2. "Whatever the chat runs on, its sub-agents run on the fast model of that same provider, so a
+   local conversation never sends anything anywhere; that rule is two lines in one module."
+3. "There is no OpenAI-compatible server in between: llama-cpp-python runs in-process behind a
    Pydantic AI model class we wrote, and because Gemma 4 and Qwen3.5 agree on nothing about how a
    turn looks, each has its own wire format module that turns the raw stream into thinking, text
    and tool calls."
-3. "Switching to OpenRouter for development is one environment variable and nothing else moves,
-   which is also why every test runs against scripted models and none loads a real one."
+4. "Which entry a new chat starts on is one environment variable and nothing else moves, which
+   is also why every test runs against scripted models and none loads a real one."
 
 ## Likely grader questions
 
-- **Why Qwen3.5 9B and not Gemma 4 12B for the quality slot?** Both models at 32k did not fit
-  in 24 GB with the 12B. Qwen's hybrid attention (only every fourth layer is full attention)
-  makes doubling its context cost 0.27 GB against 3.5 GB for the 12B, and it is better at tool
-  calling over numbers (ticket 23, ADR 0006).
+- **Why is Qwen3.5 9B the default and not Gemma 4 12B?** Both are offered now; Qwen is the
+  default because the 12B plus E4B at 32k did not fit in 24 GB when they had to be resident
+  together. Qwen's hybrid attention (only every fourth layer is full attention) makes doubling
+  its context cost 0.27 GB against 3.5 GB for the 12B, and it is better at tool calling over
+  numbers (ticket 23, ADR 0006). Since ticket 54 the 12B is a choice again because it no longer
+  shares memory with the 9B: they share a seat instead (ADR 0013).
+- **Why is Gemma 4 26B the hosted third entry and not Gemma 4 12B?** OpenRouter does not serve a
+  Gemma 4 12B, and 26B A4B is the nearest Gemma 4 there is. The id is a setting, so a served 12B
+  would be a one line change (ADR 0013).
+- **Can a local and a hosted model run at the same time?** Yes. Both providers are live;
+  `FINQUERY_PROVIDER` only picks which entry a new chat starts on. Two chats can ask the same
+  question of the local Qwen and the hosted Qwen side by side.
 - **Is llama-cpp-python an agent framework that implements an elective?** No. It runs the
   weights. Pydantic AI carries the stream and dispatches tools. Sub-agents, compression, memory,
   preferences and the web loop are our code (ADR 0001, `.scratch/finquery/spec.md`).

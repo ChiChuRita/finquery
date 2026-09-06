@@ -3,8 +3,8 @@
 The chat template inside the GGUF does the prompt building, so this module's job is the two
 translations around it: Pydantic AI messages to the OpenAI-shaped dicts the template expects,
 and the model's single text stream back to thinking parts, text parts and tool calls. Which
-template that is decides the details, and those live in `finquery.local.gemma` (fast slot) and
-`finquery.local.qwen` (quality slot), picked per model through `WIRE_FORMATS` below.
+template that is decides the details, and those live in `finquery.local.gemma` (Gemma 4 E4B and
+Gemma 4 12B) and `finquery.local.qwen` (Qwen3.5 9B), picked per model through `WIRE_FORMATS`.
 
 Two rules from the spec hold for both. Thinking is switched on through the chat template
 rather than a request flag, and schema-constrained output is never combined with free tool
@@ -49,7 +49,7 @@ from finquery.local import gemma, qwen
 from finquery.local.catalog import ModelSpec
 from finquery.local.runtime import LocalStack, Slot, adapter_note
 from finquery.local.wire import Event, Sampling, WireFormat, WireName
-from finquery.providers import ModelSlot
+from finquery.providers import ModelRole
 
 SYSTEM = "llama-cpp"
 
@@ -100,7 +100,11 @@ class LocalModelSettings(ModelSettings, total=False):
 
 @dataclass(init=False)
 class LlamaCppModel(Model):
-    """One logical slot backed by a resident GGUF, speaking that model's wire format."""
+    """One local model in its seat, speaking that model's wire format.
+
+    Taking the seat is what swaps the two chat models: `_hold` asks for this model by spec, and
+    `LocalStack.holding` drains, unloads and loads under the seat's lock before the run starts.
+    """
 
     _spec: ModelSpec
     _stack: LocalStack
@@ -171,7 +175,7 @@ class LlamaCppModel(Model):
                 model_request_parameters=model_request_parameters,
                 _model_name=self.model_name,
                 _stack=self._stack,
-                _slot_name=self._spec.slot,
+                _seat=self._spec.seat,
                 _slot=loaded,
                 _wire=self._wire,
                 _request=request,
@@ -186,13 +190,13 @@ class LlamaCppModel(Model):
             finally:
                 # Still inside `_hold`, so the slot stays locked until nothing is in llama.cpp.
                 response.stop()
-                self._stack.drain(self._spec.slot)
+                self._stack.drain(self._spec.seat)
 
     @asynccontextmanager
     async def _hold(self, adapter: str | None) -> AsyncIterator[Slot]:
         """Take the slot for this request, with the sub-agent's adapter attached if asked."""
         if adapter is None:
-            async with self._stack.holding(self._spec.slot) as loaded:
+            async with self._stack.holding(self._spec.seat, self._spec) as loaded:
                 yield loaded
         else:
             async with self._stack.with_adapter(adapter) as loaded:  # type: ignore[arg-type]
@@ -328,7 +332,7 @@ class LlamaCppStreamedResponse(StreamedResponse):
 
     _model_name: str
     _stack: LocalStack
-    _slot_name: ModelSlot
+    _seat: ModelRole
     _slot: Slot
     _wire: WireFormat
     _request: dict[str, Any]
@@ -377,7 +381,7 @@ class LlamaCppStreamedResponse(StreamedResponse):
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
         run = self._stack.run
-        self._chunks = await run(self._slot_name, lambda: self._slot.stream(**self._request))
+        self._chunks = await run(self._seat, lambda: self._slot.stream(**self._request))
         splitter = self._wire.splitter(in_thought=self._in_thought)
         generated = 0
         prompt_tokens = 0
@@ -387,7 +391,7 @@ class LlamaCppStreamedResponse(StreamedResponse):
             if self._stopped or self._cancel_requested():
                 cancelled = True
                 break
-            chunk = await run(self._slot_name, lambda: next(chunks, None))
+            chunk = await run(self._seat, lambda: next(chunks, None))
             if chunk is None:
                 break
             delta = chunk["choices"][0].get("delta") or {}

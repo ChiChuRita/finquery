@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Literal
 
 from finquery.local.catalog import LOCAL_MODELS, FileSpec, ModelSpec
-from finquery.providers import ModelSlot
 
 FileState = Literal["missing", "verifying", "downloading", "ready", "error"]
 
@@ -32,7 +31,8 @@ Fetch = Callable[[FileSpec, Path, Report], None]
 class FileProgress:
     """What the Settings card shows for one file."""
 
-    slot: ModelSlot
+    key: str
+    """The catalog key of the model this file belongs to."""
     model: str
     kind: str
     filename: str
@@ -88,7 +88,7 @@ class DownloadManager:
         self,
         models_dir: Path,
         *,
-        models: dict[ModelSlot, ModelSpec] | None = None,
+        models: dict[str, ModelSpec] | None = None,
         parked_dirs: Sequence[Path] = (),
         fetch: Fetch = http_fetch,
     ) -> None:
@@ -118,7 +118,7 @@ class DownloadManager:
                     continue
                 rows.append(
                     FileProgress(
-                        slot=spec.slot,
+                        key=spec.key,
                         model=spec.name,
                         kind=file.kind,
                         filename=file.filename,
@@ -129,9 +129,9 @@ class DownloadManager:
                 )
         return rows
 
-    def ready(self, slot: ModelSlot) -> bool:
-        spec = self.models[slot]
-        return all(self.path(spec, file).is_file() for file in spec.files)
+    def ready(self, key: str) -> bool:
+        spec = self.models.get(key)
+        return spec is not None and all(self.path(spec, file).is_file() for file in spec.files)
 
     def missing(self) -> list[tuple[ModelSpec, FileSpec]]:
         return [(spec, file) for spec in self.models.values() for file in spec.files if not self.path(spec, file).is_file()]
@@ -139,18 +139,18 @@ class DownloadManager:
     def busy(self) -> bool:
         return self._worker is not None and self._worker.is_alive()
 
-    def start(self, slots: Iterable[ModelSlot] | None = None) -> None:
+    def start(self, keys: Iterable[str] | None = None) -> None:
         """Fetch the missing files in the background. A second call while busy is a no-op."""
         if self.busy():
             return
-        wanted = set(slots) if slots is not None else set(self.models)
-        jobs = [(spec, file) for spec, file in self.missing() if spec.slot in wanted]
+        wanted = set(keys) if keys is not None else set(self.models)
+        jobs = [(spec, file) for spec, file in self.missing() if spec.key in wanted]
         if not jobs:
             return
         with self._lock:
             for spec, file in jobs:
                 self._live[file.filename + spec.name] = FileProgress(
-                    slot=spec.slot,
+                    key=spec.key,
                     model=spec.name,
                     kind=file.kind,
                     filename=file.filename,
@@ -161,18 +161,16 @@ class DownloadManager:
         self._worker = threading.Thread(target=self._run, args=(jobs,), name="finquery-downloads", daemon=True)
         self._worker.start()
 
-    def ensure(self, slot: ModelSlot, *, timeout: float = 3600) -> None:
-        """Block until the slot's files are on disk. Used by the lazy model loader."""
-        if self.ready(slot):
+    def ensure(self, key: str, *, timeout: float = 3600) -> None:
+        """Block until one model's files are on disk. Used by the lazy model loader."""
+        if self.ready(key):
             return
-        self.start([slot])
+        self.start([key])
         if self._worker is not None:
             self._worker.join(timeout)
-        if not self.ready(slot):
-            errors = [row.error for row in self.progress() if row.slot == slot and row.error]
-            raise RuntimeError(
-                f"the {slot} model is not on disk: " + (errors[0] if errors else "download did not finish")
-            )
+        if not self.ready(key):
+            errors = [row.error for row in self.progress() if row.key == key and row.error]
+            raise RuntimeError(f"{key} is not on disk: " + (errors[0] if errors else "download did not finish"))
 
     def _run(self, jobs: Sequence[tuple[ModelSpec, FileSpec]]) -> None:
         for spec, file in jobs:

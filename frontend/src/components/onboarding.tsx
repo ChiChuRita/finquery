@@ -30,7 +30,6 @@ import {
   createConversation,
   discardChangeset,
   loadSampleYear,
-  MODEL_SLOTS,
   openWelcome,
   patchSettings,
   proposeTaxonomyChange,
@@ -39,11 +38,11 @@ import {
   type AnswerLanguage,
   type CategoryRef,
   type Changeset,
-  type ModelSlot,
+  type ModelKey,
   type TaxonomyChange,
 } from '@/lib/api'
 import { stashPendingPrompt } from '@/lib/pending'
-import { useSlotLabel } from '@/lib/slots'
+import { useCatalog } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 
@@ -498,7 +497,7 @@ function PreferencesStep() {
   const { profile } = useWorkspace()
   const { data: settings } = useQuery(settingsQuery(profile?.id))
   const [error, setError] = useState<string>()
-  const slotLabel = useSlotLabel()
+  const { entries, defaultKey } = useCatalog()
 
   const write = async (patch: Parameters<typeof patchSettings>[1]) => {
     if (!profile) return
@@ -539,15 +538,22 @@ function PreferencesStep() {
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="default-slot">Model for new chats</FieldLabel>
+            <FieldLabel htmlFor="default-model">Model for new chats</FieldLabel>
             <FieldDescription>
-              You can switch a chat to the other one at any time. Tools always run on the fast model.
+              Four to choose from, on this machine or in the cloud, and you can switch a chat to another one
+              at any time. Tools always run on the fast model of whichever provider the chat is on. One that
+              is not ready says why.
             </FieldDescription>
             <Choices
-              id="default-slot"
-              onChange={(value) => void write({ default_model_slot: value as ModelSlot })}
-              options={MODEL_SLOTS.map((model) => ({ value: model.slot, label: slotLabel(model.slot) ?? model.slot }))}
-              value={settings?.default_model_slot ?? 'fast'}
+              id="default-model"
+              onChange={(value) => void write({ default_model_key: value as ModelKey })}
+              options={entries.map((model) => ({
+                value: model.key,
+                label: model.label,
+                disabled: !model.available,
+                title: model.reason ?? undefined,
+              }))}
+              value={settings?.default_model_key ?? defaultKey ?? ''}
             />
           </Field>
 
@@ -582,12 +588,16 @@ function Choices({
   onChange,
 }: {
   id: string
-  options: { value: string; label: string }[]
+  /** `disabled` with a `title` is how an unavailable model is offered: listed, with the reason. */
+  options: { value: string; label: string; disabled?: boolean; title?: string }[]
   value: string
   onChange: (value: string) => void
 }) {
   return (
     <ToggleGroup
+      // Four models do not fit on one line of the card, so the group wraps rather than
+      // pushing the last one off the right edge.
+      className="max-w-full flex-wrap"
       id={id}
       onValueChange={(next) => next && onChange(next)}
       type="single"
@@ -595,7 +605,7 @@ function Choices({
       variant="outline"
     >
       {options.map((option) => (
-        <ToggleGroupItem key={option.value} value={option.value}>
+        <ToggleGroupItem disabled={option.disabled} key={option.value} title={option.title} value={option.value}>
           {option.value === value ? <CheckIcon data-icon="inline-start" /> : null}
           {option.label}
         </ToggleGroupItem>
@@ -609,16 +619,16 @@ function FirstDataStep({ busy, onImported }: { busy: boolean; onImported: (conve
   const queryClient = useQueryClient()
   const { profile } = useWorkspace()
   const { data: settings } = useQuery(settingsQuery(profile?.id))
-  const [slot, setSlot] = useState<ModelSlot>()
+  const [modelKey, setModelKey] = useState<ModelKey>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
-  const chosen = slot ?? settings?.default_model_slot ?? 'fast'
+  const chosen = modelKey ?? settings?.default_model_key
 
   const start = async (text: string, files: FileUIPart[]) => {
     if (!profile || loading || busy) return
     setLoading(true)
     try {
-      const conversation = await createConversation(profile.id, chosen)
+      const conversation = await createConversation(profile.id, chosen ?? null)
       stashPendingPrompt(conversation.id, { text: text || IMPORT_PROMPT, files })
       onImported(conversation.id)
     } finally {
@@ -652,9 +662,9 @@ function FirstDataStep({ busy, onImported }: { busy: boolean; onImported: (conve
       <CardContent className="flex flex-col gap-4">
         <div className={cn(loading && 'pointer-events-none opacity-60')}>
           <Composer
-            onSlotChange={setSlot}
+            modelKey={chosen}
+            onModelChange={setModelKey}
             onSubmit={start}
-            slot={chosen}
             status={loading || busy ? 'submitted' : 'ready'}
           />
         </div>

@@ -8,11 +8,11 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
-from finquery.api.profiles import get_profile_or_404
+from finquery.api.profiles import get_profile_or_404, profile_model_key
+from finquery.catalog import Catalog
 from finquery.context import clean_summary
 from finquery.db import Conversation
 from finquery.preferences import Kind, Rating, records_of_conversation
-from finquery.providers import ModelSlot
 
 router = APIRouter()
 
@@ -23,7 +23,8 @@ class ConversationOut(BaseModel):
     id: str
     profile_id: str
     title: str
-    model_slot: ModelSlot
+    model_key: str
+    """The catalog entry this conversation runs on (`finquery.catalog`)."""
     running: bool = False
     """Whether a turn of this conversation is being answered right now.
 
@@ -63,12 +64,13 @@ class ConversationDetail(ConversationOut):
 
 class ConversationCreate(BaseModel):
     profile_id: str
-    model_slot: ModelSlot = "fast"
+    model_key: str | None = None
+    """Null starts the conversation on the profile's default entry."""
 
 
 class ConversationPatch(BaseModel):
     title: str | None = None
-    model_slot: ModelSlot | None = None
+    model_key: str | None = None
     summary: str | None = None
     """An edited rolling summary. The next turn sends this text instead of the older turns."""
 
@@ -93,19 +95,19 @@ class ConversationPatch(BaseModel):
         return title[:TITLE_LENGTH]
 
 
-def _out(conversation: Conversation, *, running: bool = False) -> ConversationOut:
+def _out(conversation: Conversation, catalog: Catalog, *, running: bool = False) -> ConversationOut:
     return ConversationOut(
         id=conversation.id,
         profile_id=conversation.profile_id,
         title=conversation.title,
-        model_slot=conversation.model_slot,  # type: ignore[arg-type]
+        model_key=catalog.key_of(conversation.model_key or conversation.model_slot),
         running=running,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
     )
 
 
-def _detail(conversation: Conversation, session: Session, *, running: bool = False) -> ConversationDetail:
+def _detail(conversation: Conversation, session: Session, catalog: Catalog, *, running: bool = False) -> ConversationDetail:
     messages: list[dict[str, Any]] = []
     summarized_turns = 0
     summarized_messages = 0
@@ -128,7 +130,7 @@ def _detail(conversation: Conversation, session: Session, *, running: bool = Fal
         if record.turn_id is not None
     ]
     return ConversationDetail(
-        **_out(conversation, running=running).model_dump(),
+        **_out(conversation, catalog, running=running).model_dump(),
         messages=messages,
         interrupted=interrupted,
         summary=conversation.summary,
@@ -157,24 +159,28 @@ async def list_conversations(request: Request, profile_id: str) -> list[Conversa
             .all()
         )
         running = request.app.state.running_turns
-        return [_out(row, running=row.id in running) for row in rows]
+        return [_out(row, request.app.state.models, running=row.id in running) for row in rows]
 
 
 @router.post("/conversations", response_model=ConversationOut, status_code=201)
 async def create_conversation(request: Request, body: ConversationCreate) -> ConversationOut:
     with request.app.state.session_factory() as session:
         get_profile_or_404(session, body.profile_id)
-        conversation = Conversation(profile_id=body.profile_id, model_slot=body.model_slot)
+        catalog = request.app.state.models
+        key = catalog.key_of(body.model_key) if body.model_key else profile_model_key(request.app.state, body.profile_id)
+        conversation = Conversation(profile_id=body.profile_id, model_key=key)
         session.add(conversation)
         session.commit()
-        return _out(conversation)
+        return _out(conversation, catalog)
 
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
 async def get_conversation(request: Request, conversation_id: str) -> ConversationDetail:
     with request.app.state.session_factory() as session:
         conversation = get_conversation_or_404(session, conversation_id)
-        return _detail(conversation, session, running=conversation_id in request.app.state.running_turns)
+        return _detail(
+            conversation, session, request.app.state.models, running=conversation_id in request.app.state.running_turns
+        )
 
 
 @router.patch("/conversations/{conversation_id}", response_model=ConversationOut)
@@ -183,12 +189,15 @@ async def patch_conversation(request: Request, conversation_id: str, body: Conve
         conversation = get_conversation_or_404(session, conversation_id)
         if body.title is not None:
             conversation.title = body.title
-        if body.model_slot is not None:
-            conversation.model_slot = body.model_slot
+        if body.model_key is not None:
+            # A running turn keeps the entry it started on: this only decides the next one.
+            if not any(entry.key == body.model_key for entry in request.app.state.models.entries):
+                raise HTTPException(status_code=422, detail=f"{body.model_key} is not a model this app offers")
+            conversation.model_key = body.model_key
         if body.summary is not None:
             conversation.summary = body.summary
         session.commit()
-        return _out(conversation)
+        return _out(conversation, request.app.state.models)
 
 
 @router.delete("/conversations/{conversation_id}", status_code=204)

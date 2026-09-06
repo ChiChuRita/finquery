@@ -6,9 +6,9 @@ import {
   AlertTriangleIcon,
   BrainIcon,
   CircleStopIcon,
+  CloudIcon,
   GitCompareIcon,
-  SparklesIcon,
-  ZapIcon,
+  HardDriveIcon,
 } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { StickToBottomContext } from 'use-stick-to-bottom'
@@ -61,15 +61,16 @@ import {
   type ContextStats,
   type ConversationDetail,
   type ImportProgress,
-  type ModelSlot,
+  type ModelKey,
   type PreferenceRating,
 } from '@/lib/api'
 import { hasPendingPrompt, takePendingPrompt } from '@/lib/pending'
-import { useSlotLabel } from '@/lib/slots'
+import { useCatalog, useModelLabel } from '@/lib/catalog'
 import { messageToMarkdown, transcriptFilename } from '@/lib/transcript-markdown'
 import { readScrollTop, useWorkspace, writeScrollTop } from '@/lib/workspace'
 
-const SLOT_ICONS: Record<ModelSlot, typeof ZapIcon> = { fast: ZapIcon, quality: SparklesIcon }
+/** Where a turn ran, which is what its chip says next to the model's name. */
+const PROVIDER_ICONS = { local: HardDriveIcon, openrouter: CloudIcon }
 
 /** The only tools whose turn can be answered a second time: read-only, and they draw no card.
  *
@@ -108,7 +109,7 @@ function ratingsByTarget(conversation: ConversationDetail): Map<string, Preferen
 export function ChatView({ conversation }: { conversation: ConversationDetail }) {
   const queryClient = useQueryClient()
   const { profile, conversations } = useWorkspace()
-  const [slot, setSlot] = useState<ModelSlot>(conversation.model_slot)
+  const [modelKey, setModelKey] = useState<ModelKey>(conversation.model_key)
   const scrollContext = useRememberedScroll(conversation.id)
   // The list is polled while anything runs, so it knows before this transcript does that the
   // turn has started or ended. Until it has been loaded, what the conversation itself said.
@@ -246,9 +247,10 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
     setFocusToken((token) => token + 1)
   }
 
-  const changeSlot = async (next: ModelSlot) => {
-    setSlot(next)
-    await patchConversation(conversation.id, { model_slot: next })
+  const changeModel = async (next: ModelKey) => {
+    // The running turn keeps the entry it started on; this decides the next one.
+    setModelKey(next)
+    await patchConversation(conversation.id, { model_key: next })
     void queryClient.invalidateQueries(conversationQuery(conversation.id))
   }
 
@@ -317,7 +319,7 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
                   onPickFollowup={(text) => send({ text })}
                   progress={progress}
                   ratings={ratings}
-                  slot={slot}
+                  modelKey={modelKey}
                   streaming={streaming}
                 />
               </Fragment>
@@ -344,10 +346,10 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
           <Composer
             draftId={conversation.id}
             focusToken={focusToken}
-            onSlotChange={changeSlot}
+            modelKey={modelKey}
+            onModelChange={changeModel}
             onStop={handleStop}
             onSubmit={(text, files) => send(text ? { text, files } : { files })}
-            slot={slot}
             // Running is running, whoever is watching: the box is closed and the button stops
             // the turn, in the tab that started it and in one that only came to look.
             status={running && status === 'ready' ? 'streaming' : status}
@@ -675,7 +677,7 @@ function TranscriptMessage({
   message,
   isLast,
   streaming,
-  slot,
+  modelKey,
   ratings,
   onPickFollowup,
   onAnswer,
@@ -684,7 +686,7 @@ function TranscriptMessage({
   message: ChatMessage
   isLast: boolean
   streaming: boolean
-  slot: ModelSlot
+  modelKey: ModelKey
   ratings: Map<string, PreferenceRating>
   onPickFollowup: (text: string) => void
   onAnswer: (toolCallId: string, output: AskUserOutput) => void
@@ -706,10 +708,12 @@ function TranscriptMessage({
     .join('\n\n')
   // How many durable facts of the profile this turn was given (memory page: /memory).
   const memoriesUsed = message.parts.flatMap((p) => (p.type === 'data-context' ? [p.data.memories] : []))[0] ?? 0
-  // The turn's own slot, or the conversation's while the turn is still streaming and has no metadata.
-  const turnSlot = message.metadata?.model_slot ?? slot
-  const TurnIcon = SLOT_ICONS[turnSlot]
-  const slotLabel = useSlotLabel()
+  // The turn's own entry, or the conversation's while the turn is still streaming and has no
+  // metadata. A turn never gets relabelled when the chat is switched to another model.
+  const turnKey = message.metadata?.model_key ?? modelKey
+  const modelLabel = useModelLabel()
+  const provider = useCatalog().entry(turnKey)?.provider ?? 'openrouter'
+  const TurnIcon = PROVIDER_ICONS[provider]
   // A turn that is still waiting on a Question card is not over, whatever the stream says.
   const pendingCard = waitingForAnswer(message.parts)
   // Only the newest answer offers follow-ups, and only the newest set of them: a turn that
@@ -833,7 +837,7 @@ function TranscriptMessage({
         <MessageToolbar className="mt-1 justify-start gap-2 text-muted-foreground text-xs">
           <Badge className="font-normal text-muted-foreground" variant="outline">
             <TurnIcon />
-            {slotLabel(turnSlot)} model
+            {modelLabel(turnKey)}
           </Badge>
           {memoriesUsed > 0 && (
             <Badge asChild className="font-normal text-muted-foreground" variant="outline">

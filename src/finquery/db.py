@@ -72,8 +72,11 @@ class Profile(Base):
     instead of an empty chat. See finquery.onboarding."""
     answer_language: Mapped[str] = mapped_column(String(8), default="follow")
     """follow (the language of each message), de or en. Read by the chat prompt."""
-    default_model_slot: Mapped[str] = mapped_column(String(16), default="fast")
-    """The slot a new conversation of this profile starts on."""
+    default_model_slot: Mapped[str] = mapped_column(String(16), default="")
+    """Pre-catalog. See `Conversation.model_slot`; `default_model_key` replaced it."""
+    default_model_key: Mapped[str | None] = mapped_column(String(64), default=None)
+    """The catalog entry a new conversation of this profile starts on, chosen in onboarding.
+    Null means the entry `FINQUERY_PROVIDER` makes the default."""
     dashboard_seeded: Mapped[bool] = mapped_column(Boolean, default=False)
     """Whether the four default cards have been put on this profile's dashboard.
 
@@ -91,7 +94,14 @@ class Conversation(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     profile_id: Mapped[str] = mapped_column(ForeignKey("profile.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(200), default="New chat")
-    model_slot: Mapped[str] = mapped_column(String(16), default="fast")
+    model_slot: Mapped[str] = mapped_column(String(16), default="")
+    """Before the model catalog (ticket 54) this held `fast` or `quality`. New rows leave it
+    empty and `model_key` is the model; it is kept because an existing database declares it
+    NOT NULL, and an old value still reads as the Qwen entry of the configured provider through
+    `finquery.catalog.Catalog.key_of`."""
+    model_key: Mapped[str | None] = mapped_column(String(64), default=None)
+    """The catalog entry this conversation runs on. Its provider is also where the sub-agents
+    of its turns run. See finquery.catalog."""
     summary: Mapped[str | None] = mapped_column(Text, default=None)
     """The rolling summary of the turns that no longer fit in the prompt. Editable by the user."""
     summary_through: Mapped[int] = mapped_column(Integer, default=-1)
@@ -111,7 +121,14 @@ class Turn(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     conversation_id: Mapped[str] = mapped_column(ForeignKey("conversation.id", ondelete="CASCADE"), index=True)
     position: Mapped[int] = mapped_column(Integer)
-    model_slot: Mapped[str] = mapped_column(String(16))
+    model_slot: Mapped[str] = mapped_column(String(16), default="")
+    """Before the model catalog (ticket 54) this held `fast` or `quality`. New rows leave it
+    empty and `model_key` is the model; it is kept because an existing database declares it
+    NOT NULL, and an old value still reads as the Qwen entry of the configured provider through
+    `finquery.catalog.Catalog.key_of`."""
+    model_key: Mapped[str | None] = mapped_column(String(64), default=None)
+    """The catalog entry that produced this turn, so switching the conversation to another
+    model never relabels a turn that is already on screen."""
     interrupted: Mapped[bool] = mapped_column(Boolean, default=False)
     finished: Mapped[bool] = mapped_column(Boolean, default=True)
     """The turn's end marker: false from the moment the run starts until it is written out.
@@ -495,8 +512,11 @@ class PreferenceRecord(Base):
     """What was asked: the user's request, plus the plan and the SQL for a chart."""
     chosen_json: Mapped[str | None] = mapped_column(Text, default=None)
     rejected_json: Mapped[str | None] = mapped_column(Text, default=None)
-    model_slot: Mapped[str] = mapped_column(String(16), default="fast")
-    """The slot that produced the output, which is the slot an adapter would be trained for."""
+    model_slot: Mapped[str] = mapped_column(String(16), default="")
+    """Pre-catalog. See `Conversation.model_slot`."""
+    model_key: Mapped[str | None] = mapped_column(String(64), default=None)
+    """What produced the output: a catalog entry for an answer, the provider's fast slot for a
+    sub-agent, which is the model an adapter would be trained for."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
@@ -646,17 +666,23 @@ def fingerprint(account_id: str, booked_on: date, amount_cents: int, description
 # TODO: additive columns only. A change of shape needs a real versioned upgrade function.
 NEW_COLUMNS: dict[str, dict[str, str]] = {
     "conversation": {
+        "model_key": "VARCHAR(64)",
         "summary": "TEXT",
         "summary_through": "INTEGER NOT NULL DEFAULT -1",
     },
     "turn": {
+        "model_key": "VARCHAR(64)",
         "finished": "BOOLEAN NOT NULL DEFAULT 1",
+    },
+    "preference_record": {
+        "model_key": "VARCHAR(64)",
     },
     "profile": {
         "web_lookup_enabled": "BOOLEAN NOT NULL DEFAULT 0",
         "onboarding_state": "VARCHAR(16) NOT NULL DEFAULT 'not_started'",
         "answer_language": "VARCHAR(8) NOT NULL DEFAULT 'follow'",
-        "default_model_slot": "VARCHAR(16) NOT NULL DEFAULT 'fast'",
+        "default_model_slot": "VARCHAR(16) NOT NULL DEFAULT ''",
+        "default_model_key": "VARCHAR(64)",
         "dashboard_seeded": "BOOLEAN NOT NULL DEFAULT 0",
     },
     "import": {

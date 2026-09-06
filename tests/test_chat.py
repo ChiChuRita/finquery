@@ -23,6 +23,7 @@ from .conftest import (
     is_distillation_request,
     is_followup_request,
     make_settings,
+    model_keys,
     new_conversation,
     parse_sse,
     script,
@@ -30,7 +31,7 @@ from .conftest import (
 
 
 def kinds(chunks: list[dict[str, object]]) -> list[str]:
-    # message-metadata is bookkeeping (model slot, interrupted flag), not part of the visible order.
+    # message-metadata is bookkeeping (model key, interrupted flag), not part of the visible order.
     return [str(c["type"]) for c in chunks if c["type"] != "message-metadata"]
 
 
@@ -39,7 +40,7 @@ def turn_metadata(chunks: list[dict[str, object]]) -> dict[str, object]:
     ours = [
         c["messageMetadata"]
         for c in chunks
-        if c["type"] == "message-metadata" and "model_slot" in c["messageMetadata"]  # type: ignore[operator]
+        if c["type"] == "message-metadata" and "model_key" in c["messageMetadata"]  # type: ignore[operator]
     ]
     assert ours, chunks
     return dict(ours[-1])  # type: ignore[call-overload]
@@ -55,7 +56,15 @@ def collapse(types: list[str]) -> list[str]:
 
 async def test_health(client: httpx.AsyncClient) -> None:
     response = await client.get("/api/health")
-    assert response.json() == {"provider": "openrouter", "slots": ["fast", "quality"]}
+    assert response.json() == {
+        "provider": "openrouter",
+        "models": [
+            "local:qwen3.5-9b",
+            "openrouter:qwen/qwen3.5-9b",
+            "local:gemma-4-12b",
+            "openrouter:google/gemma-4-26b-a4b-it",
+        ],
+    }
 
 
 async def test_stream_order_reasoning_text_finish(client: httpx.AsyncClient, scripts: Scripts, chat: Chat) -> None:
@@ -404,22 +413,24 @@ async def test_the_thinking_duration_covers_the_whole_turn(
     assert detail["messages"][-1]["metadata"]["thinking_seconds"] == seconds
 
 
-async def test_a_turn_keeps_the_slot_that_produced_it_when_the_conversation_switches(
+async def test_a_turn_keeps_the_entry_that_produced_it_when_the_conversation_switches(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
 ) -> None:
     """Story 10: a turn's model label is what produced it and never changes."""
-    scripts.fast = script("The fast answer.")
-    scripts.quality = script("The careful answer.")
-    conversation_id = await new_conversation(client, profile_id, slot="fast")
+    keys = await model_keys(client)
+    cloud_qwen, cloud_gemma = keys[1], keys[3]
+    scripts.entries[cloud_qwen] = script("The Qwen answer.")
+    scripts.entries[cloud_gemma] = script("The Gemma answer.")
+    conversation_id = await new_conversation(client, profile_id, cloud_qwen)
 
     await chat(conversation_id, "first question")
-    patched = await client.patch(f"/api/conversations/{conversation_id}", json={"model_slot": "quality"})
+    patched = await client.patch(f"/api/conversations/{conversation_id}", json={"model_key": cloud_gemma})
     assert patched.status_code == 200, patched.text
     await chat(conversation_id, "second question")
 
     detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
     assistants = [m for m in detail["messages"] if m["role"] == "assistant"]
-    assert [m["metadata"]["model_slot"] for m in assistants] == ["fast", "quality"]
+    assert [m["metadata"]["model_key"] for m in assistants] == [cloud_qwen, cloud_gemma]
 
 
 async def test_the_prompt_carries_the_language_money_and_bulk_rules(
@@ -699,15 +710,15 @@ async def test_a_tool_that_raises_leaves_the_question_and_a_marker(
 async def test_a_slot_the_provider_cannot_give_is_one_sentence_not_a_crash(
     client: httpx.AsyncClient, scripts: Scripts
 ) -> None:
-    """The quality slot missing is the local provider mid-download, and it reads as a sentence."""
+    """A chat entry that cannot answer is the local provider mid-download, and it reads as a sentence."""
 
-    def refuses(slot: str):
-        if slot == "quality":
+    def refuses(key: str, role: str):
+        if role == "chat":
             raise ProviderNotAvailable("Qwen3.5 9B is not downloaded yet. Open Settings to fetch it.")
-        return scripts.resolve(slot)
+        return scripts.resolve(key, role)
 
-    conversation_id = await new_conversation(client, await default_profile_id(client), slot="quality")
-    client._transport.app.state.resolve_model = refuses  # type: ignore[attr-defined]
+    conversation_id = await new_conversation(client, await default_profile_id(client))
+    client._transport.app.state.models._resolve = refuses  # type: ignore[attr-defined] # noqa: SLF001
 
     response = await client.post(f"/api/conversations/{conversation_id}/chat", json=chat_body("go", conversation_id))
 

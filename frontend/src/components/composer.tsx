@@ -29,7 +29,7 @@ import {
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
 import { ModelPicker } from '@/components/model-picker'
-import type { ModelSlot } from '@/lib/api'
+import type { ModelKey } from '@/lib/api'
 import { readDraft, writeDraft } from '@/lib/workspace'
 
 /** What the server stores (see `finquery.attachments`): a bank CSV, a statement PDF, a bill photo.
@@ -55,8 +55,8 @@ export function Composer({
   status,
   onSubmit,
   onStop,
-  slot,
-  onSlotChange,
+  modelKey,
+  onModelChange,
   autoFocus,
   draftId,
   focusToken = 0,
@@ -64,8 +64,8 @@ export function Composer({
   status: ChatStatus
   onSubmit: (text: string, files: FileUIPart[]) => void | Promise<void>
   onStop?: () => void
-  slot: ModelSlot
-  onSlotChange: (slot: ModelSlot) => void
+  modelKey: ModelKey | undefined
+  onModelChange: (key: ModelKey) => void
   autoFocus?: boolean
   /** Conversation id whose unsent draft is kept in local storage. */
   draftId?: string
@@ -115,7 +115,7 @@ export function Composer({
       <PromptInputFooter>
         <PromptInputTools>
           <AttachButton />
-          <ModelPicker onChange={onSlotChange} value={slot} />
+          <ModelPicker onChange={onModelChange} value={modelKey} />
         </PromptInputTools>
         <PromptInputSubmit className="rounded-full" onStop={onStop} status={status} />
       </PromptInputFooter>

@@ -1,8 +1,9 @@
-"""The sanity check: does each slot answer, think, call a tool and see an image.
+"""The sanity check: does each local model answer, think, call a tool and see an image.
 
-Run before a demo, from the CLI (`uv run finquery-check`) or from the Settings page. It loads
-both models, so it is the slowest thing in the project and the fastest way to find out that
-the local setup is broken.
+Run before a demo, from the CLI (`uv run finquery-check`) or from the Settings page. It covers
+the fast slot and every local chat model whose weights are on disk, one at a time (the two chat
+models share a seat), so it is the slowest thing in the project and the fastest way to find out
+that the local setup is broken.
 """
 
 import asyncio
@@ -16,9 +17,8 @@ from typing import Literal
 from pydantic_ai import Agent, BinaryContent
 from pydantic_ai.messages import ThinkingPart, ToolCallPart
 
-from finquery.local.catalog import ADAPTER_NAMES
+from finquery.local.catalog import ADAPTER_NAMES, LOCAL_CHAT_MODELS, LOCAL_FAST, ModelSpec
 from finquery.local.runtime import LocalStack
-from finquery.providers import MODEL_SLOTS, ModelSlot
 
 CheckName = Literal["answer", "thinking", "tool_call", "vision"]
 
@@ -45,7 +45,8 @@ class AdapterCheck:
 
 @dataclass
 class SlotReport:
-    slot: ModelSlot
+    key: str
+    label: str
     model: str
     load_seconds: float | None = None
     checks: list[Check] = field(default_factory=list)
@@ -72,17 +73,17 @@ def _parts(result: object) -> list[object]:
     return [part for message in result.all_messages() for part in getattr(message, "parts", [])]  # type: ignore[attr-defined]
 
 
-async def check_slot(stack: LocalStack, slot: ModelSlot) -> SlotReport:
-    """Load one slot and put it through all four checks."""
-    model = stack.resolve(slot)
-    report = SlotReport(slot=slot, model=model.model_name)
+async def check_slot(stack: LocalStack, spec: ModelSpec) -> SlotReport:
+    """Load one local model into its seat and put it through all four checks."""
+    model = stack.resolve(spec)
+    report = SlotReport(key=spec.key, label=spec.label, model=model.model_name)
     try:
         # Answer and thinking are two checks on one run: the thinking is what produced the answer.
         report.checks.extend(await _answer_and_thinking(model))
         report.checks.append(await _tool_call(model))
         report.checks.append(await _vision(model))
-        report.load_seconds = next((s.load_seconds for s in stack.status() if s.slot == slot), None)
-        report.adapters = _adapters(stack, slot)
+        report.load_seconds = next((s.load_seconds for s in stack.status() if s.key == spec.key), None)
+        report.adapters = _adapters(stack, spec)
     except Exception as exc:  # noqa: BLE001 - the report is the result; a raise would lose the rest
         report.error = f"{type(exc).__name__}: {exc}"
     return report
@@ -172,9 +173,9 @@ async def _vision(model: object) -> Check:
     )
 
 
-def _adapters(stack: LocalStack, slot: ModelSlot) -> list[AdapterCheck]:
+def _adapters(stack: LocalStack, spec: ModelSpec) -> list[AdapterCheck]:
     """Attach and detach every registered adapter, reporting what actually happened."""
-    if slot != "fast":
+    if spec.seat != "fast":
         return []
     loaded = stack.slot("fast")
     results: list[AdapterCheck] = []
@@ -184,8 +185,18 @@ def _adapters(stack: LocalStack, slot: ModelSlot) -> list[AdapterCheck]:
     return results
 
 
-async def run_check(stack: LocalStack, slots: tuple[ModelSlot, ...] = MODEL_SLOTS) -> list[SlotReport]:
-    return [await check_slot(stack, slot) for slot in slots]
+def checkable(stack: LocalStack) -> tuple[ModelSpec, ...]:
+    """The fast slot, plus every local chat model whose files are on disk.
+
+    A chat model that was never downloaded is not a failure to report, it is a model this
+    machine does not have; the models card is where that is said.
+    """
+    chat = tuple(spec for spec in LOCAL_CHAT_MODELS if stack.downloads.ready(spec.key))
+    return (LOCAL_FAST, *chat)
+
+
+async def run_check(stack: LocalStack, specs: tuple[ModelSpec, ...] | None = None) -> list[SlotReport]:
+    return [await check_slot(stack, spec) for spec in (specs if specs is not None else checkable(stack))]
 
 
 def format_report(reports: list[SlotReport]) -> str:
@@ -193,7 +204,7 @@ def format_report(reports: list[SlotReport]) -> str:
     for report in reports:
         mark = "ok  " if report.ok else "FAIL"
         load = f", loaded in {report.load_seconds}s" if report.load_seconds else ""
-        lines.append(f"[{mark}] {report.slot}: {report.model}{load}")
+        lines.append(f"[{mark}] {report.label}: {report.model}{load}")
         if report.error:
             lines.append(f"         error: {report.error}")
         for check in sorted(report.checks, key=lambda c: c.name):

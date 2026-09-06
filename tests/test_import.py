@@ -65,7 +65,7 @@ async def test_preset_import_of_the_synthetic_csv(
     # German decimal comma and DD.MM.YYYY, read without asking the model.
     rent = next(row for row in body["rows"] if row["counterparty"] == "Hausverwaltung Bergmann GmbH")
     assert (rent["booked_on"], rent["amount_cents"]) == ("2025-01-01", -115000)
-    assert scripts.resolved == []
+    assert scripts.roles == []
 
     committed = await client.post(
         "/api/imports",
@@ -113,7 +113,7 @@ async def test_unknown_bank_mapping_is_proposed_by_the_fast_slot_and_editable(
 
     body = (await client.post("/api/imports/preview", files=upload(UNKNOWN_BANK))).json()
 
-    assert scripts.resolved == ["fast"]
+    assert scripts.roles == ["fast"]
     # One forced tool, no free text: that is how a schema comes back from the fast slot.
     info = respond.calls[0]  # type: ignore[attr-defined]
     assert [tool.name for tool in info.output_tools] == ["propose_mapping"]
@@ -141,7 +141,7 @@ async def test_unknown_bank_mapping_is_proposed_by_the_fast_slot_and_editable(
     ).json()
     assert corrected["mapping_source"] == "user"
     assert corrected["rows"][0]["description"] == "Folgelastschrift"
-    assert scripts.resolved == ["fast"], "an edited mapping must not call the model again"
+    assert scripts.roles == ["fast"], "an edited mapping must not call the model again"
 
     committed = await client.post(
         "/api/imports",
@@ -196,7 +196,7 @@ async def test_trade_republic_preset_reads_the_real_export(
     assert body["mapping"]["date_format"] == "YYYY-MM-DD"
     assert body["issues"] == []
     assert body["row_count"] > 100
-    assert scripts.resolved == [], "a recognized bank never reaches the model"
+    assert scripts.roles == [], "a recognized bank never reaches the model"
 
     committed = await client.post(
         "/api/imports",

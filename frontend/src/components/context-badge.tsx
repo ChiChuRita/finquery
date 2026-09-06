@@ -6,18 +6,18 @@ import {
   ContextTrigger,
 } from '@/components/ai-elements/context'
 import type { ContextStats } from '@/lib/api'
-import { useSlotLabel } from '@/lib/slots'
+import { useModelLabel } from '@/lib/catalog'
 
 /** How much of the model's context the conversation fills. Hover for the breakdown. */
 export function ContextBadge({ stats }: { stats: ContextStats }) {
-  const slotLabel = useSlotLabel()
+  const modelLabel = useModelLabel()
   return (
     <Context maxTokens={stats.budget} usedTokens={stats.used}>
       <ContextTrigger aria-label="Context usage" className="h-7 gap-1.5 rounded-full px-2 text-xs" />
       <ContextContent align="end" className="min-w-64">
         <ContextContentHeader />
         <ContextContentBody className="space-y-1.5">
-          <Row label="Model" value={slotLabel(stats.slot) ?? stats.slot} />
+          <Row label="Model" value={modelLabel(stats.model_key) ?? stats.model_key} />
           <Row label="Memories in prompt" value={stats.memories} />
           {stats.summarized_turns > 0 ? (
             <Row label="Turns summarized" value={stats.summarized_turns} />

@@ -3,19 +3,18 @@ import type { ToolUIPart, UIMessage } from 'ai'
 
 import type { ChartLanguage } from '@/lib/chart-frame'
 
-export type ModelSlot = 'fast' | 'quality'
-
-/** The two slots. `label` is the local model's name and only a stand-in: what the screen shows
- *  is the name the server reports for the running provider (`lib/slots.ts`). */
-export const MODEL_SLOTS: { slot: ModelSlot; label: string; description: string }[] = [
-  { slot: 'fast', label: 'Gemma 4 E4B', description: 'Quick answers, and the model behind every tool' },
-  { slot: 'quality', label: 'Qwen3.5 9B', description: 'Slower, reasons further before it answers' },
-]
+/** The stable id of one catalog entry: `local:qwen3.5-9b`, `openrouter:qwen/qwen3.5-9b`.
+ *
+ *  There is no list of them in the browser. `GET /api/models` is where the four entries, their
+ *  labels and their availability come from (`lib/catalog.ts`), so nothing on screen can name a
+ *  model the server does not offer. */
+export type ModelKey = string
 
 export interface ChatMetadata {
   interrupted?: boolean
   thinking_seconds?: number
-  model_slot?: ModelSlot
+  /** The catalog entry that produced this turn. It never changes when the chat is switched. */
+  model_key?: ModelKey
   /** The stored turn this message is, which is what a rating names (ticket 15). */
   turn_id?: string
 }
@@ -25,7 +24,7 @@ export interface ContextStats {
   /** Tokens the prompt and the answer of this turn took, so the badge can climb. */
   used: number
   budget: number
-  slot: ModelSlot
+  model_key: ModelKey
   /** Memories selected into the prompt (at most five). */
   memories: number
   /** Turns the rolling summary stands in for. */
@@ -492,7 +491,8 @@ export interface Conversation {
   id: string
   profile_id: string
   title: string
-  model_slot: ModelSlot
+  /** The catalog entry this chat runs on. Its provider is where its sub-agents run too. */
+  model_key: ModelKey
   /** Whether a turn of this chat is being answered right now, anywhere.
    *
    * A turn runs on the server and outlives the request that started it, so this is what the
@@ -535,7 +535,8 @@ export interface PreferenceRecord extends TurnRating {
   prompt: string
   /** True when both sides are stored, which is what a DPO export can use. */
   paired: boolean
-  model_slot: ModelSlot
+  /** What produced the output: a catalog entry for an answer, a fast slot for a sub-agent. */
+  model_key: ModelKey
   created_at: string
 }
 
@@ -551,7 +552,7 @@ export interface PairCandidate {
 export interface AlternativeAnswer {
   text: string
   tools: unknown[]
-  model_slot: ModelSlot
+  model_key: ModelKey
   temperature: number
 }
 
@@ -625,10 +626,11 @@ export const conversationQuery = (id: string) =>
     queryFn: () => request<ConversationDetail>(`/api/conversations/${id}`),
   })
 
-export const createConversation = (profile_id: string, model_slot: ModelSlot) =>
-  request<Conversation>('/api/conversations', { method: 'POST', body: JSON.stringify({ profile_id, model_slot }) })
+/** A null `model_key` starts the chat on the profile's default entry. */
+export const createConversation = (profile_id: string, model_key: ModelKey | null) =>
+  request<Conversation>('/api/conversations', { method: 'POST', body: JSON.stringify({ profile_id, model_key }) })
 
-export const patchConversation = (id: string, patch: { title?: string; model_slot?: ModelSlot; summary?: string }) =>
+export const patchConversation = (id: string, patch: { title?: string; model_key?: ModelKey; summary?: string }) =>
   request<Conversation>(`/api/conversations/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
 
 export const deleteConversation = (id: string) => request<void>(`/api/conversations/${id}`, { method: 'DELETE' })
@@ -678,8 +680,8 @@ export interface ProfileSettings {
   web_lookup_enabled: boolean
   onboarding_state: OnboardingState
   answer_language: AnswerLanguage
-  /** The slot a new conversation of this profile starts on. */
-  default_model_slot: ModelSlot
+  /** The catalog entry a new conversation of this profile starts on. */
+  default_model_key: ModelKey
 }
 
 export interface OutboundEntry {
@@ -706,7 +708,7 @@ export const patchSettings = (
     web_lookup_enabled?: boolean
     onboarding_state?: OnboardingState
     answer_language?: AnswerLanguage
-    default_model_slot?: ModelSlot
+    default_model_key?: ModelKey
   },
 ) =>
   request<ProfileSettings>('/api/settings', {
@@ -749,21 +751,33 @@ export interface ModelFile {
   error: string | null
 }
 
-export interface SlotModel {
-  slot: ModelSlot
-  name: string
-  /** The display name of the model in this slot on the running provider. */
+/** One model the app runs: a catalog entry the user can pick, or a provider's fast slot. */
+export interface CatalogEntry {
+  key: ModelKey
+  /** What every screen calls it: the picker, the turn chips, the History, the models card. */
   label: string
+  provider: 'local' | 'openrouter'
+  /** Whether it can answer right now. An unavailable entry is listed and disabled, never hidden. */
+  available: boolean
+  /** Why it cannot: no API key, or weights missing or still coming down. */
+  reason: string | null
   ready: boolean
+  /** It is the model in its local seat right now. Always false for a cloud entry. */
   loaded: boolean
+  /** The local seat is being handed to it: drain, unload, load. */
+  swapping: boolean
   load_seconds: number | null
   n_ctx: number | null
   files: ModelFile[]
 }
 
 export interface Models {
-  provider: string
-  models: SlotModel[]
+  /** What FINQUERY_PROVIDER says, which decides the default entry and nothing else. */
+  provider: 'local' | 'openrouter'
+  default_key: ModelKey
+  entries: CatalogEntry[]
+  /** The sub-agent slot of each provider. Never a chat choice, so never in `entries`. */
+  fast_slots: CatalogEntry[]
   adapters: { name: string; path: string; present: boolean }[]
   downloading: boolean
 }
@@ -777,7 +791,8 @@ export interface SanityCheck {
 }
 
 export interface SanityReport {
-  slot: ModelSlot
+  key: ModelKey
+  label: string
   model: string
   ok: boolean
   load_seconds: number | null
@@ -835,10 +850,10 @@ export interface ReviewConversation {
   pending_merchants: number
 }
 
-export const openReviewConversation = (importId: string, profileId: string, model_slot: ModelSlot = 'fast') =>
+export const openReviewConversation = (importId: string, profileId: string, model_key: ModelKey | null = null) =>
   request<ReviewConversation>(`/api/imports/${importId}/review-conversation`, {
     method: 'POST',
-    body: JSON.stringify({ profile_id: profileId, model_slot }),
+    body: JSON.stringify({ profile_id: profileId, model_key }),
   })
 
 // Everything below the profile boundary is asked for by id, the same as conversations.

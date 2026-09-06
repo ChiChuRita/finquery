@@ -314,7 +314,7 @@ message you are answering.
 
 @dataclass
 class ChatDeps:
-    """What a turn needs from the app: the profile's data, the turn, and the model slots.
+    """What a turn needs from the app: the profile's data, the turn, and its models.
 
     Nothing is implicitly profile scoped: a tool touches exactly what is on here.
     `subagent_settings` is what every sub-agent a tool starts runs with (reasoning off on
@@ -327,6 +327,9 @@ class ChatDeps:
     profile_id: str
     conversation_id: str
     resolve_model: ModelResolver
+    """Already bound to this conversation's catalog entry: `resolve_model("chat")` is the entry
+    itself and `resolve_model("fast")` the sub-agent slot of that entry's provider. Nothing here
+    knows which provider that is. See finquery.catalog."""
     subagent_settings: ModelSettings
     web_client: WebClient
     """The search and page fetch of `lookup_merchant`. Untouched unless the profile switched

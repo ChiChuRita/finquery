@@ -1,8 +1,13 @@
 """The loaded llama.cpp models and everything the local provider owns around them.
 
-Both slots stay resident once loaded, each capped at the configured context so the two fit in
-24 GB with Metal offload. A slot is loaded on its first use, not at startup, so the app can
-start (and show download progress) before any weights exist.
+There are two seats in memory, each capped at the configured context so the two fit in 24 GB
+with Metal offload. The `fast` seat holds Gemma 4 E4B and stays resident: every adapter attaches
+there and a sub-agent runs behind almost every turn. The `chat` seat holds one of the two local
+chat models, and choosing the other swaps it: drain the running one, unload it, load the new one
+at the same context size. Three models do not fit and are never loaded together.
+
+A seat is filled on its first use, not at startup, so the app can start (and show download
+progress) before any weights exist. See docs/adr/0013-model-catalog-across-providers.md.
 """
 
 import asyncio
@@ -20,14 +25,14 @@ from typing import Any, Protocol, TypeVar
 from pydantic_ai.models import Model
 
 from finquery.local.adapters import AdapterRegistry
-from finquery.local.catalog import LOCAL_MODELS, AdapterName, ModelSpec
+from finquery.local.catalog import LOCAL_FAST, LOCAL_MODELS, AdapterName, ModelSpec
 from finquery.local.downloads import DownloadManager
-from finquery.providers import ModelSlot, ProviderNotAvailable
+from finquery.providers import MODEL_ROLES, ModelRole, ProviderNotAvailable
 from finquery.settings import Settings
 
-#: Slots whose lock the current asyncio task already holds, so a sub-agent run nested inside
+#: Seats whose lock the current asyncio task already holds, so a sub-agent run nested inside
 #: an attached adapter does not deadlock on itself.
-_held: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar("finquery_held_slots", default=frozenset())
+_held: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar("finquery_held_seats", default=frozenset())
 
 #: Set while a run is falling back to base weights, so the model can attach the note to the
 #: response it produces without the sub-agent having to thread it through by hand.
@@ -66,6 +71,10 @@ class Slot(Protocol):
         ...
 
     def reset(self) -> None: ...
+
+    def close(self) -> None:
+        """Free the weights. Called when the other chat model takes the seat."""
+        ...
 
 
 def _quiet_llama_cpp() -> None:
@@ -111,7 +120,7 @@ class LlamaSlot:
             verbose=False,
         )
         self.load_seconds = round(time.monotonic() - started, 2)
-        self.slot = spec.slot
+        self.spec = spec
         self.n_ctx = n_ctx
 
     def stream(self, **kwargs: Any) -> Iterator[dict[str, Any]]:
@@ -143,8 +152,12 @@ class LlamaSlot:
     def reset(self) -> None:
         self._llama.reset()
 
+    def close(self) -> None:
+        """Give the weights and the KV cache back, so the other chat model has room."""
+        self._llama.close()
 
-#: Loads one slot. Blocking, so it is always called in a worker thread.
+
+#: Loads one seat. Blocking, so it is always called in a worker thread.
 Loader = Callable[[ModelSpec, Path, Path, int], Slot]
 
 
@@ -153,18 +166,23 @@ def load_slot(spec: ModelSpec, weights: Path, projector: Path, n_ctx: int) -> Sl
 
 
 @dataclass
-class SlotStatus:
-    slot: ModelSlot
+class ModelStatus:
+    """What the Settings models card shows for one local model."""
+
+    key: str
+    seat: ModelRole
     name: str
     label: str
     ready: bool
+    """Its files are on disk."""
     loaded: bool
+    """It is the model in its seat right now."""
     load_seconds: float | None
     n_ctx: int
 
 
 class LocalStack:
-    """The local provider: the model files, the resident slots and the adapter registry."""
+    """The local provider: the model files, the two seats and the adapter registry."""
 
     def __init__(
         self,
@@ -173,7 +191,7 @@ class LocalStack:
         downloads: DownloadManager | None = None,
         adapters: AdapterRegistry | None = None,
         load: Loader = load_slot,
-        models: dict[ModelSlot, ModelSpec] | None = None,
+        models: dict[str, ModelSpec] | None = None,
     ) -> None:
         self.models = models if models is not None else LOCAL_MODELS
         self.n_ctx = settings.local_n_ctx
@@ -184,43 +202,52 @@ class LocalStack:
         )
         self.adapters = adapters or AdapterRegistry(settings.models_dir)
         self._load = load
-        self._slots: dict[ModelSlot, Slot] = {}
-        self._locks = {slot: threading.Lock() for slot in self.models}
+        #: The model in each seat. At most one per seat, which is what keeps a third GGUF from
+        #: ever being resident.
+        self._seats: dict[ModelRole, Slot] = {}
+        self._wanted: dict[ModelRole, ModelSpec] = {}
+        self._locks = {seat: threading.Lock() for seat in MODEL_ROLES}
         self._load_lock = threading.Lock()
-        # llama.cpp is not reentrant, so every call into one slot goes through one thread. A
+        self.swapping: str | None = None
+        """The key of the chat model being loaded right now, so the models card can say so."""
+        # llama.cpp is not reentrant, so every call into one seat goes through one thread. A
         # single worker also gives `drain` its meaning: work queued behind the abandoned token
         # pull of a cancelled turn cannot start until that pull has returned.
         self._workers = {
-            slot: ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"finquery-{slot}") for slot in self.models
+            seat: ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"finquery-{seat}") for seat in MODEL_ROLES
         }
 
-    async def run(self, slot: ModelSlot, call: Callable[[], T]) -> T:
-        """Run one blocking llama.cpp call on the slot's thread.
+    async def run(self, seat: ModelRole, call: Callable[[], T]) -> T:
+        """Run one blocking llama.cpp call on the seat's thread.
 
         Cancelling the awaiting task does not stop the call; it runs to completion and `drain`
         is how a caller waits for that.
         """
-        return await asyncio.wrap_future(self._workers[slot].submit(call))
+        return await asyncio.wrap_future(self._workers[seat].submit(call))
 
-    def drain(self, slot: ModelSlot, timeout: float = 60) -> None:
-        """Block until the slot's thread is idle. Called while its lock is still held, so the
+    def drain(self, seat: ModelRole, timeout: float = 60) -> None:
+        """Block until the seat's thread is idle. Called while its lock is still held, so the
         next turn never reaches llama.cpp while a cancelled one is still inside it."""
-        self._workers[slot].submit(lambda: None).result(timeout)
+        self._workers[seat].submit(lambda: None).result(timeout)
 
-    def resolve(self, slot: ModelSlot) -> Model:
-        """The provider resolver: a slot to a Pydantic AI model. Loads nothing yet.
+    def resolve(self, spec: ModelSpec) -> Model:
+        """One local model to a Pydantic AI model. Loads nothing yet.
 
         The one thing it does check is that the files are there, because that is the only
         failure a user can act on and the chat endpoint turns it into a 503 with this text.
         """
         from finquery.local.model import LlamaCppModel
 
-        if not self.downloads.ready(slot):
-            raise ProviderNotAvailable(f"The {slot} model is not downloaded yet: {self.download_summary(slot)}")
-        return LlamaCppModel(self.models[slot], self)
+        # The caller names a model from the catalog; the stack answers with its own object for
+        # that key, which is what a test with stand-in specs swaps and what `loaded_spec`
+        # compares seats against.
+        spec = self.models.get(spec.key, spec)
+        if not self.downloads.ready(spec.key):
+            raise ProviderNotAvailable(f"{spec.label} is not downloaded yet: {self.download_summary(spec.key)}")
+        return LlamaCppModel(spec, self)
 
-    def download_summary(self, slot: ModelSlot) -> str:
-        rows = [row for row in self.downloads.progress() if row.slot == slot and row.state != "ready"]
+    def download_summary(self, key: str) -> str:
+        rows = [row for row in self.downloads.progress() if row.key == key and row.state != "ready"]
         if not rows:
             return "open Settings and start the download"
         done = sum(row.downloaded for row in rows)
@@ -229,66 +256,99 @@ class LocalStack:
             return next(f"download failed: {row.error}" for row in rows if row.state == "error")
         return f"{done * 100 // max(total, 1)}% of {total / 1e9:.1f} GB, watch it in Settings"
 
-    def status(self) -> list[SlotStatus]:
+    def loaded_spec(self, seat: ModelRole) -> ModelSpec | None:
+        """Which model is in this seat, or None while it is empty."""
+        return self._wanted.get(seat) if seat in self._seats else None
+
+    def status(self) -> list[ModelStatus]:
         return [
-            SlotStatus(
-                slot=spec.slot,
+            ModelStatus(
+                key=spec.key,
+                seat=spec.seat,
                 name=spec.name,
                 label=spec.label,
-                ready=self.downloads.ready(spec.slot),
-                loaded=spec.slot in self._slots,
-                load_seconds=self._slots[spec.slot].load_seconds if spec.slot in self._slots else None,
+                ready=self.downloads.ready(spec.key),
+                loaded=self.loaded_spec(spec.seat) is spec,
+                load_seconds=self._seats[spec.seat].load_seconds if self.loaded_spec(spec.seat) is spec else None,
                 n_ctx=self.n_ctx,
             )
             for spec in self.models.values()
         ]
 
-    def slot(self, slot: ModelSlot) -> Slot:
-        """The loaded slot, downloading and loading it first if needed. Blocking."""
-        if (loaded := self._slots.get(slot)) is not None:
+    def take_seat(self, spec: ModelSpec) -> None:
+        """Make `spec` the model in its seat, swapping out whatever is there.
+
+        Blocking, and called with the seat's lock held, so nothing can start a turn on the model
+        being unloaded. The order is the point: drain first, so the abandoned token pull of a
+        cancelled turn has returned before the weights it was reading are freed; then unload,
+        so the two chat models are never resident at the same time; then load.
+        """
+        seat = spec.seat
+        current = self.loaded_spec(seat)
+        if current is spec:
+            return
+        self.swapping = spec.key
+        if current is not None:
+            self.drain(seat)
+            self._seats.pop(seat).close()
+        self._wanted[seat] = spec
+
+    def slot(self, seat: ModelRole) -> Slot:
+        """The model in one seat, downloading and loading it first if needed. Blocking."""
+        if (loaded := self._seats.get(seat)) is not None:
             return loaded
         with self._load_lock:
-            if (loaded := self._slots.get(slot)) is not None:
+            if (loaded := self._seats.get(seat)) is not None:
                 return loaded
-            spec = self.models[slot]
-            self.downloads.ensure(slot)
-            self._slots[slot] = self._load(
-                spec,
-                self.downloads.path(spec, spec.weights),
-                self.downloads.path(spec, spec.projector),
-                self.n_ctx,
-            )
-            return self._slots[slot]
+            spec = self._wanted.get(seat) or LOCAL_FAST
+            if spec.seat != seat:
+                raise ProviderNotAvailable(f"nothing has taken the {seat} seat yet")
+            self._wanted[seat] = spec
+            self.downloads.ensure(spec.key)
+            self.swapping = spec.key
+            try:
+                self._seats[seat] = self._load(
+                    spec,
+                    self.downloads.path(spec, spec.weights),
+                    self.downloads.path(spec, spec.projector),
+                    self.n_ctx,
+                )
+            finally:
+                self.swapping = None
+            return self._seats[seat]
 
     @asynccontextmanager
-    async def holding(self, slot: ModelSlot) -> AsyncIterator[Slot]:
-        """Serialize work on one slot's llama context, re-entrant within one asyncio task.
+    async def holding(self, seat: ModelRole, spec: ModelSpec | None = None) -> AsyncIterator[Slot]:
+        """Serialize work on one seat's llama context, re-entrant within one asyncio task.
 
         Re-entrancy is what lets a sub-agent run inside `with_adapter` without deadlocking on
-        the lock the adapter already took.
+        the lock the adapter already took. `spec` is the model the caller needs in the seat; on
+        the chat seat that is what makes the swap happen, under the same lock.
         """
-        if slot in _held.get():
-            yield await self.run(slot, lambda: self.slot(slot))
+        if seat in _held.get():
+            yield await self.run(seat, lambda: self.slot(seat))
             return
-        lock = self._locks[slot]
+        lock = self._locks[seat]
         await asyncio.to_thread(lock.acquire)
-        token = _held.set(_held.get() | {slot})
+        token = _held.set(_held.get() | {seat})
         try:
-            yield await self.run(slot, lambda: self.slot(slot))
+            if spec is not None:
+                await asyncio.to_thread(self.take_seat, spec)
+            yield await self.run(seat, lambda: self.slot(seat))
         finally:
             _held.reset(token)
             lock.release()
 
     @asynccontextmanager
     async def with_adapter(self, name: AdapterName) -> AsyncIterator[Slot]:
-        """Hold the fast slot with one sub-agent's adapter attached.
+        """Hold the fast seat with one sub-agent's adapter attached.
 
         A missing adapter file is not an error: the run goes ahead on the base weights and the
         audit note is published to `adapter_note()`, from where the model puts it on the
         response metadata. A sub-agent asks for this by setting `finquery_adapter` in its model
         settings, never by calling here directly.
         """
-        async with self.holding("fast") as loaded:
+        async with self.holding("fast", LOCAL_FAST) as loaded:
             with self.adapters.attached_to(name, loaded) as note:
                 token = _note.set(note.text if note is not None else None)
                 try:
