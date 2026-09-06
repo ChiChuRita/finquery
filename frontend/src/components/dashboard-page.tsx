@@ -1,11 +1,18 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
+import { MoreHorizontalIcon, RotateCcwIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 
 import { DashboardCard } from '@/components/dashboard-card'
 import { DateRangePicker } from '@/components/date-range-picker'
 import { PageBar } from '@/components/page'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import {
   conversationsQuery,
@@ -15,11 +22,13 @@ import {
   openReviewConversation,
   patchDashboardChart,
   refreshDashboardChart,
+  restoreDefaultCharts,
   type DashboardRange,
   type DashboardTiles,
   type DateRange,
+  type TileMonth,
 } from '@/lib/api'
-import { formatEur } from '@/lib/format'
+import { formatEur, formatEurDelta, formatPercentDelta } from '@/lib/format'
 import { useWorkspace } from '@/lib/workspace'
 
 /** "2025-12" as a month a person reads. The UI is English; the money stays German. */
@@ -34,12 +43,99 @@ const monthName = (month: string | null) => {
 
 const euro = (amount: number) => formatEur(Math.round(amount * 100))
 
-/** One headline figure: what it is, what it says, and what period it is about.
+/** One comparison under a tile: the difference, and whether that direction is good news. */
+interface Delta {
+  label: string
+  /** The difference in euros, signed, and the same difference as a share of what it is against. */
+  amount: number
+  share: number | null
+  /** True when this direction is the one a household wants. Null when there is no direction. */
+  good: boolean | null
+  /** The month or the months the figure was compared with, for the line's own tooltip. */
+  against: string
+}
+
+/** Which figure of a month a tile is about, and which way is up for it.
+ *
+ * Spending falling is good news, income and net rising are. That is the only thing the colour
+ * of a delta says, so it is decided here once rather than at three call sites.
+ */
+type Direction = 'down-is-good' | 'up-is-good'
+
+/** The two comparisons of one tile, computed from the months the tiles' statement returned.
+ *
+ * Both are arithmetic on those rows and nothing else: the newest month against the one before
+ * it, and against the mean of the earlier ones. Every figure came out of the guarded query, and
+ * subtracting two of them is what `fold_rows` does to rows on the server (ADR 0004).
+ */
+function deltasOf(months: TileMonth[], read: (month: TileMonth) => number, way: Direction): Delta[] {
+  if (months.length < 2) return []
+  const value = read(months[months.length - 1])
+  const earlier = months.slice(0, -1)
+  const previous = read(earlier[earlier.length - 1])
+  const average = earlier.reduce((sum, month) => sum + read(month), 0) / earlier.length
+  const compare = (label: string, against: number, describes: string): Delta => {
+    const amount = value - against
+    const rising = Math.abs(amount) < 0.005 ? null : amount > 0
+    return {
+      label,
+      amount,
+      share: against === 0 ? null : amount / Math.abs(against),
+      good: rising === null ? null : way === 'up-is-good' ? rising : !rising,
+      against: describes,
+    }
+  }
+  return [
+    compare('vs last month', previous, `${monthName(earlier[earlier.length - 1].month)}: ${euro(previous)}`),
+    compare(
+      `vs ${earlier.length}-month average`,
+      average,
+      `${monthName(earlier[0].month)} to ${monthName(earlier[earlier.length - 1].month)}: ${euro(average)}`,
+    ),
+  ]
+}
+
+/** One comparison as a line: the signed euros, the share, and what it is against.
+ *
+ * The sign carries the direction on its own, so the colour is a second reading of it and never
+ * the only one.
+ */
+function DeltaLine({ delta }: { delta: Delta }) {
+  return (
+    <p className="truncate text-xs" title={`${delta.label}, ${delta.against}`}>
+      <span
+        className={
+          delta.good === null
+            ? 'text-muted-foreground'
+            : delta.good
+              ? 'text-primary'
+              : 'text-destructive'
+        }
+      >
+        {formatEurDelta(Math.round(delta.amount * 100))}
+        {delta.share !== null && ` (${formatPercentDelta(delta.share)})`}
+      </span>{' '}
+      <span className="text-muted-foreground">{delta.label}</span>
+    </p>
+  )
+}
+
+/** One headline figure: what it is, what it says, what period it is about, and its comparisons.
  *
  * The value is the point, so it carries the weight and keeps the font's own figures: tabular
  * digits are for columns that have to line up, and they make a large number look loose.
  */
-function Tile({ label, value, note }: { label: string; value: string; note: ReactNode }) {
+function Tile({
+  label,
+  value,
+  note,
+  deltas = [],
+}: {
+  label: string
+  value: string
+  note: ReactNode
+  deltas?: Delta[]
+}) {
   return (
     <div className="rounded-xl border bg-card px-4 py-3">
       <p className="text-muted-foreground text-xs">{label}</p>
@@ -47,6 +143,13 @@ function Tile({ label, value, note }: { label: string; value: string; note: Reac
         {value}
       </p>
       <p className="mt-0.5 text-muted-foreground text-xs">{note}</p>
+      {deltas.length > 0 && (
+        <div className="mt-2 flex flex-col gap-0.5">
+          {deltas.map((delta) => (
+            <DeltaLine delta={delta} key={delta.label} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -74,10 +177,25 @@ function Tiles({ tiles }: { tiles: DashboardTiles }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      <Tile label="Spent" note={month} value={euro(tiles.spent_eur)} />
-      <Tile label="Income" note={month} value={euro(tiles.income_eur)} />
-      <Tile label="Net" note={month} value={euro(tiles.net_eur)} />
+    <div className="grid grid-cols-2 items-start gap-4 lg:grid-cols-4">
+      <Tile
+        deltas={deltasOf(tiles.months, (row) => row.spent_eur, 'down-is-good')}
+        label="Spent"
+        note={month}
+        value={euro(tiles.spent_eur)}
+      />
+      <Tile
+        deltas={deltasOf(tiles.months, (row) => row.income_eur, 'up-is-good')}
+        label="Income"
+        note={month}
+        value={euro(tiles.income_eur)}
+      />
+      <Tile
+        deltas={deltasOf(tiles.months, (row) => row.net_eur, 'up-is-good')}
+        label="Net"
+        note={month}
+        value={euro(tiles.net_eur)}
+      />
       <Tile
         label="Needs review"
         note={
@@ -174,6 +292,8 @@ export function DashboardPage() {
   const dashboard = useQuery(dashboardQuery(profile?.id, range))
   const [busyCard, setBusyCard] = useState<string>()
   const [problem, setProblem] = useState<string>()
+  const [notice, setNotice] = useState<string>()
+  const [restoring, setRestoring] = useState(false)
 
   const profileId = profile?.id
   const reload = async () => {
@@ -183,6 +303,7 @@ export function DashboardPage() {
   const act = async (id: string, action: () => Promise<unknown>) => {
     setBusyCard(id)
     setProblem(undefined)
+    setNotice(undefined)
     try {
       await action()
       await reload()
@@ -190,6 +311,30 @@ export function DashboardPage() {
       setProblem(cause instanceof Error ? cause.message : 'That did not work.')
     } finally {
       setBusyCard(undefined)
+    }
+  }
+
+  // The shipped cards a profile is missing, and only those: a default that was renamed, moved
+  // or edited counts as present, and nothing the user made is touched.
+  const restore = async () => {
+    if (!profileId || restoring) return
+    setRestoring(true)
+    setProblem(undefined)
+    setNotice(undefined)
+    try {
+      const { added } = await restoreDefaultCharts(profileId, range)
+      await reload()
+      setNotice(
+        added.length === 0
+          ? 'Every default card is already on this dashboard.'
+          : added.length === 1
+            ? 'One default card was added at the end.'
+            : `${added.length} default cards were added at the end.`,
+      )
+    } catch (cause) {
+      setProblem(cause instanceof Error ? cause.message : 'That did not work.')
+    } finally {
+      setRestoring(false)
     }
   }
 
@@ -215,6 +360,25 @@ export function DashboardPage() {
         {dashboard.isFetching && !dashboard.isPending && (
           <Spinner className="size-3.5 text-muted-foreground" />
         )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              aria-label="Dashboard actions"
+              className="ml-auto shrink-0"
+              disabled={profileId === undefined}
+              size="icon-xs"
+              variant="ghost"
+            >
+              <MoreHorizontalIcon />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem disabled={restoring} onSelect={() => void restore()}>
+              <RotateCcwIcon />
+              Restore default cards
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </PageBar>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
@@ -226,6 +390,12 @@ export function DashboardPage() {
           {problem && (
             <p className="text-destructive text-xs" role="alert">
               {problem}
+            </p>
+          )}
+
+          {notice && (
+            <p className="text-muted-foreground text-xs" role="status">
+              {notice}
             </p>
           )}
 
