@@ -38,7 +38,9 @@ sync_repo() {
   ssh "$REMOTE" "mkdir -p '$REPO' '$MODELS' '$LOGS'"
   # The job needs the code, the synthetic year and the two benchmark sets. It never needs the
   # key, the weights, the private fixtures or anything either machine built for itself.
-  rsync -az --delete --delete-excluded \
+  # `--delete` and not `--delete-excluded`: what is excluded is what the cluster built for
+  # itself, and deleting that deletes the virtual environment and the job logs.
+  rsync -az --delete \
     --exclude '.venv' --exclude 'node_modules' --exclude 'models' --exclude 'data' \
     --exclude 'fixtures/private' --exclude '.env' --exclude '.git' --exclude '__pycache__' \
     --exclude 'frontend/dist' --exclude 'training/cluster/logs' \
