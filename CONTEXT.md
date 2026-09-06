@@ -196,8 +196,9 @@ period (a period is what a chart is about).
 ## Models
 
 **Catalog entry**: one chat model the picker offers, keyed by a stable string and belonging to
-one provider: `local:qwen3.5-9b`, `openrouter:qwen/qwen3.5-9b`, `local:gemma-4-12b`,
-`openrouter:google/gemma-4-26b-a4b-it`. It carries a label, its provider, its local weights or
+one provider: `local:gemma-4-12b`, `openrouter:google/gemma-4-26b-a4b-it`, `local:qwen3.5-9b`,
+`openrouter:qwen/qwen3.5-9b`. The first of a provider is the entry a new conversation starts
+on there. It carries a label, its provider, its local weights or
 its hosted id, and its availability with a reason when it cannot answer. A conversation, a turn
 and a profile default all store the key. See ADR 0013. Avoid: model slot (that is the role
 below), tier, engine.
@@ -207,12 +208,22 @@ conversation's catalog entry; fast is the sub-agent slot of that entry's provide
 locally, `FINQUERY_OPENROUTER_FAST_MODEL` in the cloud). Those two lines are the whole
 resolution rule and they live in `finquery.catalog`. Before ticket 54 a role was called a slot
 and `fast`/`quality` were also the two chat choices; a stored `fast` or `quality` now reads as
-the Qwen entry of the configured provider. Avoid: slot (unqualified), position.
+the default entry of the configured provider. Avoid: slot (unqualified), position.
+
+**Sub-agent role**: which job a sub-agent is doing, and the setting that says which model does
+it: query, chart, categorizer, extraction, memory, summary, weblookup, each
+`FINQUERY_SUBAGENT_MODEL_<ROLE>` and each taking `chat` (the conversation's own entry, the
+default since ticket 61), `fast` or a catalog key. Thirteen sub-agents share the seven roles,
+because a setting chooses a model for a kind of work and not for a module. The models card
+lists them with what each resolves to. Avoid: sub-agent slot, tier.
 
 **Seat**: one of the two places a local model can be loaded. The fast seat holds Gemma 4 E4B and
 stays resident, because every adapter attaches there. The chat seat holds one of the two local
-chat models, and choosing the other drains the seat, unloads it and loads the new one at the
-same context: three models do not fit in 24 GB. See ADR 0013. Avoid: slot, instance.
+chat models, Gemma 4 12B by default, and choosing the other drains the seat, unloads it and
+loads the new one at the same context: three models do not fit in 24 GB. If the pair does not
+fit at the configured context, the chat seat is the one that gives context up, never the fast
+seat, which is what `uv run finquery-check` reports. See ADR 0013 and the ticket 61 amendment
+of ADR 0006. Avoid: slot, instance.
 
 **Provider**: where a model runs, `local` or `openrouter`. Both are live at once and a catalog
 entry names its own, so it is a fact about an entry, not about the process. The setting
@@ -220,9 +231,11 @@ entry names its own, so it is a fact about an entry, not about the process. The 
 and 0013. Avoid: backend, vendor.
 
 **Sub-agent**: a Pydantic AI agent the chat agent delegates to for one job (query, chart,
-categorizer, extraction, memory distillation). Always on the fast slot of the chat entry's
-provider. Avoid: tool (a tool is what the chat agent calls; the sub-agent is what runs behind
-it), worker.
+categorizer, extraction, memory distillation). It runs on the model its **sub-agent role** is
+set to, which is the conversation's own entry unless a role was moved to the fast slot or
+pinned to a catalog key. Its thinking is off and its output is capped whatever answers it.
+Avoid: tool (a tool is what the chat agent calls; the sub-agent is what runs behind it),
+worker.
 
 **Wire format**: how one local model writes a whole turn into a single text stream: the markers
 around its thinking, the syntax of its tool calls, and what its chat template calls the
@@ -231,7 +244,8 @@ provider has one module each and picks it from the model, not from the slot. Avo
 (llama.cpp's word for the template itself), protocol.
 
 **Adapter**: a LoRA adapter attached to the fast seat for one sub-agent (query, chart) on the
-local provider. Not to be confused with the Vercel stream adapter, which the code calls the
+local provider. It attaches on that seat and nowhere else, so a role running on the chat entry
+never gets one, and a run that asked for one and did not get it says so in an audit note. Not to be confused with the Vercel stream adapter, which the code calls the
 "stream adapter" or "Vercel adapter". Avoid: fine-tune, checkpoint.
 
 **Audit note**: a short statement attached to a turn about how the answer was produced rather

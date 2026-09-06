@@ -1,6 +1,9 @@
 # ADR 0013: A model catalog across both providers, and a slot is a role
 
 Date: 2026-09-06
+Amended: 2026-09-06 (ticket 61: the default entry per provider, and the resolution rule for a
+sub-agent, which is now one setting per role rather than always the fast slot; see the ticket 61
+amendment of ADR 0006)
 Status: accepted
 Amends: ADR 0002 (the provider switch) and ADR 0006 (the local provider)
 
@@ -41,11 +44,13 @@ provider.
   sub-agent of that turn runs on the fast slot of that entry's provider: Gemma 4 E4B locally
   (resident, where the adapters attach, ADR 0006), `FINQUERY_OPENROUTER_FAST_MODEL` in the
   cloud. `Catalog.resolver(key)` returns the `role -> Model` callable a turn hands to its tools,
-  so a tool still asks for `"fast"` and never learns which provider answered.
+  so a tool still asks for a role and never learns which provider answered. *Ticket 61 kept the
+  shape and moved the second line into a setting per sub-agent role, defaulting to the chat
+  entry rather than the fast slot; a role is now `chat`, `fast` or a catalog key.*
 - **Both providers are live at once.** The local stack is built whatever the provider setting
   says, and nothing about it touches the network or loads weights until a turn needs one.
-  `FINQUERY_PROVIDER` decides one thing: which entry a new conversation starts on (the Qwen
-  entry of that provider). On `local` it also starts the downloads at startup, because that is
+  `FINQUERY_PROVIDER` decides one thing: which entry a new conversation starts on (since
+  ticket 61 the Gemma entry of that provider). On `local` it also starts the downloads at startup, because that is
   the demo machine asking for its weights.
 - **An entry that cannot answer is listed with the reason, never hidden.** `GET /api/models`
   returns every entry with `available` and a one sentence `reason` (no API key, weights missing
@@ -65,8 +70,9 @@ provider.
   was a fourth until 2026-09-06, when the preference feature was removed (ticket 59): the table
   is left alone in databases that have it, and nothing creates or reads it any more. The pre-catalog `model_slot` columns stay because an existing database
   declares them NOT NULL, and their old values are read through `Catalog.key_of`: both `fast`
-  and `quality` become the Qwen entry of the configured provider. `fast` was the sub-agent slot,
-  never a chat choice a user meant to keep.
+  and `quality` become the default entry of the configured provider. `fast` was the sub-agent
+  slot, never a chat choice a user meant to keep, and `quality` was a position rather than a
+  model, which is why the model in it moved again in ticket 61.
 - **The browser is told, never told twice.** `GET /api/models` is the only place a model name
   comes from (`frontend/src/lib/catalog.ts`), so the picker, the turn chips, the context badge,
   the models card and the onboarding default cannot name a model the server
