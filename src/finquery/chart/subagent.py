@@ -591,15 +591,43 @@ code_agent = Agent(
 )
 
 
-def plan_prompt(request: str, context: QueryContext, *, hints: str | None = None) -> str:
-    """Everything the planning pass sees. Pure function, reused by training."""
+PREVIOUS_VERSION = """\
+This chart already exists and the user is changing it. The version on their dashboard:
+- title: "{title}"
+- plan: {plan}
+- statement: {sql}
+
+The request below says what to change about it. Change that and keep the rest: the same topic
+and the same period unless the request names another, and the same shape unless it asks for
+another one."""
+
+
+def previous_hint(*, title: str, plan: str, sql: str) -> str:
+    """What an edit hands the planning pass about the chart it is editing."""
+    return PREVIOUS_VERSION.format(title=title.strip(), plan=plan.strip(), sql=sql.strip())
+
+
+def plan_prompt(
+    request: str,
+    context: QueryContext,
+    *,
+    hints: str | None = None,
+    previous: str | None = None,
+) -> str:
+    """Everything the planning pass sees. Pure function, reused by training.
+
+    `previous` is the one section only an edit carries (`previous_hint`): a chart that is being
+    changed rather than made, so the pass keeps what the request does not mention.
+    """
     sections = [
         f"Shapes:\n{SHAPE_MENU}",
         PLAN_RULES,
         PLAN_EXAMPLES,
         profile_facts(context),
-        f"Request: {request.strip()}",
     ]
+    if previous:
+        sections.append(previous)
+    sections.append(f"Request: {request.strip()}")
     if hints:
         sections.append(f"The assistant adds: {hints.strip()}")
     return "\n\n".join(sections)
@@ -681,11 +709,14 @@ async def write_plan(
     context: QueryContext,
     *,
     hints: str | None = None,
+    previous: str | None = None,
     model_settings: ModelSettings | None = None,
 ) -> ChartPlan:
     """Ask the fast slot for the shape, the title and the data question."""
     result = await plan_agent.run(
-        plan_prompt(request, context, hints=hints), model=model, model_settings=model_settings
+        plan_prompt(request, context, hints=hints, previous=previous),
+        model=model,
+        model_settings=model_settings,
     )
     return result.output
 

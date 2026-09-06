@@ -215,6 +215,7 @@ async def run_chart(
     profile_id: str,
     request: str,
     hints: str | None = None,
+    previous: str | None = None,
     narrate: Narrator | None = None,
     check: bool = True,
 ) -> ChartOutcome:
@@ -223,6 +224,10 @@ async def run_chart(
     `check` is the query's own check pass (ticket 40), passed through so the benchmark can
     measure a chart run with it and without it. The plan already fixed what the statement has to
     return, so what it changes here is the rewrite a degenerate result asks for.
+
+    `previous` is the chart being changed, written by `subagent.previous_hint`, and only an edit
+    of a dashboard card has one: the planning pass then reads the request as a change to that
+    chart rather than as a chart of its own.
     """
     say: Narrator = narrate or (lambda _text: None)
 
@@ -236,7 +241,9 @@ async def run_chart(
         return _failed(request, f"The chart sub-agent is unavailable: {exc}")
 
     try:
-        plan = await write_plan(model, request, context, hints=hints, model_settings=model_settings)
+        plan = await write_plan(
+            model, request, context, hints=hints, previous=previous, model_settings=model_settings
+        )
     except Exception as exc:  # noqa: BLE001 - any model or transport failure is one message here
         return _failed(request, f"The chart sub-agent did not return a plan: {exc}")
     plan = _euro_last(plan)
