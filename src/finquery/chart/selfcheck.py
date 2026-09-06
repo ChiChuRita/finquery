@@ -18,7 +18,7 @@ from typing import Any
 
 import quickjs
 
-from finquery.chart.shapes import FAMILY_MARKS, MAX_SERIES, MAX_SLICES, SHAPES, Shape
+from finquery.chart.shapes import FAMILY_MARKS, MAX_RULES, MAX_SERIES, MAX_SLICES, SHAPES, Shape
 
 # The globals the code may use. The browser runtime (frontend/src/chart-runtime/globals.ts)
 # provides the same names for real. Each side pairs its own names with its own values, so only
@@ -30,6 +30,7 @@ GLOBAL_NAMES = (
     "areaY",
     "barY",
     "barX",
+    "ruleY",
     "link",
     "rect",
     "text",
@@ -49,6 +50,7 @@ GLOBAL_NAMES = (
     "eur",
     "eurShort",
     "monthShort",
+    "mean",
 )
 
 # Anything that could reach outside the sandbox or hang the check. The browser runtime is
@@ -71,6 +73,19 @@ FORBIDDEN = (
 # Several object literals with a figure among them, in one array: rows typed into the code. A
 # single object with a number in it is configuration (a gradient stop, a tooltip item), not data.
 INLINE_DATA = re.compile(r"\[\s*\{[^\[\]]*?:\s*-?\d[^\[\]]*?\}\s*,\s*\{", re.DOTALL)
+
+# A reference line's value is a figure like any other, so it comes from the rows and never from
+# the model: `ruleY([1200])` is the average it remembered, `ruleY([mean(data, 'total_eur')])` is
+# the average of what the query returned. Only the first argument and a `y` option are read,
+# because `strokeWidth: 1.5` is a width and not a figure.
+A_FIGURE = re.compile(r"(?<![\w.$])-?\d")
+NAMED = re.compile(r"[A-Za-z_$][\w$]*")
+RULE_Y_OPTION = re.compile(r"\by\s*:\s*-?\d")
+RULE_VALUE = (
+    "The reference line's value is typed into the code. It has to be computed from the rows the "
+    "chart draws, `ruleY([mean(data, 'total_eur')])` or a `reduce` over `data`, so the line "
+    "moves with the query instead of standing where a figure was remembered."
+)
 
 # The findings that are not about correctness. A chart with a legend nobody needs, or with one
 # colour too many, still answers the question, so after the last repair round it is shown with a
@@ -344,6 +359,7 @@ __finquery.run = function (source, rowsJson) {
   globals.rect = function (source, options) { return record('rect', source, options); };
   globals.text = function (source, options) { return record('text', source, options); };
   globals.radialArc = function (source, options) { return record('radialArc', source, options); };
+  globals.ruleY = function (source, options) { return record('ruleY', source, options); };
 
   globals.stack = function (options) { return { __layout: 'stack', options: options || {} }; };
   globals.group = function (options) { return { __layout: 'group', options: options || {} }; };
@@ -515,6 +531,22 @@ __finquery.run = function (source, rowsJson) {
   globals.eur = function (value) { return String(value) + ' EUR'; };
   globals.eurShort = function (value) { return String(value) + ' EUR'; };
   globals.monthShort = function (value) { return String(value).slice(0, 3); };
+  // The average of one column, which is how a reference line gets a value that came from the
+  // rows. The browser's `mean` is the same arithmetic over the same rows.
+  globals.mean = function (source, column) {
+    var list = arrayOf(source);
+    var total = 0;
+    var seen = 0;
+    for (var i = 0; i < list.length; i++) {
+      var row = list[i];
+      var value = row && typeof row === 'object' ? row[column] : undefined;
+      if (typeof value === 'number' && isFinite(value)) {
+        total += value;
+        seen += 1;
+      }
+    }
+    return seen === 0 ? 0 : total / seen;
+  };
 
   var names = [__GLOBAL_NAMES__];
   var values = [];
@@ -604,6 +636,73 @@ def _static_findings(code: str) -> list[str]:
             "The numbers are typed into the code. Every value must be read from `data` through "
             "a channel such as `y: 'total_eur'`; never write an array of rows yourself."
         )
+    findings.extend(finding for finding in _rule_findings(code) if finding not in findings)
+    return findings
+
+
+def _call_arguments(code: str, name: str) -> list[str]:
+    """The argument text of every call of `name`, with brackets and strings balanced."""
+    found: list[str] = []
+    for call in re.finditer(rf"(?<![\w.$]){re.escape(name)}\s*\(", code):
+        depth = 0
+        quote = ""
+        start = call.end()
+        for index in range(start - 1, len(code)):
+            letter = code[index]
+            if quote:
+                if letter == "\\":
+                    continue
+                if letter == quote:
+                    quote = ""
+                continue
+            if letter in "'\"`":
+                quote = letter
+            elif letter in "([{":
+                depth += 1
+            elif letter in ")]}":
+                depth -= 1
+                if depth == 0:
+                    found.append(code[start:index])
+                    break
+    return found
+
+
+def _first_argument(arguments: str) -> str:
+    """The source of a mark: everything up to the first comma that is not inside brackets."""
+    depth = 0
+    for index, letter in enumerate(arguments):
+        if letter in "([{":
+            depth += 1
+        elif letter in ")]}":
+            depth -= 1
+        elif letter == "," and depth == 0:
+            return arguments[:index]
+    return arguments
+
+
+def _from_data(code: str, source: str) -> bool:
+    """Whether the rule's value was computed from the rows, directly or through one name."""
+    if re.search(r"\bdata\b", source):
+        return True
+    return any(
+        re.search(rf"\b(?:const|let|var)\s+{re.escape(name)}\s*=[^;\n]*\bdata\b", code)
+        for name in NAMED.findall(source)
+    )
+
+
+def _rule_findings(code: str) -> list[str]:
+    """A reference line stands where the rows put it, never where a figure was typed.
+
+    ADR 0004 for a mark that carries no channel: `ruleY` takes its value from the array it is
+    given, so nothing downstream could tell an average of the rows from a number the model
+    remembered. The scan reads the source array and a `y` option, and leaves the stroke options
+    alone, because a width is not a figure.
+    """
+    findings: list[str] = []
+    for arguments in _call_arguments(code, "ruleY"):
+        source = _first_argument(arguments)
+        if A_FIGURE.search(source) or RULE_Y_OPTION.search(arguments) or not _from_data(code, source):
+            findings.append(RULE_VALUE)
     return findings
 
 
@@ -745,6 +844,15 @@ def _shape_findings(report: dict[str, Any], shape: Shape) -> list[str]:
                 "`polar` needs both `scales.angle` and `scales.radius`; use `null` for each "
                 "when the arcs carry their own geometry."
             )
+    # One reference line: a chart with three of them across it is a grid of its own, and the
+    # rule carries no label in 0.16, so a second line is a line nobody can name.
+    rules = sum(1 for mark in report["marks"] if mark["kind"] == "ruleY")
+    if rules > MAX_RULES:
+        findings.append(
+            f"A chart carries at most {MAX_RULES} reference line and this one draws {rules}. "
+            f"A rule has no label of its own, so keep the one the request asks about, the "
+            f"average or the limit, and drop the rest."
+        )
     series = _series_count(report)
     if rule.series and series < 2:
         channels = "`z` and `color`" if rule.crossed else "`color`"

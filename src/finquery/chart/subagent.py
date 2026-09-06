@@ -23,7 +23,6 @@ from finquery.chart.shapes import (
     MAX_SLICES,
     SHAPE_MENU,
     SHAPE_NAMES,
-    SHAPES,
     Language,
     Shape,
 )
@@ -80,6 +79,29 @@ Rules:
   'Other' or 'Sonstige' group and never ask for the largest few. A chart has {MAX_SERIES}
   colours and the app itself keeps the {MAX_SERIES - 1} largest and sums the rest, after the
   query, where summing is arithmetic rather than a rewritten statement.
+- "This month against last month", "2025 against 2024", "diesen Monat mit dem letzten
+  vergleichen": two periods compared by category are two dimensions that cross, so they are
+  grouped bars and not one bar per category. The period is the series and the category is the
+  position, so the rows come long again, three columns in this order, the category, the period
+  and the euro figure (`topic`, `period`, `total_eur`), one row per category and period. Name
+  the two periods in `language` ('This month' and 'Last month', 'Dieser Monat' and 'Letzter
+  Monat'), ask for both of them and for no third one, and ask for the {MAX_SLICES} largest
+  categories by total over both periods, because that is what an axis of names has room for.
+- A figure that can be negative (a Saldo, a net, "wie viel mehr oder weniger als", "welche
+  Monate im Minus") is asked for signed, `ROUND(SUM(amount), 2)` or a signed difference, and
+  never as two positive columns: bar draws it above and below the zero line, which is the whole
+  answer. Say in the question that the sign is kept.
+- "Aufsummiert", "kumuliert", "cumulative", "wie es sich aufaddiert" is a running total, which
+  is an area over the periods. Compared against another period ("dieses Jahr gegen letztes",
+  "erstes gegen zweites Halbjahr"), it is one band per period: the period is the series, the
+  position is the period's own month or day so both bands start at the same place, and the
+  question asks for the running total inside each period, `SUM(...) OVER (PARTITION BY the
+  period ORDER BY the month)`.
+- "Am I above my usual", "wo mein Durchschnitt liegt", "verglichen mit dem Schnitt": the average
+  is a line drawn across the plot by the chart itself, so the shape is the plain line, area or
+  bar over the periods and the columns are the two the series needs. Never ask the query for the
+  average as a column and never put a figure in the title: the chart computes it from the rows
+  it is handed, which is what keeps it the average of what is on screen.
 - doughnut: at most {MAX_SLICES} rows, so ask for the largest {MAX_SLICES - 1} plus a rest row
   when there are more categories than that. A rest row that would hold most of the money says
   nothing, so ask for the largest {MAX_SLICES} instead when a handful of buckets carry the
@@ -94,15 +116,19 @@ Rules:
   refuses, and "where does my income go" asked plainly is exactly how one gets written.
 """
 
-# Three worked plans, drawn from the training half of the chart benchmark
-# (13-doughnut-categories-en, 10-quarter-groups-de and 34-grocery-lines-en). They are the three
-# decisions the small model gets wrong most: the language of an English request about German
-# data, a request naming quarters that comes back with months along its axis, and a request
-# naming five shops over a year that comes back with one line or with sixty bars. The German
-# twin of the third, 33-grocery-lines-de, is the one the hash held out, so the example is its
-# English half: an example drawn from a held-out datapoint teaches the model its answer.
+# Seven worked plans, drawn from the training half of the chart benchmark
+# (13-doughnut-categories-en, 10-quarter-groups-de, 34-grocery-lines-en,
+# 35-this-month-versus-last-en, 37-change-per-month-en, 40-average-line-de and
+# 42-cumulative-halves-de). They are the seven decisions the small model gets wrong most: the language of an English request about German
+# data, a request naming quarters that comes back with months along its axis, a request naming
+# five shops over a year that comes back with one line or with sixty bars, two periods compared
+# that come back as one breakdown, a signed figure that comes back with its sign dropped, an
+# average asked of the query instead of drawn across the plot, and a running total of two
+# periods that comes back as one line over the lot. Which half of a pair is the
+# example is the hash's choice and not ours: an example drawn from a held-out datapoint teaches
+# the model the answer to a question it is then scored on.
 PLAN_EXAMPLES = f"""\
-Three worked plans:
+Seven worked plans:
 
 Request: Show the share of my 2025 spending by category as a doughnut.
 reasoning:
@@ -137,6 +163,54 @@ the columns are the month, the shop and the euro figure, the figure last
    columns month, merchant, total_eur,
    question "spending at Rewe, Edeka, Lidl, Aldi and dm per month of 2025, one row per month and
    shop, columns month as 'YYYY-MM', merchant and total_eur"
+
+Request: Compare this month with last month by category.
+reasoning:
+the request is written in English, so language en
+two periods are compared and the breakdown is by category, so two dimensions that cross
+grouped bars put this month beside last month for each category, which is what "compare" asks
+the period is the series and the category is the position, so the rows come long
+an axis of category names holds about {MAX_SLICES} of them, so the largest {MAX_SLICES} by total
+-> shape bar_grouped, language en, title "This month against last month",
+   columns topic, period, total_eur,
+   question "spending of this month and of last month per category, one row per category and
+   period, period named 'This month' or 'Last month', the {MAX_SLICES} largest categories by
+   total over both months, columns topic, period and total_eur"
+
+Request: Show me for each month of 2025 how much more or less I spent than the month before.
+reasoning:
+the request is written in English, so language en
+one figure per month and no second dimension, so one bar per month
+"more or less than" is a difference, so the figure is signed and a cheaper month is negative
+bars rest on zero, so the months below it are drawn below the baseline
+-> shape bar, language en, title "Change to the month before", columns month, change_eur,
+   question "for each month of 2025 the difference between what was spent in it and what was
+   spent the month before, signed so that a cheaper month is negative, one row per month,
+   columns month as 'YYYY-MM' and change_eur"
+
+Request: Zeig meine Ausgaben pro Monat 2025 und wo mein Durchschnitt liegt.
+reasoning:
+the request is German, so language de
+one figure over twelve ordered months, so a line
+"wo mein Durchschnitt liegt" is a line drawn across the plot, not a second column
+the average is arithmetic on these rows, so the query is asked for the months alone
+-> shape line, language de, title "Monatliche Ausgaben mit Durchschnitt",
+   columns month, total_eur,
+   question "spending per month of 2025, one row per month, columns month as 'YYYY-MM' and
+   total_eur"
+
+Request: Vergleiche, wie sich meine Ausgaben im ersten und im zweiten Halbjahr 2025 aufsummiert
+haben.
+reasoning:
+the request is German, so language de
+"aufsummiert" is a running total, so an area, and "vergleiche" is a second one beside it
+the period is the series, so one band per half and a legend, and the app has the colours for two
+the axis is the month inside the half, 1 to 6, so both bands start at the same place
+-> shape area, language de, title "Ausgaben aufsummiert, Halbjahr gegen Halbjahr",
+   columns month_of_half, half, cumulative_eur,
+   question "spending of 2025 added up inside each half of the year, one row per half and per
+   month of that half, the running total per half, columns month_of_half as '1' to '6', half as
+   'Erstes Halbjahr' or 'Zweites Halbjahr' and cumulative_eur"
 """
 
 CONTRACT = """\
@@ -146,6 +220,7 @@ no JSX, no `await` and no browser APIs. These globals are all that exist:
 
   defineChart(spec)              the definition; call it once and return it
   lineY, areaY, barY, barX       Cartesian marks, called as (rows, options)
+  ruleY(values, options)         a horizontal reference line, one per chart
   link, rect, text               the child marks of a sankey
   stack(), group()               bar layouts
   polar(options)                 the radial container
@@ -161,6 +236,7 @@ no JSX, no `await` and no browser APIs. These globals are all that exist:
   eur(value)                     "1.234,56 €", for tooltips
   eurShort(value)                a short euro label, for axis ticks
   monthShort('2025-01')          "Jan 25", for month axes
+  mean(data, 'total_eur')        the average of one column of the rows
 
 House rules, all checked before the user sees the chart:
 - `scales` always declares both `x` and `y`. `null` is how you say an axis is unused.
@@ -187,6 +263,15 @@ House rules, all checked before the user sees the chart:
   `color` both name the column of names, the euro domain is over every figure in the rows, and
   the legend goes on. One mark and never one per name, one line per name and never a line for
   all of them added together.
+- `areaY` with a series stacks its bands on top of each other unless you say otherwise, and two
+  periods compared are read off the gap between them and not off their sum. So an area with a
+  series gives every band the same floor, `y1: 0, y2: 'cumulative_eur'`, and drops the plain `y`
+  channel. A zero floor is not a figure typed into the code.
+- A request that asks whether a period is above the usual gets one reference line across the
+  plot: `ruleY([mean(data, 'total_eur')])`, on a line, an area or a bar and on nothing else.
+  Its value is computed from the rows, with `mean` or a `reduce` over `data`, and never typed:
+  `ruleY([1200])` is refused. One rule per chart. It takes no colour and no label from you: the
+  frame draws it in the muted colour and the caption names it.
 - Bars stay thin: `maxThickness: 32` on `barY` and `barX`.
 - Every chart carries `tooltip: { use: tooltip, format: (point) => ... }` and formats euros
   with `eur`.
@@ -289,6 +374,39 @@ return defineChart({
   },
 });""",
         ),
+        Example(
+            columns="month, total_eur",
+            reasoning=(
+                "the shape is line and the request asks where the average lies, so lineY and one ruleY\n"
+                "the columns are month and total_eur, and total_eur holds the numbers\n"
+                "the rule's value is the average of these rows, mean(data, 'total_eur'), never a typed figure\n"
+                "the euro domain is over the amounts and holds zero, so the rule falls inside it"
+            ),
+            code="""\
+const amounts = data.map((row) => row.total_eur);
+return defineChart({
+  marks: [
+    lineY(data, { x: 'month', y: 'total_eur', stroke: palette[0], strokeWidth: 2.25, points: true }),
+    ruleY([mean(data, 'total_eur')]),
+  ],
+  scales: {
+    x: {
+      scale: () => scalePoint().padding(0.06),
+      axis: { ticks: { format: monthShort }, tickLabels: { thin: { minGap: 6, priority: 'ends' } } },
+    },
+    y: {
+      scale: scaleLinear().domain([Math.min(0, ...amounts), Math.max(0, ...amounts)]),
+      nice: true,
+      grid: true,
+      axis: { ticks: { format: eurShort } },
+    },
+  },
+  tooltip: {
+    use: tooltip,
+    format: (point) => monthShort(point.datum.month) + ': ' + eur(point.datum.total_eur),
+  },
+});""",
+        ),
     ),
     "area": (
         Example(
@@ -339,6 +457,32 @@ return defineChart({
   tooltip: {
     use: tooltip,
     format: (point) => point.datum.quarter + ': ' + eur(point.datum.total_eur),
+  },
+});""",
+        ),
+        Example(
+            columns="month_of_half, half, cumulative_eur",
+            reasoning=(
+                "the shape is area and these rows carry a series, so one areaY and one lineY over all of them\n"
+                "the columns are month_of_half, half and cumulative_eur, and cumulative_eur holds the numbers\n"
+                "half names the series, so it is the z and the color channel on both marks and the legend goes on\n"
+                "the two bands are compared and not added, so each rests on zero itself: y1 zero, y2 the figure\n"
+                "an area rests on zero, so its euro axis is the bare scaleLinear factory"
+            ),
+            code="""\
+return defineChart({
+  marks: [
+    areaY(data, { x: 'month_of_half', y1: 0, y2: 'cumulative_eur', z: 'half', color: 'half', fillOpacity: 0.18 }),
+    lineY(data, { x: 'month_of_half', y: 'cumulative_eur', z: 'half', color: 'half', strokeWidth: 2 }),
+  ],
+  scales: {
+    x: { scale: () => scalePoint().padding(0.02), axis: { tickLabels: { thin: false } } },
+    y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
+  },
+  color: { legend: colorLegend({ placement: 'bottom', itemWidth: 150 }) },
+  tooltip: {
+    use: tooltip,
+    format: (point) => point.datum.half + ' ' + point.datum.month_of_half + ': ' + eur(point.datum.cumulative_eur),
   },
 });""",
         ),
@@ -736,10 +880,11 @@ def code_prompt(
     """Everything the code pass sees, including a repair round. Pure function."""
     examples = list(EXAMPLES[plan.shape])
     if plan.shape != "line":
-        # The plain line is the baseline every shape is shown beside its own. A shape that may
-        # carry a series of its own is shown the multi-series line as well, and nothing else is:
-        # five strokes over a merchant column teach a doughnut nothing and cost it its context.
-        examples.extend(EXAMPLES["line"] if SHAPES[plan.shape].may_series else EXAMPLES["line"][:1])
+        # The plain line is the baseline every shape is shown beside its own, and it is all
+        # that is borrowed: the line's own second and third examples (five shops, a reference
+        # line) teach nothing to a doughnut, and the area, the other shape that may carry a
+        # series, has an example with two bands of its own since ticket 52.
+        examples.extend(EXAMPLES["line"][:1])
     sections = [
         CONTRACT,
         "Worked examples:\n\n" + "\n\n".join(example.as_prompt() for example in examples),

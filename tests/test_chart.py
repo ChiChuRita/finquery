@@ -14,6 +14,7 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCall
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall
 
 from finquery.chart.selfcheck import check_chart_code
+from finquery.chart.selfcheck import RULE_VALUE, check_chart_code
 from finquery.chart.shapes import SHAPE_NAMES
 from finquery.chart.subagent import EXAMPLES
 
@@ -523,6 +524,18 @@ EXAMPLE_SQL = {
         "AND (counterparty LIKE 'REWE%' OR counterparty LIKE 'EDEKA%' OR counterparty "
         "LIKE 'LIDL%' OR counterparty LIKE 'ALDI%' OR counterparty LIKE 'dm %') "
         "GROUP BY 1, 2 ORDER BY 1, 2"
+    ),
+    # The area example with two series: a running total inside each half of the year, the half
+    # as the series and the month of that half as the position.
+    "month_of_half, half, cumulative_eur": (
+        "WITH monthly AS (SELECT CASE WHEN booked_on < '2025-07-01' THEN 'Erstes Halbjahr' "
+        "ELSE 'Zweites Halbjahr' END AS half, "
+        "CAST(strftime('%m', booked_on) AS INTEGER) AS month_number, -SUM(amount) AS spent "
+        "FROM transaction_view WHERE amount_cents < 0 GROUP BY 1, 2) "
+        "SELECT CAST(CASE WHEN month_number > 6 THEN month_number - 6 ELSE month_number END AS TEXT) "
+        "AS month_of_half, half, "
+        "ROUND(SUM(spent) OVER (PARTITION BY half ORDER BY month_number), 2) AS cumulative_eur "
+        "FROM monthly ORDER BY half, month_number"
     ),
     # The doughnut example over a column called `label`, which is not the one the first
     # doughnut example reads.
@@ -1514,6 +1527,215 @@ async def test_rows_that_name_one_position_many_times_stop_before_any_code(
     assert "Sonstiges" in output["error"]
     assert respond.prompts["code"] == []  # type: ignore[attr-defined]
     assert output["row_count"] == 12
+
+
+# ------------------------------------------------------- the household questions of ticket 52
+
+# "Compare this month with last month by category": the period is the series and the category is
+# the position, so the rows come long the other way round from a month-by-category stack. The
+# categories are a CASE here for the same reason as everywhere else in this file: the import
+# endpoints categorize nothing.
+PERIOD_COMPARE_SQL = (
+    "SELECT CASE WHEN amount_cents < -20000 THEN 'Gross' ELSE 'Klein' END AS topic, "
+    "CASE WHEN booked_on >= '2025-12-01' THEN 'Dieser Monat' ELSE 'Letzter Monat' END AS period, "
+    "ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 "
+    "AND booked_on BETWEEN '2025-11-01' AND '2025-12-31' GROUP BY 1, 2 ORDER BY 1, 2"
+)
+
+PERIOD_COMPARE_PLAN = {
+    "shape": "bar_grouped",
+    "language": "de",
+    "title": "Dieser Monat gegen letzten Monat",
+    "question": "spending per category in this month and in last month",
+    "columns": ["topic", "period", "total_eur"],
+    "reasoning": "Two periods compared by category are two dimensions that cross.",
+}
+
+PERIOD_COMPARE_CODE = """\
+return defineChart({
+  marks: [
+    barY(data, { x: 'topic', y: 'total_eur', z: 'period', color: 'period', layout: group({ padding: 0.12 }), maxThickness: 32 }),
+  ],
+  scales: {
+    x: { scale: () => scaleBand().padding(0.2), axis: { tickLabels: { rotate: -28, thin: false } } },
+    y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
+  },
+  color: { legend: colorLegend({ placement: 'bottom', itemWidth: 150 }) },
+  tooltip: {
+    use: tooltip,
+    format: (point) => point.datum.period + ' ' + point.datum.topic + ': ' + eur(point.datum.total_eur),
+  },
+});"""
+
+
+async def test_a_period_comparison_draws_grouped_bars_with_the_period_as_the_series(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The grouped bar turned around, and the query hint that goes with it.
+
+    Told to build its groups from `category`, the statement for "this month against last month"
+    comes back grouped by the category twice and never carries a period at all, so the hint says
+    the other thing when the series column names periods.
+    """
+    await import_synthetic(client, profile_id)
+    respond = scripted_chart(plan=PERIOD_COMPARE_PLAN, sql=PERIOD_COMPARE_SQL, codes=[PERIOD_COMPARE_CODE])
+    scripts.fast = ask_chart_then_report("compare this month with last month by category")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Vergleiche diesen Monat mit dem letzten Monat nach Kategorie.")
+
+    output = chart_output(chunks)
+    assert output["error"] is None
+    assert output["notes"] == [], "the worked example needed no repair"
+    assert output["shape"] == "bar_grouped"
+    assert output["columns"] == ["topic", "period", "total_eur"]
+    # One figure per category and period, both periods on both categories.
+    assert {row["period"] for row in output["rows"]} == {"Dieser Monat", "Letzter Monat"}
+    assert {row["topic"] for row in output["rows"]} == {"Gross", "Klein"}
+    assert output["row_count"] == 4
+
+    hint = respond.prompts["sql"][0]  # type: ignore[attr-defined]
+    assert "`GROUP BY topic, period`" in hint
+    assert "period names the two periods being compared" in hint
+    assert "coalesce(category, 'Needs review') AS topic" in hint
+    # Two periods are two colours, so the paragraph about folding a tail of groups is left out.
+    assert "never put a LIMIT on the groups" not in hint
+
+
+# "How much more or less than the month before": the one figure of this dataset that really
+# crosses zero, so the bars are drawn on both sides of the baseline.
+CHANGE_SQL = (
+    "WITH monthly AS (SELECT strftime('%Y-%m', booked_on) AS month, -SUM(amount) AS spent "
+    "FROM transaction_view WHERE amount_cents < 0 GROUP BY 1), "
+    "stepped AS (SELECT month, spent, LAG(spent) OVER (ORDER BY month) AS before FROM monthly) "
+    "SELECT month, ROUND(spent - before, 2) AS change_eur FROM stepped "
+    "WHERE before IS NOT NULL ORDER BY month"
+)
+
+CHANGE_PLAN = {
+    "shape": "bar",
+    "language": "en",
+    "title": "Change to the month before",
+    "question": "the difference to the month before, per month of 2025, signed",
+    "columns": ["month", "change_eur"],
+    "reasoning": "A difference is signed, so the bars cross the zero line.",
+}
+
+CHANGE_CODE = """\
+return defineChart({
+  marks: [
+    barY(data, { x: 'month', y: 'change_eur', fill: palette[0], maxThickness: 32 }),
+  ],
+  scales: {
+    x: {
+      scale: () => scaleBand().padding(0.26),
+      axis: { ticks: { format: monthShort }, tickLabels: { thin: { minGap: 6, priority: 'ends' } } },
+    },
+    y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
+  },
+  tooltip: {
+    use: tooltip,
+    format: (point) => monthShort(point.datum.month) + ': ' + eur(point.datum.change_eur),
+  },
+});"""
+
+
+async def test_a_signed_figure_per_month_is_drawn_as_bars_on_both_sides_of_zero(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """Diverging bars need no rule of their own: a bar rests on zero and the sign does the rest.
+
+    What this holds is that the check admits a euro column with both signs in it, over the real
+    rows of the benchmark's own statement, and that the euro axis still names no domain.
+    """
+    await import_synthetic(client, profile_id)
+    respond = scripted_chart(plan=CHANGE_PLAN, sql=CHANGE_SQL, codes=[CHANGE_CODE])
+    scripts.fast = ask_chart_then_report("how much more or less I spent than the month before")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Show me how much more or less I spent each month.")
+
+    output = chart_output(chunks)
+    assert output["error"] is None
+    assert output["notes"] == []
+    assert output["shape"] == "bar"
+    assert output["row_count"] == 11
+    figures = [row["change_eur"] for row in output["rows"]]
+    assert min(figures) < 0 < max(figures), "the chart this test is about is the one that crosses zero"
+    assert output["code"] == CHANGE_CODE
+
+
+# The reference line of ticket 52. These three run the check directly: what they are about is
+# the rule and not the path, and the rows are the shape of the rows the monthly statement
+# returns.
+MONTHLY_ROWS = [
+    {"month": "2025-01", "total_eur": 2544.04},
+    {"month": "2025-02", "total_eur": 2265.34},
+    {"month": "2025-03", "total_eur": 2290.77},
+    {"month": "2025-04", "total_eur": 2264.74},
+]
+
+# The worked example itself, read from the prompt rather than copied, so a copy cannot pass
+# while the prompt teaches something else.
+RULE_EXAMPLE = EXAMPLES["line"][2]
+
+
+async def test_a_reference_line_computed_from_the_rows_passes_the_check() -> None:
+    assert "ruleY([mean(data, 'total_eur')])" in RULE_EXAMPLE.code
+    result = await check_chart_code(RULE_EXAMPLE.code, MONTHLY_ROWS, "line")
+    assert result.findings == ()
+
+
+async def test_a_reference_line_with_a_typed_figure_is_refused() -> None:
+    """The invariant, for the one mark that carries no channel: no figure is typed into a chart.
+
+    Both ways of typing it: the value in the array the rule is given, and the value hidden in a
+    name assigned above it. A width is not a figure, so the stroke options are left alone.
+    """
+    for typed in (
+        "ruleY([2100])",
+        "ruleY([2100], { strokeWidth: 1.5 })",
+        "ruleY(data, { y: 2100 })",
+    ):
+        code = RULE_EXAMPLE.code.replace("ruleY([mean(data, 'total_eur')])", typed)
+        result = await check_chart_code(code, MONTHLY_ROWS, "line")
+        assert result.findings == (RULE_VALUE,), typed
+        assert result.fatal, typed
+
+    named = RULE_EXAMPLE.code.replace(
+        "const amounts = data.map((row) => row.total_eur);",
+        "const amounts = data.map((row) => row.total_eur);\nconst usual = 2100;",
+    ).replace("ruleY([mean(data, 'total_eur')])", "ruleY([usual])")
+    assert (await check_chart_code(named, MONTHLY_ROWS, "line")).findings == (RULE_VALUE,)
+
+    # The same value under a name that really was computed from the rows is the right answer.
+    computed = RULE_EXAMPLE.code.replace(
+        "const amounts = data.map((row) => row.total_eur);",
+        "const amounts = data.map((row) => row.total_eur);\nconst usual = mean(data, 'total_eur');",
+    ).replace("ruleY([mean(data, 'total_eur')])", "ruleY([usual])")
+    assert (await check_chart_code(computed, MONTHLY_ROWS, "line")).findings == ()
+
+
+async def test_a_reference_line_on_a_doughnut_and_a_second_one_anywhere_are_refused() -> None:
+    """A rule needs a euro axis to lie across, and one chart says one thing."""
+    slices = [{"label": "Miete", "total_eur": 1050.0}, {"label": "Rest", "total_eur": 1494.04}]
+    doughnut = EXAMPLES["doughnut"][1].code.replace(
+        "  marks: [", "  marks: [\n    ruleY([mean(data, 'total_eur')]),"
+    )
+    findings = (await check_chart_code(doughnut, slices, "doughnut")).findings
+    assert "`ruleY` does not belong in a doughnut chart. Remove that mark." in findings
+
+    twice = RULE_EXAMPLE.code.replace(
+        "ruleY([mean(data, 'total_eur')]),",
+        "ruleY([mean(data, 'total_eur')]),\n    ruleY([Math.max(...data.map((row) => row.total_eur))]),",
+    )
+    findings = (await check_chart_code(twice, MONTHLY_ROWS, "line")).findings
+    assert findings == ("A chart carries at most 1 reference line and this one draws 2. A rule "
+                        "has no label of its own, so keep the one the request asks about, the "
+                        "average or the limit, and drop the rest.",)
+
 
 # --------------------------------------------------------------------------- two charts in a row
 

@@ -130,6 +130,18 @@ def _euro_last(plan: ChartPlan) -> ChartPlan:
     return plan.model_copy(update={"columns": [name for name in plan.columns if name != euros[0]] + euros})
 
 
+# A series column with one of these names carries periods and not categories, which turns the
+# grouped bar around: "this month against last month by category" puts the categories along the
+# axis and the two periods in the colour, so the query hint may not ask for the groups to be
+# built from `category` (ticket 52).
+PERIOD_NAMES = ("period", "periode", "zeitraum", "month", "monat", "quarter", "quartal", "year", "jahr")
+
+
+def _names_periods(column: str) -> bool:
+    """Whether the series column of a grouped chart holds periods rather than category names."""
+    return column.strip().casefold() in PERIOD_NAMES
+
+
 def _grouping_columns(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
     """The columns that could carry a category: no NULL, more than one value, no figures."""
     grouping: list[str] = []
@@ -278,7 +290,18 @@ async def run_chart(
             f"combination and never two rows with the same pair: a chart that draws a series "
             f"needs one value per position and series."
         )
-        if SHAPES[plan.shape].crossed:
+        if _names_periods(group):
+            # "This month against last month by category" turns the usual grouped bar around:
+            # the colour is the period and the axis carries the categories. Told to build the
+            # group from `category`, the statement came back grouped by the category twice.
+            shaped += (
+                f" {group} names the two periods being compared and nothing else, from a CASE "
+                f"over `booked_on`, and {position} holds the category names, "
+                f"`coalesce(category, 'Needs review') AS {position}`. Both periods come back for "
+                f"every {position}, and a LIMIT the question asks for is on the categories, "
+                f"never on the periods."
+            )
+        elif SHAPES[plan.shape].crossed:
             shaped += (
                 f" Build {group} from the `category` column with "
                 f"`coalesce(category, 'Needs review') AS {group}` so an uncategorized "
@@ -297,18 +320,20 @@ async def run_chart(
         # (`chart.fold.fold_rows`). Asking the statement for it is what cost the stacked bars
         # three rounds on 2026-09-05: the CASE relabelled the small categories 'Other' while the
         # statement still grouped by the month alone, so every month came back with several
-        # 'Other' rows and the stack could not be drawn at all.
-        keeps = (
-            f"keeps the largest {MAX_SERIES - 1} and sums the rest itself"
-            if SHAPES[plan.shape].crossed
-            else f"keeps the largest {MAX_SERIES} and leaves the rest out"
-        )
-        shaped += (
-            f" Return every group under its own name: never rename one to 'Other' or 'Sonstige', "
-            f"never fold the small ones together and never put a LIMIT on the groups. This app "
-            f"{keeps}, after the query, because a chart has {MAX_SERIES} colours. When the "
-            f"question names the groups it wants, select only those."
-        )
+        # 'Other' rows and the stack could not be drawn at all. Two periods are two colours and
+        # nothing to fold, so that whole paragraph is left out of a period comparison.
+        if not _names_periods(group):
+            keeps = (
+                f"keeps the largest {MAX_SERIES - 1} and sums the rest itself"
+                if SHAPES[plan.shape].crossed
+                else f"keeps the largest {MAX_SERIES} and leaves the rest out"
+            )
+            shaped += (
+                f" Return every group under its own name: never rename one to 'Other' or "
+                f"'Sonstige', never fold the small ones together and never put a LIMIT on the "
+                f"groups. This app {keeps}, after the query, because a chart has {MAX_SERIES} "
+                f"colours. When the question names the groups it wants, select only those."
+            )
     outcome = await run_query(
         resolve_model=resolve_model,
         model_settings=model_settings,

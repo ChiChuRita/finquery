@@ -1,0 +1,767 @@
+{
+  "model": "google/gemini-3.8-flash",
+  "set": "chart",
+  "started_at": "2026-09-06T10:49:11+00:00",
+  "seconds": 59.5,
+  "seed": 7,
+  "check": true,
+  "n": 8,
+  "summary": {
+    "n": 8,
+    "figure_match": 1.0,
+    "sql_valid": 1.0,
+    "first_attempt": 1.0,
+    "shape_match": 1.0,
+    "columns_map": 0.75,
+    "language_ok": 1.0,
+    "drawn": 1.0,
+    "median_seconds": 7.5,
+    "p90_seconds": 8.0,
+    "total_seconds": 59.5,
+    "by_kind": {
+      "area": {
+        "n": 2,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": 1.0,
+        "columns_map": 1.0,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 8.0
+      },
+      "bar": {
+        "n": 2,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": 1.0,
+        "columns_map": 0.0,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 7.0
+      },
+      "bar_grouped": {
+        "n": 2,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": 1.0,
+        "columns_map": 1.0,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 7.5
+      },
+      "line": {
+        "n": 2,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": 1.0,
+        "columns_map": 1.0,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 6.7
+      }
+    },
+    "by_difficulty": {
+      "3": {
+        "n": 8,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": 1.0,
+        "columns_map": 0.75,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 7.5
+      }
+    },
+    "by_language": {
+      "de": {
+        "n": 4,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": 1.0,
+        "columns_map": 0.75,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 7.5
+      },
+      "en": {
+        "n": 4,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": 1.0,
+        "columns_map": 0.75,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 7.7
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "35-this-month-versus-last-en",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Compare this month with last month by category.",
+      "seconds": 7.71,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "WITH top_categories AS (\n  SELECT\n    COALESCE(category, 'Needs review') AS topic\n  FROM transaction_view\n  WHERE\n    amount < 0 AND booked_on BETWEEN '2025-11-01' AND '2025-12-31'\n  GROUP BY\n    topic\n  ORDER BY\n    -SUM(amount) DESC\n  LIMIT 6\n)\nSELECT\n  COALESCE(category, 'Needs review') AS topic,\n  CASE\n    WHEN booked_on BETWEEN '2025-12-01' AND '2025-12-31'\n    THEN 'This month'\n    ELSE 'Last month'\n  END AS period,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-11-01' AND '2025-12-31'\n  AND COALESCE(category, 'Needs review') IN (\n    SELECT\n      topic\n    FROM top_categories\n  )\nGROUP BY\n  topic,\n  period\nORDER BY\n  topic,\n  period DESC\nLIMIT 200",
+      "columns": [
+        "topic",
+        "period",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Cash",
+          "period": "This month",
+          "total_eur": 200.0
+        },
+        {
+          "topic": "Cash",
+          "period": "Last month",
+          "total_eur": 150.0
+        },
+        {
+          "topic": "Dining",
+          "period": "This month",
+          "total_eur": 87.3
+        },
+        {
+          "topic": "Dining",
+          "period": "Last month",
+          "total_eur": 88.3
+        },
+        {
+          "topic": "Groceries",
+          "period": "This month",
+          "total_eur": 280.7
+        },
+        {
+          "topic": "Groceries",
+          "period": "Last month",
+          "total_eur": 339.5
+        },
+        {
+          "topic": "Health",
+          "period": "This month",
+          "total_eur": 39.9
+        },
+        {
+          "topic": "Health",
+          "period": "Last month",
+          "total_eur": 228.9
+        },
+        {
+          "topic": "Needs review",
+          "period": "This month",
+          "total_eur": 1234.5
+        },
+        {
+          "topic": "Needs review",
+          "period": "Last month",
+          "total_eur": 1212.0
+        },
+        {
+          "topic": "Transport",
+          "period": "This month",
+          "total_eur": 254.0
+        },
+        {
+          "topic": "Transport",
+          "period": "Last month",
+          "total_eur": 107.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_grouped",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "36-this-month-versus-last-de",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Vergleiche diesen Monat mit dem letzten Monat nach Kategorie.",
+      "seconds": 7.5,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "WITH top_categories AS (\n  SELECT\n    COALESCE(category, 'Needs review') AS topic\n  FROM transaction_view\n  WHERE\n    amount < 0 AND booked_on BETWEEN '2025-11-01' AND '2025-12-31'\n  GROUP BY\n    topic\n  ORDER BY\n    -SUM(amount) DESC\n  LIMIT 6\n)\nSELECT\n  COALESCE(category, 'Needs review') AS topic,\n  CASE WHEN booked_on >= '2025-12-01' THEN 'Dieser Monat' ELSE 'Letzter Monat' END AS period,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-11-01' AND '2025-12-31'\n  AND COALESCE(category, 'Needs review') IN (\n    SELECT\n      topic\n    FROM top_categories\n  )\nGROUP BY\n  topic,\n  period\nLIMIT 200",
+      "columns": [
+        "topic",
+        "period",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Cash",
+          "period": "Dieser Monat",
+          "total_eur": 200.0
+        },
+        {
+          "topic": "Cash",
+          "period": "Letzter Monat",
+          "total_eur": 150.0
+        },
+        {
+          "topic": "Dining",
+          "period": "Dieser Monat",
+          "total_eur": 87.3
+        },
+        {
+          "topic": "Dining",
+          "period": "Letzter Monat",
+          "total_eur": 88.3
+        },
+        {
+          "topic": "Groceries",
+          "period": "Dieser Monat",
+          "total_eur": 280.7
+        },
+        {
+          "topic": "Groceries",
+          "period": "Letzter Monat",
+          "total_eur": 339.5
+        },
+        {
+          "topic": "Health",
+          "period": "Dieser Monat",
+          "total_eur": 39.9
+        },
+        {
+          "topic": "Health",
+          "period": "Letzter Monat",
+          "total_eur": 228.9
+        },
+        {
+          "topic": "Needs review",
+          "period": "Dieser Monat",
+          "total_eur": 1234.5
+        },
+        {
+          "topic": "Needs review",
+          "period": "Letzter Monat",
+          "total_eur": 1212.0
+        },
+        {
+          "topic": "Transport",
+          "period": "Dieser Monat",
+          "total_eur": 254.0
+        },
+        {
+          "topic": "Transport",
+          "period": "Letzter Monat",
+          "total_eur": 107.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_grouped",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "37-change-per-month-en",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Show me for each month of 2025 how much more or less I spent than the month before.",
+      "seconds": 7.45,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "WITH monthly_spending AS (\n  SELECT\n    STRFTIME('%Y-%m', booked_on) AS month,\n    ROUND(-SUM(amount), 2) AS spent\n  FROM transaction_view\n  WHERE\n    amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY\n    month\n)\nSELECT\n  month,\n  ROUND(spent - LAG(spent) OVER (ORDER BY month), 2) AS change_eur\nFROM monthly_spending\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "change_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "change_eur": null
+        },
+        {
+          "month": "2025-02",
+          "change_eur": -278.7
+        },
+        {
+          "month": "2025-03",
+          "change_eur": 25.43
+        },
+        {
+          "month": "2025-04",
+          "change_eur": -26.03
+        },
+        {
+          "month": "2025-05",
+          "change_eur": 45.72
+        },
+        {
+          "month": "2025-06",
+          "change_eur": -9.42
+        },
+        {
+          "month": "2025-07",
+          "change_eur": 459.76
+        },
+        {
+          "month": "2025-08",
+          "change_eur": -481.96
+        },
+        {
+          "month": "2025-09",
+          "change_eur": 273.6
+        },
+        {
+          "month": "2025-10",
+          "change_eur": -351.5
+        },
+        {
+          "month": "2025-11",
+          "change_eur": 219.2
+        },
+        {
+          "month": "2025-12",
+          "change_eur": -73.8
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "38-change-per-month-de",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig mir für jeden Monat 2025, wie viel mehr oder weniger ich als im Monat davor ausgegeben habe.",
+      "seconds": 7.05,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "WITH monthly_spending AS (\n  SELECT\n    STRFTIME('%Y-%m', booked_on) AS month,\n    ROUND(-SUM(amount), 2) AS total_spending\n  FROM transaction_view\n  WHERE\n    amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY\n    month\n)\nSELECT\n  month,\n  ROUND(total_spending - LAG(total_spending) OVER (ORDER BY month), 2) AS change_eur\nFROM monthly_spending\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "change_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "change_eur": null
+        },
+        {
+          "month": "2025-02",
+          "change_eur": -278.7
+        },
+        {
+          "month": "2025-03",
+          "change_eur": 25.43
+        },
+        {
+          "month": "2025-04",
+          "change_eur": -26.03
+        },
+        {
+          "month": "2025-05",
+          "change_eur": 45.72
+        },
+        {
+          "month": "2025-06",
+          "change_eur": -9.42
+        },
+        {
+          "month": "2025-07",
+          "change_eur": 459.76
+        },
+        {
+          "month": "2025-08",
+          "change_eur": -481.96
+        },
+        {
+          "month": "2025-09",
+          "change_eur": 273.6
+        },
+        {
+          "month": "2025-10",
+          "change_eur": -351.5
+        },
+        {
+          "month": "2025-11",
+          "change_eur": 219.2
+        },
+        {
+          "month": "2025-12",
+          "change_eur": -73.8
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "39-average-line-en",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Show my spending per month in 2025 with my average as a reference line.",
+      "seconds": 6.7,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 2265.34
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 2290.77
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 2310.46
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 2301.04
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 2760.8
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 2278.84
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 2552.44
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 2420.14
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "40-average-line-de",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig meine Ausgaben pro Monat 2025 und wo mein Durchschnitt liegt.",
+      "seconds": 6.92,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month ASC\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 2265.34
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 2290.77
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 2310.46
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 2301.04
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 2760.8
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 2278.84
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 2552.44
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 2420.14
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "41-cumulative-halves-en",
+      "set": "chart",
+      "kind": "area",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Compare how my spending added up over the first half of 2025 and over the second half.",
+      "seconds": 7.97,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "WITH monthly_spending AS (\n  SELECT\n    CASE\n      WHEN CAST(STRFTIME('%m', booked_on) AS INTEGER) <= 6\n      THEN 'First half'\n      ELSE 'Second half'\n    END AS half,\n    CASE\n      WHEN CAST(STRFTIME('%m', booked_on) AS INTEGER) <= 6\n      THEN CAST(CAST(STRFTIME('%m', booked_on) AS INTEGER) AS TEXT)\n      ELSE CAST(CAST(STRFTIME('%m', booked_on) AS INTEGER) - 6 AS TEXT)\n    END AS month_of_half,\n    -SUM(amount) AS monthly_eur\n  FROM transaction_view\n  WHERE\n    amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY\n    half,\n    month_of_half\n)\nSELECT\n  month_of_half,\n  half,\n  ROUND(\n    SUM(monthly_eur) OVER (PARTITION BY half ORDER BY CAST(month_of_half AS INTEGER)),\n    2\n  ) AS cumulative_eur\nFROM monthly_spending\nORDER BY\n  half,\n  CAST(month_of_half AS INTEGER)\nLIMIT 200",
+      "columns": [
+        "month_of_half",
+        "half",
+        "cumulative_eur"
+      ],
+      "rows": [
+        {
+          "month_of_half": "1",
+          "half": "First half",
+          "cumulative_eur": 2544.04
+        },
+        {
+          "month_of_half": "2",
+          "half": "First half",
+          "cumulative_eur": 4809.38
+        },
+        {
+          "month_of_half": "3",
+          "half": "First half",
+          "cumulative_eur": 7100.15
+        },
+        {
+          "month_of_half": "4",
+          "half": "First half",
+          "cumulative_eur": 9364.89
+        },
+        {
+          "month_of_half": "5",
+          "half": "First half",
+          "cumulative_eur": 11675.35
+        },
+        {
+          "month_of_half": "6",
+          "half": "First half",
+          "cumulative_eur": 13976.39
+        },
+        {
+          "month_of_half": "1",
+          "half": "Second half",
+          "cumulative_eur": 2760.8
+        },
+        {
+          "month_of_half": "2",
+          "half": "Second half",
+          "cumulative_eur": 5039.64
+        },
+        {
+          "month_of_half": "3",
+          "half": "Second half",
+          "cumulative_eur": 7592.08
+        },
+        {
+          "month_of_half": "4",
+          "half": "Second half",
+          "cumulative_eur": 9793.02
+        },
+        {
+          "month_of_half": "5",
+          "half": "Second half",
+          "cumulative_eur": 12213.16
+        },
+        {
+          "month_of_half": "6",
+          "half": "Second half",
+          "cumulative_eur": 14559.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "area",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "42-cumulative-halves-de",
+      "set": "chart",
+      "kind": "area",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Vergleiche, wie sich meine Ausgaben im ersten und im zweiten Halbjahr 2025 aufsummiert haben.",
+      "seconds": 8.17,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "WITH monthly_spending AS (\n  SELECT\n    CASE\n      WHEN CAST(STRFTIME('%m', booked_on) AS INTEGER) <= 6\n      THEN 'Erstes Halbjahr'\n      ELSE 'Zweites Halbjahr'\n    END AS half,\n    CAST(CASE\n      WHEN CAST(STRFTIME('%m', booked_on) AS INTEGER) <= 6\n      THEN CAST(STRFTIME('%m', booked_on) AS INTEGER)\n      ELSE CAST(STRFTIME('%m', booked_on) AS INTEGER) - 6\n    END AS TEXT) AS month_of_half,\n    CASE\n      WHEN CAST(STRFTIME('%m', booked_on) AS INTEGER) <= 6\n      THEN CAST(STRFTIME('%m', booked_on) AS INTEGER)\n      ELSE CAST(STRFTIME('%m', booked_on) AS INTEGER) - 6\n    END AS m_idx,\n    -SUM(amount) AS spent\n  FROM transaction_view\n  WHERE\n    amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY\n    half,\n    month_of_half,\n    m_idx\n)\nSELECT\n  month_of_half,\n  half,\n  ROUND(SUM(spent) OVER (PARTITION BY half ORDER BY m_idx), 2) AS cumulative_eur\nFROM monthly_spending\nORDER BY\n  half,\n  m_idx\nLIMIT 200",
+      "columns": [
+        "month_of_half",
+        "half",
+        "cumulative_eur"
+      ],
+      "rows": [
+        {
+          "month_of_half": "1",
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 2544.04
+        },
+        {
+          "month_of_half": "2",
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 4809.38
+        },
+        {
+          "month_of_half": "3",
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 7100.15
+        },
+        {
+          "month_of_half": "4",
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 9364.89
+        },
+        {
+          "month_of_half": "5",
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 11675.35
+        },
+        {
+          "month_of_half": "6",
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 13976.39
+        },
+        {
+          "month_of_half": "1",
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 2760.8
+        },
+        {
+          "month_of_half": "2",
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 5039.64
+        },
+        {
+          "month_of_half": "3",
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 7592.08
+        },
+        {
+          "month_of_half": "4",
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 9793.02
+        },
+        {
+          "month_of_half": "5",
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 12213.16
+        },
+        {
+          "month_of_half": "6",
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 14559.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "area",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    }
+  ]
+}
