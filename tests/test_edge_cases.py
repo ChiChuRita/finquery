@@ -282,16 +282,14 @@ async def test_a_file_the_composer_cannot_carry_is_refused_with_a_sentence(
         "huge.csv is larger than 20 MB. Export a shorter date range from your bank and attach that."
     )
 
-    other = await drop(
-        client,
-        scripts,
-        profile_id,
-        "notes.docx",
-        b"PK\x03\x04",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    )
+    # Audio is the kind that is deliberately not read (ticket 58): the elective covers
+    # documents and images, and a voice memo is refused rather than half-handled.
+    other = await drop(client, scripts, profile_id, "voice-memo.m4a", b"\x00\x00\x00\x20ftypM4A ", "audio/mp4")
     assert other.status_code == 422
-    assert other.json()["detail"] == "notes.docx is not a kind FinQuery can read. Attach a CSV, a PDF or an image."
+    assert other.json()["detail"] == (
+        "voice-memo.m4a is not a kind FinQuery can read. Attach a CSV or Excel export, a "
+        "statement PDF, a Word document or a photo."
+    )
 
 
 async def test_a_damaged_pdf_says_what_to_try_instead_of_the_library_s_words(

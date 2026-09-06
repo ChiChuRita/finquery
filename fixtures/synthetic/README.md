@@ -6,8 +6,11 @@ Deterministic: re-running the script reproduces these files byte for byte. No pe
 | File | What it is |
 | ---- | ---------- |
 | `sparkasse-2025.csv` | Sparkasse CAMT export layout: semicolon, cp1252, `1.234,56`, DD.MM.YYYY. Matches the `sparkasse` preset. |
+| `sparkasse-2025.xlsx` | The same export as an Excel workbook, one sheet, dates and amounts as typed cells. Matches the `sparkasse` preset too. |
 | `unknown-bank-2025.csv` | The same bookings with headers no preset knows and separate `Soll` and `Haben` columns. Exercises the mapping sub-agent. |
 | `sparkasse-kontoauszug-2025.pdf` | Text PDF statement. Opening balance plus all bookings equals the printed closing balance. |
+| `statement-excerpt.docx` | The first 15 bookings of the year as a Word document, with the two printed balances the reconciliation guard checks. |
 | `bill-*.png` | Four receipts whose line items sum to the total of a booking that is in the CSV, so a bill photo can match an existing transaction. |
 
-Figures: 433 bookings, opening balance 4.210,55 EUR, closing balance 9.909,56 EUR.
+Figures: 433 bookings, opening balance 4.210,55 EUR, closing balance 9.909,56 EUR. The
+Word excerpt closes at 2.332,58 EUR after its 15 bookings.

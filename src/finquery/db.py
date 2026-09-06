@@ -229,12 +229,15 @@ class Attachment(Base):
     file_name: Mapped[str] = mapped_column(String(260))
     media_type: Mapped[str] = mapped_column(String(120))
     kind: Mapped[str] = mapped_column(String(16))
-    """csv, pdf, image or other: which reader of the ingestion pipeline can take it."""
+    """csv, xlsx, pdf, docx or image: which reader of the ingestion pipeline can take it."""
     size_bytes: Mapped[int] = mapped_column(Integer)
     sha256: Mapped[str] = mapped_column(String(64), index=True)
     data: Mapped[bytes] = mapped_column(LargeBinary)
     mapping_json: Mapped[str | None] = mapped_column(Text, default=None)
     """The column mapping this CSV is read with: proposed and awaiting confirmation, or used."""
+    sheet_name: Mapped[str | None] = mapped_column(String(120), default=None)
+    """Which sheet of a workbook the mapping belongs to, so the confirmed import reads the
+    sheet the card showed. None for every other kind, and for a workbook with one sheet."""
     extraction_json: Mapped[str | None] = mapped_column(Text, default=None)
     """What the extraction sub-agent read out of this PDF or photo, guards and all
     (`finquery.extract.statement.Extraction`). Stored for the same reason `mapping_json` is: the
@@ -643,6 +646,7 @@ NEW_COLUMNS: dict[str, dict[str, str]] = {
     },
     "attachment": {
         "extraction_json": "TEXT",
+        "sheet_name": "VARCHAR(120)",
     },
     "dashboard_chart": {
         "previous_json": "TEXT",

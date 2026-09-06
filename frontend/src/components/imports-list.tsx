@@ -19,7 +19,13 @@ import {
 import { formatDateTime } from '@/lib/format'
 import { useWorkspace } from '@/lib/workspace'
 
-const KIND_LABELS: Record<string, string> = { csv: 'CSV', pdf: 'Statement PDF', image: 'Photo' }
+const KIND_LABELS: Record<string, string> = {
+  csv: 'CSV',
+  xlsx: 'Excel workbook',
+  pdf: 'Statement PDF',
+  docx: 'Word document',
+  image: 'Photo',
+}
 
 /** One counted thing about an import. The number is the point, so it carries the weight. */
 function Stat({ label, value, note }: { label: string; value: number; note?: ReactNode }) {
@@ -189,8 +195,9 @@ export function ImportsList() {
             </EmptyMedia>
             <EmptyTitle>Nothing imported yet</EmptyTitle>
             <EmptyDescription>
-              Drop a CSV export, a statement PDF or a bill photo into the chat. The assistant reads it, asks
-              about anything it is unsure of and imports it, and every import shows up here.
+              Drop a CSV or Excel export, a statement PDF or Word document, or a bill photo into the chat.
+              The assistant reads it, asks about anything it is unsure of and imports it, and every import
+              shows up here.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>

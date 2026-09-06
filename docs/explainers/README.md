@@ -19,8 +19,8 @@ not started and tickets 44 to 47 running in parallel (their code is not on `main
 
 ## The elevator pitch
 
-FinQuery is a local-first personal-finance analyst. You drop bank statements, CSV exports and
-receipt photos into a chat, the assistant imports and categorizes them, and you ask questions
+FinQuery is a local-first personal-finance analyst. You drop bank statements, CSV and Excel
+exports, Word documents and receipt photos into a chat, the assistant imports and categorizes them, and you ask questions
 in German or English. Every number in an answer comes from a SQL query the assistant really ran
 against your own transactions, shown in the transcript next to the answer, and never from the
 model's memory. Two models run on the laptop through llama.cpp: a fast Gemma 4 E4B that also
@@ -46,7 +46,7 @@ switch on web lookup, and then only a scrubbed merchant name does, logged before
 | --- | --- | --- |
 | 06 | [numbers-invariant-and-sql-guard.md](06-numbers-invariant-and-sql-guard.md) | Numbers come only from executed, guarded SQL, checked against the question |
 | 07 | [charts-as-checked-code.md](07-charts-as-checked-code.md) | A chart is generated code, checked in QuickJS, drawn in a sandboxed frame |
-| 08 | [ingestion.md](08-ingestion.md) | CSV, PDF and photo import with verbatim and reconciliation guards and duplicate cards |
+| 08 | [ingestion.md](08-ingestion.md) | CSV, XLSX, PDF, DOCX and photo import with verbatim and reconciliation guards and duplicate cards |
 | 09 | [categorization-and-question-cards.md](09-categorization-and-question-cards.md) | Rules, dictionary, model, then a card; answers apply in code |
 | 10 | [transactions-and-changesets.md](10-transactions-and-changesets.md) | Every edit is deterministic code; bulk edits are previews the user applies |
 | 11 | [dashboard.md](11-dashboard.md) | A dashboard that stores statements, never figures |
@@ -58,14 +58,16 @@ switch on web lookup, and then only a scrubbed merchant name does, logged before
 | 12 | [elective-context-management.md](12-elective-context-management.md) | intelligent context management: compression, isolation, selection | done |
 | 13 | [elective-subagents.md](13-elective-subagents.md) | sub-agent deployment as tool calls (extra credit for a non-waiting controller not claimed) | done |
 | 15 | [elective-web-search.md](15-elective-web-search.md) | repeated self-controlled web search that finds and visits pages | done |
+| 16 | [elective-multimodal-ingestion.md](16-elective-multimodal-ingestion.md) | multimodal ingestion: images, PDF, text, CSV, XLSX and DOCX through vision-language models | done |
 
-Built and then removed on 2026-09-06: preference optimisation via human feedback. It was a
-real feature for two days and it is gone from the product, not merely unclaimed;
-[14](14-elective-preference-optimization.md) is the note on what it was, what it measured and
-why it went. Built but not claimed as an elective: sandboxed execution of generated chart code
-(07, JavaScript rather than Python). Dropped on 2026-09-01 and never claimed: extensible
-user-provided tools and secure Python execution (`git show archive/old-main:DECISIONS.md`). Not
-built: adaptive RAG, concurrent multi-user, prompt caching, Tree-of-Thought.
+Multimodal ingestion (16) was claimed on 2026-09-06 in place of preference optimisation, and
+the deeper chapter under it is 08. Preference optimisation was built and then removed the same
+day, not merely unclaimed; [14](14-elective-preference-optimization.md) is the note on what it
+was, what it measured and why it went. Built but not claimed as an elective: sandboxed execution
+of generated chart code (07, JavaScript rather than Python). Dropped on 2026-09-01 and never
+claimed: extensible user-provided tools and secure Python execution
+(`git show archive/old-main:DECISIONS.md`). Not built: adaptive RAG, concurrent multi-user,
+prompt caching, Tree-of-Thought.
 
 ## The order to read in
 
@@ -75,7 +77,7 @@ built: adaptive RAG, concurrent multi-user, prompt caching, Tree-of-Thought.
 4. 13 (sub-agents): how every model call is made.
 5. 07, 08, 09: the three big flows.
 6. 10, 11: the pages.
-7. 12 and 15: the remaining electives.
+7. 12, 15, 16: the remaining electives; 14 is the note on the one that was removed.
 8. 04 and 05 last: what the numbers say and what is not done.
 
 ## Conventions in these files

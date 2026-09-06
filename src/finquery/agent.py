@@ -232,16 +232,19 @@ Files the user attaches:
 - `import_file` is what turns an attached file into transactions. Call it once per file, with
   the file name exactly as the list of attached files spells it, and pass `account_name` only
   when the user named an account.
-- A CSV from a bank we recognize is imported straight away. For an unknown layout the tool comes
-  back asking for the column mapping to be confirmed: show its `card` with `ask_user`
-  unchanged, and when the user confirms, call `import_file` again for the same file with
-  `confirmed=true`.
+- A CSV or an Excel workbook from a bank we recognize is imported straight away. For an unknown
+  layout the tool comes back asking for the column mapping to be confirmed: show its `card` with
+  `ask_user` unchanged, and when the user confirms, call `import_file` again for the same file
+  with `confirmed=true`. A workbook with bookings on several sheets puts one button per sheet on
+  that card: an answer of `sheet:NAME` means call `import_file` again with `sheet="NAME"` and no
+  confirmation, which reads that sheet and asks about its columns.
 - When a file is imported the tool returns a `summary` counted in code and the merchants it
   could not place. That summary is already printed in the step the user is looking at, so never
   repeat it: write the result's `say` line, which says what is left to do, and show its `card`
   with `ask_user` unchanged, exactly as you do after `review_batch`.
-- A statement PDF is read page by page by the extraction sub-agent, and every amount is checked
-  against the page it was printed on and against the statement's own balances. If everything
+- A statement PDF is read page by page by the extraction sub-agent, and a Word document is read
+  the same way from its own text. Every amount is checked against the page it was printed on and
+  against the statement's own balances. If everything
   checks out it is imported like a CSV. If not, the tool returns a `card`: show it with
   `ask_user` unchanged, and the bookings the user accepts are imported by the server, so say the
   result's `applied` line back and never import them yourself.
@@ -429,8 +432,8 @@ def data_brief(ctx: RunContext[ChatDeps]) -> str:
     if context.transaction_count == 0:
         return (
             "This profile has no transactions yet. Do not call `query` or `chart`, and do not state any number: "
-            "tell the user the profile is empty and that a bank statement, a CSV export or a photo can "
-            "be dropped into this chat and you will import it."
+            "tell the user the profile is empty and that a bank statement, a CSV or Excel export, a "
+            "Word document or a photo can be dropped into this chat and you will import it."
         )
     # The subcategories are here because a changeset names them, and a name it invents is refused.
     taxonomy = "; ".join(f"{name} ({', '.join(subs)})" if subs else name for name, subs in context.taxonomy)
@@ -1044,13 +1047,16 @@ async def import_file(
     file_name: str,
     account_name: str | None = None,
     confirmed: bool = False,
+    sheet: str | None = None,
 ) -> dict[str, Any]:
     """Import a file the user attached to this conversation.
 
-    Runs the pipeline behind `/api/imports`: it reads the CSV, takes the preset of a bank we
-    recognize or asks for a proposed mapping to be confirmed, commits the bookings the profile
-    does not have yet, and categorizes them. Every figure it returns was counted while it ran.
-    Progress appears in the transcript while it works, so nothing has to be reported in prose.
+    Runs the pipeline behind `/api/imports`: it reads the CSV or the Excel sheet, takes the
+    preset of a bank we recognize or asks for a proposed mapping to be confirmed, commits the
+    bookings the profile does not have yet, and categorizes them. A statement PDF or Word
+    document goes to the extraction sub-agent and its guards instead. Every figure it returns
+    was counted while it ran. Progress appears in the transcript while it works, so nothing has
+    to be reported in prose.
 
     Args:
         file_name: The attached file, spelled as the list of attached files spells it.
@@ -1058,6 +1064,8 @@ async def import_file(
             Otherwise the bank of the export decides.
         confirmed: True only when you are calling again after the user confirmed the column
             mapping on the card this tool asked with.
+        sheet: Which sheet of an Excel workbook to read, only when the user picked one on that
+            card. Otherwise the first sheet with bookings on it is read.
     """
     with ctx.deps.session_factory() as session:
         return await import_attachment(
@@ -1067,6 +1075,7 @@ async def import_file(
             file_name=file_name,
             account_name=account_name,
             confirmed=confirmed,
+            sheet=sheet,
             resolve_model=ctx.deps.resolve_model,
             model_settings=ctx.deps.subagent_settings,
             # A receipt uses this to recognize the shop its header names, and it is None for a

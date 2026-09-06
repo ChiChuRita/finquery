@@ -1,14 +1,16 @@
 """One statement file to checked rows: read the pages, ask the sub-agent, run the guards.
 
-This is the PDF and photo reader of the ingestion pipeline, and it ends where the CSV reader
-ends: at `ingest.commit.commit_rows`, with a `ParsedRow` per booking. Everything between is
-about being able to prove the rows.
+This is the PDF, Word and photo reader of the ingestion pipeline, and it ends where the CSV
+reader ends: at `ingest.commit.commit_rows`, with a `ParsedRow` per booking. Everything between
+is about being able to prove the rows.
 
 The order is always the same. Read the file, recognize the layout, hand each page to the
 extraction sub-agent (the text layer where there is one, the rendered page where there is
-not), parse the spans it points at, then reconcile. What comes out is an `Extraction`: the
-rows, the ones the guards flagged, and one sentence about the arithmetic that the review step
-shows and the Import record keeps.
+not), parse the spans it points at, then reconcile. A DOCX is text and nothing else, so it is
+one page of the text-layer path and gets the verbatim guard like any printed page
+(`finquery.extract.docx`). What comes out is an `Extraction`: the rows, the ones the guards
+flagged, and one sentence about the arithmetic that the review step shows and the Import record
+keeps.
 
 Pages go out four at a time. A page is one model call, so a 15 page statement is 15 calls on
 the fast slot, and doing them one after another would cost minutes of wall clock for nothing.
@@ -26,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from finquery.db import Import
 from finquery.extract import pdf
+from finquery.extract.docx import read_docx
 from finquery.extract.guards import ExtractedRow, Reconciliation, flag_unverified, reconcile, to_rows
 from finquery.extract.layouts import detect_layout, layout_named
 from finquery.extract.subagent import StatementPage, read_statement_image, read_statement_text
@@ -55,7 +58,7 @@ class Extraction(BaseModel):
 
     file_name: str
     kind: str
-    """`pdf` or `image`, the attachment kind it was read from."""
+    """`pdf`, `docx` or `image`, the attachment kind it was read from."""
     layout: str
     layout_label: str
     account_name: str
@@ -120,11 +123,14 @@ async def extract_statement(
     """Read one statement file into checked rows. Writes nothing.
 
     `kind` is the attachment kind: a `pdf` is read page by page from its text layer, or as an
-    image for the pages that have none; an `image` is one page read by the vision path.
+    image for the pages that have none; a `docx` is its own text as one page; an `image` is one
+    page read by the vision path.
     """
     photo = await asyncio.to_thread(pdf.as_image, data) if kind == "image" else None
     if photo is not None:
         document = pdf.Document(pages=(pdf.Page(number=1, lines=()),))
+    elif kind == "docx":
+        document = await asyncio.to_thread(read_docx, data)
     else:
         document = await asyncio.to_thread(pdf.read_pdf, data)
     if not document.pages:
@@ -151,7 +157,9 @@ async def extract_statement(
             try:
                 model = resolve_model("fast")
                 image = photo if photo is not None else None
-                if image is None and page.scanned:
+                # Only a PDF page can be rasterized, so only a PDF page is looked at instead
+                # of read. A DOCX with almost no text is a short document, not a scan.
+                if image is None and page.scanned and kind == "pdf":
                     image = await asyncio.to_thread(pdf.render, data, page.number)
                 if image is not None:
                     answer = await read_statement_image(
