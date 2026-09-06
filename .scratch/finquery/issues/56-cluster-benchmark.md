@@ -14,8 +14,8 @@ Decisions, settled:
 - Comparison table: per model, per set: figure match, first attempt, drawn (charts), median seconds on the cluster GPU, and the laptop tokens per second from `bench/results/20260906-local-tokens-per-second.md` as a column, plus the memory of each pair. The decision rule under the table: accuracy first, speed as a tie-breaker within about five points, the pair must fit in about 13.5 GB.
 - Kept simple: no new dependency on the cluster beyond what `pyproject.toml` already has; the job scripts are plain bash; nothing runs on the laptop except ssh, rsync and the compare command.
 
-- [ ] `training/cluster/setup.sh`, `bench.sbatch`, `run_all.sh`, `collect.sh`, `README.md`; the OpenRouter key asserted absent in jobs
-- [ ] `--set e2e` in the bench with its scorer and its table; unit tests for the subset selection and the scoring, no model needed
-- [ ] `--model` accepting the three catalog keys (after merging main with ticket 54), `FINQUERY_MODELS_DIR` honoured
+- [x] `training/cluster/setup.sh`, `bench.sbatch`, `run_all.sh`, `collect.sh`, `README.md`; the OpenRouter key asserted absent in jobs
+- [x] `--set e2e` in the bench with its scorer and its table; unit tests for the subset selection and the scoring, no model needed
+- [x] `--model` accepting the three catalog keys (after merging main with ticket 54), `FINQUERY_MODELS_DIR` honoured
 - [ ] Setup run on the cluster over ssh (`hpi-login`, VPN is up): repo synced, environment built, three GGUFs downloaded to scratch, a smoke run of five SQL cases on E4B passing
 - [ ] The nine jobs submitted and finished; results collected into `bench/results/`; the comparison table written with the decision rule; Comments with the numbers, the job times and anything that failed

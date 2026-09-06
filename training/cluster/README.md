@@ -16,6 +16,9 @@ bash training/cluster/collect.sh                # the results home and the compa
 `run_all.sh --smoke` is the fourth: five SQL cases on E4B, which is what says the environment
 works before nine jobs queue behind it.
 
+Collect before you sync again: `setup.sh` rsyncs with `--delete`, so a result file that is only
+on the cluster does not survive the next sync.
+
 ## What runs where
 
 Nothing runs on the laptop but ssh, rsync and `finquery-bench compare`.
