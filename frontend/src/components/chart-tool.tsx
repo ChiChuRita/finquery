@@ -402,9 +402,10 @@ export function Footer({
   )
 }
 
-export function ChartCard({ children }: { children: ReactNode }) {
+/** The card's shell. rounded-lg is the transcript's radius; a page passes its own (ticket 45). */
+export function ChartCard({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className="w-full overflow-hidden rounded-lg border bg-card" data-slot="chart-card">
+    <div className={cn('w-full overflow-hidden rounded-lg border bg-card', className)} data-slot="chart-card">
       {children}
     </div>
   )
