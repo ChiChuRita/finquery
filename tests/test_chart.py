@@ -1515,6 +1515,145 @@ async def test_rows_that_name_one_position_many_times_stop_before_any_code(
     assert respond.prompts["code"] == []  # type: ignore[attr-defined]
     assert output["row_count"] == 12
 
+
+# ------------------------------------------------------- the household questions of ticket 52
+
+# "Compare this month with last month by category": the period is the series and the category is
+# the position, so the rows come long the other way round from a month-by-category stack. The
+# categories are a CASE here for the same reason as everywhere else in this file: the import
+# endpoints categorize nothing.
+PERIOD_COMPARE_SQL = (
+    "SELECT CASE WHEN amount_cents < -20000 THEN 'Gross' ELSE 'Klein' END AS topic, "
+    "CASE WHEN booked_on >= '2025-12-01' THEN 'Dieser Monat' ELSE 'Letzter Monat' END AS period, "
+    "ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 "
+    "AND booked_on BETWEEN '2025-11-01' AND '2025-12-31' GROUP BY 1, 2 ORDER BY 1, 2"
+)
+
+PERIOD_COMPARE_PLAN = {
+    "shape": "bar_grouped",
+    "language": "de",
+    "title": "Dieser Monat gegen letzten Monat",
+    "question": "spending per category in this month and in last month",
+    "columns": ["topic", "period", "total_eur"],
+    "reasoning": "Two periods compared by category are two dimensions that cross.",
+}
+
+PERIOD_COMPARE_CODE = """\
+return defineChart({
+  marks: [
+    barY(data, { x: 'topic', y: 'total_eur', z: 'period', color: 'period', layout: group({ padding: 0.12 }), maxThickness: 32 }),
+  ],
+  scales: {
+    x: { scale: () => scaleBand().padding(0.2), axis: { tickLabels: { rotate: -28, thin: false } } },
+    y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
+  },
+  color: { legend: colorLegend({ placement: 'bottom', itemWidth: 150 }) },
+  tooltip: {
+    use: tooltip,
+    format: (point) => point.datum.period + ' ' + point.datum.topic + ': ' + eur(point.datum.total_eur),
+  },
+});"""
+
+
+async def test_a_period_comparison_draws_grouped_bars_with_the_period_as_the_series(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The grouped bar turned around, and the query hint that goes with it.
+
+    Told to build its groups from `category`, the statement for "this month against last month"
+    comes back grouped by the category twice and never carries a period at all, so the hint says
+    the other thing when the series column names periods.
+    """
+    await import_synthetic(client, profile_id)
+    respond = scripted_chart(plan=PERIOD_COMPARE_PLAN, sql=PERIOD_COMPARE_SQL, codes=[PERIOD_COMPARE_CODE])
+    scripts.fast = ask_chart_then_report("compare this month with last month by category")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Vergleiche diesen Monat mit dem letzten Monat nach Kategorie.")
+
+    output = chart_output(chunks)
+    assert output["error"] is None
+    assert output["notes"] == [], "the worked example needed no repair"
+    assert output["shape"] == "bar_grouped"
+    assert output["columns"] == ["topic", "period", "total_eur"]
+    # One figure per category and period, both periods on both categories.
+    assert {row["period"] for row in output["rows"]} == {"Dieser Monat", "Letzter Monat"}
+    assert {row["topic"] for row in output["rows"]} == {"Gross", "Klein"}
+    assert output["row_count"] == 4
+
+    hint = respond.prompts["sql"][0]  # type: ignore[attr-defined]
+    assert "`GROUP BY topic, period`" in hint
+    assert "period names the two periods being compared" in hint
+    assert "coalesce(category, 'Needs review') AS topic" in hint
+    # Two periods are two colours, so the paragraph about folding a tail of groups is left out.
+    assert "never put a LIMIT on the groups" not in hint
+
+
+# "How much more or less than the month before": the one figure of this dataset that really
+# crosses zero, so the bars are drawn on both sides of the baseline.
+CHANGE_SQL = (
+    "WITH monthly AS (SELECT strftime('%Y-%m', booked_on) AS month, -SUM(amount) AS spent "
+    "FROM transaction_view WHERE amount_cents < 0 GROUP BY 1), "
+    "stepped AS (SELECT month, spent, LAG(spent) OVER (ORDER BY month) AS before FROM monthly) "
+    "SELECT month, ROUND(spent - before, 2) AS change_eur FROM stepped "
+    "WHERE before IS NOT NULL ORDER BY month"
+)
+
+CHANGE_PLAN = {
+    "shape": "bar",
+    "language": "en",
+    "title": "Change to the month before",
+    "question": "the difference to the month before, per month of 2025, signed",
+    "columns": ["month", "change_eur"],
+    "reasoning": "A difference is signed, so the bars cross the zero line.",
+}
+
+CHANGE_CODE = """\
+return defineChart({
+  marks: [
+    barY(data, { x: 'month', y: 'change_eur', fill: palette[0], maxThickness: 32 }),
+  ],
+  scales: {
+    x: {
+      scale: () => scaleBand().padding(0.26),
+      axis: { ticks: { format: monthShort }, tickLabels: { thin: { minGap: 6, priority: 'ends' } } },
+    },
+    y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: eurShort } } },
+  },
+  tooltip: {
+    use: tooltip,
+    format: (point) => monthShort(point.datum.month) + ': ' + eur(point.datum.change_eur),
+  },
+});"""
+
+
+async def test_a_signed_figure_per_month_is_drawn_as_bars_on_both_sides_of_zero(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """Diverging bars need no rule of their own: a bar rests on zero and the sign does the rest.
+
+    What this holds is that the check admits a euro column with both signs in it, over the real
+    rows of the benchmark's own statement, and that the euro axis still names no domain.
+    """
+    await import_synthetic(client, profile_id)
+    respond = scripted_chart(plan=CHANGE_PLAN, sql=CHANGE_SQL, codes=[CHANGE_CODE])
+    scripts.fast = ask_chart_then_report("how much more or less I spent than the month before")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Show me how much more or less I spent each month.")
+
+    output = chart_output(chunks)
+    assert output["error"] is None
+    assert output["notes"] == []
+    assert output["shape"] == "bar"
+    assert output["row_count"] == 11
+    figures = [row["change_eur"] for row in output["rows"]]
+    assert min(figures) < 0 < max(figures), "the chart this test is about is the one that crosses zero"
+    assert output["code"] == CHANGE_CODE
+
+
 # --------------------------------------------------------------------------- two charts in a row
 
 AREA_TURN_PLAN = {

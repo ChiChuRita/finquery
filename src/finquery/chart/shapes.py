@@ -103,7 +103,10 @@ SHAPES: dict[Shape, ShapeRule] = {
         zero_from_mark=True,
     ),
     "bar": ShapeRule(
-        purpose="one figure per named category, up to about twelve of them",
+        purpose=(
+            "one figure per named category or month, up to about twelve of them, and the figure "
+            "may be negative, which draws the bar below the zero line"
+        ),
         required=("barY",),
         value_axis="y",
         category_axis="x",
@@ -117,7 +120,10 @@ SHAPES: dict[Shape, ShapeRule] = {
         zero_from_mark=True,
     ),
     "bar_grouped": ShapeRule(
-        purpose=f"two dimensions side by side, month by category, at most {MAX_SERIES} groups",
+        purpose=(
+            f"two dimensions side by side, month by category, or one period against another by "
+            f"category, at most {MAX_SERIES} groups"
+        ),
         required=("barY",),
         value_axis="y",
         category_axis="x",

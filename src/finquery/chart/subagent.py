@@ -80,6 +80,18 @@ Rules:
   'Other' or 'Sonstige' group and never ask for the largest few. A chart has {MAX_SERIES}
   colours and the app itself keeps the {MAX_SERIES - 1} largest and sums the rest, after the
   query, where summing is arithmetic rather than a rewritten statement.
+- "This month against last month", "2025 against 2024", "diesen Monat mit dem letzten
+  vergleichen": two periods compared by category are two dimensions that cross, so they are
+  grouped bars and not one bar per category. The period is the series and the category is the
+  position, so the rows come long again, three columns in this order, the category, the period
+  and the euro figure (`topic`, `period`, `total_eur`), one row per category and period. Name
+  the two periods in `language` ('This month' and 'Last month', 'Dieser Monat' and 'Letzter
+  Monat'), ask for both of them and for no third one, and ask for the {MAX_SLICES} largest
+  categories by total over both periods, because that is what an axis of names has room for.
+- A figure that can be negative (a Saldo, a net, "wie viel mehr oder weniger als", "welche
+  Monate im Minus") is asked for signed, `ROUND(SUM(amount), 2)` or a signed difference, and
+  never as two positive columns: bar draws it above and below the zero line, which is the whole
+  answer. Say in the question that the sign is kept.
 - doughnut: at most {MAX_SLICES} rows, so ask for the largest {MAX_SLICES - 1} plus a rest row
   when there are more categories than that. A rest row that would hold most of the money says
   nothing, so ask for the largest {MAX_SLICES} instead when a handful of buckets carry the
@@ -94,15 +106,17 @@ Rules:
   refuses, and "where does my income go" asked plainly is exactly how one gets written.
 """
 
-# Three worked plans, drawn from the training half of the chart benchmark
-# (13-doughnut-categories-en, 10-quarter-groups-de and 34-grocery-lines-en). They are the three
-# decisions the small model gets wrong most: the language of an English request about German
-# data, a request naming quarters that comes back with months along its axis, and a request
-# naming five shops over a year that comes back with one line or with sixty bars. The German
-# twin of the third, 33-grocery-lines-de, is the one the hash held out, so the example is its
-# English half: an example drawn from a held-out datapoint teaches the model its answer.
+# Five worked plans, drawn from the training half of the chart benchmark
+# (13-doughnut-categories-en, 10-quarter-groups-de, 34-grocery-lines-en,
+# 35-this-month-versus-last-en and 37-change-per-month-en). They are the five decisions the
+# small model gets wrong most: the language of an English request about German data, a request
+# naming quarters that comes back with months along its axis, a request naming five shops over a
+# year that comes back with one line or with sixty bars, two periods compared that come back as
+# one breakdown, and a signed figure that comes back with its sign dropped. The German twins of
+# the last three are the ones the hash held out, so the examples are their English halves: an
+# example drawn from a held-out datapoint teaches the model its answer.
 PLAN_EXAMPLES = f"""\
-Three worked plans:
+Five worked plans:
 
 Request: Show the share of my 2025 spending by category as a doughnut.
 reasoning:
@@ -137,6 +151,30 @@ the columns are the month, the shop and the euro figure, the figure last
    columns month, merchant, total_eur,
    question "spending at Rewe, Edeka, Lidl, Aldi and dm per month of 2025, one row per month and
    shop, columns month as 'YYYY-MM', merchant and total_eur"
+
+Request: Compare this month with last month by category.
+reasoning:
+the request is written in English, so language en
+two periods are compared and the breakdown is by category, so two dimensions that cross
+grouped bars put this month beside last month for each category, which is what "compare" asks
+the period is the series and the category is the position, so the rows come long
+an axis of category names holds about {MAX_SLICES} of them, so the largest {MAX_SLICES} by total
+-> shape bar_grouped, language en, title "This month against last month",
+   columns topic, period, total_eur,
+   question "spending of this month and of last month per category, one row per category and
+   period, period named 'This month' or 'Last month', the {MAX_SLICES} largest categories by
+   total over both months, columns topic, period and total_eur"
+
+Request: Show me for each month of 2025 how much more or less I spent than the month before.
+reasoning:
+the request is written in English, so language en
+one figure per month and no second dimension, so one bar per month
+"more or less than" is a difference, so the figure is signed and a cheaper month is negative
+bars rest on zero, so the months below it are drawn below the baseline
+-> shape bar, language en, title "Change to the month before", columns month, change_eur,
+   question "for each month of 2025 the difference between what was spent in it and what was
+   spent the month before, signed so that a cheaper month is negative, one row per month,
+   columns month as 'YYYY-MM' and change_eur"
 """
 
 CONTRACT = """\
