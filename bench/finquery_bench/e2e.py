@@ -25,6 +25,16 @@ from finquery_bench.score import columns_map, figure_match, shape_match
 QUERY_TOOL = "query"
 CHART_TOOL = "chart"
 
+PREFIX = 'Earlier in this conversation I asked: {questions}\n\nNow: "{question}"'
+"""How a follow-up datapoint reaches the chat agent.
+
+A follow-up ("And in June?") is not a turn that stands on its own, and rewriting it into a
+request the sub-agent can answer is the chat agent's job, which is exactly what this subset is
+here to measure. The sub-agent sets hand the earlier questions to the sub-agent as hints
+(`run.PREFIX_HINT`); here they ride in on the user's own message, because that is where a
+conversation would have put them.
+"""
+
 
 class NoWeb:
     """The web client a benchmark turn is given.
@@ -65,6 +75,16 @@ def _requested(messages: list[ModelMessage], name: str) -> list[str]:
         for part in message.parts
         if part.part_kind == "tool-call" and part.tool_name == name
     ]
+
+
+def message(point: Point) -> str:
+    """What the user says this turn: the question, with the earlier ones when it is a follow-up."""
+    prefix = list(getattr(point, "prefix", []))
+    if not prefix:
+        return point.question
+    return PREFIX.format(
+        questions=" ".join(f'"{question}"' for question in prefix), question=point.question
+    )
 
 
 def _matching(returns: list[dict[str, Any]], gold: list[dict[str, Any]], answer: str) -> int:
@@ -167,6 +187,7 @@ async def run_e2e_point(
     chart = isinstance(point, ChartPoint)
     tool = CHART_TOOL if chart else QUERY_TOOL
     other = CHART_TOOL if tool == QUERY_TOOL else QUERY_TOOL
+    said = message(point)
     deps = ChatDeps(
         session_factory=session_factory,
         profile_id=profile_id,
@@ -174,11 +195,11 @@ async def run_e2e_point(
         resolve_model=target.resolve,
         subagent_settings=target.settings,
         web_client=NoWeb(),  # type: ignore[arg-type]
-        user_message=point.question,
+        user_message=said,
     )
     try:
         run = await chat_agent.run(
-            point.question,
+            said,
             deps=deps,
             model=target.resolve("chat"),
             model_settings=target.settings,

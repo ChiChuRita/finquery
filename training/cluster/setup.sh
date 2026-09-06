@@ -25,8 +25,8 @@ LOGS=$REPO/training/cluster/logs
 CUDA_VERSION=12.8.1
 CUDA_RUNFILE=cuda_12.8.1_570.124.06_linux.run
 CUDA_HOME=$ROOT/cuda-$CUDA_VERSION
-# 8.0 is the A100 every benchmark job runs on. 9.0, 10.0 and 12.0 are the GH200, B200 and
-# RTX PRO 6000 nodes, so the same build still runs if a job is sent to one of those.
+# 12.0 is the RTX PRO 6000 every benchmark job runs on. 8.0, 9.0 and 10.0 are the A100, GH200
+# and B200 nodes, so a rerun sent to one of those needs no rebuild.
 ARCHES=${FQ_CUDA_ARCHES:-80;90;100;120}
 
 step() { printf '\n== %s\n' "$*"; }
@@ -144,6 +144,11 @@ PY
 }
 
 case "${1:-}" in
+  --sync)
+    # The code again, and nothing else: what a rerun after a fix to the benchmark needs. Collect
+    # first, because the sync deletes what is only on the cluster.
+    sync_repo
+    ;;
   --on-cluster)
     install_uv
     install_cuda
@@ -164,7 +169,7 @@ case "${1:-}" in
     echo "then: bash training/cluster/run_all.sh --after $job"
     ;;
   *)
-    echo "usage: setup.sh [--on-cluster|--build]" >&2
+    echo "usage: setup.sh [--sync|--on-cluster|--build]" >&2
     exit 2
     ;;
 esac

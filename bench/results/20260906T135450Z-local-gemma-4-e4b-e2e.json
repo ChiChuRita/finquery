@@ -1,0 +1,143 @@
+{
+  "model": "local:gemma-4-e4b",
+  "set": "e2e",
+  "started_at": "2026-09-06T13:54:50+00:00",
+  "seconds": 42.9,
+  "seed": 7,
+  "check": true,
+  "n": 2,
+  "summary": {
+    "n": 2,
+    "figure_match": 0.0,
+    "sql_valid": 0.5,
+    "first_attempt": 0.0,
+    "shape_match": 1.0,
+    "columns_map": 0.0,
+    "language_ok": 1.0,
+    "drawn": 0.0,
+    "median_seconds": 18.4,
+    "p90_seconds": 24.6,
+    "total_seconds": 42.9,
+    "by_kind": {
+      "period": {
+        "n": 1,
+        "figure_match": 0.0,
+        "sql_valid": 1.0,
+        "first_attempt": 0.0,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 18.4
+      },
+      "sankey": {
+        "n": 1,
+        "figure_match": 0.0,
+        "sql_valid": 0.0,
+        "first_attempt": 0.0,
+        "shape_match": 1.0,
+        "columns_map": 0.0,
+        "language_ok": 1.0,
+        "drawn": 0.0,
+        "median_seconds": 24.6
+      }
+    },
+    "by_difficulty": {
+      "2": {
+        "n": 1,
+        "figure_match": 0.0,
+        "sql_valid": 1.0,
+        "first_attempt": 0.0,
+        "shape_match": null,
+        "columns_map": null,
+        "language_ok": null,
+        "drawn": null,
+        "median_seconds": 18.4
+      },
+      "3": {
+        "n": 1,
+        "figure_match": 0.0,
+        "sql_valid": 0.0,
+        "first_attempt": 0.0,
+        "shape_match": 1.0,
+        "columns_map": 0.0,
+        "language_ok": 1.0,
+        "drawn": 0.0,
+        "median_seconds": 24.6
+      }
+    },
+    "by_language": {
+      "en": {
+        "n": 2,
+        "figure_match": 0.0,
+        "sql_valid": 0.5,
+        "first_attempt": 0.0,
+        "shape_match": 1.0,
+        "columns_map": 0.0,
+        "language_ok": 1.0,
+        "drawn": 0.0,
+        "median_seconds": 18.4
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "s69-last-month-en",
+      "set": "e2e",
+      "kind": "period",
+      "difficulty": 2,
+      "language": "en",
+      "question": "How much did I spend last month?",
+      "seconds": 18.35,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": "SELECT\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-28'\nLIMIT 200",
+      "columns": [
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "total_eur": 28535.89
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": null,
+      "shape_match": null,
+      "columns_map": null,
+      "language_ok": null,
+      "drawn": null,
+      "notes": [
+        "request: Gesamtausgaben im August 2026"
+      ]
+    },
+    {
+      "id": "26-sankey-subcategories-en",
+      "set": "e2e",
+      "kind": "sankey",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Draw a sankey of how my 2025 spending flows from its categories into their subcategories.",
+      "seconds": 24.56,
+      "figure_match": false,
+      "sql_valid": false,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": "SELECT category AS topic, subcategory AS group_name, ROUND(SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount > 0 AND (source IS NOT NULL AND source <> target OR source = 'import' AND target IS NOT NULL) GROUP BY category, subcategory",
+      "columns": [],
+      "rows": [],
+      "error": "The query was refused 2 times, last reason: no such column: target",
+      "refusals": [],
+      "shape": "sankey",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": [
+        "request: Sankey of how my 2025 spending flows from categories into subcategories for the year 2025"
+      ]
+    }
+  ]
+}

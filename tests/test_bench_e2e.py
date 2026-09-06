@@ -13,7 +13,7 @@ from pydantic_ai.settings import ModelSettings
 from finquery.query.check import CHECK_TOOL
 from finquery_bench.datapoints import E2E_CHART, E2E_SEED, E2E_SQL, ChartPoint, SqlPoint, e2e_subset, load
 from finquery_bench.dataset import fresh_database
-from finquery_bench.e2e import score
+from finquery_bench.e2e import message, score
 from finquery_bench.models import Target
 from finquery_bench.run import new_conversation, run_points
 
@@ -51,6 +51,17 @@ def _sql_point() -> SqlPoint:
 
 def _chart_point() -> ChartPoint:
     return next(point for point in e2e_subset() if isinstance(point, ChartPoint))
+
+
+def test_a_follow_up_reaches_the_turn_with_what_was_asked_before() -> None:
+    """A follow-up is not a standalone turn, and rewriting it is what is being measured."""
+    plain = next(point for point in e2e_subset() if isinstance(point, SqlPoint) and not point.prefix)
+    assert message(plain) == plain.question
+    follow = next(point for point in e2e_subset() if isinstance(point, SqlPoint) and point.prefix)
+    said = message(follow)
+    assert follow.question in said
+    for question in follow.prefix:
+        assert question in said
 
 
 def test_a_turn_that_asked_for_the_right_thing_first_scores_both() -> None:
