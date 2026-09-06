@@ -2,10 +2,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import type { FileUIPart } from 'ai'
 import { CheckIcon, InfoIcon, PlusIcon, SparklesIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { Composer } from '@/components/composer'
-import { NameDialog } from '@/components/dialogs'
+import { ConfirmDialog, NameDialog } from '@/components/dialogs'
+import { CategoryMenu, SubcategoryPill } from '@/components/taxonomy-menus'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,6 +28,7 @@ import {
   categoriesQuery,
   conversationsQuery,
   createConversation,
+  discardChangeset,
   loadSampleYear,
   MODEL_SLOTS,
   openWelcome,
@@ -36,6 +38,7 @@ import {
   transactionCountQuery,
   type AnswerLanguage,
   type CategoryRef,
+  type Changeset,
   type ModelSlot,
   type TaxonomyChange,
 } from '@/lib/api'
@@ -180,7 +183,17 @@ export function OnboardingPage({ step }: { step: number }) {
   )
 }
 
-/** Step 1. Every toggle, add and rename is a taxonomy changeset, applied straight away. */
+/** A proposal waiting for a yes: it would move bookings, so it says how many first. */
+interface Confirming {
+  changeset: Changeset
+  action: string
+  after?: () => void | Promise<void>
+}
+
+const takesAwayLabel = (operation: TaxonomyChange['operation']) =>
+  operation === 'merge' ? 'Merge' : 'Delete'
+
+/** Step 1. Every toggle, add, rename and delete is a taxonomy changeset, applied straight away. */
 function CategoriesStep() {
   const queryClient = useQueryClient()
   const { profile } = useWorkspace()
@@ -188,28 +201,76 @@ function CategoriesStep() {
   const [removed, setRemoved] = useState<{ at: number; category: CategoryRef }[]>([])
   const [adding, setAdding] = useState<{ category?: string }>()
   const [renaming, setRenaming] = useState<{ category: string; subcategory?: string }>()
+  const [confirming, setConfirming] = useState<Confirming>()
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState<string>()
+  // The dialog answers once: its Confirm both applies and closes, and the close must not then
+  // discard what was just applied.
+  const decided = useRef<string>(undefined)
 
   const change = async (title: string, taxonomy: TaxonomyChange) => {
     if (!profile) return
     setError(undefined)
     const proposed = await proposeTaxonomyChange(profile.id, title, taxonomy)
-    await applyChangeset(profile.id, proposed.id)
-    await queryClient.invalidateQueries(categoriesQuery(profile.id))
+    await apply(proposed)
   }
 
-  const run = async (key: string, title: string, taxonomy: TaxonomyChange, after?: () => void) => {
+  const apply = async (changeset: Changeset) => {
+    if (!profile) return
+    await applyChangeset(profile.id, changeset.id)
+    await queryClient.invalidateQueries(categoriesQuery(profile.id))
+    // A delete or a merge moved bookings to Needs review, so the transactions page is stale too.
+    await queryClient.invalidateQueries({ queryKey: ['transactions'] })
+  }
+
+  const run = async (
+    key: string,
+    title: string,
+    taxonomy: TaxonomyChange,
+    after?: () => void | Promise<void>,
+  ) => {
+    if (!profile) return
     setBusy(key)
+    setError(undefined)
     try {
-      await change(title, taxonomy)
-      after?.()
+      const proposed = await proposeTaxonomyChange(profile.id, title, taxonomy)
+      // A change that takes a name away moves the bookings under it, so the count comes first.
+      // A profile being set up usually has none, and then it just runs.
+      const takesAway = taxonomy.operation === 'delete' || taxonomy.operation === 'merge'
+      if (takesAway && proposed.total > 0) {
+        setConfirming({ changeset: proposed, action: takesAwayLabel(taxonomy.operation), after })
+        return
+      }
+      await apply(proposed)
+      await after?.()
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'That did not work.')
     } finally {
       setBusy(undefined)
     }
   }
+
+  /** Answer the confirmation: apply what was previewed, or discard it so it cannot linger. */
+  const settle = async (confirm: boolean) => {
+    const item = confirming
+    if (!profile || !item || decided.current === item.changeset.id) return
+    decided.current = item.changeset.id
+    setConfirming(undefined)
+    try {
+      if (confirm) {
+        await apply(item.changeset)
+        await item.after?.()
+      } else {
+        await discardChangeset(profile.id, item.changeset.id).catch(() => undefined)
+      }
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'That did not work.')
+    }
+  }
+
+  /** A category is really gone, so every row kept below it moves up one place. */
+  const closeGap = (at: number) =>
+    setRemoved((rows) => rows.map((row) => (row.at > at ? { ...row, at: row.at - 1 } : row)))
 
   // A category the user turned off is gone from the profile, so its shape and its place in the
   // list are kept here: the row stays where it was, off, in case they change their mind.
@@ -243,7 +304,8 @@ function CategoriesStep() {
         <CardTitle>Which of these do you use?</CardTitle>
         <CardDescription>
           All of them are on. Turn off what you do not need, click a name to rename it, and add your own.
-          You can change all of it later in Settings.
+          Off removes a category from this profile; Delete does the same for one you added. You can change
+          all of it later in Settings.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -303,19 +365,30 @@ function CategoriesStep() {
                           }}
                         />
                       ) : (
-                        // The same pill the Settings taxonomy editor draws, so the two read as one.
-                        <Button
-                          aria-label={`Rename ${subcategory.name} in ${category.name}`}
-                          className="rounded-full"
+                        // The same pill and menu the Settings taxonomy editor draws, so the two read
+                        // as one and a subcategory goes the same way in both.
+                        <SubcategoryPill
+                          category={category}
                           disabled={!on}
                           key={subcategory.id}
-                          onClick={() => setRenaming({ category: category.name, subcategory: subcategory.name })}
-                          size="xs"
-                          title="Click to rename"
-                          variant="outline"
-                        >
-                          {subcategory.name}
-                        </Button>
+                          onDelete={() =>
+                            void run(subcategory.id, `Delete ${subcategory.name}`, {
+                              operation: 'delete',
+                              category: category.name,
+                              subcategory: subcategory.name,
+                            })
+                          }
+                          onMerge={(into) =>
+                            void run(subcategory.id, `Merge ${subcategory.name} into ${into}`, {
+                              operation: 'merge',
+                              category: category.name,
+                              subcategory: subcategory.name,
+                              into,
+                            })
+                          }
+                          onRename={() => setRenaming({ category: category.name, subcategory: subcategory.name })}
+                          subcategory={subcategory}
+                        />
                       ),
                     )}
                     {on && (
@@ -332,12 +405,40 @@ function CategoriesStep() {
                     )}
                   </div>
                 </div>
-                <Switch
-                  aria-label={category.name}
-                  checked={on}
-                  disabled={busy === category.id}
-                  onCheckedChange={(next) => toggle(category, next, at)}
-                />
+                <div className="flex items-center gap-1">
+                  <Switch
+                    aria-label={category.name}
+                    checked={on}
+                    disabled={busy === category.id}
+                    onCheckedChange={(next) => toggle(category, next, at)}
+                  />
+                  {/* A row that is off is not in the taxonomy any more, so there is nothing to
+                      change about it until the switch brings it back. */}
+                  {on && (
+                    <CategoryMenu
+                      categories={categories ?? []}
+                      category={category}
+                      onAddSubcategory={() => setAdding({ category: category.name })}
+                      onDelete={() =>
+                        void run(
+                          category.id,
+                          `Delete ${category.name}`,
+                          { operation: 'delete', category: category.name },
+                          () => closeGap(at),
+                        )
+                      }
+                      onMerge={(into) =>
+                        void run(
+                          category.id,
+                          `Merge ${category.name} into ${into}`,
+                          { operation: 'merge', category: category.name, into },
+                          () => closeGap(at),
+                        )
+                      }
+                      onRename={() => setRenaming({ category: category.name })}
+                    />
+                  )}
+                </div>
               </li>
             )
           })}
@@ -376,6 +477,16 @@ function CategoriesStep() {
         open={adding !== undefined}
         placeholder="Name"
         title={adding?.category ? `New subcategory in ${adding.category}` : 'New category'}
+      />
+
+      <ConfirmDialog
+        action={confirming?.action ?? 'Apply'}
+        description={confirming ? `${confirming.changeset.summary} ${confirming.changeset.note ?? ''}`.trim() : ''}
+        key={confirming?.changeset.id ?? 'nothing-to-confirm'}
+        onConfirm={() => settle(true)}
+        onOpenChange={(open) => void (open ? undefined : settle(false))}
+        open={confirming !== undefined}
+        title={confirming?.changeset.title ?? ''}
       />
     </Card>
   )
