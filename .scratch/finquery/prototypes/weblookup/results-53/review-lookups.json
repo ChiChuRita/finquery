@@ -1,0 +1,780 @@
+{
+  "rows": [
+    {
+      "token": "lidl",
+      "summary": "Lidl is a German discount supermarket chain selling groceries and household items.",
+      "category": "Groceries",
+      "subcategory": "Supermarket",
+      "confidence": 0.95,
+      "sources": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Lidl",
+          "title": "Lidl - Wikipedia"
+        }
+      ],
+      "searches": 1,
+      "fetches": 1,
+      "seconds": 0.0,
+      "cached": true,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "evidence": "IndustryRetail",
+      "capped": false,
+      "description": "LIDL DANKT IHNEN",
+      "counterparty": "LIDL Vertriebs GmbH",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "token": "dm drogerie",
+      "summary": "German drugstore chain selling health and beauty products.",
+      "category": "Groceries",
+      "subcategory": "Drugstore",
+      "confidence": 0.95,
+      "sources": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Dm-drogerie_markt",
+          "title": "dm-drogerie markt - Wikipedia"
+        }
+      ],
+      "searches": 1,
+      "fetches": 1,
+      "seconds": 0.0,
+      "cached": true,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "evidence": "German multinational retail store chain",
+      "capped": false,
+      "description": "DM FIL 8817 BERLIN",
+      "counterparty": "dm drogerie markt",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "token": "netto marken discount",
+      "summary": "Netto Marken-Discount is a German chain of discount supermarkets.",
+      "category": "Groceries",
+      "subcategory": "Supermarket",
+      "confidence": 1.0,
+      "sources": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Netto_Marken-Discount",
+          "title": "Netto Marken-Discount - Wikipedia"
+        }
+      ],
+      "searches": 1,
+      "fetches": 1,
+      "seconds": 0.0,
+      "cached": true,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "evidence": "German chain of discount supermarkets",
+      "capped": false,
+      "description": "NETTO FILIALE 3312",
+      "counterparty": "NETTO MARKEN-DISCOUNT",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "token": "lieferando",
+      "summary": "Delivery platform, not a merchant in the spending sense.",
+      "category": "Dining",
+      "subcategory": "Delivery",
+      "confidence": 0.8,
+      "sources": [
+        {
+          "url": "https://www.lieferando.de/en",
+          "title": "Lieferando.de | Food Delivery, Groceries & More Near You"
+        },
+        {
+          "url": "https://www.crunchbase.com/organization/lieferando",
+          "title": "Lieferando - Crunchbase Company Profile & Funding"
+        }
+      ],
+      "searches": 1,
+      "fetches": 1,
+      "seconds": 0.0,
+      "cached": true,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "evidence": "Order food, groceries & more with Lieferando.de.",
+      "capped": false,
+      "description": "LIEFERANDO BESTELLUNG",
+      "counterparty": "Lieferando.de",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "token": "dean david",
+      "summary": "German health-oriented fast food chain selling salads, bowls and sandwiches.",
+      "category": "Dining",
+      "subcategory": "Takeaway",
+      "confidence": 0.7,
+      "sources": [
+        {
+          "url": "https://www.muenchenwiki.de/wiki/Dean_&_david",
+          "title": "Dean & david – München Wiki"
+        }
+      ],
+      "searches": 1,
+      "fetches": 1,
+      "seconds": 0.0,
+      "cached": true,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "evidence": "",
+      "capped": false,
+      "description": "DEAN+DAVID 1188",
+      "counterparty": "DEAN AND DAVID",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "token": "doener haus kreuzberg",
+      "summary": "Döner Haus is a German fast-food brand serving kebabs and wraps at grills and restaurants.",
+      "category": "Dining",
+      "subcategory": "Restaurant",
+      "confidence": 0.8,
+      "sources": [
+        {
+          "url": "https://wolt.com/de/deu/nuremberg/restaurant/kreuzberg-doener",
+          "title": "Kreuzberg Döner | Wolt | Lieferservice | Nürnberg"
+        },
+        {
+          "url": "https://wolt.com/en/deu/berlin/restaurant/doener-haus-berlin93",
+          "title": "Doener Haus | Wolt | Delivery | Berlin"
+        }
+      ],
+      "searches": 1,
+      "fetches": 0,
+      "seconds": 0.0,
+      "cached": true,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "evidence": "Do you miss the warm breeze of an oriental grill? Then Doener Haus is the right place for you.",
+      "capped": false,
+      "description": "DOENER HAUS",
+      "counterparty": "Döner Haus Kreuzberg",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "token": "cafe milchbart",
+      "summary": "Children's café in Prenzlauer Berg, Berlin offering birthday parties for kids.",
+      "category": "Dining",
+      "subcategory": "Cafe",
+      "confidence": 0.85,
+      "sources": [
+        {
+          "url": "https://www.berliner-freizeit-tipps.de/eltern-kind-cafe-milchbart-im-prenzlauerberg/",
+          "title": "Eltern Kind Cafe Milchbart im Prenzlauer Berg | Kindercafé s in Berlin"
+        },
+        {
+          "url": "https://www.bizarchiv.de/café-milchbart",
+          "title": "Café Milchbart | Berlin - bizarchiv.de"
+        }
+      ],
+      "searches": 2,
+      "fetches": 1,
+      "seconds": 0.0,
+      "cached": true,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "evidence": "Eltern Kind Cafe Milchbart im Prenzlauer Berg | Kindercafé s in Berlin",
+      "capped": false,
+      "description": "CAFE MILCHBART",
+      "counterparty": "Cafe Milchbart",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "token": "vapiano mitte",
+      "summary": "Vapiano is a known Italian bistro chain.",
+      "category": "Dining",
+      "subcategory": "Restaurant",
+      "confidence": 0.6,
+      "sources": [],
+      "searches": 4,
+      "fetches": 0,
+      "seconds": 0.0,
+      "cached": true,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "evidence": "vapiano is a known Italian bistro chain.",
+      "capped": false,
+      "description": "VAPIANO MITTE",
+      "counterparty": "VAPIANO Berlin Mitte",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "token": "uber",
+      "summary": "Uber is a ride-hailing service provider operating via a mobile app.",
+      "category": "Transport",
+      "subcategory": "Ride hailing",
+      "confidence": 0.6,
+      "sources": [],
+      "searches": 1,
+      "fetches": 0,
+      "seconds": 0.0,
+      "cached": true,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "evidence": "",
+      "capped": true,
+      "description": "UBER TRIP HELP.UBER.COM",
+      "counterparty": "UBER BV",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "token": "shell",
+      "summary": "Shell is a major global petroleum and petrochemical company.",
+      "category": "Transport",
+      "subcategory": "Fuel",
+      "confidence": 0.6,
+      "sources": [],
+      "searches": 2,
+      "fetches": 0,
+      "seconds": 0.0,
+      "cached": true,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "evidence": "",
+      "capped": true,
+      "description": "SHELL STATION 1204",
+      "counterparty": "SHELL DEUTSCHLAND",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "token": "telekom",
+      "summary": "Telekom is a German telecommunications company offering mobile, landline, internet, and TV services.",
+      "category": "Communication",
+      "subcategory": "Mobile",
+      "confidence": 0.95,
+      "sources": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Telekom_Deutschland",
+          "title": "Telekom Deutschland - Wikipedia"
+        },
+        {
+          "url": "https://de.wikipedia.org/wiki/Telekom_Deutschland",
+          "title": "Telekom Deutschland - Wikipedia"
+        }
+      ],
+      "searches": 3,
+      "fetches": 1,
+      "seconds": 0.0,
+      "cached": true,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "evidence": "Telekom Deutschland GmbH (formerly T-Mobile Deutschland GmbH) is a German telecommunications company owned by Deutsche Telekom. Telekom offers landline phone, broadband, IPTV and mobile telephony services.",
+      "capped": false,
+      "description": "MAGENTA ZUHAUSE 100 MBIT",
+      "counterparty": "Telekom Deutschland GmbH",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "token": "adobe systems software",
+      "summary": "Adobe Systems Software sells creative and productivity software products.",
+      "category": "Subscriptions",
+      "subcategory": "Software",
+      "confidence": 0.6,
+      "sources": [],
+      "searches": 2,
+      "fetches": 0,
+      "seconds": 0.0,
+      "cached": true,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "evidence": "None found as search failed.",
+      "capped": true,
+      "description": "ADOBE CREATIVE CLOUD ABO",
+      "counterparty": "ADOBE SYSTEMS SOFTWARE",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "token": "bvg berliner verkehrsbetriebe",
+      "summary": "BVG is the Berlin public transport operator, responsible for buses and trains in the city.",
+      "category": "Transport",
+      "subcategory": "Public transport",
+      "confidence": 0.6,
+      "sources": [],
+      "searches": 2,
+      "fetches": 0,
+      "seconds": 0.0,
+      "cached": true,
+      "refused": null,
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "evidence": "",
+      "capped": true,
+      "description": "DEUTSCHLANDTICKET 03/2025",
+      "counterparty": "BVG Berliner Verkehrsbetriebe",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "token": "vattenfall sales",
+      "summary": "Swedish multinational power company providing electricity and heat.",
+      "category": "Housing",
+      "subcategory": "Electricity",
+      "confidence": 0.95,
+      "sources": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Vattenfall",
+          "title": "Vattenfall - Wikipedia"
+        }
+      ],
+      "searches": 1,
+      "fetches": 1,
+      "seconds": 10.295490333985072,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "what is vattenfall sales",
+        "what is vattenfall sales"
+      ],
+      "fetched": [
+        "https://en.wikipedia.org/wiki/Vattenfall"
+      ],
+      "evidence": "",
+      "capped": false,
+      "description": "STROM ABSCHLAG 03/2025",
+      "counterparty": "Vattenfall Europe Sales GmbH",
+      "model_requests": 4,
+      "input_tokens": 10629,
+      "output_tokens": 885
+    },
+    {
+      "token": "allianz versicherungs",
+      "summary": "Allianz is a major German insurance provider with a subsidiary doing life insurance, fitting the Insurance category.",
+      "category": "Insurance",
+      "subcategory": null,
+      "confidence": 0.9,
+      "sources": [
+        {
+          "url": "https://www.allianz.com/de/ueber-uns/wer-wir-sind/auf-einen-blick.html",
+          "title": "Auf einen Blick | Allianz"
+        }
+      ],
+      "searches": 1,
+      "fetches": 1,
+      "seconds": 11.166881999990437,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "allianz versicherungs was ist"
+      ],
+      "fetched": [
+        "https://de.wikipedia.org/wiki/Allianz_SE"
+      ],
+      "evidence": "Der Allianz Konzern ist einer der weltweit führenden Versicherer und Vermögensverwalter",
+      "capped": false,
+      "description": "HAUSRAT UND HAFTPFLICHT 03/2025",
+      "counterparty": "Allianz Versicherungs-AG",
+      "model_requests": 3,
+      "input_tokens": 7597,
+      "output_tokens": 638
+    },
+    {
+      "token": "sparkasse geldautomat",
+      "summary": "Sparkasse ATM is a cash withdrawal machine provided by the Sparkasse bank.",
+      "category": "Cash",
+      "subcategory": "Cash withdrawal",
+      "confidence": 0.9,
+      "sources": [
+        {
+          "url": "https://www.sparkasse.de/pk/ratgeber/finanzplanung/banking-tipps/so-funktionieren-geldautomaten.html",
+          "title": "Wie funktioniert ein Geldautomat? - Sparkasse.de"
+        }
+      ],
+      "searches": 1,
+      "fetches": 1,
+      "seconds": 7.506127749977168,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "what is sparkasse geldautomat"
+      ],
+      "fetched": [
+        "https://de.wikipedia.org/wiki/Geldautomat"
+      ],
+      "evidence": "Geldautomaten erleichtern unser Leben immens: Sie sorgen dafür, dass überall Bargeld in der Nähe ist.",
+      "capped": false,
+      "description": "GA NR00012345 BLZ12030000 01.03/BERLIN",
+      "counterparty": "Sparkasse Geldautomat",
+      "model_requests": 3,
+      "input_tokens": 7649,
+      "output_tokens": 688
+    },
+    {
+      "token": "hausverwaltung bergmann",
+      "summary": "German property management company collecting fees or services for housing.",
+      "category": "Housing",
+      "subcategory": "Rent",
+      "confidence": 0.6,
+      "sources": [],
+      "searches": 3,
+      "fetches": 0,
+      "seconds": 38.27775583398761,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "was ist hausverwaltung bergmann",
+        "was ist hausverwaltung bergmann",
+        "Unternehmen hausverwaltung bergmann",
+        "Firma hausverwaltung bergmann"
+      ],
+      "fetched": [],
+      "evidence": "The token \"hausverwaltung bergmann\" failed 3 searches. It translates to property management.",
+      "capped": true,
+      "description": "MIETE WOHNUNG 12 03/2025",
+      "counterparty": "Hausverwaltung Bergmann GmbH",
+      "model_requests": 7,
+      "input_tokens": 24245,
+      "output_tokens": 5611
+    },
+    {
+      "token": "mustermann systems",
+      "summary": "German production specialist for professional audio systems, including sound modules and projectors for industrial and public venues.",
+      "category": "Shopping",
+      "subcategory": "Electronics",
+      "confidence": 0.6,
+      "sources": [],
+      "searches": 2,
+      "fetches": 0,
+      "seconds": 8.854098707961384,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "mustermann systems Firma",
+        "mustermann systems Firma",
+        "mustermann systems"
+      ],
+      "fetched": [],
+      "evidence": "",
+      "capped": true,
+      "description": "GEHALT 03/2025 PERS.NR 4711",
+      "counterparty": "Mustermann Systems GmbH",
+      "model_requests": 4,
+      "input_tokens": 8366,
+      "output_tokens": 837
+    },
+    {
+      "token": "zahnarztpraxis dr lorenz",
+      "summary": "German dental practice Dr. Lorenz offering dentist services",
+      "category": "Health",
+      "subcategory": "Doctor",
+      "confidence": 0.95,
+      "sources": [
+        {
+          "url": "https://www.zahnarzt-lorenz.de/",
+          "title": "Willkommen | Zahnarztpraxis Dr. Carsten Lorenz"
+        }
+      ],
+      "searches": 2,
+      "fetches": 1,
+      "seconds": 14.607069333957043,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "zahnarztpraxis dr lorenz",
+        "zahnarztpraxis dr lorenz",
+        "Unternehmen zahnarztpraxis dr lorenz"
+      ],
+      "fetched": [
+        "https://www.zahnarzt-lorenz.de/"
+      ],
+      "evidence": "Wir nehmen uns Zeit für eine ausführliche Diagnostik und Aufklärung über Ihre Mundgesundheit.",
+      "capped": false,
+      "description": "RECHNUNG 2025-8841",
+      "counterparty": "Zahnarztpraxis Dr. Lorenz",
+      "model_requests": 6,
+      "input_tokens": 15415,
+      "output_tokens": 1360
+    },
+    {
+      "token": "apotheke",
+      "summary": "German pharmacy selling medicines and health products",
+      "category": "Health",
+      "subcategory": "Pharmacy",
+      "confidence": 0.95,
+      "sources": [
+        {
+          "url": "https://de.wikipedia.org/wiki/Apotheke",
+          "title": "Apotheke – Wikipedia"
+        }
+      ],
+      "searches": 2,
+      "fetches": 1,
+      "seconds": 10.658100333006587,
+      "cached": false,
+      "refused": null,
+      "error": null,
+      "queries": [
+        "apotheke",
+        "apotheke Unternehmen",
+        "apotheke Unternehmen"
+      ],
+      "fetched": [
+        "https://de.wikipedia.org/wiki/Apotheke"
+      ],
+      "evidence": "Verkauf von Medikamenten",
+      "capped": false,
+      "description": "APOTHEKE AM MARKT",
+      "counterparty": "Apotheke am Markt",
+      "model_requests": 4,
+      "input_tokens": 10307,
+      "output_tokens": 759
+    },
+    {
+      "token": "",
+      "summary": "",
+      "category": null,
+      "subcategory": null,
+      "confidence": 0.0,
+      "sources": [],
+      "searches": 0,
+      "fetches": 0,
+      "seconds": 0.0,
+      "cached": false,
+      "refused": "That booking names a person, and a person's name never leaves this machine, so nothing was looked up.",
+      "error": null,
+      "queries": [],
+      "fetched": [],
+      "evidence": "",
+      "capped": false,
+      "description": "PP.4711.PP . ANNA WEBER, Ihre Zahlung",
+      "counterparty": "PayPal Europe S.a.r.l.",
+      "model_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    }
+  ],
+  "outbound": [
+    {
+      "token": "vattenfall sales",
+      "kind": "search",
+      "target": "what is vattenfall sales",
+      "status": "the search failed: RequestError: RequestError('error sending request for url (https://html.duckduckgo.com/html/) > Conne",
+      "seconds": 0.46991099999286234,
+      "note": ""
+    },
+    {
+      "token": "vattenfall sales",
+      "kind": "search",
+      "target": "what is vattenfall sales",
+      "status": "ok",
+      "seconds": 1.0037405419861898,
+      "note": "5 hits: https://en.wikipedia.org/wiki/Vattenfall; https://group.vattenfall.com/; https://www.vattenfall.de/geschaeftskunden/ves; https://energysales.vattenfall.de/en; https://www.vattenfall.nl/media/4.-over-vattenfall-corporate/6.-downloads/vattenfall-nv-annual-report-2025_final_accessible-versie.pdf"
+    },
+    {
+      "token": "vattenfall sales",
+      "kind": "fetch",
+      "target": "https://en.wikipedia.org/wiki/Vattenfall",
+      "status": "ok",
+      "seconds": 0.5939527089940384,
+      "note": "25740 chars, title 'Vattenfall - Wikipedia'"
+    },
+    {
+      "token": "allianz versicherungs",
+      "kind": "search",
+      "target": "allianz versicherungs was ist",
+      "status": "ok",
+      "seconds": 1.5922265839762986,
+      "note": "5 hits: https://de.wikipedia.org/wiki/Allianz_SE; https://de.wikipedia.org/wiki/Allianz_Versicherungs-AG?redirect=no; https://www.allianz.com/de/ueber-uns.html; https://www.allianz.de/; https://www.allianz.com/de/ueber-uns/wer-wir-sind/auf-einen-blick.html"
+    },
+    {
+      "token": "allianz versicherungs",
+      "kind": "fetch",
+      "target": "https://de.wikipedia.org/wiki/Allianz_SE",
+      "status": "ok",
+      "seconds": 3.7555919580045156,
+      "note": "43015 chars, title 'Allianz SE – Wikipedia'"
+    },
+    {
+      "token": "sparkasse geldautomat",
+      "kind": "search",
+      "target": "what is sparkasse geldautomat",
+      "status": "ok",
+      "seconds": 0.6890390000189655,
+      "note": "5 hits: https://de.wikipedia.org/wiki/Geldautomat; https://www.sparkasse.de/standorte/geldautomaten; https://www.sparkasse.de/pk/ratgeber/finanzplanung/banking-tipps/so-funktionieren-geldautomaten.html; https://bankinggeek.com/sparkasse-geld-einzahlen/; https://www.sparkasse.at/sgruppe/filialen-oeffungszeiten/filialsuche/geldautomat"
+    },
+    {
+      "token": "sparkasse geldautomat",
+      "kind": "fetch",
+      "target": "https://de.wikipedia.org/wiki/Geldautomat",
+      "status": "ok",
+      "seconds": 0.641299250011798,
+      "note": "62004 chars, title 'Geldautomat – Wikipedia'"
+    },
+    {
+      "token": "hausverwaltung bergmann",
+      "kind": "search",
+      "target": "was ist hausverwaltung bergmann",
+      "status": "the search failed: No results found.",
+      "seconds": 0.29918108304264024,
+      "note": ""
+    },
+    {
+      "token": "hausverwaltung bergmann",
+      "kind": "search",
+      "target": "was ist hausverwaltung bergmann",
+      "status": "the search failed: No results found.",
+      "seconds": 0.31862462498247623,
+      "note": ""
+    },
+    {
+      "token": "hausverwaltung bergmann",
+      "kind": "search",
+      "target": "Unternehmen hausverwaltung bergmann",
+      "status": "the search failed: No results found.",
+      "seconds": 0.299982667027507,
+      "note": ""
+    },
+    {
+      "token": "hausverwaltung bergmann",
+      "kind": "search",
+      "target": "Firma hausverwaltung bergmann",
+      "status": "the search failed: No results found.",
+      "seconds": 0.30172633298207074,
+      "note": ""
+    },
+    {
+      "token": "mustermann systems",
+      "kind": "search",
+      "target": "mustermann systems Firma",
+      "status": "the search failed: No results found.",
+      "seconds": 0.32267208403209224,
+      "note": ""
+    },
+    {
+      "token": "mustermann systems",
+      "kind": "search",
+      "target": "mustermann systems Firma",
+      "status": "the search failed: No results found.",
+      "seconds": 0.31879729201318696,
+      "note": ""
+    },
+    {
+      "token": "mustermann systems",
+      "kind": "search",
+      "target": "mustermann systems",
+      "status": "the search failed: No results found.",
+      "seconds": 0.2993664169916883,
+      "note": ""
+    },
+    {
+      "token": "zahnarztpraxis dr lorenz",
+      "kind": "search",
+      "target": "zahnarztpraxis dr lorenz",
+      "status": "the search failed: No results found.",
+      "seconds": 0.29765479103662074,
+      "note": ""
+    },
+    {
+      "token": "zahnarztpraxis dr lorenz",
+      "kind": "search",
+      "target": "zahnarztpraxis dr lorenz",
+      "status": "the search failed: No results found.",
+      "seconds": 0.31884004099993035,
+      "note": ""
+    },
+    {
+      "token": "zahnarztpraxis dr lorenz",
+      "kind": "search",
+      "target": "Unternehmen zahnarztpraxis dr lorenz",
+      "status": "ok",
+      "seconds": 0.6384212499833666,
+      "note": "5 hits: https://www.zahnarzt-lorenz.de/; https://www.zahn-lorenz.de/; http://www.dr-lorenz.de/; http://www.dr-lorenz.de/unsere-praxis.html; https://www.lorenz-zahnarzt.de/startseite"
+    },
+    {
+      "token": "zahnarztpraxis dr lorenz",
+      "kind": "fetch",
+      "target": "https://www.zahnarzt-lorenz.de/",
+      "status": "ok",
+      "seconds": 0.9951949999667704,
+      "note": "3968 chars, title 'Willkommen | Zahnarztpraxis Dr. Carsten Lorenz'"
+    },
+    {
+      "token": "apotheke",
+      "kind": "search",
+      "target": "apotheke",
+      "status": "ok",
+      "seconds": 0.6288364580250345,
+      "note": "5 hits: https://de.wikipedia.org/wiki/Apotheke; https://www.shop-apotheke.com/; https://www.apotheke.de/; https://www.docmorris.de/; https://apothekeco.com/"
+    },
+    {
+      "token": "apotheke",
+      "kind": "search",
+      "target": "apotheke Unternehmen",
+      "status": "the search failed: No results found.",
+      "seconds": 0.32144662499194965,
+      "note": ""
+    },
+    {
+      "token": "apotheke",
+      "kind": "search",
+      "target": "apotheke Unternehmen",
+      "status": "the search failed: No results found.",
+      "seconds": 0.3199191250023432,
+      "note": ""
+    },
+    {
+      "token": "apotheke",
+      "kind": "fetch",
+      "target": "https://de.wikipedia.org/wiki/Apotheke",
+      "status": "ok",
+      "seconds": 1.3880937079666182,
+      "note": "58743 chars, title 'Apotheke – Wikipedia'"
+    }
+  ]
+}

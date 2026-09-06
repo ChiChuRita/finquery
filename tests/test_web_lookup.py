@@ -922,6 +922,25 @@ async def test_the_evidence_has_to_occur_in_what_the_steps_returned(
     assert len(web_client.calls) == 1
 
 
+def test_a_quote_may_not_come_out_of_what_the_loop_itself_wrote() -> None:
+    """Found in the rerun of 2026-09-06 on Qwen3.5 9B, on the first cut of this rule.
+
+    A refused step carries the model's own reasoning back to it, and a failed search carries
+    the backend's message, so both sit in the prompt. Quoting one of them back passed the
+    verbatim check while proving nothing: `adobe systems software` came home with "None found
+    as search failed." as its evidence. Only hits and page text count.
+    """
+    from finquery.weblookup.loop import Step, quoted_verbatim
+
+    hits = Step("search", "adobe", "  1 result(s)\n  - Adobe | https://adobe.com\n    Creative software")
+    failure = Step("search", "adobe", "  failed: None found as search failed.")
+    refusal = Step("finish", "", "  refused: a finish needs `evidence`.\n  you reasoned: it is a software company")
+
+    assert quoted_verbatim("Creative software", [hits, failure, refusal]) is True
+    assert quoted_verbatim("None found as search failed.", [hits, failure, refusal]) is False
+    assert quoted_verbatim("it is a software company", [hits, failure, refusal]) is False
+
+
 async def test_a_failed_search_is_retried_once_without_charging_the_budget(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str, web_client: StubWeb
 ) -> None:

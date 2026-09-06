@@ -264,8 +264,23 @@ def _flat(text: str) -> str:
     return " ".join(text.split()).casefold()
 
 
+def from_the_web(steps: list[Step]) -> list[Step]:
+    """The steps a quote may be taken from: hits and page text, nothing our own code wrote.
+
+    A refused step carries the model's own reasoning back to it (ticket 42) and a failed search
+    carries the backend's message, so both are in the transcript and neither is evidence. The
+    rerun of 2026-09-06 caught exactly that: "None found as search failed." came back as a
+    quote, and it passed because the loop had written it into the prompt itself.
+    """
+    return [
+        step
+        for step in steps
+        if not step.observation.lstrip().startswith(("refused:", "failed:"))
+    ]
+
+
 def quoted_verbatim(quote: str, steps: list[Step]) -> bool:
-    """Does this sentence really occur in what the steps returned?
+    """Does this sentence really occur in what the web returned?
 
     The same discipline as the extraction verbatim guard (ADR 0011): whitespace is normalized
     and case ignored, nothing else. A quote nobody was shown is a sentence the model wrote, and
@@ -273,7 +288,7 @@ def quoted_verbatim(quote: str, steps: list[Step]) -> bool:
     """
     if len(quote.strip()) < MIN_EVIDENCE_CHARS:
         return False
-    seen = _flat("\n".join(step.observation for step in steps))
+    seen = _flat("\n".join(step.observation for step in from_the_web(steps)))
     return _flat(quote) in seen
 
 
@@ -368,7 +383,7 @@ def _sources_for(decision: Decision, seen: dict[str, Source], fetched: list[str]
 def _quoted_from(quote: str, steps: list[Step]) -> str | None:
     """Which step's observation the evidence came out of, as a URL when the step has one."""
     flat = _flat(quote)
-    for step in steps:
+    for step in from_the_web(steps):
         if flat not in _flat(step.observation):
             continue
         if step.kind == FETCH:
