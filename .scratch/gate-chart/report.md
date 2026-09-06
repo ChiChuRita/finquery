@@ -1,6 +1,6 @@
 # Gate report
 
-10 of 10 candidates kept (100 %), 0 dropped.
+10 of 12 candidates kept (83 %), 2 dropped.
 
 | household | rows | share |
 | --- | ---: | ---: |
@@ -30,3 +30,14 @@
 | --- | ---: | ---: |
 | 2 | 5 | 50 % |
 | 3 | 5 | 50 % |
+
+## Why the rest was dropped
+
+| reason | rows | share |
+| --- | ---: | ---: |
+| self-check-failed | 2 | 100 % |
+
+One line per drop:
+
+- `smoke-w04-student-line-no-grid-en` the self-check found something on the first attempt: Every chart carries `tooltip: { use: tooltip, format: ... }`.; Set `grid: true` on `scales.y`, the euro axis.; The euro axis needs `axis: { ticks: { format: eurShort } }` on `scales.y`.; The euro axis has to start at zero, or a change of a few percent is drawn as a cliff. Give `scales.y` the domain `scale: s
+- `smoke-w05-student-doughnut-no-legend-de` the self-check found something on the first attempt: More than one series needs a legend: `color: { legend: colorLegend({ placement: 'bottom' }) }`.
