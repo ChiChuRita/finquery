@@ -501,3 +501,30 @@ it is: the README's own reading is that nothing under ten points can be read on 
 datapoints. What it is not is a regression signal, and the columns-map move is the one the two
 new examples were written for. Run `--set chart --model qwen/qwen3.5-9b` again when the key has
 credit and replace this table.
+
+
+## Ticket 50: the line datapoints, before and after the multi-series line
+
+The line and the area may now carry a series, so the twelve line datapoints were re-run on
+their own. The CLI takes `--n` and a seed rather than a list of ids, so the run filtered
+`load("chart")` to `shape == "line"` and called `run_points` exactly as `command_run` does;
+everything else is the same database, the same target and the same scoring. Before is the
+ticket 42 run of the ten line datapoints that existed then
+(`results/20260905T183545Z-google-gemini-3.8-flash-chart.json`), after is
+`results/20260906T101920Z-google-gemini-3.8-flash-lines-chart.json`.
+
+| google/gemini-3.8-flash, line only | n | figure match | shape match | columns map | language | drawn | first attempt | median s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| before (ticket 42) | 10 | 100 % | 100 % | 100 % | 100 % | 100 % | 90 % | 6.5 |
+| after | 12 | 92 % | 100 % | 92 % | 100 % | 92 % | 83 % | 7.6 |
+
+**The two new datapoints both pass on the first attempt**, figure, shape, columns and language:
+`33-grocery-lines-de` in 8.7 s and `34-grocery-lines-en` in 8.2 s. Five shops, five strokes, a
+legend, and no repair round, which is the whole point of the ticket.
+
+The one miss is `g001-line` ("Show my monthly income across 2025 as a line chart"), and it is
+not a chart failure: the statement came back with no rows, the query pass rewrote it once and
+still got none, 20.1 s for the round trip. It passed on the ticket 42 run of the same prompt on
+the same model, so it is the query sub-agent's own variance on an income filter, which is the
+habit the baseline section already names as Gemini's. Nine of the ten old datapoints and both
+of the new ones drew and matched, which is what this table says about the line.
