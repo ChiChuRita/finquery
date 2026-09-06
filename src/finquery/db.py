@@ -6,9 +6,6 @@ transcript renders), both as JSON text, plus the memories that every conversatio
 shares. Data: accounts, transactions, the taxonomy, category rules and import records, plus
 the outbound log and the web lookup cache of the one feature that ever talks to the internet.
 
-Preference records sit next to the conversations: they are what a rating or a pick left behind,
-and they outlive the chat they were collected in.
-
 Money is stored as integer cents so sums and the split constraint are exact. `transaction_view`
 is what queries and charts read: it joins the names in and drops split parents so children are
 never double counted.
@@ -478,48 +475,6 @@ class Changeset(Base):
     """Set once it ran. Still set after an undo, which is what tells that apart from a discard."""
 
 
-class PreferenceRecord(Base):
-    """One rating or one pick: the training data for the fast slot's adapters.
-
-    `chosen_json` and `rejected_json` are the two sides of the preference. A thumbs up fills
-    only the chosen side, a thumbs down only the rejected one, and a pick (a chart pair, an
-    answer A/B) fills both, which is the shape DPO wants. See `finquery.preferences`.
-
-    `turn_id` is the assistant turn the record is about and `target` the tool call inside it (a
-    chart's call id), or null for the answer itself. Together they are the identity of what was
-    rated, so a second click on the same thumbs replaces the record instead of adding one.
-    """
-
-    __tablename__ = "preference_record"
-    __table_args__ = (UniqueConstraint("turn_id", "target"),)
-
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
-    profile_id: Mapped[str] = mapped_column(ForeignKey("profile.id", ondelete="CASCADE"), index=True)
-    conversation_id: Mapped[str | None] = mapped_column(
-        ForeignKey("conversation.id", ondelete="SET NULL"), default=None, index=True
-    )
-    """The chat it was collected in. Null once that chat is deleted: the record outlives it."""
-    turn_id: Mapped[str | None] = mapped_column(
-        ForeignKey("turn.id", ondelete="SET NULL"), default=None, index=True
-    )
-    target: Mapped[str | None] = mapped_column(String(64), default=None)
-    """The tool call id of the chart this is about, or null for the answer of the turn."""
-    kind: Mapped[str] = mapped_column(String(8))
-    """answer or chart."""
-    rating: Mapped[str] = mapped_column(String(8))
-    """up, down or pick."""
-    prompt: Mapped[str] = mapped_column(Text)
-    """What was asked: the user's request, plus the plan and the SQL for a chart."""
-    chosen_json: Mapped[str | None] = mapped_column(Text, default=None)
-    rejected_json: Mapped[str | None] = mapped_column(Text, default=None)
-    model_slot: Mapped[str] = mapped_column(String(16), default="")
-    """Pre-catalog. See `Conversation.model_slot`."""
-    model_key: Mapped[str | None] = mapped_column(String(64), default=None)
-    """What produced the output: a catalog entry for an answer, the provider's fast slot for a
-    sub-agent, which is the model an adapter would be trained for."""
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
-
-
 class DashboardChart(Base):
     """One card on a profile's dashboard: a fixed definition over numbers that are never fixed.
 
@@ -673,9 +628,6 @@ NEW_COLUMNS: dict[str, dict[str, str]] = {
     "turn": {
         "model_key": "VARCHAR(64)",
         "finished": "BOOLEAN NOT NULL DEFAULT 1",
-    },
-    "preference_record": {
-        "model_key": "VARCHAR(64)",
     },
     "profile": {
         "web_lookup_enabled": "BOOLEAN NOT NULL DEFAULT 0",

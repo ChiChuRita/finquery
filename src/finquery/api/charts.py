@@ -12,21 +12,28 @@ the card, and the card reports it here, which does two things the review of 2026
 
 One retry per chart, ever: the recorded failure and the `retried` flag on whatever the retry
 left behind are what say it has been spent, so a second report only records and returns.
+
+Reading a chart back out of a stored turn lives here too (`turn_charts`, `turn_or_404`,
+`chart_or_404`), because this is where a stored chart is written; the dashboard uses the same
+three to pin one.
 """
 
 import json
+from dataclasses import dataclass
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+from pydantic_ai.messages import ModelMessagesTypeAdapter
 from sqlalchemy.orm import Session
 
-from finquery.api.preferences import chart_or_404, turn_or_404
 from finquery.chart import run_chart
-from finquery.db import Turn
-from finquery.preferences import CHART_TOOL, read_turn
+from finquery.db import Conversation, Turn
 
 router = APIRouter()
+
+CHART_TOOL = "chart"
+"""The tool a chart is drawn by, which is the name its output is stored under."""
 
 RENDER_ERROR = "render_error"
 """The field that says the browser refused this chart, and the reason it gave."""
@@ -37,6 +44,48 @@ RETRIED = "retried"
 The failure alone cannot carry that: a retry that draws replaces the failed record, and the
 chart it put there would otherwise be retried again the next time the browser refused it.
 """
+
+
+@dataclass(frozen=True)
+class TurnCharts:
+    """The charts of one stored turn, read back out of its model messages."""
+
+    charts: dict[str, dict[str, Any]]
+    """The `chart` tool outputs of the turn, by tool call id."""
+    chart_hints: dict[str, str | None]
+    """The hints each chart call was made with, so a redraw asks for the same thing."""
+
+
+def turn_charts(turn: Turn) -> TurnCharts:
+    """Every chart this turn drew, with the hints it drew them from."""
+    messages = ModelMessagesTypeAdapter.validate_json(turn.model_messages_json)
+    charts: dict[str, dict[str, Any]] = {}
+    hints: dict[str, str | None] = {}
+    for message in messages:
+        for part in message.parts:
+            if part.part_kind == "tool-call" and part.tool_name == CHART_TOOL:
+                hint = part.args_as_dict().get("hints")
+                hints[part.tool_call_id] = hint if isinstance(hint, str) else None
+            elif part.part_kind == "tool-return" and part.tool_name == CHART_TOOL:
+                if isinstance(part.content, dict):
+                    charts[part.tool_call_id] = part.content
+    return TurnCharts(charts=charts, chart_hints=hints)
+
+
+def turn_or_404(session: Session, profile_id: str, turn_id: str) -> tuple[Turn, Conversation]:
+    """The turn, if it is this profile's. Another profile's turn is simply not found."""
+    turn = session.get(Turn, turn_id)
+    conversation = session.get(Conversation, turn.conversation_id) if turn else None
+    if turn is None or conversation is None or conversation.profile_id != profile_id:
+        raise HTTPException(status_code=404, detail="That turn is not in this profile")
+    return turn, conversation
+
+
+def chart_or_404(content: TurnCharts, tool_call_id: str) -> dict[str, Any]:
+    chart = content.charts.get(tool_call_id)
+    if chart is None:
+        raise HTTPException(status_code=404, detail="That turn drew no such chart")
+    return chart
 
 
 class RenderFailureBody(BaseModel):
@@ -100,7 +149,7 @@ async def render_failure(request: Request, body: RenderFailureBody) -> RenderFai
     state = request.app.state
     with state.session_factory() as session:
         turn, conversation = turn_or_404(session, body.profile_id, body.turn_id)
-        content = read_turn(turn)
+        content = turn_charts(turn)
         chart = chart_or_404(content, body.tool_call_id)
         spent = bool(chart.get(RENDER_ERROR) or chart.get(RETRIED))
         failed = _failed_chart(chart, body.message)

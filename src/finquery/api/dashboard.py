@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from finquery.api.preferences import chart_or_404, turn_or_404
+from finquery.api.charts import chart_or_404, turn_charts, turn_or_404
 from finquery.api.profiles import get_profile_or_404
 from finquery.dashboard import (
     NO_RANGE,
@@ -44,7 +44,6 @@ from finquery.dashboard import (
     undo_call_id,
 )
 from finquery.db import DashboardChart, Import, Transaction
-from finquery.preferences import read_turn
 from finquery.query.guard import SqlRejected, validate_sql
 
 router = APIRouter()
@@ -365,7 +364,7 @@ async def pin_from_turn(request: Request, body: PinBody) -> ChartCardOut:
         # after them rather than in front of them.
         ensure_defaults(session, get_profile_or_404(session, body.profile_id))
         turn, _ = turn_or_404(session, body.profile_id, body.turn_id)
-        chart = chart_or_404(read_turn(turn), body.tool_call_id)
+        chart = chart_or_404(turn_charts(turn), body.tool_call_id)
         if not chart.get("code") or chart.get("error"):
             raise HTTPException(
                 status_code=422, detail="That chart was never drawn, so there is nothing to pin."

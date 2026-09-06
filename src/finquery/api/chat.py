@@ -326,10 +326,7 @@ async def _pump(source: AsyncIterator[BaseChunk], queue: "asyncio.Queue[tuple[st
 
 
 def load_history(conversation: Conversation) -> History:
-    """The stored turns of a conversation, ready to become one turn's prompt.
-
-    Also read by the answer A/B, which reruns one turn against the history it had.
-    """
+    """The stored turns of a conversation, ready to become one turn's prompt."""
     turns: list[TurnMessages] = []
     turn_ids: list[str] = []
     for turn in conversation.turns:
@@ -629,8 +626,8 @@ def persist_turn(
     Also used by the review conversation, which seeds a turn nobody streamed.
 
     Returns the id of the stored turn. It rides the assistant message's metadata as well, so a
-    rating can name the turn it is about whether the transcript was streamed or reloaded
-    (`finquery.preferences`).
+    chart card can name the turn it was drawn in whether the transcript was streamed or reloaded
+    (`finquery.api.charts`, `finquery.api.dashboard`).
     """
     turn_id = new_id()
     metadata = {**(metadata or {}), "turn_id": turn_id}
@@ -1158,8 +1155,8 @@ async def chat(request: Request, conversation_id: str) -> Response:
         # What the reader was spared, on the turn, so the badge and a test can see it happened.
         if check.rewritten:
             metadata["figures_rewritten"] = check.rewritten
-        # The turn's id goes back to the client in the metadata chunk that follows, so the
-        # thumbs on this answer can name the turn they rate without a reload.
+        # The turn's id goes back to the client in the metadata chunk that follows, so a chart
+        # card of this turn can name it without a reload.
         metadata["turn_id"] = persist_turn(
             state.session_factory,
             conversation_id,
