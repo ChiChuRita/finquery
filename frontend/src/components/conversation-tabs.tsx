@@ -41,16 +41,18 @@ export function ConversationTabs() {
   return (
     <nav
       aria-label="Open conversations"
-      className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b bg-sidebar px-2"
+      className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b px-2"
     >
       {tabs.map((tab) => {
         const active = tab.id === conversationId
+        // The strip sits on the canvas, so the open tab is marked the way the sidebar marks its
+        // active row: the faint tint and the full foreground, no border of its own.
         return (
           <div
             className={cn(
               'group flex h-7 shrink-0 items-center rounded-md text-xs transition-colors',
               active
-                ? 'border bg-background font-medium text-foreground shadow-xs'
+                ? 'bg-sidebar-accent font-medium text-foreground'
                 : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground',
             )}
             key={tab.id}
@@ -88,7 +90,7 @@ export function ConversationTabs() {
           <Button
             aria-label="New chat"
             asChild
-            className="sticky right-0 shrink-0 bg-sidebar"
+            className="sticky right-0 shrink-0 bg-background"
             size="icon-xs"
             variant="ghost"
           >
