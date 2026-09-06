@@ -17,6 +17,7 @@ import {
   lineY,
   link,
   rect,
+  ruleY,
   stack,
   text,
 } from '@tanstack/charts'
@@ -88,6 +89,26 @@ export const monthShortFor =
     return language === 'de' ? `${Number(match[3])}. ${month}` : `${month} ${Number(match[3])}`
   }
 
+/** The average of one column of the rows, so a reference line's value comes from the data.
+ *
+ * `ruleY` takes no channel and no rows: it draws where the array it is given says. The value
+ * therefore has to be computed, and this is the short way to compute the one a household asks
+ * for ("am I above my usual?"). The Python check has the same arithmetic in its stub, so what
+ * it admits is what the frame draws. Anything that is not a finite number is skipped, and rows
+ * with no number at all average to zero rather than to NaN, which would paint nothing.
+ */
+export const mean = (rows: Iterable<Record<string, unknown>>, column: string): number => {
+  let total = 0
+  let seen = 0
+  for (const row of rows) {
+    const value = numeric(row?.[column])
+    if (value === null) continue
+    total += value
+    seen += 1
+  }
+  return seen === 0 ? 0 : total / seen
+}
+
 /** The names, in the order `buildChart` passes them into the generated function. */
 export const GLOBAL_NAMES = [
   'defineChart',
@@ -95,6 +116,7 @@ export const GLOBAL_NAMES = [
   'areaY',
   'barY',
   'barX',
+  'ruleY',
   'link',
   'rect',
   'text',
@@ -114,6 +136,7 @@ export const GLOBAL_NAMES = [
   'eur',
   'eurShort',
   'monthShort',
+  'mean',
 ] as const
 
 /** What one render of generated code told the frame on the way, for the frame's own chrome. */
@@ -159,6 +182,17 @@ const sliceGap = (surface: string) => (options: Options) => ({
   ...without(options, 'cornerRadius'),
 })
 
+// A reference line is an annotation and not a series, so the frame draws it in the muted
+// foreground of the theme, dashed and thin: the marks keep the palette, and the rule reads as
+// the chart saying something about them. The code's own stroke wins when it names one.
+const ruleLook = (muted: string) => (options: Options) => ({
+  stroke: muted,
+  strokeWidth: 1.5,
+  strokeOpacity: 0.9,
+  strokeDasharray: '5 4',
+  ...options,
+})
+
 /** The legend's swatch as a square: the marks it stands for have no round corner, so it has none.
  *
  * The categorical legend draws a dot of radius 4 per series and nothing in its options changes
@@ -201,6 +235,7 @@ const SHARED: Record<string, unknown> = {
   scaleBand,
   scalePoint,
   scaleOrdinal,
+  mean,
   colorLegend: squareLegend,
   tooltip,
   eur,
@@ -215,6 +250,7 @@ export const globalValues = (theme: ChartFrameTheme, language: ChartLanguage, re
     barY: withDefaults(barY, seriesGap(theme.surface)),
     barX: withDefaults(barX, seriesGap(theme.surface)),
     radialArc: withDefaults(radialArc, sliceGap(theme.surface)),
+    ruleY: withDefaults(ruleY, ruleLook(theme.muted)),
     pie: recordingPie(record),
   }
   return GLOBAL_NAMES.map((name) => (name in perRender ? perRender[name] : SHARED[name]))

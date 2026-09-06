@@ -39,13 +39,14 @@ JavaScript (`Math`, `Array`, `Object`, arrow functions, `const`).
 
 ## The globals
 
-Twenty-four names, in the order the runtime and the check pass them. TanStack Charts is pinned
+Twenty-six names, in the order the runtime and the check pass them. TanStack Charts is pinned
 to 0.16.0; every name below is a public export of that version.
 
 | Global                                       | From                                | What it is                              |
 | -------------------------------------------- | ----------------------------------- | --------------------------------------- |
 | `defineChart(spec)`                          | `@tanstack/charts`                  | The definition; called once, returned   |
 | `lineY`, `areaY`, `barY`, `barX`             | `@tanstack/charts`                  | Cartesian marks, `(rows, options)`      |
+| `ruleY(values, options)`                     | `@tanstack/charts`                  | A horizontal reference line, one per chart |
 | `link`, `rect`, `text`                       | `@tanstack/charts`                  | The child marks of a sankey             |
 | `stack()`, `group()`                         | `@tanstack/charts`                  | Bar layouts                             |
 | `polar(options)`                             | `@tanstack/charts/polar`            | The radial container                    |
@@ -61,6 +62,7 @@ to 0.16.0; every name below is a public export of that version.
 | `eur(value)`                                 | FinQuery                            | "1.234,56 €", for tooltips              |
 | `eurShort(value)`                            | FinQuery                            | A compact euro label, for axis ticks    |
 | `monthShort('2025-01')`                      | FinQuery                            | "Jan 25", or "Mar 14" for a day           |
+| `mean(data, 'total_eur')`                    | FinQuery                            | The average of one column of the rows   |
 
 There is no time scale in TanStack Charts, which is why months are categories on a band or point
 scale and `monthShort` formats their labels. It is the one global that is not the same function
@@ -73,9 +75,9 @@ are always `de-DE`, because the product writes money that way whatever the answe
 
 | Shape            | Marks                                | For                                                |
 | ---------------- | ------------------------------------ | -------------------------------------------------- |
-| `line`           | `lineY` (+ optional series)          | a figure over ordered months or days, or one line per name |
-| `area`           | `areaY` (+ optional `lineY` outline, + optional series) | a running total or a filled trend |
-| `bar`            | `barY`                               | one figure per named category                      |
+| `line`           | `lineY` (+ optional series, + optional `ruleY`) | a figure over ordered months or days, or one line per name |
+| `area`           | `areaY` (+ optional `lineY` outline, + optional series, + optional `ruleY`) | a running total or a filled trend |
+| `bar`            | `barY` (+ optional `ruleY`)          | one figure per named category or month, above and below zero |
 | `bar_horizontal` | `barX`                               | a ranking with long labels                         |
 | `bar_grouped`    | `barY` + `layout: group()` + series  | two dimensions side by side, at most six groups    |
 | `bar_stacked`    | `barY` + series                      | the same two dimensions when the total matters     |
@@ -134,6 +136,12 @@ instruction in the same words.
 - The definition sets no `height`, `width`, `title` or `theme`: the card owns all four.
 - A doughnut has at most six slices and an `innerRadius`.
 - Every column a channel names exists in the rows it was given, and no mark gets an empty array.
+- A reference line is `ruleY([mean(data, 'total_eur')])`, at most one per chart, and only on a
+  line, an area or a bar: the shapes with a euro axis to lie across. Its value is computed from
+  `data`, with `mean` or a `reduce`, and a typed one (`ruleY([1200])`, or a name assigned a bare
+  number above it) is refused by the static scan, because a figure nobody executed is exactly
+  what ADR 0004 is about. The mark carries no label in 0.16 and emits no tooltip point, so the
+  caption is what names it.
 - The values are read from `data` through channels. Numbers are never typed into the code.
 - Nothing outside the allowlist: no `import`, `require`, `fetch`, `window`, `document`, `eval`,
   `setTimeout` or `globalThis`.
@@ -155,7 +163,8 @@ missing column is one thing to fix, and the round's findings are the model's who
 `finquery.chart.selfcheck` compiles and runs the code inside QuickJS against stub globals that
 record what was asked for instead of drawing it, then judges the recording:
 
-1. a static scan (forbidden names, data typed into the code);
+1. a static scan (forbidden names, data typed into the code, a reference line's value typed
+   into it rather than computed from the rows);
 2. compilation, then one run with the real rows, so a thrown error is a finding;
 3. the rules above, over the recorded marks, scales, channels and series.
 
@@ -279,6 +288,10 @@ being regenerated (ticket 36):
   card's surface colour, `radialArc` a 2 px one, so stacked segments, grouped bars and doughnut
   slices are told apart by a hairline of surface rather than by touching. The code's own
   `stroke` wins when it names one.
+- **The reference line.** `ruleY` is drawn in the theme's muted foreground, 1.5 px, dashed
+  `5 4`, because it is the chart annotating its own marks and not a series of its own. The
+  generated code names no colour for it, so a stored card takes today's muted colour in either
+  theme; a `stroke` the code does write still wins.
 - **Corners.** Nothing inside a chart is rounded: `barY`, `barX` and `radialArc` drop a
   `radius` or `cornerRadius` the code wrote, and the legend's swatches are squares (ticket 45).
   Rounding stays on the card and on the tooltip, which are the app's chrome, not the chart's.

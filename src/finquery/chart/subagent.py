@@ -92,6 +92,11 @@ Rules:
   Monate im Minus") is asked for signed, `ROUND(SUM(amount), 2)` or a signed difference, and
   never as two positive columns: bar draws it above and below the zero line, which is the whole
   answer. Say in the question that the sign is kept.
+- "Am I above my usual", "wo mein Durchschnitt liegt", "verglichen mit dem Schnitt": the average
+  is a line drawn across the plot by the chart itself, so the shape is the plain line, area or
+  bar over the periods and the columns are the two the series needs. Never ask the query for the
+  average as a column and never put a figure in the title: the chart computes it from the rows
+  it is handed, which is what keeps it the average of what is on screen.
 - doughnut: at most {MAX_SLICES} rows, so ask for the largest {MAX_SLICES - 1} plus a rest row
   when there are more categories than that. A rest row that would hold most of the money says
   nothing, so ask for the largest {MAX_SLICES} instead when a handful of buckets carry the
@@ -106,17 +111,18 @@ Rules:
   refuses, and "where does my income go" asked plainly is exactly how one gets written.
 """
 
-# Five worked plans, drawn from the training half of the chart benchmark
+# Six worked plans, drawn from the training half of the chart benchmark
 # (13-doughnut-categories-en, 10-quarter-groups-de, 34-grocery-lines-en,
-# 35-this-month-versus-last-en and 37-change-per-month-en). They are the five decisions the
-# small model gets wrong most: the language of an English request about German data, a request
-# naming quarters that comes back with months along its axis, a request naming five shops over a
-# year that comes back with one line or with sixty bars, two periods compared that come back as
-# one breakdown, and a signed figure that comes back with its sign dropped. The German twins of
-# the last three are the ones the hash held out, so the examples are their English halves: an
-# example drawn from a held-out datapoint teaches the model its answer.
+# 35-this-month-versus-last-en, 37-change-per-month-en and 40-average-line-de). They are the six
+# decisions the small model gets wrong most: the language of an English request about German
+# data, a request naming quarters that comes back with months along its axis, a request naming
+# five shops over a year that comes back with one line or with sixty bars, two periods compared
+# that come back as one breakdown, a signed figure that comes back with its sign dropped, and an
+# average asked of the query instead of drawn across the plot. Which half of a pair is the
+# example is the hash's choice and not ours: an example drawn from a held-out datapoint teaches
+# the model the answer to a question it is then scored on.
 PLAN_EXAMPLES = f"""\
-Five worked plans:
+Six worked plans:
 
 Request: Show the share of my 2025 spending by category as a doughnut.
 reasoning:
@@ -175,6 +181,17 @@ bars rest on zero, so the months below it are drawn below the baseline
    question "for each month of 2025 the difference between what was spent in it and what was
    spent the month before, signed so that a cheaper month is negative, one row per month,
    columns month as 'YYYY-MM' and change_eur"
+
+Request: Zeig meine Ausgaben pro Monat 2025 und wo mein Durchschnitt liegt.
+reasoning:
+the request is German, so language de
+one figure over twelve ordered months, so a line
+"wo mein Durchschnitt liegt" is a line drawn across the plot, not a second column
+the average is arithmetic on these rows, so the query is asked for the months alone
+-> shape line, language de, title "Monatliche Ausgaben mit Durchschnitt",
+   columns month, total_eur,
+   question "spending per month of 2025, one row per month, columns month as 'YYYY-MM' and
+   total_eur"
 """
 
 CONTRACT = """\
@@ -184,6 +201,7 @@ no JSX, no `await` and no browser APIs. These globals are all that exist:
 
   defineChart(spec)              the definition; call it once and return it
   lineY, areaY, barY, barX       Cartesian marks, called as (rows, options)
+  ruleY(values, options)         a horizontal reference line, one per chart
   link, rect, text               the child marks of a sankey
   stack(), group()               bar layouts
   polar(options)                 the radial container
@@ -199,6 +217,7 @@ no JSX, no `await` and no browser APIs. These globals are all that exist:
   eur(value)                     "1.234,56 €", for tooltips
   eurShort(value)                a short euro label, for axis ticks
   monthShort('2025-01')          "Jan 25", for month axes
+  mean(data, 'total_eur')        the average of one column of the rows
 
 House rules, all checked before the user sees the chart:
 - `scales` always declares both `x` and `y`. `null` is how you say an axis is unused.
@@ -225,6 +244,11 @@ House rules, all checked before the user sees the chart:
   `color` both name the column of names, the euro domain is over every figure in the rows, and
   the legend goes on. One mark and never one per name, one line per name and never a line for
   all of them added together.
+- A request that asks whether a period is above the usual gets one reference line across the
+  plot: `ruleY([mean(data, 'total_eur')])`, on a line, an area or a bar and on nothing else.
+  Its value is computed from the rows, with `mean` or a `reduce` over `data`, and never typed:
+  `ruleY([1200])` is refused. One rule per chart. It takes no colour and no label from you: the
+  frame draws it in the muted colour and the caption names it.
 - Bars stay thin: `maxThickness: 32` on `barY` and `barX`.
 - Every chart carries `tooltip: { use: tooltip, format: (point) => ... }` and formats euros
   with `eur`.
@@ -324,6 +348,39 @@ return defineChart({
   tooltip: {
     use: tooltip,
     format: (point) => point.datum.merchant + ' ' + monthShort(point.datum.month) + ': ' + eur(point.datum.total_eur),
+  },
+});""",
+        ),
+        Example(
+            columns="month, total_eur",
+            reasoning=(
+                "the shape is line and the request asks where the average lies, so lineY and one ruleY\n"
+                "the columns are month and total_eur, and total_eur holds the numbers\n"
+                "the rule's value is the average of these rows, mean(data, 'total_eur'), never a typed figure\n"
+                "the euro domain is over the amounts and holds zero, so the rule falls inside it"
+            ),
+            code="""\
+const amounts = data.map((row) => row.total_eur);
+return defineChart({
+  marks: [
+    lineY(data, { x: 'month', y: 'total_eur', stroke: palette[0], strokeWidth: 2.25, points: true }),
+    ruleY([mean(data, 'total_eur')]),
+  ],
+  scales: {
+    x: {
+      scale: () => scalePoint().padding(0.06),
+      axis: { ticks: { format: monthShort }, tickLabels: { thin: { minGap: 6, priority: 'ends' } } },
+    },
+    y: {
+      scale: scaleLinear().domain([Math.min(0, ...amounts), Math.max(0, ...amounts)]),
+      nice: true,
+      grid: true,
+      axis: { ticks: { format: eurShort } },
+    },
+  },
+  tooltip: {
+    use: tooltip,
+    format: (point) => monthShort(point.datum.month) + ': ' + eur(point.datum.total_eur),
   },
 });""",
         ),
@@ -777,7 +834,10 @@ def code_prompt(
         # The plain line is the baseline every shape is shown beside its own. A shape that may
         # carry a series of its own is shown the multi-series line as well, and nothing else is:
         # five strokes over a merchant column teach a doughnut nothing and cost it its context.
-        examples.extend(EXAMPLES["line"] if SHAPES[plan.shape].may_series else EXAMPLES["line"][:1])
+        # The line's third example, the one with the reference line, stays with the line: the
+        # contract says a rule in a sentence, which is what a shape that rarely wants one needs.
+        borrowed = 2 if SHAPES[plan.shape].may_series else 1
+        examples.extend(EXAMPLES["line"][:borrowed])
     sections = [
         CONTRACT,
         "Worked examples:\n\n" + "\n\n".join(example.as_prompt() for example in examples),

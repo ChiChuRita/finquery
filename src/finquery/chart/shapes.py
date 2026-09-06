@@ -34,8 +34,15 @@ Shape = Literal[
 SHAPE_NAMES: tuple[Shape, ...] = get_args(Shape)
 
 # The marks that carry data. `link`, `rect` and `text` only ever appear inside a sankey, so they
-# are not part of a shape's signature.
-FAMILY_MARKS = ("lineY", "areaY", "barY", "barX", "radialArc", "sankeyDiagram")
+# are not part of a shape's signature. `ruleY` is one of them because a shape that may not carry
+# a reference line has to say so: the check refuses a family mark a shape neither requires nor
+# allows, which is how a rule across a doughnut is caught (ticket 52).
+FAMILY_MARKS = ("lineY", "areaY", "barY", "barX", "radialArc", "sankeyDiagram", "ruleY")
+
+# The reference line, `ruleY`, is allowed on the shapes that have a euro axis to draw it across
+# and one figure per position to compare it with. One per chart, and its value is computed from
+# the rows in the code, never typed (`selfcheck._rule_findings`).
+MAX_RULES = 1
 
 MAX_SLICES = 6
 
@@ -86,6 +93,7 @@ SHAPES: dict[Shape, ShapeRule] = {
             f"several of them, at most {MAX_SERIES}"
         ),
         required=("lineY",),
+        also_allowed=("ruleY",),
         value_axis="y",
         category_axis="x",
         may_series=True,
@@ -96,7 +104,7 @@ SHAPES: dict[Shape, ShapeRule] = {
             f"request names several of them, at most {MAX_SERIES}"
         ),
         required=("areaY",),
-        also_allowed=("lineY",),
+        also_allowed=("lineY", "ruleY"),
         value_axis="y",
         category_axis="x",
         may_series=True,
@@ -108,6 +116,7 @@ SHAPES: dict[Shape, ShapeRule] = {
             "may be negative, which draws the bar below the zero line"
         ),
         required=("barY",),
+        also_allowed=("ruleY",),
         value_axis="y",
         category_axis="x",
         zero_from_mark=True,

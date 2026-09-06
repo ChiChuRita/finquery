@@ -14,6 +14,7 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCall
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall
 
 from finquery.chart.selfcheck import check_chart_code
+from finquery.chart.selfcheck import RULE_VALUE, check_chart_code
 from finquery.chart.shapes import SHAPE_NAMES
 from finquery.chart.subagent import EXAMPLES
 
@@ -1652,6 +1653,76 @@ async def test_a_signed_figure_per_month_is_drawn_as_bars_on_both_sides_of_zero(
     figures = [row["change_eur"] for row in output["rows"]]
     assert min(figures) < 0 < max(figures), "the chart this test is about is the one that crosses zero"
     assert output["code"] == CHANGE_CODE
+
+
+# The reference line of ticket 52. These three run the check directly: what they are about is
+# the rule and not the path, and the rows are the shape of the rows the monthly statement
+# returns.
+MONTHLY_ROWS = [
+    {"month": "2025-01", "total_eur": 2544.04},
+    {"month": "2025-02", "total_eur": 2265.34},
+    {"month": "2025-03", "total_eur": 2290.77},
+    {"month": "2025-04", "total_eur": 2264.74},
+]
+
+# The worked example itself, read from the prompt rather than copied, so a copy cannot pass
+# while the prompt teaches something else.
+RULE_EXAMPLE = EXAMPLES["line"][2]
+
+
+async def test_a_reference_line_computed_from_the_rows_passes_the_check() -> None:
+    assert "ruleY([mean(data, 'total_eur')])" in RULE_EXAMPLE.code
+    result = await check_chart_code(RULE_EXAMPLE.code, MONTHLY_ROWS, "line")
+    assert result.findings == ()
+
+
+async def test_a_reference_line_with_a_typed_figure_is_refused() -> None:
+    """The invariant, for the one mark that carries no channel: no figure is typed into a chart.
+
+    Both ways of typing it: the value in the array the rule is given, and the value hidden in a
+    name assigned above it. A width is not a figure, so the stroke options are left alone.
+    """
+    for typed in (
+        "ruleY([2100])",
+        "ruleY([2100], { strokeWidth: 1.5 })",
+        "ruleY(data, { y: 2100 })",
+    ):
+        code = RULE_EXAMPLE.code.replace("ruleY([mean(data, 'total_eur')])", typed)
+        result = await check_chart_code(code, MONTHLY_ROWS, "line")
+        assert result.findings == (RULE_VALUE,), typed
+        assert result.fatal, typed
+
+    named = RULE_EXAMPLE.code.replace(
+        "const amounts = data.map((row) => row.total_eur);",
+        "const amounts = data.map((row) => row.total_eur);\nconst usual = 2100;",
+    ).replace("ruleY([mean(data, 'total_eur')])", "ruleY([usual])")
+    assert (await check_chart_code(named, MONTHLY_ROWS, "line")).findings == (RULE_VALUE,)
+
+    # The same value under a name that really was computed from the rows is the right answer.
+    computed = RULE_EXAMPLE.code.replace(
+        "const amounts = data.map((row) => row.total_eur);",
+        "const amounts = data.map((row) => row.total_eur);\nconst usual = mean(data, 'total_eur');",
+    ).replace("ruleY([mean(data, 'total_eur')])", "ruleY([usual])")
+    assert (await check_chart_code(computed, MONTHLY_ROWS, "line")).findings == ()
+
+
+async def test_a_reference_line_on_a_doughnut_and_a_second_one_anywhere_are_refused() -> None:
+    """A rule needs a euro axis to lie across, and one chart says one thing."""
+    slices = [{"label": "Miete", "total_eur": 1050.0}, {"label": "Rest", "total_eur": 1494.04}]
+    doughnut = EXAMPLES["doughnut"][1].code.replace(
+        "  marks: [", "  marks: [\n    ruleY([mean(data, 'total_eur')]),"
+    )
+    findings = (await check_chart_code(doughnut, slices, "doughnut")).findings
+    assert "`ruleY` does not belong in a doughnut chart. Remove that mark." in findings
+
+    twice = RULE_EXAMPLE.code.replace(
+        "ruleY([mean(data, 'total_eur')]),",
+        "ruleY([mean(data, 'total_eur')]),\n    ruleY([Math.max(...data.map((row) => row.total_eur))]),",
+    )
+    findings = (await check_chart_code(twice, MONTHLY_ROWS, "line")).findings
+    assert findings == ("A chart carries at most 1 reference line and this one draws 2. A rule "
+                        "has no label of its own, so keep the one the request asks about, the "
+                        "average or the limit, and drop the rest.",)
 
 
 # --------------------------------------------------------------------------- two charts in a row
