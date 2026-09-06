@@ -2,7 +2,9 @@
 
 **Claim:** The sheet requires at least two fine-tuned models (LoRA or QLoRA). Ours are two LoRA
 adapters over the same Gemma 4 E4B base, one for the query sub-agent and one for the chart
-sub-agent, attached per sub-agent run on the fast slot. **Neither is trained yet.** What exists
+sub-agent, attached per sub-agent run on the fast slot. That is also the one thing the query and
+chart roles have to be set to `fast` for: a LoRA trained on E4B is not a LoRA for the 12B the
+demo runs those roles on by default. **Neither is trained yet.** What exists
 is the loop around them: two hand-checked benchmark sets (152 SQL questions, 63 chart requests)
 with gold computed by executing reference SQL, a runner that scores any model through the real
 sub-agent path with an `--adapter` flag, a static validation page, a held-out third, the adapter
@@ -47,7 +49,8 @@ In words:
    an OpenRouter id, a slot on the current provider, or `local:<slot>` with an optional
    `--adapter`. Every slot the path asks for resolves to the model under test.
 5. A LoRA adapter attaches to the fast slot for one run through the low-level llama.cpp API; a
-   missing file is a supported state with an audit note. The training prompt is the production
+   missing file is a supported state with an audit note, and so is a role that runs somewhere
+   else, which is audited the same way rather than attaching E4B's weights to another model. The training prompt is the production
    prompt, because a dataset built from any other phrasing would train a model for a prompt the
    app never sends.
 
@@ -103,6 +106,8 @@ In words:
 | New query prompt, no check | Gemini 95 % (100 % held out); Qwen 69 % (64 % held out) | ticket 40, `bench/results/20260905T182106Z-qwen-qwen3.5-9b-nocheck-sql.md` |
 | Chart prompt after ticket 42 | Gemini 97 %; Qwen 26 of 63 ran, 46 % to 50 % on those | `bench/results/20260905T183545Z-google-gemini-3.8-flash-chart.md`, `bench/results/20260905T183542Z-qwen-qwen3.5-9b-chart.md` |
 | Gemma 4 E4B, local fast slot | SQL 57 %, median 9.2 s, 26 min; charts 48 % figure match, 73 % drawn, median 36 s, 42 min | `bench/results/20260905T181117Z-local-fast-sql.md`, `bench/results/20260905T183745Z-local-fast-chart.md` |
+| The three candidates on the cluster, 2026-09-06 | Gemma 4 12B SQL 87 % and charts 81 %; Qwen3.5 9B 70 / 42; Gemma 4 E4B 66 / 45 | `bench/results/20260906-cluster-compare.md`, ticket 56 |
+| What that decided | Gemma 4 12B is the chat model and, by default, every sub-agent role; E4B keeps the fast slot and the adapters | ticket 61, ADR 0006 |
 | Hand vs generated, train vs heldout | Gemini 92 / 93 %, 92 / 94 %; Qwen 56 / 49 %, 57 / 43 % | `bench/README.md` |
 | Cost of a full run | Gemini 14m 16s, Qwen 15m 30s wall clock; 1,27 USD for both including two aborted starts | `bench/README.md` |
 | Old repo's first SQL adapter | beat a base model 2.4x its size on a prompt the product never sent; 55 % against 55 % through the real loop, so the pipeline was deleted on 2026-09-01 | `DECISIONS.md` on `archive/old-main` |
@@ -128,8 +133,11 @@ In words:
 - **Why did you throw away the first adapter?** It was trained on a prompt framing the product
   never sent and was worth nothing through the real loop (55 % against 55 %). Now the training
   prompt is the production prompt by construction (`DECISIONS.md`, ticket 43).
-- **Why E4B and not Qwen for the adapters?** E4B runs every sub-agent; a comparison on the same
-  base weights measures the adapter and nothing else. Qwen is not the slot that writes SQL.
+- **Why E4B and not the 12B for the adapters?** E4B is small enough to fine-tune and to keep
+  resident next to the chat model, and it is the one base every adapter shares, so a comparison
+  on it measures the adapter and nothing else. Since ticket 61 the query and chart roles run on
+  the 12B by default, so an adapter run means setting those two roles to `fast`, which is one
+  environment variable and is what the bench does already.
 - **Is the generated half easier?** No: Gemini is within a point of itself on both halves, and
   Qwen is seven points worse on the generated one; the held-out third is 43 % against 57 % for
   Qwen, so it is not a soft third either.
