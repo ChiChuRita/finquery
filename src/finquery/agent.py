@@ -3,8 +3,15 @@
 The model is chosen per run from the conversation's slot. Tools get what they need from
 `ChatDeps`, so the agent itself holds no application state. `query`, `chart`, `remember`,
 `set_rule`, `review_batch`, `review_duplicates`, `propose_changeset`, `apply_simple_edit`,
-`lookup_merchant`, `import_file`, `extract_transaction` and `add_transaction` are the tools,
-and each one that needs a model resolves its own slot through the deps.
+`lookup_merchant`, `import_file`, `extract_transaction`, `add_transaction` and the five
+dashboard tools (`dashboard_charts`, `show_dashboard_chart`, `edit_dashboard_chart`,
+`rename_dashboard_chart`, `remove_dashboard_chart`) are the tools, and each one that needs a
+model resolves its own slot through the deps.
+
+A chart the agent marks `keep` becomes a dashboard card from inside the `chart` tool, so the
+dashboard is filled from the chat and from nowhere else. The three tools that change a card
+apply at once and stash the version they replaced, which is the Undo the card in the transcript
+offers (`finquery.dashboard`).
 
 `propose_changeset` and `apply_simple_edit` are the writing tools. Neither one decides anything
 about the data: `finquery.changesets` resolves the intent, refuses what the data model refuses
@@ -43,7 +50,14 @@ from finquery.categorize.rules import load_categories, taxonomy_of
 from finquery.changesets import ChangesetError, ChangesetIntent, propose, to_out
 from finquery.changesets import apply as apply_changeset
 from finquery.chart import run_chart
-from finquery.db import Profile, SplitSumError
+from finquery.chart.subagent import previous_hint
+from finquery.dashboard import apply_edit as apply_dashboard_edit
+from finquery.dashboard import card_chart, keep_chat_chart
+from finquery.dashboard import cards_of as dashboard_cards_of
+from finquery.dashboard import ensure_defaults as ensure_dashboard_defaults
+from finquery.dashboard import remove as remove_dashboard_card
+from finquery.dashboard import rename as rename_dashboard_card
+from finquery.db import DashboardChart, Profile, SplitSumError
 from finquery.edits import TransactionEditError, find_transaction
 from finquery.ingest.chat_import import import_attachment
 from finquery.ingest.duplicates import PER_CARD as DUPLICATES_PER_CARD
@@ -55,6 +69,7 @@ from finquery.progress import report as report_progress
 from finquery.prose import names_an_amount
 from finquery.providers import ModelResolver, ProviderNotAvailable
 from finquery.query import QueryOutcome, load_query_context, run_query
+from finquery.query.guard import SqlRejected
 from finquery.weblookup import MAX_FETCHES, MAX_SEARCHES, WebClient, lookups_for, web_lookup_enabled
 
 logger = logging.getLogger(__name__)
@@ -119,6 +134,28 @@ When to use `chart`:
   repair round are already in the step above your answer, and announcing another attempt ("let
   me try a corrected version") describes work the user cannot see. One chart, one sentence about
   what it shows.
+
+One-time charts and charts worth keeping. Pass `keep=true` when the question reads like
+something the user tracks: they say keep it, track it, put it on the dashboard, each month, over
+time, or the question is an overview they will ask again (spending per month over a year, the
+share per category, income against spending). Leave it false for a one-off: one merchant, one
+week, one comparison they wanted once. "Wie entwickeln sich meine Lebensmittelausgaben pro
+Monat?" is kept; "Wie viel habe ich letzte Woche bei Edeka ausgegeben?" is not. Then read
+`kept`: true means the chart is on the dashboard and you say so in one short line, false means
+you never mention the dashboard at all.
+
+Charts the user keeps:
+- `dashboard_charts` lists them with an id each. Call it first whenever the user names a chart
+  in words ("the groceries one", "my first chart"): the four tools below take a `chart_id` from
+  that list and never a title. When the list is empty, say the dashboard has no chart of that
+  kind rather than guessing an id.
+- `show_dashboard_chart` draws one of them in your answer. `edit_dashboard_chart` changes one:
+  write the change in the user's own words ("as a bar chart", "the last six months instead of
+  twelve"), never a whole new request. `rename_dashboard_chart` gives one another title and
+  `remove_dashboard_chart` takes one off.
+- Those three apply at once and the user gets an Undo button on the card, so write the result's
+  `say` line, never ask for a confirmation and never say a change is about to happen. When an
+  edit comes back with `applied: false`, the card is unchanged and `error` says why.
 
 Changing the data. You never write to a booking on a hunch: first call `query` for the rows,
 asking for their `id` alongside the columns you need ("the id, date, description and amount of
@@ -706,13 +743,16 @@ async def review_duplicates(ctx: RunContext[ChatDeps], limit: int = DUPLICATES_P
 
 @chat_agent.tool
 @guarded
-async def chart(ctx: RunContext[ChatDeps], request: str, hints: str | None = None) -> dict[str, Any]:
+async def chart(
+    ctx: RunContext[ChatDeps], request: str, hints: str | None = None, keep: bool = False
+) -> dict[str, Any]:
     """Draw one chart of the user's transactions and show it in the answer.
 
     The chart sub-agent plans the shape, gets its rows through the same query path as `query`,
     writes the chart and checks it before it is shown. `rendered` says whether a chart really
     reached the screen: true means it is visible and needs no description, false means there is
-    none and the answer has to give the figures from `rows` instead.
+    none and the answer has to give the figures from `rows` instead. `kept` says whether the
+    chart was also put on the dashboard: only say it is there when that field is true.
 
     Whatever it returns, write your answer as text in the same turn.
 
@@ -721,6 +761,8 @@ async def chart(ctx: RunContext[ChatDeps], request: str, hints: str | None = Non
             and what to compare, plus the shape if the user named one. Write it in the language
             of the user's newest message: the chart's caption and its month labels follow it.
         hints: Optional extra instruction, for instance which categories to include.
+        keep: True when this chart is worth keeping on the dashboard: something the user tracks
+            month after month, or asked to keep. False for a one-off answer to one question.
     """
     outcome = await run_chart(
         resolve_model=ctx.deps.resolve_model,
@@ -731,7 +773,182 @@ async def chart(ctx: RunContext[ChatDeps], request: str, hints: str | None = Non
         hints=hints,
         narrate=ctx.deps.narrate,
     )
-    return outcome.payload()
+    payload = outcome.payload()
+    payload["kept"] = False
+    payload["dashboard_chart_id"] = None
+    # A chart nobody can see is not worth keeping, and there is nothing to draw on the page.
+    if keep and outcome.rendered:
+        with ctx.deps.session_factory() as session:
+            profile = session.get(Profile, ctx.deps.profile_id)
+            if profile is not None:
+                ensure_dashboard_defaults(session, profile)
+            try:
+                # The turn row is not written yet, so the card is stored under this tool call id
+                # alone; Add to dashboard on the same chart later finds it by that id.
+                card = keep_chat_chart(session, ctx.deps.profile_id, payload, call_id=ctx.tool_call_id or "")
+            except SqlRejected as exc:
+                logger.warning("a kept chart was not stored: %s", exc)
+            else:
+                payload["kept"] = True
+                payload["dashboard_chart_id"] = card.id
+                ctx.deps.narrate("Kept on the dashboard.")
+    return payload
+
+
+def _dashboard_card_or_retry(session: Session, profile_id: str, chart_id: str) -> DashboardChart:
+    """The card with that id, or the ids that do exist so the next call is right.
+
+    A model that guessed an id gets the list back rather than an error the user reads: the tools
+    below take an id and never a title, and `dashboard_charts` is where the ids come from.
+    """
+    card = session.get(DashboardChart, chart_id)
+    if card is not None and card.profile_id == profile_id and card.removed_at is None:
+        return card
+    known = dashboard_cards_of(session, profile_id)
+    listed = "; ".join(f"{other.id} ({other.title})" for other in known) or "none"
+    raise ModelRetry(
+        f"There is no chart {chart_id} on this dashboard. The charts on it are: {listed}. "
+        "Call the tool again with one of those ids, or say there is no such chart."
+    )
+
+
+@chat_agent.tool
+@guarded
+async def dashboard_charts(ctx: RunContext[ChatDeps]) -> dict[str, Any]:
+    """The charts this profile keeps on its dashboard, with the id each of them is named by.
+
+    Call this before showing, editing, renaming or removing a chart: those four tools take an
+    `chart_id` from this list and never a title. `request` is the words each chart was made
+    from, which is how "the groceries one" is matched to a row.
+    """
+    with ctx.deps.session_factory() as session:
+        cards = dashboard_cards_of(session, ctx.deps.profile_id)
+        return {
+            "charts": [
+                {
+                    "chart_id": card.id,
+                    "title": card.title,
+                    "shape": card.shape,
+                    "request": card.request,
+                    "position": card.position,
+                }
+                for card in cards
+            ],
+            "count": len(cards),
+        }
+
+
+@chat_agent.tool
+@guarded
+async def show_dashboard_chart(ctx: RunContext[ChatDeps], chart_id: str) -> dict[str, Any]:
+    """Draw one of the dashboard's charts inside this answer.
+
+    The card's statement is run again now, so the figures are the ones in the data today. The
+    chart is on screen when `rendered` is true; say what it shows in one or two sentences and
+    quote at most the two figures that matter.
+
+    Args:
+        chart_id: The id from `dashboard_charts`.
+    """
+    with ctx.deps.session_factory() as session:
+        card = _dashboard_card_or_retry(session, ctx.deps.profile_id, chart_id)
+        return card_chart(session, card)
+
+
+@chat_agent.tool
+@guarded
+async def edit_dashboard_chart(ctx: RunContext[ChatDeps], chart_id: str, request: str) -> dict[str, Any]:
+    """Change one of the dashboard's charts, and keep it in its place.
+
+    The chart sub-agent draws it again from the version on the dashboard plus what you ask for,
+    and the card is replaced at once: the user sees the new chart with an Undo button, so say
+    what changed in one line and never say it will happen or ask for a confirmation. The card
+    is untouched when nothing could be drawn, and then `error` says why.
+
+    Args:
+        chart_id: The id from `dashboard_charts`.
+        request: What to change, in the user's own terms and standing on its own ("as a bar
+            chart", "the last six months instead of twelve", "per category instead of per
+            merchant"). Write it in the language of the user's newest message.
+    """
+    with ctx.deps.session_factory() as session:
+        card = _dashboard_card_or_retry(session, ctx.deps.profile_id, chart_id)
+        was = {"title": card.title, "plan": card.plan, "sql": card.sql}
+    outcome = await run_chart(
+        resolve_model=ctx.deps.resolve_model,
+        model_settings=ctx.deps.subagent_settings,
+        session_factory=ctx.deps.session_factory,
+        profile_id=ctx.deps.profile_id,
+        request=request,
+        previous=previous_hint(**was),
+        narrate=ctx.deps.narrate,
+    )
+    if not outcome.rendered:
+        payload = outcome.payload()
+        payload["card_id"] = chart_id
+        payload["applied"] = False
+        payload["say"] = f'"{was["title"]}" is unchanged: the new version could not be drawn.'
+        return payload
+    with ctx.deps.session_factory() as session:
+        card = _dashboard_card_or_retry(session, ctx.deps.profile_id, chart_id)
+        apply_dashboard_edit(session, card, outcome.payload(), ctx.tool_call_id or "")
+        payload = card_chart(session, card)
+    payload["applied"] = True
+    payload["previous_title"] = was["title"]
+    payload["undo_call_id"] = ctx.tool_call_id
+    payload["say"] = f'"{payload["title"]}" is the new version on the dashboard.'
+    return payload
+
+
+@chat_agent.tool
+@guarded
+async def rename_dashboard_chart(ctx: RunContext[ChatDeps], chart_id: str, title: str) -> dict[str, Any]:
+    """Give one of the dashboard's charts another title. No chart is drawn again.
+
+    It applies at once and the user gets an Undo button, so write the `say` line and nothing
+    else about it.
+
+    Args:
+        chart_id: The id from `dashboard_charts`.
+        title: The new title, short and without a figure in it.
+    """
+    with ctx.deps.session_factory() as session:
+        card = _dashboard_card_or_retry(session, ctx.deps.profile_id, chart_id)
+        was = card.title
+        rename_dashboard_card(session, card, title, ctx.tool_call_id or "")
+        return {
+            "card_id": card.id,
+            "kind": "rename",
+            "applied": True,
+            "title": card.title,
+            "previous_title": was,
+            "undo_call_id": ctx.tool_call_id,
+            "say": f'"{was}" is now called "{card.title}".',
+        }
+
+
+@chat_agent.tool
+@guarded
+async def remove_dashboard_chart(ctx: RunContext[ChatDeps], chart_id: str) -> dict[str, Any]:
+    """Take one chart off the dashboard.
+
+    It happens at once and the user gets an Undo button, so write the `say` line and never ask
+    for a confirmation. The chat the chart was drawn in keeps its own copy.
+
+    Args:
+        chart_id: The id from `dashboard_charts`.
+    """
+    with ctx.deps.session_factory() as session:
+        card = _dashboard_card_or_retry(session, ctx.deps.profile_id, chart_id)
+        remove_dashboard_card(session, card, call_id=ctx.tool_call_id or "")
+        return {
+            "card_id": card.id,
+            "kind": "remove",
+            "applied": True,
+            "title": card.title,
+            "undo_call_id": ctx.tool_call_id,
+            "say": f'"{card.title}" is off the dashboard.',
+        }
 
 
 # Web lookup is off by default, per profile. Both halves of that read the same switch: the

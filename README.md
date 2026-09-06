@@ -240,9 +240,13 @@ A chart worth keeping goes on the Dashboard (`/dashboard`), which is the page ea
 with four figures of its newest month (spent, earned, net, and how many bookings still need
 review) and the charts it keeps. Four of them are there from the first visit: spending per month,
 spending by category over the last three months, income against spending, and the top ten
-merchants of the year. "Add to dashboard" on any chart card in a chat puts that chart there, and
-the line at the top of the page ("spending on groceries per month") runs the same chart sub-agent
-and shows the result with Keep and Discard. A card can be renamed, moved, refreshed and removed.
+merchants of the year. Every other card comes from a chat: the assistant decides while it draws
+whether a chart is a one-time answer or something you track ("spending per month over the year"
+is kept, "last week at Edeka" is not), and "Add to dashboard" on any chart card keeps one it did
+not. From a chat you can also ask what is on the dashboard, show one of those charts, change it,
+rename it or remove it; each of those applies at once with an Undo on the card. A card can also
+be renamed, moved, refreshed and removed on the page itself, and the date range at the top (two
+days, or one of the presets) narrows the tiles and every card at once, without a model call.
 What is stored is the title, the shape, the statement and the checked definition, never a number:
 every load runs the statement again through the same guard, so a card is as current as the data
 and one whose query stopped running says so on itself instead of breaking the page.

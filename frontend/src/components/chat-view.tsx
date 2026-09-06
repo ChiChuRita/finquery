@@ -31,6 +31,7 @@ import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Suggestion } from '@/components/ai-elements/suggestion'
 import { ChangesetCard } from '@/components/changeset-card'
 import { ChartToolStep } from '@/components/chart-tool'
+import { DashboardChartToolStep, DashboardLineToolStep } from '@/components/dashboard-chart-tool'
 import { Composer } from '@/components/composer'
 import { ContextBadge } from '@/components/context-badge'
 import { EmptyState } from '@/components/empty-state'
@@ -803,6 +804,12 @@ function TranscriptMessage({
                 turnId={turnId}
               />
             )
+          }
+          if (part.type === 'tool-show_dashboard_chart' || part.type === 'tool-edit_dashboard_chart') {
+            return <DashboardChartToolStep key={`${message.id}-${index}`} part={part} />
+          }
+          if (part.type === 'tool-rename_dashboard_chart' || part.type === 'tool-remove_dashboard_chart') {
+            return <DashboardLineToolStep key={`${message.id}-${index}`} part={part} />
           }
           if (part.type === 'tool-lookup_merchant') {
             return <LookupToolStep key={`${message.id}-${index}`} part={part} />

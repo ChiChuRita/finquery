@@ -51,7 +51,7 @@
 flowchart LR
   subgraph Browser["Browser (Vite, React 19, AI Elements, shadcn, TanStack)"]
     Chat["Chat + Question cards"]
-    Dash["Dashboard\n(tiles, pinned charts,\nevery card re-queried on load)"]
+    Dash["Dashboard\n(tiles, charts kept from chats,\nevery card re-queried on load,\nover the page date range)"]
     Tx["Transactions, Imports, Memory, Feedback, Settings"]
     Frame["Sandboxed chart iframe (TanStack Charts)"]
   end

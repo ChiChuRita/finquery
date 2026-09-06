@@ -169,9 +169,21 @@ whose findings are the repair instructions the sub-agent gets back. Avoid: valid
 **Dashboard card**: one chart a profile keeps on its Dashboard page: a title, a shape, the SQL
 and the checked definition, and never a figure. The statement is re-run through the same guard
 and the same profile-scoped view on every load, so the numbers are the data's and a statement
-that stopped running is a sentence on that card. A card is seeded (one of four defaults), pinned
-from a chart in a chat, or asked for on the page in words. Avoid: widget, tile (a tile is one of
-the four plain figures above the cards), pin (the verb is fine, the noun is the card).
+that stopped running is a sentence on that card. A card is seeded (one of four defaults) or kept
+from a chart in a chat, by the agent itself or by Add to dashboard. Avoid: widget, tile (a tile
+is one of the four plain figures above the cards), pin (the verb is fine, the noun is the card).
+
+**One-time chart** and **long-term chart**: which of the two a chart in a chat is. A one-time
+chart answers this question and lives in its transcript; a long-term chart is also a dashboard
+card, and the chart card says "On the dashboard" either way it got there. The chat agent decides
+by passing `keep` to the `chart` tool, and a wrong call costs one click. Avoid: pinned chart,
+saved chart.
+
+**Date range**: the two days the whole Dashboard is narrowed to, chosen with the presets or the
+two date fields. It reaches the guard's temp view, so the tiles and every stored statement see
+those days and nothing else, and the newest booking a card counts back from becomes the range's
+own newest. Nothing about it is stored: it lives in the page's search params. Avoid: filter,
+period (a period is what a chart is about).
 
 ## Models
 
