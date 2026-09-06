@@ -187,6 +187,15 @@ def render_pair(tokenizer: Any, request: Request, arguments: dict[str, Any]) -> 
     whole = tokenizer.apply_chat_template(
         request.with_answer(arguments), tools=request.tools, tokenize=False, **TEMPLATE_KWARGS
     )
+    if whole.startswith(prompt):
+        return prompt, whole[len(prompt) :]
+    # Gemma 4 12B's template ends the generation prompt with an empty thought channel when
+    # thinking is off, and leaves that channel out when it renders a finished assistant turn.
+    # Inference sees the prompt with the channel, so the pair keeps it and the completion is the
+    # answered turn from where the channel would have been (found on the cluster, 2026-09-06).
+    empty_thought = "<|channel>thought\n<channel|>"
+    if prompt.endswith(empty_thought) and whole.startswith(prompt[: -len(empty_thought)]):
+        return prompt, whole[len(prompt) - len(empty_thought) :]
     if not whole.startswith(prompt):
         raise RuntimeError(
             "the chat template does not render the answered conversation as the generation "

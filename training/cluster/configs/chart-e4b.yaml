@@ -32,7 +32,7 @@ train:
   warmup_ratio: 0.03
   weight_decay: 0.01
   # The prompts are about 3,000 tokens; train.py reports the true p100 before the first step.
-  seq_len: 4096
+  seq_len: 5120
   # Effective batch 16: LoRA tolerates a large batch worse than a full fine-tune, and TRL asks
   # for an effective batch under 32.
   per_device_batch: 1
