@@ -303,6 +303,19 @@ class LocalStack:
             self._seats.pop(seat).close()
         self._wanted[seat] = spec
 
+    def unload(self, seat: ModelRole) -> None:
+        """Free the model in one seat, so the next use loads it again at the current `n_ctx`.
+
+        Blocking, and the same order as a swap: drain first, so the abandoned token pull of a
+        cancelled turn has returned before the weights it was reading are freed. Only
+        `finquery.local.check` calls this, between its two attempts at the pair; a turn changes
+        seats through `take_seat` under the seat's lock.
+        """
+        if seat in self._seats:
+            self.drain(seat)
+            self._seats.pop(seat).close()
+        self._wanted.pop(seat, None)
+
     def slot(self, seat: ModelRole) -> Slot:
         """The model in one seat, downloading and loading it first if needed. Blocking."""
         if (loaded := self._seats.get(seat)) is not None:

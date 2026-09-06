@@ -4,10 +4,16 @@ Run before a demo, from the CLI (`uv run finquery-check`) or from the Settings p
 the fast slot and every local chat model whose weights are on disk, one at a time (the two chat
 models share a seat), so it is the slowest thing in the project and the fastest way to find out
 that the local setup is broken.
+
+The CLI then does the thing the demo depends on and the per-model checks cannot show: it holds
+the shipped pair, Gemma 4 E4B and Gemma 4 12B, in memory at the same time and reports the
+headroom left (`check_pair`).
 """
 
 import asyncio
+import os
 import struct
+import subprocess
 import sys
 import time
 import zlib
@@ -21,6 +27,23 @@ from finquery.local.catalog import ADAPTER_NAMES, LOCAL_CHAT_MODELS, LOCAL_FAST,
 from finquery.local.runtime import LocalStack
 
 CheckName = Literal["answer", "thinking", "tool_call", "vision"]
+
+GIGABYTE = 1e9
+
+METAL_SHARE = 0.75
+"""How much of the machine's memory Metal lets this process hold. Measured on the 24 GB M4 Pro
+of ADR 0006: a working set of 18.2 GB, which is 0.76, taken down to 0.75 so the number the
+check prints is never larger than the machine really allows."""
+
+HEADROOM_FLOOR = 1.0
+"""Gigabytes that have to be left over for the pair to count as fitting. llama.cpp allocates
+the whole KV cache when it loads, so this is room for the compute buffers of a full prompt and
+for the projector of an image, not for the weights."""
+
+FALLBACK_N_CTX = 16384
+"""The context to fall back to when the pair does not fit at the configured one. Lowering the
+chat model's context is preferred over evicting the fast slot: E4B is where every adapter
+attaches and it is resident for a reason (ADR 0006, ADR 0013)."""
 
 
 @dataclass
@@ -199,6 +222,102 @@ async def run_check(stack: LocalStack, specs: tuple[ModelSpec, ...] | None = Non
     return [await check_slot(stack, spec) for spec in (specs if specs is not None else checkable(stack))]
 
 
+@dataclass
+class PairReport:
+    """The two shipped local models resident at once: do they fit, and with how much room."""
+
+    models: list[str]
+    n_ctx: int
+    """The context the chat model ended up loaded at."""
+    ok: bool
+    resident_gb: float
+    working_set_gb: float
+    headroom_gb: float
+    note: str | None = None
+    """What to do about it, when the pair only fit after falling back."""
+    error: str | None = None
+
+
+def working_set_bytes() -> int:
+    """What Metal lets this process hold: the machine's memory times `METAL_SHARE`."""
+    return int(os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE") * METAL_SHARE)
+
+
+def resident_bytes() -> int:
+    """How much memory this process holds right now.
+
+    Through `ps` because the stdlib only offers the peak (`resource.ru_maxrss`), and a peak
+    would carry the first attempt's 32k weights into the number the second attempt reports.
+    No new dependency for one figure.
+    """
+    out = subprocess.run(  # noqa: S603 - fixed argv, our own pid
+        ["ps", "-o", "rss=", "-p", str(os.getpid())], capture_output=True, text=True, check=True
+    )
+    return int(out.stdout.strip()) * 1024
+
+
+async def check_pair(stack: LocalStack, chat: ModelSpec | None = None) -> PairReport:
+    """Hold Gemma 4 E4B and the shipped chat model at once, and report the headroom.
+
+    This is the one thing the per-model checks cannot show: they run a seat at a time, and the
+    demo runs both. Gemma 4 12B plus E4B was measured at about 12.9 GB at 32k
+    (`bench/results/20260906-local-tokens-per-second.md`), inside the 18.2 GB this Mac allows.
+
+    If the pair does not fit at the configured context, the chat model is loaded again at 16k
+    rather than the fast slot being evicted: every adapter attaches to E4B and a sub-agent runs
+    behind almost every turn, so the seat to give up context is the chat one. The report says
+    so, and `FINQUERY_LOCAL_N_CTX` is the setting that makes it permanent.
+    """
+    spec = chat if chat is not None else LOCAL_CHAT_MODELS[0]
+    models = [LOCAL_FAST.label, spec.label]
+    working_set = working_set_bytes() / GIGABYTE
+    configured = stack.n_ctx
+    note: str | None = None
+    for n_ctx in dict.fromkeys((configured, FALLBACK_N_CTX)):
+        last = n_ctx == FALLBACK_N_CTX
+        stack.n_ctx = n_ctx
+        try:
+            async with stack.holding("fast", LOCAL_FAST), stack.holding("chat", spec):
+                resident = resident_bytes() / GIGABYTE
+        except Exception as exc:  # noqa: BLE001 - out of memory is a result to report, not a crash
+            failure = f"{type(exc).__name__}: {exc}"
+            if last:
+                return PairReport(models, n_ctx, False, 0.0, round(working_set, 1), 0.0, note, failure)
+            stack.unload("chat")
+            note = f"At {configured // 1024}k the pair did not load ({failure}), so the chat seat was tried at 16k."
+            continue
+        headroom = working_set - resident
+        if headroom >= HEADROOM_FLOOR or last:
+            if last and n_ctx != configured:
+                note = (
+                    f"{(note or '').rstrip()} Set FINQUERY_LOCAL_N_CTX=16384 to keep both resident; "
+                    "the fast slot stays loaded either way."
+                ).strip()
+            return PairReport(models, n_ctx, headroom >= HEADROOM_FLOOR, round(resident, 1), round(working_set, 1), round(headroom, 1), note)
+        stack.unload("chat")
+        note = (
+            f"At {configured // 1024}k the pair left only {headroom:.1f} GB of the {working_set:.1f} GB "
+            f"Metal working set, so the chat seat was tried at 16k."
+        )
+    raise AssertionError("check_pair always returns from the loop")
+
+
+def format_pair(report: PairReport) -> str:
+    """The pair report as the CLI prints it, under the per-model checks."""
+    mark = "ok  " if report.ok else "FAIL"
+    lines = [f"[{mark}] {' plus '.join(report.models)} resident together at {report.n_ctx // 1024}k context"]
+    if report.error:
+        lines.append(f"         error: {report.error}")
+    else:
+        lines.append(
+            f"         {report.resident_gb} GB resident of a {report.working_set_gb} GB working set, "
+            f"{report.headroom_gb} GB headroom"
+        )
+    if report.note:
+        lines.append(f"         {report.note}")
+    return "\n".join(lines)
+
+
 def format_report(reports: list[SlotReport]) -> str:
     lines: list[str] = []
     for report in reports:
@@ -240,6 +359,14 @@ def main() -> None:
     if settings.provider != "local":
         print(f"FINQUERY_PROVIDER is {settings.provider}; the sanity check only covers the local models.")
         raise SystemExit(2)
-    reports = asyncio.run(run_check(LocalStack(settings)))
+    stack = LocalStack(settings)
+    reports = asyncio.run(run_check(stack))
     print(format_report(reports))
-    sys.exit(0 if all(report.ok for report in reports) else 1)
+    ok = all(report.ok for report in reports)
+    # Then the pair the demo runs, both resident at once. The per-model checks left one chat
+    # model in the seat; this loads the shipped one and says how much room is left.
+    if stack.downloads.ready(LOCAL_CHAT_MODELS[0].key):
+        pair = asyncio.run(check_pair(stack))
+        print(format_pair(pair))
+        ok = ok and pair.ok
+    sys.exit(0 if ok else 1)
