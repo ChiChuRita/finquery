@@ -9,10 +9,10 @@ export function PageTrigger({ className }: { className?: string }) {
   return <SidebarTrigger className={cn('-ml-1.5 text-muted-foreground', className)} />
 }
 
-/** The shell of a page that reads top to bottom: Imports, Memory, Feedback, Settings.
+/** The shell of a page that reads top to bottom: Imports, Memory, Settings.
  *
  * One heading size, one subtitle, one column width and one gap to the first section, so the
- * four pages read as one product. The chat and the Transactions page are workspaces with a
+ * three pages read as one product. The chat and the Transactions page are workspaces with a
  * compact bar instead, and they share theirs the same way (`PageBar`).
  */
 export function DocumentPage({
