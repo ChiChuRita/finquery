@@ -85,6 +85,11 @@ TOO_MANY_SERIES = (
     f"same. Keep the {MAX_SERIES - 1} largest groups and sum the rest into one 'Other' group "
     f"before drawing, with one figure per position and group."
 )
+TOO_MANY_LINES = (
+    f"{SERIES_CEILING} and this chart draws {{count}} of them, so two series would be painted "
+    f"the same. Draw the {MAX_SERIES} largest series and leave the rest out: several series "
+    f"added into one more line is a line nobody spent that money at."
+)
 COSMETIC = frozenset({LEGEND_MISSING, LEGEND_EXTRA})
 
 
@@ -749,6 +754,10 @@ def _shape_findings(report: dict[str, Any], shape: Shape) -> list[str]:
         )
     if rule.crossed and series > MAX_SERIES:
         findings.append(TOO_MANY_SERIES.format(count=series))
+    # A line or an area may carry a series, and the palette is as long for it as for a stack.
+    # Summing the tail is the wrong cure here, so the ceiling says the other thing (ticket 50).
+    if rule.may_series and series > MAX_SERIES:
+        findings.append(TOO_MANY_LINES.format(count=series))
     # The rows a query returned are judged before the code pass, but code that folds groups
     # together builds its own array, and a fold that relabels without summing makes exactly the
     # duplicates TanStack throws on in the browser (review of 2026-09-05).
@@ -770,7 +779,10 @@ def _shape_findings(report: dict[str, Any], shape: Shape) -> list[str]:
         )
     # Two marks over two euro columns and no series between them stack into a total nobody
     # asked for: income drawn on top of spending was one of them (review of 2026-09-05).
-    if not rule.series and len(drawn := _value_columns(report)) > 1:
+    # A mark that carries a series is already telling its euros apart by colour and by legend,
+    # which is exactly what this rule asks for, so five grocery stores are not two stacked
+    # columns. Before ticket 50 this finding made the repair loop drop every store but one.
+    if not rule.series and series < 2 and len(drawn := _value_columns(report)) > 1:
         findings.append(
             f"Two marks draw different euro columns ({', '.join(drawn)}) with nothing to tell "
             f"them apart, so they stack into a total nobody asked for. A {shape} chart draws one "
@@ -937,12 +949,13 @@ def _house_findings(report: dict[str, Any], shape: Shape, rows: list[dict[str, A
 
 
 def _pair_findings(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
-    """A stacked or grouped bar needs one figure per position and series.
+    """A chart with a series needs one figure per position and series.
 
     TanStack Charts throws "A stack requires at most one value for each position and series" in
     the browser, which the review of 2026-09-04 saw twice. The rows are what decide it, so this
     is judged on them and not on the code: two rows for 2025-01 / Groceries cannot be drawn by
-    any definition, however well written.
+    any definition, however well written. A line with a series is the same rule, because two
+    figures for March at Rewe are two points the stroke would have to pass through at once.
     """
     if len(columns) < 2:
         return []
@@ -957,8 +970,8 @@ def _pair_findings(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
     shown = ", ".join(f"{first} / {second}" for first, second in repeated[:3])
     pairs = "one pair" if len(repeated) == 1 else f"{len(repeated)} pairs"
     return [
-        f"The rows carry {pairs} of {position} and {series} more than once ({shown}), and "
-        f"stacked or grouped bars need one figure per pair. The query has to group by both "
+        f"The rows carry {pairs} of {position} and {series} more than once ({shown}), and a "
+        f"chart that draws a series needs one figure per pair. The query has to group by both "
         f"columns and return each combination once."
     ]
 
@@ -1067,7 +1080,7 @@ def data_findings(shape: Shape, columns: list[str], rows: list[dict[str, Any]]) 
     answered and reports the finding instead of drawing something the browser would throw on.
     """
     rule = SHAPES[shape]
-    if rule.crossed:
+    if rule.crossed or (rule.may_series and len(columns) > 2):
         return _pair_findings(columns, rows)
     if shape == "sankey":
         return _flow_findings(columns, rows)

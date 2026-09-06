@@ -5,6 +5,11 @@ example and which rules a shape gets) and the self-check (what to verify). A new
 row here, an example in `subagent.EXAMPLES`, a label in `frontend/src/components/chart-tool.tsx`
 and, when its geometry has rules of its own the way the doughnut and the sankey do, a branch in
 `selfcheck._shape_findings`.
+
+The three flags on a row are deliberately not one flag, and `may_series` is the fourth: what a
+shape must do (`series`), what it may do (`may_series`), what its rows must cross (`crossed`)
+and what its mark brings to the euro axis (`zero_from_mark`) are four different questions.
+`docs/chart-runtime.md` says the same in prose.
 """
 
 from dataclasses import dataclass
@@ -55,8 +60,15 @@ class ShapeRule:
     category_axis: Literal["x", "y"] | None = None
     """The axis carrying the category or the month."""
     series: bool = False
-    """True when the shape separates its data by colour, so it needs a `color` (or `z`) channel
-    and a legend. A doughnut does that with its slices, a grouped bar with its groups."""
+    """True when the shape *must* separate its data by colour, so it needs a `color` (or `z`)
+    channel and a legend. A doughnut does that with its slices, a grouped bar with its groups."""
+    may_series: bool = False
+    """True when the shape *may* carry a series and reads fine without one. A line over one
+    figure per month is a line; the same line over five grocery stores is five strokes and a
+    legend, from rows that come long (month, name, figure). Kept apart from `series` because
+    nothing here is missing when a line carries one column of euros, and apart from `crossed`
+    because the rows may be sparse: a store with no booking in March is a gap in one stroke,
+    not a chart that cannot be drawn (ticket 50)."""
     crossed: bool = False
     """True when the shape needs two dimensions that really cross: one figure per (position,
     series) pair. Only the grouped and stacked bars do, which is why this is not `series`."""
@@ -69,17 +81,25 @@ class ShapeRule:
 
 SHAPES: dict[Shape, ShapeRule] = {
     "line": ShapeRule(
-        purpose="a figure over ordered months or days",
+        purpose=(
+            f"a figure over ordered months or days, or one line per name when the request names "
+            f"several of them, at most {MAX_SERIES}"
+        ),
         required=("lineY",),
         value_axis="y",
         category_axis="x",
+        may_series=True,
     ),
     "area": ShapeRule(
-        purpose="a running total or a filled trend over months",
+        purpose=(
+            f"a running total or a filled trend over months, or one band per name when the "
+            f"request names several of them, at most {MAX_SERIES}"
+        ),
         required=("areaY",),
         also_allowed=("lineY",),
         value_axis="y",
         category_axis="x",
+        may_series=True,
         zero_from_mark=True,
     ),
     "bar": ShapeRule(

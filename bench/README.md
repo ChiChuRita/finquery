@@ -15,7 +15,7 @@ app (ADR 0004).
 | File | What is in it |
 | --- | --- |
 | `sql-benchmark.json` | 152 questions: German and English, kind and difficulty, an optional conversation prefix, the reference SQL and its rows |
-| `chart-benchmark.json` | 63 chart requests: each with the shape it should get, the shapes that would do as well, the column roles, the reference SQL and its rows |
+| `chart-benchmark.json` | 65 chart requests: each with the shape it should get, the shapes that would do as well, the column roles, the reference SQL and its rows |
 
 Half of each set was written by hand and half was drafted by a model and then judged one by one
 (`source: "hand"` or `"generated"`, and the generated ones also carry a `generated` tag). Every
@@ -64,7 +64,7 @@ The chart set, by shape:
 | shape | n | hand | generated | German | heldout |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | bar | 15 | 8 | 7 | 8 | 6 |
-| line | 10 | 5 | 5 | 5 | 4 |
+| line | 12 | 7 | 5 | 6 | 5 |
 | doughnut | 8 | 4 | 4 | 5 | 2 |
 | area | 6 | 3 | 3 | 4 | 1 |
 | bar_horizontal | 6 | 3 | 3 | 2 | 2 |
@@ -73,8 +73,13 @@ The chart set, by shape:
 | sankey | 6 | 3 | 3 | 3 | 3 |
 | difficulty 1 | 4 | 4 | 0 | 2 | 1 |
 | difficulty 2 | 39 | 18 | 21 | 21 | 13 |
-| difficulty 3 | 20 | 10 | 10 | 9 | 6 |
-| **all** | **63** | 32 | 31 | 32 | 20 |
+| difficulty 3 | 22 | 12 | 10 | 10 | 7 |
+| **all** | **65** | 34 | 31 | 33 | 21 |
+
+The two newest are the line's own hard case, one per language (`33-grocery-lines-de` and
+`34-grocery-lines-en`, ticket 50): five grocery shops over twelve months, which is five strokes
+and a legend rather than one line or sixty bars. Their rows come long, one per month and shop,
+and they are sparse, because no shop has a booking in every month.
 
 No generated chart came out at difficulty 1: a request the drafter wrote always carried a period
 and a grouping, and calling one of those easy would have been flattery.
@@ -83,7 +88,7 @@ and a grouping, and calling one of those easy would have been flattery.
 
 Every datapoint carries `split`, `train` or `heldout`. A model fine-tuned on examples drawn from
 the set it is then scored on is scored on its memory, so about a third of each set is kept out of
-the examples: 50 of the 152 questions and 20 of the 63 charts. The rule is
+the examples: 50 of the 152 questions and 21 of the 65 charts. The rule is
 `finquery_bench.splits`, run through `uv run python bench/split.py`, and it is written into the
 files rather than drawn at run time, so a number from the held-out half means the same thing in
 six months as it does today. It is stratified over kind (shape for charts), hand against
@@ -496,3 +501,30 @@ it is: the README's own reading is that nothing under ten points can be read on 
 datapoints. What it is not is a regression signal, and the columns-map move is the one the two
 new examples were written for. Run `--set chart --model qwen/qwen3.5-9b` again when the key has
 credit and replace this table.
+
+
+## Ticket 50: the line datapoints, before and after the multi-series line
+
+The line and the area may now carry a series, so the twelve line datapoints were re-run on
+their own. The CLI takes `--n` and a seed rather than a list of ids, so the run filtered
+`load("chart")` to `shape == "line"` and called `run_points` exactly as `command_run` does;
+everything else is the same database, the same target and the same scoring. Before is the
+ticket 42 run of the ten line datapoints that existed then
+(`results/20260905T183545Z-google-gemini-3.8-flash-chart.json`), after is
+`results/20260906T101920Z-google-gemini-3.8-flash-lines-chart.json`.
+
+| google/gemini-3.8-flash, line only | n | figure match | shape match | columns map | language | drawn | first attempt | median s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| before (ticket 42) | 10 | 100 % | 100 % | 100 % | 100 % | 100 % | 90 % | 6.5 |
+| after | 12 | 92 % | 100 % | 92 % | 100 % | 92 % | 83 % | 7.6 |
+
+**The two new datapoints both pass on the first attempt**, figure, shape, columns and language:
+`33-grocery-lines-de` in 8.7 s and `34-grocery-lines-en` in 8.2 s. Five shops, five strokes, a
+legend, and no repair round, which is the whole point of the ticket.
+
+The one miss is `g001-line` ("Show my monthly income across 2025 as a line chart"), and it is
+not a chart failure: the statement came back with no rows, the query pass rewrote it once and
+still got none, 20.1 s for the round trip. It passed on the ticket 42 run of the same prompt on
+the same model, so it is the query sub-agent's own variance on an income filter, which is the
+habit the baseline section already names as Gemini's. Nine of the ten old datapoints and both
+of the new ones drew and matched, which is what this table says about the line.

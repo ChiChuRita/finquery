@@ -18,7 +18,15 @@ from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 
 from finquery.chart.selfcheck import SAMPLE_ROWS
-from finquery.chart.shapes import MAX_SERIES, MAX_SLICES, SHAPE_MENU, SHAPE_NAMES, Language, Shape
+from finquery.chart.shapes import (
+    MAX_SERIES,
+    MAX_SLICES,
+    SHAPE_MENU,
+    SHAPE_NAMES,
+    SHAPES,
+    Language,
+    Shape,
+)
 from finquery.query import QueryContext, profile_facts
 
 PLAN_INSTRUCTIONS = """\
@@ -44,6 +52,15 @@ Rules:
 - A series over time asks for the period the request named, ordered, one row per period:
   `month` as 'YYYY-MM' for months and days, a `quarter` column as '2025-Q1' when the request
   says quarters. A chart captioned by quarter never has months along its axis.
+- line or area may carry several series, and that is the shape for "five shops per month" or
+  "Lebensmittel und Essengehen im Jahresverlauf": one line per name, not sixty bars and not one
+  line for all of them together. Then the columns are three, in this order, the period, the name
+  and the euro figure (`month`, `merchant`, `total_eur`), one row per period and name, the euro
+  figure last. The name column holds names and never a second euro column. Ask for the names the
+  request names and for nothing else; when it asks for all of them, ask for all of them under
+  their own names, because a chart has {MAX_SERIES} colours and the app itself keeps the
+  {MAX_SERIES} largest and leaves the rest out, after the query. One name over time is the plain
+  two-column line, with no second column and no legend.
 - bar or bar_horizontal: one row per category or merchant, ordered by the figure, at most twelve.
   A merchant is named by its enriched `title` (Edeka, Amazon), never by the raw booking text, so
   ask for `coalesce(title, counterparty, description)`: those names are short enough to sit
@@ -77,12 +94,15 @@ Rules:
   refuses, and "where does my income go" asked plainly is exactly how one gets written.
 """
 
-# Two worked plans, drawn from the training half of the chart benchmark (13-doughnut-categories-en
-# and 10-quarter-groups-de, both judged correct on 2026-09-05). They are the two decisions the
-# small model gets wrong most: the language of an English request about German data, and a
-# request naming quarters that comes back with months along its axis.
-PLAN_EXAMPLES = """\
-Two worked plans:
+# Three worked plans, drawn from the training half of the chart benchmark
+# (13-doughnut-categories-en, 10-quarter-groups-de and 34-grocery-lines-en). They are the three
+# decisions the small model gets wrong most: the language of an English request about German
+# data, a request naming quarters that comes back with months along its axis, and a request
+# naming five shops over a year that comes back with one line or with sixty bars. The German
+# twin of the third, 33-grocery-lines-de, is the one the hash held out, so the example is its
+# English half: an example drawn from a held-out datapoint teaches the model its answer.
+PLAN_EXAMPLES = f"""\
+Three worked plans:
 
 Request: Show the share of my 2025 spending by category as a doughnut.
 reasoning:
@@ -105,6 +125,18 @@ the request says quarters, so the position column is a quarter and never a month
    columns quarter, topic, total_eur,
    question "spending on Groceries and on Dining per quarter of 2025, one row per quarter and
    category, columns quarter as '2025-Q1', topic and total_eur"
+
+Request: How much did I spend at Rewe, Edeka, Lidl, Aldi and dm per month in 2025? Draw it as lines.
+reasoning:
+the request is written in English, so language en
+five shops are followed over twelve months, so five series over one period
+it says lines, and a line carries a series, so one line per shop and a legend
+five names is under the {MAX_SERIES} colours, so every one of them is asked for by name
+the columns are the month, the shop and the euro figure, the figure last
+-> shape line, language en, title "Spending per month and supermarket",
+   columns month, merchant, total_eur,
+   question "spending at Rewe, Edeka, Lidl, Aldi and dm per month of 2025, one row per month and
+   shop, columns month as 'YYYY-MM', merchant and total_eur"
 """
 
 CONTRACT = """\
@@ -151,6 +183,10 @@ House rules, all checked before the user sees the chart:
 - A category axis carries names, and a name cannot be guessed from its neighbours, so no label
   may be dropped: `axis: { tickLabels: { thin: false } }`. Names on the x axis also need
   `rotate`, about -28 degrees, once there are more than six of them or one of them is long.
+- A line or an area may carry several series, and then it draws one stroke per name: `z` and
+  `color` both name the column of names, the euro domain is over every figure in the rows, and
+  the legend goes on. One mark and never one per name, one line per name and never a line for
+  all of them added together.
 - Bars stay thin: `maxThickness: 32` on `barY` and `barX`.
 - Every chart carries `tooltip: { use: tooltip, format: (point) => ... }` and formats euros
   with `eur`.
@@ -217,6 +253,39 @@ return defineChart({
   tooltip: {
     use: tooltip,
     format: (point) => monthShort(point.datum.month) + ': ' + eur(point.datum.total_eur),
+  },
+});""",
+        ),
+        Example(
+            columns="month, merchant, total_eur",
+            reasoning=(
+                "the shape is line and these rows carry a series, so one lineY over all of them\n"
+                "the columns are month, merchant and total_eur, and total_eur holds the numbers\n"
+                "merchant names the series, so it is the z and the color channel and it needs a legend\n"
+                "months on x with monthShort, euros on y over every figure in the rows, zero included"
+            ),
+            code="""\
+const amounts = data.map((row) => row.total_eur);
+return defineChart({
+  marks: [
+    lineY(data, { x: 'month', y: 'total_eur', z: 'merchant', color: 'merchant', strokeWidth: 2, points: true }),
+  ],
+  scales: {
+    x: {
+      scale: () => scalePoint().padding(0.06),
+      axis: { ticks: { format: monthShort }, tickLabels: { thin: { minGap: 6, priority: 'ends' } } },
+    },
+    y: {
+      scale: scaleLinear().domain([Math.min(0, ...amounts), Math.max(0, ...amounts)]),
+      nice: true,
+      grid: true,
+      axis: { ticks: { format: eurShort } },
+    },
+  },
+  color: { legend: colorLegend({ placement: 'bottom', itemWidth: 150 }) },
+  tooltip: {
+    use: tooltip,
+    format: (point) => point.datum.merchant + ' ' + monthShort(point.datum.month) + ': ' + eur(point.datum.total_eur),
   },
 });""",
         ),
@@ -667,7 +736,10 @@ def code_prompt(
     """Everything the code pass sees, including a repair round. Pure function."""
     examples = list(EXAMPLES[plan.shape])
     if plan.shape != "line":
-        examples.extend(EXAMPLES["line"])
+        # The plain line is the baseline every shape is shown beside its own. A shape that may
+        # carry a series of its own is shown the multi-series line as well, and nothing else is:
+        # five strokes over a merchant column teach a doughnut nothing and cost it its context.
+        examples.extend(EXAMPLES["line"] if SHAPES[plan.shape].may_series else EXAMPLES["line"][:1])
     sections = [
         CONTRACT,
         "Worked examples:\n\n" + "\n\n".join(example.as_prompt() for example in examples),
