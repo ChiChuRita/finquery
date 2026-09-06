@@ -1,0 +1,1883 @@
+{
+ "nordsee": {
+  "token": "nordsee",
+  "summary": "German seafood fast-food and quick-service restaurant chain offering fish dishes, snacks, and takeaway.",
+  "category": "Dining",
+  "subcategory": "Takeaway",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Nordsee_(Restaurantkette)",
+    "title": "Nordsee (Restaurantkette) – Wikipedia"
+   },
+   {
+    "url": "https://www.yumda.com/de/firmen/1029772/nordsee-gmbh.html",
+    "title": "NORDSEE GmbH - Bremerhaven, Deutschland - yumda.com"
+   }
+  ],
+  "searches": 2,
+  "fetches": 0,
+  "seconds": 8.091795291984454,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "nordsee restaurant fast food germany",
+   "was ist nordsee unternehmen"
+  ],
+  "fetched": []
+ },
+ "lidl": {
+  "token": "lidl",
+  "summary": "Lidl is a major German international discount supermarket chain selling groceries, fresh produce, and everyday household items.",
+  "category": "Groceries",
+  "subcategory": "Supermarket",
+  "confidence": 0.99,
+  "sources": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Lidl",
+    "title": "Lidl - Wikipedia"
+   },
+   {
+    "url": "https://www.lidl.com/",
+    "title": "Lidl US | Grocery Store | More to Value"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.530677417002153,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "what is lidl"
+  ],
+  "fetched": []
+ },
+ "dm drogerie": {
+  "token": "dm drogerie",
+  "summary": "dm-drogerie markt is a major German retail chain specializing in cosmetics, healthcare, personal care, household goods, and organic groceries.",
+  "category": "Groceries",
+  "subcategory": "Drugstore",
+  "confidence": 0.99,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.8976392920012586,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "netto marken discount": {
+  "token": "netto marken discount",
+  "summary": "Netto Marken-Discount is a major German discount supermarket chain selling groceries and household items.",
+  "category": "Groceries",
+  "subcategory": "Supermarket",
+  "confidence": 0.99,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.7045688749640249,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "lieferando": {
+  "token": "lieferando",
+  "summary": "German online food ordering and delivery platform operated by Just Eat Takeaway.",
+  "category": "Dining",
+  "subcategory": "Delivery",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Lieferando",
+    "title": "Lieferando – Wikipedia"
+   },
+   {
+    "url": "https://www.lieferando.de/",
+    "title": "Lieferando.de | Essen & mehr bestellen - Lieferservice & Abholung"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 3.982516125019174,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "lieferando"
+  ],
+  "fetched": []
+ },
+ "dean david": {
+  "token": "dean david",
+  "summary": "Fast casual dining chain in Germany offering fresh salads, bowls, sandwiches, and takeaway food.",
+  "category": "Dining",
+  "subcategory": "Takeaway",
+  "confidence": 0.9,
+  "sources": [
+   {
+    "url": "https://www.tripadvisor.de/Restaurant_Review-g187291-d1879136-Reviews-Dean_David-Stuttgart_Baden_Wurttemberg.html",
+    "title": "DEAN & DAVID, Stuttgart - Menü, Preise & Restaurant Bewertungen - Tripadvisor"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 5.406446959008463,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "dean david restaurant"
+  ],
+  "fetched": []
+ },
+ "doener haus kreuzberg": {
+  "token": "doener haus kreuzberg",
+  "summary": "Döner kebab food stall / takeaway restaurant in Kreuzberg, Berlin.",
+  "category": "Dining",
+  "subcategory": "Takeaway",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.7327983339782804,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "cafe milchbart": {
+  "token": "cafe milchbart",
+  "summary": "Eltern-Kind-Café in Berlin offering coffee, cake, snacks, and play areas for children.",
+  "category": "Dining",
+  "subcategory": "Cafe",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.top10berlin.de/de/cat/familie-275/kindercafes-1263/kindercafe-milchbart-514",
+    "title": "Kindercafé Milchbart - Kindercafés | Top10berlin"
+   },
+   {
+    "url": "https://www.speisekarte.de/berlin/restaurant/kindercafe_milchbart",
+    "title": "Kindercafé Milchbart in Berlin – speisekarte.de"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 3.970162292011082,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "cafe milchbart"
+  ],
+  "fetched": []
+ },
+ "vapiano mitte": {
+  "token": "vapiano mitte",
+  "summary": "Vapiano is an Italian fast-casual restaurant chain serving freshly made pasta, pizza, and salads.",
+  "category": "Dining",
+  "subcategory": "Restaurant",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.tripadvisor.de/Restaurant_Review-g187323-d778662-Reviews-Vapiano-Berlin.html",
+    "title": "VAPIANO, Berlin - Mittelstr. 51, Mitte (Bezirk) - Restaurant Bewertungen & Telefonnummer - Tripadvisor"
+   },
+   {
+    "url": "https://www.berlin.kauperts.de/eintrag/VAPIANO-Mittelstrasse-51-10117-Berlin",
+    "title": "VAPIANO - Mittelstraße - Internationale Küche in Berlin Mitte - KAUPERTS"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.678385999985039,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "vapiano mitte"
+  ],
+  "fetched": []
+ },
+ "uber": {
+  "token": "uber",
+  "summary": "Uber is a ride-hailing service providing on-demand passenger transport and mobility services.",
+  "category": "Transport",
+  "subcategory": "Ride hailing",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.9965981249697506,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "shell": {
+  "token": "shell",
+  "summary": "Shell is a multinational oil and gas company operating a widespread network of petrol and service stations selling vehicle fuel and convenience goods.",
+  "category": "Transport",
+  "subcategory": "Fuel",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.9299703339929692,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "telekom": {
+  "token": "telekom",
+  "summary": "German telecommunications company offering mobile phone, landline, internet, and TV services.",
+  "category": "Communication",
+  "subcategory": "Mobile",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.telekom.de/start",
+    "title": "Telekom | Mobilfunk, Festnetz & Internet und TV"
+   },
+   {
+    "url": "https://en.wikipedia.org/wiki/Telekom_Deutschland",
+    "title": "Telekom Deutschland - Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.07281929202145,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "telekom deutschland"
+  ],
+  "fetched": []
+ },
+ "adobe systems software": {
+  "token": "adobe systems software",
+  "summary": "Adobe Inc. is a major computer software company providing digital media, creativity, and document management applications, typically sold via subscription.",
+  "category": "Subscriptions",
+  "subcategory": "Software",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.adobe.com/de/",
+    "title": "Adobe: Kreativität, Marketing und Dokumenten-Management"
+   },
+   {
+    "url": "https://en.wikipedia.org/wiki/Adobe_Inc.",
+    "title": "Adobe Inc. - Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.402599374996498,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "adobe systems software"
+  ],
+  "fetched": []
+ },
+ "bvg berliner verkehrsbetriebe": {
+  "token": "bvg berliner verkehrsbetriebe",
+  "summary": "Berliner Verkehrsbetriebe (BVG) is the main public transport company in Berlin, operating U-Bahn, trams, buses, and ferries.",
+  "category": "Transport",
+  "subcategory": "Public transport",
+  "confidence": 0.99,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.791973500046879,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "vattenfall sales": {
+  "token": "vattenfall sales",
+  "summary": "Vattenfall Sales GmbH is a major German energy supplier providing electricity and gas tariffs to households.",
+  "category": "Housing",
+  "subcategory": "Electricity",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.vattenfall.de/",
+    "title": "Vattenfall - Ihr Energieversorger für Ökostrom & Gas"
+   },
+   {
+    "url": "https://www.verivox.de/strom/anbieter/vattenfall-sales/",
+    "title": "Strom bei Vattenfall Sales: Tarife im Vergleich | Verivox"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.767623958003242,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "vattenfall sales"
+  ],
+  "fetched": []
+ },
+ "allianz versicherungs": {
+  "token": "allianz versicherungs",
+  "summary": "Allianz is a major German multinational financial services and insurance company offering liability, life, health, and property insurance.",
+  "category": "Insurance",
+  "subcategory": null,
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.8449796250206418,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "sparkasse geldautomat": {
+  "token": "sparkasse geldautomat",
+  "summary": "Sparkasse Geldautomat (ATM) for cash withdrawals.",
+  "category": "Cash",
+  "subcategory": "Cash withdrawal",
+  "confidence": 0.99,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.5208581250044517,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "hausverwaltung bergmann": {
+  "token": "hausverwaltung bergmann",
+  "summary": "German property management company (Hausverwaltung) managing residential real estate and collecting rent/utilities",
+  "category": "Housing",
+  "subcategory": "Rent",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://bergmann-immo.com/hausverwaltung/",
+    "title": "Hausverwaltung – Bergmann Immobilienmanagement"
+   },
+   {
+    "url": "https://www.immo-bergmann.com/",
+    "title": "Hausverwaltung Kaiserslautern, Pfalz, Saarland"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.198545582999941,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "hausverwaltung bergmann"
+  ],
+  "fetched": []
+ },
+ "mustermann systems": {
+  "token": "mustermann systems",
+  "summary": "Likely a placeholder/test merchant or IT/electronics systems provider.",
+  "category": "Shopping",
+  "subcategory": "Electronics",
+  "confidence": 0.2,
+  "sources": [
+   {
+    "url": "https://www.canopen-lift.org/wiki/Max_Mustermann_GmbH_Systemtooltechnik",
+    "title": "Max Mustermann GmbH Systemtooltechnik - CANopen-Lift"
+   }
+  ],
+  "searches": 2,
+  "fetches": 0,
+  "seconds": 6.833796791965142,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "mustermann systems",
+   "\"mustermann systems\" gmbh unternehmen"
+  ],
+  "fetched": []
+ },
+ "zahnarztpraxis dr lorenz": {
+  "token": "zahnarztpraxis dr lorenz",
+  "summary": "Dental practice (Zahnarztpraxis) offering dental and oral healthcare services.",
+  "category": "Health",
+  "subcategory": "Doctor",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://zahngesundheit-ueberlingen.de/",
+    "title": "Zahnarzt Praxis Dr. Lorenz & Kollegen | Überlingen – Praxis für Zahngesundheit"
+   },
+   {
+    "url": "https://www.zahnarzt-lorenz.de/",
+    "title": "Willkommen | Zahnarztpraxis Dr. Carsten Lorenz"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.993538749986328,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "zahnarztpraxis dr lorenz"
+  ],
+  "fetched": []
+ },
+ "apotheke": {
+  "token": "apotheke",
+  "summary": "German word for pharmacy, selling prescription medications, over-the-counter drugs, and healthcare products.",
+  "category": "Health",
+  "subcategory": "Pharmacy",
+  "confidence": 0.99,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 2.379493208019994,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "combi frisch nebenan": {
+  "token": "combi frisch nebenan",
+  "summary": "Combi is a German supermarket chain operating in northwestern Germany selling food and groceries.",
+  "category": "Groceries",
+  "subcategory": "Supermarket",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.combi.de/",
+    "title": "Combi"
+   },
+   {
+    "url": "https://www.combi.de/beitrag/moin.frisch.nebenan",
+    "title": "Moin.Frisch.Nebenan."
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.138099458999932,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "combi frisch nebenan"
+  ],
+  "fetched": []
+ },
+ "sauruesselalm": {
+  "token": "sauruesselalm",
+  "summary": "Alpine pasture restaurant (Alm) in Bad Wiessee am Tegernsee offering regional culinary specialties and refreshments.",
+  "category": "Dining",
+  "subcategory": "Restaurant",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://sauruesselalm.de/",
+    "title": "Saurüsselalm am Tegernsee - Bad Wiessee"
+   },
+   {
+    "url": "https://fruehaufgenuss.de/sauruesselalm/",
+    "title": "Saurüsselalm am Tegernsee - Frühauf Genuss"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.684886749950238,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "sauruesselalm"
+  ],
+  "fetched": []
+ },
+ "schloecker": {
+  "token": "schloecker",
+  "summary": "Likely typo/variant for Schlecker, a former major German drugstore chain (Drogerie).",
+  "category": "Groceries",
+  "subcategory": "Drugstore",
+  "confidence": 0.3,
+  "sources": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Schlecker",
+    "title": "Schlecker - Wikipedia"
+   }
+  ],
+  "searches": 4,
+  "fetches": 0,
+  "seconds": 12.24038912501419,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "schloecker was ist",
+   "schloecker unternehmen gmbh",
+   "schloecker",
+   "\"schloecker\" or \"schlöcker\""
+  ],
+  "fetched": []
+ },
+ "vogtlandbahn": {
+  "token": "vogtlandbahn",
+  "summary": "Regional railway service operated by Die Länderbahn in Germany and the Czech Republic.",
+  "category": "Transport",
+  "subcategory": "Public transport",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 3,
+  "fetches": 0,
+  "seconds": 9.759348957973998,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "vogtlandbahn",
+   "was ist vogtlandbahn",
+   "vogtlandbahn wikipedia"
+  ],
+  "fetched": []
+ },
+ "hans glueck burgergrill": {
+  "token": "hans glueck burgergrill",
+  "summary": "Hans im Glück is a German burger restaurant and bar chain serving burgers, salads, and drinks.",
+  "category": "Dining",
+  "subcategory": "Restaurant",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Hans_im_Glück_(Restaurantkette)",
+    "title": "Hans im Glück (Restaurantkette) – Wikipedia"
+   },
+   {
+    "url": "https://hansimglueck-burgergrill.de/en/locations/?gad_campaignid=22633319930&cHash=c741e36b8879ae21172e64b07a778320",
+    "title": "Reserve Your Table at HANS IM GLÜCK"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.652402416977566,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "hans glueck burgergrill"
+  ],
+  "fetched": []
+ },
+ "combi verbrauchermarkt": {
+  "token": "combi verbrauchermarkt",
+  "summary": "Combi is a supermarket chain in Northwestern Germany selling groceries and everyday items.",
+  "category": "Groceries",
+  "subcategory": "Supermarket",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Combi_(Supermarkt)",
+    "title": "Combi (Supermarkt) – Wikipedia"
+   },
+   {
+    "url": "https://www.combi.de/",
+    "title": "Combi"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.2329955419991165,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "combi verbrauchermarkt"
+  ],
+  "fetched": []
+ },
+ "hit handelsgruppe": {
+  "token": "hit handelsgruppe",
+  "summary": "HIT Handelsgruppe is a German supermarket chain operating over 100 grocery stores across Germany.",
+  "category": "Groceries",
+  "subcategory": "Supermarket",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.hit.de/unternehmen",
+    "title": "Unternehmen | HIT"
+   },
+   {
+    "url": "https://www.wer-zu-wem.de/firma/hit.html",
+    "title": "Hit (Dohle) | in Siegburg - Firmenprofil, Eigentümer & Mitarbeiter"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.032523959001992,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "hit handelsgruppe was ist"
+  ],
+  "fetched": []
+ },
+ "nahkauf kraemer": {
+  "token": "nahkauf kraemer",
+  "summary": "Nahkauf is a German supermarket and convenience store banner operated by the REWE Group.",
+  "category": "Groceries",
+  "subcategory": "Supermarket",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.6268479999853298,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "brezelbaeckerei ditsch": {
+  "token": "brezelbaeckerei ditsch",
+  "summary": "Brezelbäckerei Ditsch is a German chain of bakeries specializing in pretzels, pizza snacks, and baked goods.",
+  "category": "Groceries",
+  "subcategory": "Bakery",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.727850875002332,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "backfactory": {
+  "token": "backfactory",
+  "summary": "Back-Factory is a German bakery and snack chain offering baked goods, snacks, and beverages.",
+  "category": "Groceries",
+  "subcategory": "Bakery",
+  "confidence": 0.9,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Back-Factory",
+    "title": "Back-Factory – Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.239433167036623,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "backfactory"
+  ],
+  "fetched": []
+ },
+ "budni service": {
+  "token": "budni service",
+  "summary": "Budni (Budnikowsky) is a German drugstore chain selling cosmetics, personal care, and household products.",
+  "category": "Groceries",
+  "subcategory": "Drugstore",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.budni.de/",
+    "title": "Dein Drogeriemarkt in Deiner Nachbarschaft | Alles Gute für Dich | budni"
+   },
+   {
+    "url": "https://www.budni.de/impressum",
+    "title": "Impressum budni"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 3.8529400000115857,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "budni service"
+  ],
+  "fetched": []
+ },
+ "flaschenpost": {
+  "token": "flaschenpost",
+  "summary": "Flaschenpost is a German online delivery service delivering beverages, groceries, and supermarket items directly to households.",
+  "category": "Groceries",
+  "subcategory": "Supermarket",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Flaschenpost_(Unternehmen)",
+    "title": "Flaschenpost (Unternehmen) – Wikipedia"
+   },
+   {
+    "url": "https://www.n-jobs.de/Jobs/flaschenpost-SE.688298.html",
+    "title": "Jobs bei flaschenpost SE - Jobs & Stellenangebote - www.n-jobs.de"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.609324958000798,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "flaschenpost de"
+  ],
+  "fetched": []
+ },
+ "hellofresh": {
+  "token": "hellofresh",
+  "summary": "HelloFresh is a meal-kit delivery service providing fresh ingredients and recipes to cook at home.",
+  "category": "Groceries",
+  "subcategory": "Supermarket",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.7023269589990377,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "block house restaurantbetriebe": {
+  "token": "block house restaurantbetriebe",
+  "summary": "German steakhouse restaurant chain specializing in steaks, sides, and dining hospitality.",
+  "category": "Dining",
+  "subcategory": "Restaurant",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 2.0251103750197217,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "sausalitos": {
+  "token": "sausalitos",
+  "summary": "Sausalitos is a German restaurant and bar chain serving Mexican/Californian fusion food and cocktails.",
+  "category": "Dining",
+  "subcategory": "Restaurant",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Sausalitos",
+    "title": "Sausalitos - Wikipedia"
+   },
+   {
+    "url": "https://sausalitos.com/",
+    "title": "Sausalitos Sonnenstraße München – Mexikanisches Restaurant & Cocktails am Stachus"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.592747791961301,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "sausalitos"
+  ],
+  "fetched": []
+ },
+ "peter pane burgergrill": {
+  "token": "peter pane burgergrill",
+  "summary": "Peter Pane is a German burger restaurant and cocktail bar chain offering burgers, sides, and drinks.",
+  "category": "Dining",
+  "subcategory": "Restaurant",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://peterpane.de/",
+    "title": "Peter Pane Burger-Restaurant mit Cocktail-Bar"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 3.622610791004263,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "peter pane burgergrill"
+  ],
+  "fetched": []
+ },
+ "flixtrain": {
+  "token": "flixtrain",
+  "summary": "FlixTrain is a German open-access rail passenger operator offering long-distance train travel.",
+  "category": "Transport",
+  "subcategory": "Public transport",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.652009834011551,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "adac": {
+  "token": "adac",
+  "summary": "ADAC (Allgemeiner Deutscher Automobil-Club) is Germany's largest automobile club offering breakdown assistance and car/mobility services.",
+  "category": "Transport",
+  "subcategory": "Car",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.7713538749958389,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "tedi": {
+  "token": "tedi",
+  "summary": "German non-food discount retail chain selling household goods, party supplies, stationery, and home decor items.",
+  "category": "Shopping",
+  "subcategory": "Home",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.tedi.com/en/",
+    "title": "TEDi: Alles für deine Dekoration, Party, Schreibwaren und ..."
+   },
+   {
+    "url": "https://en.wikipedia.org/wiki/TEDi_(retailer)",
+    "title": "TEDi (retailer) - Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.063257750007324,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "tedi shop deutschland"
+  ],
+  "fetched": []
+ },
+ "action": {
+  "token": "action",
+  "summary": "Action is a non-food discount store chain offering budget household goods, decoration, crafts, cleaning, and everyday items.",
+  "category": "Shopping",
+  "subcategory": "Home",
+  "confidence": 0.9,
+  "sources": [
+   {
+    "url": "https://www.action.com/de-de/",
+    "title": "Action Deutschland: kleine Preise, große Freude | Action DE"
+   },
+   {
+    "url": "https://de.wikipedia.org/wiki/Action_Nederland",
+    "title": "Action Nederland – Wikipedia"
+   }
+  ],
+  "searches": 2,
+  "fetches": 0,
+  "seconds": 11.01716824999312,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "action geschaeft deutschland",
+   "action markt deutschland"
+  ],
+  "fetched": []
+ },
+ "kik textilien non food": {
+  "token": "kik textilien non food",
+  "summary": "KiK Textilien und Non-Food GmbH is a German discount retail chain primarily selling low-cost clothing, textiles, and home goods.",
+  "category": "Shopping",
+  "subcategory": "Clothing",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.7428027089918032,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "deichmann": {
+  "token": "deichmann",
+  "summary": "Major German footwear and shoe retail chain, also selling clothing and accessories.",
+  "category": "Shopping",
+  "subcategory": "Clothing",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Deichmann_SE",
+    "title": "Deichmann SE - Wikipedia"
+   },
+   {
+    "url": "https://www.deichmann.com/de-de/damen",
+    "title": "Damen Mode & Accessoires günstig bei DEICHMANN kaufen"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 6.166142915957607,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "deichmann"
+  ],
+  "fetched": []
+ },
+ "snipes": {
+  "token": "snipes",
+  "summary": "SNIPES is a retail chain and online shop selling sneakers, streetwear, and clothing accessories.",
+  "category": "Shopping",
+  "subcategory": "Clothing",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.snipes.com/de-de/",
+    "title": "SNIPES Onlineshop - Sneaker, Streetwear & Accessories!"
+   },
+   {
+    "url": "https://www.snipes.com/de-de/c/sale-660",
+    "title": "Sale – Entdecke Sneaker, Schuhe & Streetwear im Angebot | SNIPES"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 3.7822336250101216,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "snipes shop germany"
+  ],
+  "fetched": []
+ },
+ "intersport": {
+  "token": "intersport",
+  "summary": "Intersport is a major sporting goods retailer selling sports apparel, footwear, and equipment.",
+  "category": "Shopping",
+  "subcategory": "Clothing",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.8850443750270642,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "toom baumarkt": {
+  "token": "toom baumarkt",
+  "summary": "German DIY and home improvement store chain selling hardware, building materials, tools, and home and garden supplies.",
+  "category": "Shopping",
+  "subcategory": "Home",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.717995000013616,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "temu": {
+  "token": "temu",
+  "summary": "Temu is an online marketplace offering heavily discounted consumer goods across diverse categories.",
+  "category": "Shopping",
+  "subcategory": "Online marketplace",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.6990469999727793,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "hugendubel digital": {
+  "token": "hugendubel digital",
+  "summary": "Hugendubel Digital is the digital / online arm of the German bookstore chain Hugendubel, selling books, e-books, and media.",
+  "category": "Leisure",
+  "subcategory": "Books",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.hugendubel.de/de",
+    "title": "Hugendubel Online-Shop: Bücher online kaufen | Hugendubel.de"
+   },
+   {
+    "url": "https://bibliotheksportal.de/advertisement/12382/",
+    "title": "Hugendubel Digital GmbH & Co. KG – Bibliotheksportal"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.4018994579673745,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "hugendubel digital"
+  ],
+  "fetched": []
+ },
+ "deezer": {
+  "token": "deezer",
+  "summary": "Deezer is an online music streaming subscription service offering millions of tracks and podcasts.",
+  "category": "Subscriptions",
+  "subcategory": "Music",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.deezer.com/en/",
+    "title": "Deezer | Listen to music online | Music streaming app"
+   },
+   {
+    "url": "https://en.wikipedia.org/wiki/Deezer",
+    "title": "Deezer - Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 3.7854475830099545,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "what is deezer"
+  ],
+  "fetched": []
+ },
+ "xbox game pass": {
+  "token": "xbox game pass",
+  "summary": "Microsoft's Xbox Game Pass is a video game subscription service offering a rotating catalog of games on console, PC, and cloud.",
+  "category": "Subscriptions",
+  "subcategory": "Software",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 2.128043750009965,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "duolingo": {
+  "token": "duolingo",
+  "summary": "Duolingo is an online language-learning platform and mobile app offering language courses and subscription plans.",
+  "category": "Education",
+  "subcategory": "Courses",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 2.357350417005364,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "zeit": {
+  "token": "zeit",
+  "summary": "DIE ZEIT is a major German national weekly newspaper and digital media publication offering news subscriptions.",
+  "category": "Subscriptions",
+  "subcategory": "News",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://abo.zeit.de/die-zeit/",
+    "title": "Genießen Sie DIE ZEIT im Abo"
+   },
+   {
+    "url": "https://abo.zeit.de/die-zeit-digital/",
+    "title": "DIE ZEIT Digital im Abo"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 5.914455541991629,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "zeit verlag abo kreditkarte"
+  ],
+  "fetched": []
+ },
+ "clever fit": {
+  "token": "clever fit",
+  "summary": "Clever fit is a major German fitness studio franchise chain offering gym memberships and fitness training.",
+  "category": "Health",
+  "subcategory": "Fitness",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Clever_fit",
+    "title": "Clever fit – Wikipedia"
+   },
+   {
+    "url": "https://www.clever-fit.com/en/",
+    "title": "clever fit fitness studios - Fitness franchise in Germany and all over the world"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.15466983395163,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "what is clever fit germany"
+  ],
+  "fetched": []
+ },
+ "fitx": {
+  "token": "fitx",
+  "summary": "FitX is a German gym chain operating over 100 fitness studios nationwide.",
+  "category": "Health",
+  "subcategory": "Fitness",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/FitX",
+    "title": "FitX – Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 5.191453374980483,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "fitx deutschland unternehmen"
+  ],
+  "fetched": []
+ },
+ "barmer": {
+  "token": "barmer",
+  "summary": "Barmer is one of the largest statutory health insurance providers (gesetzliche Krankenkasse) in Germany.",
+  "category": "Insurance",
+  "subcategory": "Health insurance",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.barmer.de/",
+    "title": "Ihre Krankenkasse: Für alle gut, für jeden anders | BARMER"
+   },
+   {
+    "url": "https://de.wikipedia.org/wiki/Barmer_Ersatzkasse",
+    "title": "Barmer Ersatzkasse – Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.418536500015762,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "barmer krankenkasse"
+  ],
+  "fetched": []
+ },
+ "on energie": {
+  "token": "on energie",
+  "summary": "E.ON Energie Deutschland is a major German energy supplier providing electricity and natural gas to households.",
+  "category": "Housing",
+  "subcategory": "Electricity",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.eon.de/de/pk.html",
+    "title": "E.ON – Dein zuverlässiger Energiepartner | E.ON"
+   },
+   {
+    "url": "https://de.wikipedia.org/wiki/E.ON_Energie",
+    "title": "E.ON Energie Deutschland – Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.194654083054047,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "on energie deutschland"
+  ],
+  "fetched": []
+ },
+ "yello strom": {
+  "token": "yello strom",
+  "summary": "Yello Strom is a major nationwide German electricity and natural gas supplier for households.",
+  "category": "Housing",
+  "subcategory": "Electricity",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Yello_Strom",
+    "title": "Yello Strom – Wikipedia"
+   },
+   {
+    "url": "https://www.yello.de/",
+    "title": "Strom und mehr gute Energie für zuhause | Yello"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.523763082979713,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "yello strom"
+  ],
+  "fetched": []
+ },
+ "octopus energy": {
+  "token": "octopus energy",
+  "summary": "Octopus Energy is an energy utility providing 100% renewable electricity and gas to households in Germany.",
+  "category": "Housing",
+  "subcategory": "Electricity",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.verivox.de/strom/anbieter/octopus-energy/",
+    "title": "Strom bei Octopus Energy: Tarife im Vergleich | Verivox"
+   },
+   {
+    "url": "https://octopusenergy.de/stromkennzeichnung",
+    "title": "Stromkennzeichnung – Strommix & Herkunft erklärt 📊"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 5.083410499966703,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "octopus energy germany strom"
+  ],
+  "fetched": []
+ },
+ "telecom": {
+  "token": "telecom",
+  "summary": "German telecommunications provider offering mobile phone, landline, and broadband internet services.",
+  "category": "Communication",
+  "subcategory": "Mobile",
+  "confidence": 0.85,
+  "sources": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Telekom_Deutschland",
+    "title": "Telekom Deutschland - Wikipedia"
+   },
+   {
+    "url": "https://en.wikipedia.org/wiki/Deutsche_Telekom",
+    "title": "Deutsche Telekom - Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.058208041999023,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "telecom germany telecommunication"
+  ],
+  "fetched": []
+ },
+ "freenet dls": {
+  "token": "freenet dls",
+  "summary": "freenet DLS GmbH (formerly mobilcom-debitel) is a major German telecommunications and mobile phone service provider.",
+  "category": "Communication",
+  "subcategory": "Mobile",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Freenet_DLS",
+    "title": "Freenet DLS – Wikipedia"
+   },
+   {
+    "url": "https://treue.freenet-mobilfunk.de/2/?uid=FD3XAXKKAP8",
+    "title": "freenet.de"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 5.017275000049267,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "freenet dls gmbh"
+  ],
+  "fetched": []
+ },
+ "karls": {
+  "token": "karls",
+  "summary": "Karls operates family leisure parks (Karls Erlebnis-Dorf) and farm attractions across Germany.",
+  "category": "Leisure",
+  "subcategory": "Events",
+  "confidence": 0.85,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Karls_Tourismus",
+    "title": "Karls Tourismus – Wikipedia"
+   },
+   {
+    "url": "https://www.ln-online.de/themen/karls-roevershagen/",
+    "title": "Karls (Unternehmen) - Aktuelle Nachrichten und Kommentare - LN"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.144879750034306,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "karls deutschland unternehmen"
+  ],
+  "fetched": []
+ },
+ "ard zdf deutschlandradio beitragsservice": {
+  "token": "ard zdf deutschlandradio beitragsservice",
+  "summary": "ARD ZDF Deutschlandradio Beitragsservice collects the statutory broadcasting fee (Rundfunkbeitrag) in Germany.",
+  "category": "Fees and taxes",
+  "subcategory": "Taxes",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.9356917499681003,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "finanzamt mitte tiergarten": {
+  "token": "finanzamt mitte tiergarten",
+  "summary": "Finanzamt Mitte/Tiergarten is a local tax authority in Berlin, Germany, responsible for tax assessment and collection.",
+  "category": "Fees and taxes",
+  "subcategory": "Taxes",
+  "confidence": 0.99,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.533038374967873,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "landeshauptkasse": {
+  "token": "landeshauptkasse",
+  "summary": "Zentrale Kasse der Landesfinanzverwaltung für Ein- und Auszahlungen des Bundeslandes (z. B. Gerichtsgebühren, Steuern, Abgaben).",
+  "category": "Fees and taxes",
+  "subcategory": "Taxes",
+  "confidence": 0.85,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Landesamt_für_Finanzen_Nordrhein-Westfalen",
+    "title": "Landesamt für Finanzen Nordrhein-Westfalen – Wikipedia"
+   },
+   {
+    "url": "https://tlf.thueringen.de/fuer-behoerden/landeshauptkasse",
+    "title": "Landeshauptkasse | Thüringer Landesamt für Finanzen"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.350321542005986,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "was ist landeshauptkasse"
+  ],
+  "fetched": []
+ },
+ "trade republic bank": {
+  "token": "trade republic bank",
+  "summary": "Trade Republic is a German digital investment platform and neobank offering stock, ETF, and crypto trading as well as interest on cash deposits.",
+  "category": "Transfers",
+  "subcategory": "Savings",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.9754134580143727,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "bundesagentur arbeit": {
+  "token": "bundesagentur arbeit",
+  "summary": "Bundesagentur für Arbeit is Germany's Federal Employment Agency, distributing unemployment, family, and social benefits.",
+  "category": "Income",
+  "subcategory": "Other income",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.7705474579706788,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "fahrschule mobil": {
+  "token": "fahrschule mobil",
+  "summary": "Driving school (Fahrschule) offering driving lessons and license courses.",
+  "category": "Education",
+  "subcategory": "Courses",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.6784071670263074,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "five guys": {
+  "token": "five guys",
+  "summary": "American fast casual restaurant chain focused on made-to-order hamburgers, hot dogs, fries, and milkshakes.",
+  "category": "Dining",
+  "subcategory": "Takeaway",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.fiveguys.com/",
+    "title": "Fast Food Near You | Burgers, Fries, Shakes | Five Guys"
+   },
+   {
+    "url": "https://en.wikipedia.org/wiki/Five_Guys",
+    "title": "Five Guys - Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.276629332976881,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "what is five guys"
+  ],
+  "fetched": []
+ },
+ "coffee fellows": {
+  "token": "coffee fellows",
+  "summary": "German coffeeshop chain offering specialty coffee drinks, bagels, and pastries.",
+  "category": "Dining",
+  "subcategory": "Cafe",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.coffee-fellows.com/",
+    "title": "Coffee Fellows"
+   },
+   {
+    "url": "https://en.wikipedia.org/wiki/Coffee_Fellows",
+    "title": "Coffee Fellows - Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 7.930034667020664,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "coffee fellows cafe"
+  ],
+  "fetched": []
+ },
+ "espresso house": {
+  "token": "espresso house",
+  "summary": "Espresso House is a Nordic coffeehouse chain operating in several European countries, including Germany, serving coffee, pastries, and snacks.",
+  "category": "Dining",
+  "subcategory": "Cafe",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Espresso_House",
+    "title": "Espresso House - Wikipedia"
+   },
+   {
+    "url": "https://group.espressohouse.com/en/find-us",
+    "title": "Find us | Espresso House"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 5.17043499997817,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "espresso house"
+  ],
+  "fetched": []
+ },
+ "sixt autovermietung": {
+  "token": "sixt autovermietung",
+  "summary": "Sixt is an international car rental and mobility services company.",
+  "category": "Transport",
+  "subcategory": "Car",
+  "confidence": 0.99,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.7840378750115633,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "miles mobility": {
+  "token": "miles mobility",
+  "summary": "German carsharing and vehicle rental service offering app-based car and van rentals billed by kilometer.",
+  "category": "Transport",
+  "subcategory": "Car",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Miles_Mobility",
+    "title": "Miles Mobility - Wikipedia"
+   },
+   {
+    "url": "https://www.miles-mobility.com/en-de",
+    "title": "Home – Car sharing, rent cars & vans | MILES Mobility"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 3.7341387910419144,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "miles mobility"
+  ],
+  "fetched": []
+ },
+ "tier mobility": {
+  "token": "tier mobility",
+  "summary": "TIER Mobility is a shared micro-mobility provider offering electric scooters and e-bikes for rent across European cities.",
+  "category": "Transport",
+  "subcategory": "Public transport",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Tier_Mobility",
+    "title": "Tier Mobility – Wikipedia"
+   },
+   {
+    "url": "https://ridedott.com/de/press-release/tier-wird-dott/",
+    "title": "TIER wird zu Dott: E-Scooter und E-Bikes in 427 Städten über die Dott-App verfügbar - Dott"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.065380707965232,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "tier mobility"
+  ],
+  "fetched": []
+ },
+ "jet tankstellen": {
+  "token": "jet tankstellen",
+  "summary": "JET is a chain of petrol and service stations in Germany selling motor fuels, snacks, and convenience goods.",
+  "category": "Transport",
+  "subcategory": "Fuel",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Jet_(Tankstelle)",
+    "title": "Jet (Tankstelle) – Wikipedia"
+   },
+   {
+    "url": "https://www.jet.de/",
+    "title": "Willkommen bei JET - mit uns bist du einfach besser unterwegs | JET"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.3814084170153365,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "jet tankstellen"
+  ],
+  "fetched": []
+ },
+ "deutsche tamoil": {
+  "token": "deutsche tamoil",
+  "summary": "Deutsche Tamoil operates gas and petrol stations in Germany, primarily under the HEM and Tamoil brands.",
+  "category": "Transport",
+  "subcategory": "Fuel",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Deutsche_Tamoil",
+    "title": "Deutsche Tamoil – Wikipedia"
+   },
+   {
+    "url": "https://www.chemie.de/firmen/1044354/deutsche-tamoil-gmbh.html",
+    "title": "Deutsche Tamoil GmbH - Hamburg, Deutschland"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 3.86816779099172,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "deutsche tamoil"
+  ],
+  "fetched": []
+ },
+ "parfuemerie douglas": {
+  "token": "parfuemerie douglas",
+  "summary": "German retail chain for perfume, beauty products, and cosmetics.",
+  "category": "Groceries",
+  "subcategory": "Drugstore",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 2.014962332963478,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "poco einrichtungsmaerkte": {
+  "token": "poco einrichtungsmaerkte",
+  "summary": "POCO Einrichtungsmärkte is a German discount furniture and home decor retailer selling furniture, household goods, flooring, and home furnishings.",
+  "category": "Shopping",
+  "subcategory": "Home",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.808581791992765,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "about you": {
+  "token": "about you",
+  "summary": "German online fashion and apparel retailer selling clothing, shoes, and fashion accessories.",
+  "category": "Shopping",
+  "subcategory": "Clothing",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.814540459017735,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "fressnapf tiernahrungs": {
+  "token": "fressnapf tiernahrungs",
+  "summary": "Fressnapf is Germany's largest pet food and pet supplies retail chain.",
+  "category": "Shopping",
+  "subcategory": "Home",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.8588780839927495,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "conrad electronic": {
+  "token": "conrad electronic",
+  "summary": "Conrad Electronic is a major German retailer and online store for consumer electronics, components, and technology products.",
+  "category": "Shopping",
+  "subcategory": "Electronics",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 2.197628958034329,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "sky fernsehen": {
+  "token": "sky fernsehen",
+  "summary": "Sky Deutschland is a major pay-TV and streaming provider offering entertainment, cinema, and live sports subscriptions.",
+  "category": "Subscriptions",
+  "subcategory": "Streaming",
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.5830867920303717,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "apollo optik": {
+  "token": "apollo optik",
+  "summary": "German optical retail chain offering prescription eyeglasses, sunglasses, and contact lenses.",
+  "category": "Health",
+  "subcategory": null,
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Apollo-Optik",
+    "title": "Apollo-Optik - Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 3.9650151249952614,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "apollo optik"
+  ],
+  "fetched": []
+ },
+ "kieser training": {
+  "token": "kieser training",
+  "summary": "Kieser Training is an international fitness and health-oriented strength training studio chain.",
+  "category": "Health",
+  "subcategory": "Fitness",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Kieser_Training",
+    "title": "Kieser Training – Wikipedia"
+   },
+   {
+    "url": "https://www.kieser.com/de-en/",
+    "title": "Kieser – Health-oriented strength training"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 4.296814166998956,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "kieser training"
+  ],
+  "fetched": []
+ },
+ "ergo versicherung": {
+  "token": "ergo versicherung",
+  "summary": "ERGO Versicherung is a major German insurance group offering life, health, property and casualty insurance.",
+  "category": "Insurance",
+  "subcategory": null,
+  "confidence": 0.95,
+  "sources": [],
+  "searches": 0,
+  "fetches": 0,
+  "seconds": 1.8027083330089226,
+  "refused": null,
+  "error": null,
+  "queries": [],
+  "fetched": []
+ },
+ "cinemaxx entertainment": {
+  "token": "cinemaxx entertainment",
+  "summary": "German cinema chain operating movie theaters and selling cinema tickets and concessions.",
+  "category": "Leisure",
+  "subcategory": "Events",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/CinemaxX",
+    "title": "CinemaxX – Wikipedia"
+   },
+   {
+    "url": "https://www.cinemaxx.de/",
+    "title": "Kinoprogramm, Tickets & Filmstarts bei CinemaxX - Jetzt ist Film!"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 5.321387833042536,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "cinemaxx entertainment"
+  ],
+  "fetched": []
+ },
+ "tierpark friedrichsfelde": {
+  "token": "tierpark friedrichsfelde",
+  "summary": "Tierpark Berlin in Friedrichsfelde is an expansive zoo and landscape animal park in Berlin, selling admission tickets and visitor experiences.",
+  "category": "Leisure",
+  "subcategory": "Events",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://en.wikipedia.org/wiki/Tierpark_Berlin",
+    "title": "Tierpark Berlin - Wikipedia"
+   },
+   {
+    "url": "https://www.tierpark-berlin.de/de",
+    "title": "Tierpark Berlin - Berlin mit Kindern entdecken – Tierpark Berlin"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 5.093462791992351,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "tierpark friedrichsfelde"
+  ],
+  "fetched": []
+ },
+ "jochen schweizer": {
+  "token": "jochen schweizer",
+  "summary": "Jochen Schweizer is a German provider of experience vouchers, leisure activities, outdoor adventures, and event gifts.",
+  "category": "Leisure",
+  "subcategory": "Events",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://www.jochen-schweizer.de/unternehmen/ueber-uns/l/7pk9h",
+    "title": "Über uns | Die Jochen Schweizer GmbH"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 7.118077417020686,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "jochen schweizer unternehmen"
+  ],
+  "fetched": []
+ },
+ "scalable capital": {
+  "token": "scalable capital",
+  "summary": "German online broker and wealth management platform for investing in stocks, ETFs, and funds.",
+  "category": "Transfers",
+  "subcategory": "Savings",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.scalable.capital/ueber-uns",
+    "title": "Über Uns | Scalable Capital"
+   },
+   {
+    "url": "https://www.handelsblatt.com/vergleich/scalable-capital-broker/",
+    "title": "Scalable Capital Broker 2026 mit Handel auch über Xetra"
+   }
+  ],
+  "searches": 1,
+  "fetches": 0,
+  "seconds": 5.011209541989956,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "scalable capital was ist das"
+  ],
+  "fetched": []
+ }
+}
