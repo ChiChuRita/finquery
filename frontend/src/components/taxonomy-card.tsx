@@ -1,9 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { MoreHorizontalIcon, PlusIcon } from 'lucide-react'
+import { PlusIcon } from 'lucide-react'
 import { useRef, useState } from 'react'
 
 import { ChangesetEffect } from '@/components/changeset-card'
 import { NameDialog } from '@/components/dialogs'
+import { CategoryMenu, SubcategoryPill } from '@/components/taxonomy-menus'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -13,23 +14,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import {
   applyChangeset,
   categoriesQuery,
   discardChangeset,
   proposeTaxonomyChange,
-  type CategoryRef,
   type Changeset,
   type TaxonomyChange,
 } from '@/lib/api'
@@ -157,62 +147,27 @@ export function TaxonomyCard() {
                         }
                       />
                     ) : (
-                      <DropdownMenu key={subcategory.id}>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            aria-label={`Change ${subcategory.name} in ${category.name}`}
-                            className="rounded-full"
-                            size="xs"
-                            variant="outline"
-                          >
-                            {subcategory.name}
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          <DropdownMenuItem
-                            onSelect={() => setRenaming({ category: category.name, subcategory: subcategory.name })}
-                          >
-                            Rename
-                          </DropdownMenuItem>
-                          {category.subcategories.length > 1 && (
-                            <DropdownMenuSub>
-                              <DropdownMenuSubTrigger>Merge into</DropdownMenuSubTrigger>
-                              <DropdownMenuSubContent>
-                                {category.subcategories
-                                  .filter((other) => other.id !== subcategory.id)
-                                  .map((other) => (
-                                    <DropdownMenuItem
-                                      key={other.id}
-                                      onSelect={() =>
-                                        void start(`Merge ${subcategory.name} into ${other.name}`, {
-                                          operation: 'merge',
-                                          category: category.name,
-                                          subcategory: subcategory.name,
-                                          into: other.name,
-                                        })
-                                      }
-                                    >
-                                      {other.name}
-                                    </DropdownMenuItem>
-                                  ))}
-                              </DropdownMenuSubContent>
-                            </DropdownMenuSub>
-                          )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onSelect={() =>
-                              void start(`Delete ${subcategory.name}`, {
-                                operation: 'delete',
-                                category: category.name,
-                                subcategory: subcategory.name,
-                              })
-                            }
-                            variant="destructive"
-                          >
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <SubcategoryPill
+                        category={category}
+                        key={subcategory.id}
+                        onDelete={() =>
+                          void start(`Delete ${subcategory.name}`, {
+                            operation: 'delete',
+                            category: category.name,
+                            subcategory: subcategory.name,
+                          })
+                        }
+                        onMerge={(into) =>
+                          void start(`Merge ${subcategory.name} into ${into}`, {
+                            operation: 'merge',
+                            category: category.name,
+                            subcategory: subcategory.name,
+                            into,
+                          })
+                        }
+                        onRename={() => setRenaming({ category: category.name, subcategory: subcategory.name })}
+                        subcategory={subcategory}
+                      />
                     ),
                   )}
                   <Button
@@ -286,52 +241,6 @@ export function TaxonomyCard() {
         </DialogContent>
       </Dialog>
     </section>
-  )
-}
-
-function CategoryMenu({
-  category,
-  categories,
-  onRename,
-  onAddSubcategory,
-  onMerge,
-  onDelete,
-}: {
-  category: CategoryRef
-  categories: CategoryRef[]
-  onRename: () => void
-  onAddSubcategory: () => void
-  onMerge: (into: string) => void
-  onDelete: () => void
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button aria-label={`Change ${category.name}`} size="icon-sm" variant="ghost">
-          <MoreHorizontalIcon />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={onRename}>Rename</DropdownMenuItem>
-        <DropdownMenuItem onSelect={onAddSubcategory}>Add a subcategory</DropdownMenuItem>
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>Merge into</DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
-            {categories
-              .filter((other) => other.id !== category.id)
-              .map((other) => (
-                <DropdownMenuItem key={other.id} onSelect={() => onMerge(other.name)}>
-                  {other.name}
-                </DropdownMenuItem>
-              ))}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={onDelete} variant="destructive">
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
   )
 }
 
