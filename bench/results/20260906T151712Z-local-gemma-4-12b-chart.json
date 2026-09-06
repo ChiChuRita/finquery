@@ -1,0 +1,6233 @@
+{
+  "model": "local:gemma-4-12b",
+  "set": "chart",
+  "started_at": "2026-09-06T15:17:12+00:00",
+  "seconds": 3645.0,
+  "seed": 7,
+  "check": true,
+  "n": 73,
+  "summary": {
+    "n": 73,
+    "figure_match": 0.808,
+    "sql_valid": 1.0,
+    "first_attempt": 0.918,
+    "shape_match": 0.959,
+    "columns_map": 0.849,
+    "language_ok": 0.986,
+    "drawn": 0.945,
+    "median_seconds": 46.7,
+    "p90_seconds": 64.1,
+    "total_seconds": 3644.9,
+    "by_kind": {
+      "area": {
+        "n": 8,
+        "figure_match": 0.625,
+        "sql_valid": 1.0,
+        "first_attempt": 0.875,
+        "shape_match": 1.0,
+        "columns_map": 0.625,
+        "language_ok": 0.875,
+        "drawn": 0.875,
+        "median_seconds": 52.2
+      },
+      "bar": {
+        "n": 17,
+        "figure_match": 0.765,
+        "sql_valid": 1.0,
+        "first_attempt": 0.941,
+        "shape_match": 0.882,
+        "columns_map": 0.824,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 45.9
+      },
+      "bar_grouped": {
+        "n": 8,
+        "figure_match": 0.875,
+        "sql_valid": 1.0,
+        "first_attempt": 0.875,
+        "shape_match": 1.0,
+        "columns_map": 1.0,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 60.0
+      },
+      "bar_horizontal": {
+        "n": 6,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": 1.0,
+        "columns_map": 1.0,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 40.4
+      },
+      "bar_stacked": {
+        "n": 6,
+        "figure_match": 0.667,
+        "sql_valid": 1.0,
+        "first_attempt": 0.833,
+        "shape_match": 0.833,
+        "columns_map": 0.833,
+        "language_ok": 1.0,
+        "drawn": 0.833,
+        "median_seconds": 41.8
+      },
+      "doughnut": {
+        "n": 8,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": 1.0,
+        "columns_map": 1.0,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 50.2
+      },
+      "line": {
+        "n": 14,
+        "figure_match": 0.857,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": 1.0,
+        "columns_map": 0.857,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 40.8
+      },
+      "sankey": {
+        "n": 6,
+        "figure_match": 0.667,
+        "sql_valid": 1.0,
+        "first_attempt": 0.667,
+        "shape_match": 1.0,
+        "columns_map": 0.667,
+        "language_ok": 1.0,
+        "drawn": 0.667,
+        "median_seconds": 63.7
+      }
+    },
+    "by_difficulty": {
+      "1": {
+        "n": 4,
+        "figure_match": 1.0,
+        "sql_valid": 1.0,
+        "first_attempt": 1.0,
+        "shape_match": 1.0,
+        "columns_map": 1.0,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 38.3
+      },
+      "2": {
+        "n": 39,
+        "figure_match": 0.795,
+        "sql_valid": 1.0,
+        "first_attempt": 0.949,
+        "shape_match": 0.949,
+        "columns_map": 0.897,
+        "language_ok": 1.0,
+        "drawn": 1.0,
+        "median_seconds": 46.2
+      },
+      "3": {
+        "n": 30,
+        "figure_match": 0.8,
+        "sql_valid": 1.0,
+        "first_attempt": 0.867,
+        "shape_match": 0.967,
+        "columns_map": 0.767,
+        "language_ok": 0.967,
+        "drawn": 0.867,
+        "median_seconds": 51.1
+      }
+    },
+    "by_language": {
+      "de": {
+        "n": 37,
+        "figure_match": 0.865,
+        "sql_valid": 1.0,
+        "first_attempt": 0.946,
+        "shape_match": 0.973,
+        "columns_map": 0.865,
+        "language_ok": 1.0,
+        "drawn": 0.973,
+        "median_seconds": 50.0
+      },
+      "en": {
+        "n": 36,
+        "figure_match": 0.75,
+        "sql_valid": 1.0,
+        "first_attempt": 0.889,
+        "shape_match": 0.944,
+        "columns_map": 0.833,
+        "language_ok": 0.972,
+        "drawn": 0.917,
+        "median_seconds": 45.2
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "01-monthly-line-en",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 1,
+      "language": "en",
+      "question": "Show me my total spending per month in 2025 as a line chart.",
+      "seconds": 38.68,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 2265.34
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 2290.77
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 2310.46
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 2301.04
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 2760.8
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 2278.84
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 2552.44
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 2420.14
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "02-monthly-line-de",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 1,
+      "language": "de",
+      "question": "Wie haben sich meine Ausgaben pro Monat 2025 entwickelt? Zeig es als Liniendiagramm.",
+      "seconds": 36.88,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 2265.34
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 2290.77
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 2310.46
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 2301.04
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 2760.8
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 2278.84
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 2552.44
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 2420.14
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "03-cumulative-area-en",
+      "set": "chart",
+      "kind": "area",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Chart my cumulative spending over 2025 as an area chart.",
+      "seconds": 39.13,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "WITH monthly_spending AS (\n  SELECT\n    STRFTIME('%Y-%m', booked_on) AS month,\n    ROUND(-SUM(amount), 2) AS total_eur\n  FROM transaction_view\n  WHERE\n    amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY\n    month\n)\nSELECT\n  month,\n  ROUND(SUM(total_eur) OVER (ORDER BY month), 2) AS cumulative_eur\nFROM monthly_spending\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "cumulative_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "cumulative_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "cumulative_eur": 4809.38
+        },
+        {
+          "month": "2025-03",
+          "cumulative_eur": 7100.15
+        },
+        {
+          "month": "2025-04",
+          "cumulative_eur": 9364.89
+        },
+        {
+          "month": "2025-05",
+          "cumulative_eur": 11675.35
+        },
+        {
+          "month": "2025-06",
+          "cumulative_eur": 13976.39
+        },
+        {
+          "month": "2025-07",
+          "cumulative_eur": 16737.19
+        },
+        {
+          "month": "2025-08",
+          "cumulative_eur": 19016.03
+        },
+        {
+          "month": "2025-09",
+          "cumulative_eur": 21568.47
+        },
+        {
+          "month": "2025-10",
+          "cumulative_eur": 23769.41
+        },
+        {
+          "month": "2025-11",
+          "cumulative_eur": 26189.55
+        },
+        {
+          "month": "2025-12",
+          "cumulative_eur": 28535.89
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "area",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "04-cumulative-area-de",
+      "set": "chart",
+      "kind": "area",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig die kumulierten Ausgaben 2025 als Flaechendiagramm.",
+      "seconds": 42.18,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(SUM(SUM(amount)) OVER (ORDER BY STRFTIME('%Y-%m', booked_on)), 2) * -1 AS cumulative_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "cumulative_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "cumulative_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "cumulative_eur": 4809.38
+        },
+        {
+          "month": "2025-03",
+          "cumulative_eur": 7100.15
+        },
+        {
+          "month": "2025-04",
+          "cumulative_eur": 9364.89
+        },
+        {
+          "month": "2025-05",
+          "cumulative_eur": 11675.35
+        },
+        {
+          "month": "2025-06",
+          "cumulative_eur": 13976.39
+        },
+        {
+          "month": "2025-07",
+          "cumulative_eur": 16737.19
+        },
+        {
+          "month": "2025-08",
+          "cumulative_eur": 19016.03
+        },
+        {
+          "month": "2025-09",
+          "cumulative_eur": 21568.47
+        },
+        {
+          "month": "2025-10",
+          "cumulative_eur": 23769.41
+        },
+        {
+          "month": "2025-11",
+          "cumulative_eur": 26189.55
+        },
+        {
+          "month": "2025-12",
+          "cumulative_eur": 28535.89
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "area",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "05-category-bars-en",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 1,
+      "language": "en",
+      "question": "Show my spending per category in 2025 as a bar chart.",
+      "seconds": 35.67,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "total_eur": 14419.5
+        },
+        {
+          "topic": "Groceries",
+          "total_eur": 4474.95
+        },
+        {
+          "topic": "Cash",
+          "total_eur": 2400.0
+        },
+        {
+          "topic": "Transport",
+          "total_eur": 1426.3
+        },
+        {
+          "topic": "Shopping",
+          "total_eur": 1311.36
+        },
+        {
+          "topic": "Dining",
+          "total_eur": 965.7
+        },
+        {
+          "topic": "Housing",
+          "total_eur": 936.0
+        },
+        {
+          "topic": "Communication",
+          "total_eur": 719.76
+        },
+        {
+          "topic": "Health",
+          "total_eur": 691.2
+        },
+        {
+          "topic": "Subscriptions",
+          "total_eur": 681.12
+        },
+        {
+          "topic": "Insurance",
+          "total_eur": 510.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "06-category-bars-de",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 1,
+      "language": "de",
+      "question": "Ausgaben pro Kategorie 2025 als Balkendiagramm.",
+      "seconds": 38.33,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "total_eur": 14419.5
+        },
+        {
+          "topic": "Groceries",
+          "total_eur": 4474.95
+        },
+        {
+          "topic": "Cash",
+          "total_eur": 2400.0
+        },
+        {
+          "topic": "Transport",
+          "total_eur": 1426.3
+        },
+        {
+          "topic": "Shopping",
+          "total_eur": 1311.36
+        },
+        {
+          "topic": "Dining",
+          "total_eur": 965.7
+        },
+        {
+          "topic": "Housing",
+          "total_eur": 936.0
+        },
+        {
+          "topic": "Communication",
+          "total_eur": 719.76
+        },
+        {
+          "topic": "Health",
+          "total_eur": 691.2
+        },
+        {
+          "topic": "Subscriptions",
+          "total_eur": 681.12
+        },
+        {
+          "topic": "Insurance",
+          "total_eur": 510.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "07-top-merchants-en",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Which merchants took the most money in 2025? Show the top ten as a horizontal bar chart.",
+      "seconds": 38.15,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(title, counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  merchant\nORDER BY\n  total_eur DESC\nLIMIT 10",
+      "columns": [
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "merchant": "Hausverwaltung Bergmann",
+          "total_eur": 13800.0
+        },
+        {
+          "merchant": "Cash withdrawal",
+          "total_eur": 2400.0
+        },
+        {
+          "merchant": "Amazon",
+          "total_eur": 1269.6
+        },
+        {
+          "merchant": "Kaufland",
+          "total_eur": 1098.5
+        },
+        {
+          "merchant": "Vattenfall",
+          "total_eur": 936.0
+        },
+        {
+          "merchant": "REWE",
+          "total_eur": 732.0
+        },
+        {
+          "merchant": "ALDI",
+          "total_eur": 642.7
+        },
+        {
+          "merchant": "Lidl",
+          "total_eur": 599.3
+        },
+        {
+          "merchant": "BVG",
+          "total_eur": 588.0
+        },
+        {
+          "merchant": "Allianz",
+          "total_eur": 510.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_horizontal",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "08-top-merchants-de",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig die zehn groessten Haendler 2025 als liegendes Balkendiagramm.",
+      "seconds": 39.74,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(title, counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  merchant\nORDER BY\n  total_eur DESC\nLIMIT 10",
+      "columns": [
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "merchant": "Hausverwaltung Bergmann",
+          "total_eur": 13800.0
+        },
+        {
+          "merchant": "Cash withdrawal",
+          "total_eur": 2400.0
+        },
+        {
+          "merchant": "Amazon",
+          "total_eur": 1269.6
+        },
+        {
+          "merchant": "Kaufland",
+          "total_eur": 1098.5
+        },
+        {
+          "merchant": "Vattenfall",
+          "total_eur": 936.0
+        },
+        {
+          "merchant": "REWE",
+          "total_eur": 732.0
+        },
+        {
+          "merchant": "ALDI",
+          "total_eur": 642.7
+        },
+        {
+          "merchant": "Lidl",
+          "total_eur": 599.3
+        },
+        {
+          "merchant": "BVG",
+          "total_eur": 588.0
+        },
+        {
+          "merchant": "Allianz",
+          "total_eur": 510.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_horizontal",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "09-quarter-groups-en",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Compare what I spent on groceries and on dining per quarter in 2025 as grouped bars.",
+      "seconds": 79.2,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 2,
+      "sql": "SELECT\n  CASE\n    WHEN booked_on BETWEEN '2025-01-01' AND '2025-03-31'\n    THEN '2025-Q1'\n    WHEN booked_on BETWEEN '2025-04-01' AND '2025-06-30'\n    THEN '2025-Q2'\n    WHEN booked_on BETWEEN '2025-07-01' AND '2025-09-30'\n    THEN '2025-Q3'\n    WHEN booked_on BETWEEN '2025-10-01' AND '2025-12-31'\n    THEN '2025-Q4'\n  END AS quarter,\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND category IN ('Groceries', 'Dining')\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  quarter,\n  topic\nORDER BY\n  quarter,\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "quarter",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "quarter": "2025-Q1",
+          "topic": "Groceries",
+          "total_eur": 1283.13
+        },
+        {
+          "quarter": "2025-Q1",
+          "topic": "Dining",
+          "total_eur": 242.1
+        },
+        {
+          "quarter": "2025-Q2",
+          "topic": "Groceries",
+          "total_eur": 1077.62
+        },
+        {
+          "quarter": "2025-Q2",
+          "topic": "Dining",
+          "total_eur": 233.4
+        },
+        {
+          "quarter": "2025-Q3",
+          "topic": "Groceries",
+          "total_eur": 1220.8
+        },
+        {
+          "quarter": "2025-Q3",
+          "topic": "Dining",
+          "total_eur": 283.8
+        },
+        {
+          "quarter": "2025-Q4",
+          "topic": "Groceries",
+          "total_eur": 893.4
+        },
+        {
+          "quarter": "2025-Q4",
+          "topic": "Dining",
+          "total_eur": 206.4
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_grouped",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": [
+        "Repair 1 of 2: `ruleY` does not belong in a bar_grouped chart. Remove that mark."
+      ]
+    },
+    {
+      "id": "10-quarter-groups-de",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Vergleiche Lebensmittel und Essengehen pro Quartal 2025 als gruppierte Balken.",
+      "seconds": 58.47,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  CASE\n    WHEN booked_on BETWEEN '2025-01-01' AND '2025-03-31'\n    THEN '2025-Q1'\n    WHEN booked_on BETWEEN '2025-04-01' AND '2025-06-30'\n    THEN '2025-Q2'\n    WHEN booked_on BETWEEN '2025-07-01' AND '2025-09-30'\n    THEN '2025-Q3'\n    WHEN booked_on BETWEEN '2025-10-01' AND '2025-12-31'\n    THEN '2025-Q4'\n  END AS quarter,\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND category IN ('Groceries', 'Dining')\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  quarter,\n  topic\nORDER BY\n  quarter,\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "quarter",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "quarter": "2025-Q1",
+          "topic": "Groceries",
+          "total_eur": 1283.13
+        },
+        {
+          "quarter": "2025-Q1",
+          "topic": "Dining",
+          "total_eur": 242.1
+        },
+        {
+          "quarter": "2025-Q2",
+          "topic": "Groceries",
+          "total_eur": 1077.62
+        },
+        {
+          "quarter": "2025-Q2",
+          "topic": "Dining",
+          "total_eur": 233.4
+        },
+        {
+          "quarter": "2025-Q3",
+          "topic": "Groceries",
+          "total_eur": 1220.8
+        },
+        {
+          "quarter": "2025-Q3",
+          "topic": "Dining",
+          "total_eur": 283.8
+        },
+        {
+          "quarter": "2025-Q4",
+          "topic": "Groceries",
+          "total_eur": 893.4
+        },
+        {
+          "quarter": "2025-Q4",
+          "topic": "Dining",
+          "total_eur": 206.4
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_grouped",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "11-stacked-months-en",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Show my monthly spending split by category in 2025 as a stacked bar chart.",
+      "seconds": 40.02,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month,\n  topic\nORDER BY\n  month ASC\nLIMIT 200",
+      "columns": [
+        "month",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "topic": "Cash",
+          "total_eur": 300.0
+        },
+        {
+          "month": "2025-01",
+          "topic": "Other",
+          "total_eur": 373.44
+        },
+        {
+          "month": "2025-01",
+          "topic": "Groceries",
+          "total_eur": 550.0
+        },
+        {
+          "month": "2025-01",
+          "topic": "Needs review",
+          "total_eur": 1181.5
+        },
+        {
+          "month": "2025-01",
+          "topic": "Shopping",
+          "total_eur": 61.1
+        },
+        {
+          "month": "2025-01",
+          "topic": "Transport",
+          "total_eur": 78.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Cash",
+          "total_eur": 50.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Other",
+          "total_eur": 375.74
+        },
+        {
+          "month": "2025-02",
+          "topic": "Groceries",
+          "total_eur": 413.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Needs review",
+          "total_eur": 1184.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Shopping",
+          "total_eur": 156.4
+        },
+        {
+          "month": "2025-02",
+          "topic": "Transport",
+          "total_eur": 86.2
+        },
+        {
+          "month": "2025-03",
+          "topic": "Cash",
+          "total_eur": 200.0
+        },
+        {
+          "month": "2025-03",
+          "topic": "Other",
+          "total_eur": 324.34
+        },
+        {
+          "month": "2025-03",
+          "topic": "Groceries",
+          "total_eur": 320.13
+        },
+        {
+          "month": "2025-03",
+          "topic": "Needs review",
+          "total_eur": 1212.0
+        },
+        {
+          "month": "2025-03",
+          "topic": "Shopping",
+          "total_eur": 137.1
+        },
+        {
+          "month": "2025-03",
+          "topic": "Transport",
+          "total_eur": 97.2
+        },
+        {
+          "month": "2025-04",
+          "topic": "Cash",
+          "total_eur": 150.0
+        },
+        {
+          "month": "2025-04",
+          "topic": "Other",
+          "total_eur": 338.94
+        },
+        {
+          "month": "2025-04",
+          "topic": "Groceries",
+          "total_eur": 252.7
+        },
+        {
+          "month": "2025-04",
+          "topic": "Needs review",
+          "total_eur": 1175.0
+        },
+        {
+          "month": "2025-04",
+          "topic": "Shopping",
+          "total_eur": 227.7
+        },
+        {
+          "month": "2025-04",
+          "topic": "Transport",
+          "total_eur": 120.4
+        },
+        {
+          "month": "2025-05",
+          "topic": "Cash",
+          "total_eur": 100.0
+        },
+        {
+          "month": "2025-05",
+          "topic": "Other",
+          "total_eur": 381.54
+        },
+        {
+          "month": "2025-05",
+          "topic": "Groceries",
+          "total_eur": 440.72
+        },
+        {
+          "month": "2025-05",
+          "topic": "Needs review",
+          "total_eur": 1204.0
+        },
+        {
+          "month": "2025-05",
+          "topic": "Shopping",
+          "total_eur": 65.8
+        },
+        {
+          "month": "2025-05",
+          "topic": "Transport",
+          "total_eur": 118.4
+        },
+        {
+          "month": "2025-06",
+          "topic": "Cash",
+          "total_eur": 100.0
+        },
+        {
+          "month": "2025-06",
+          "topic": "Other",
+          "total_eur": 367.74
+        },
+        {
+          "month": "2025-06",
+          "topic": "Groceries",
+          "total_eur": 384.2
+        },
+        {
+          "month": "2025-06",
+          "topic": "Needs review",
+          "total_eur": 1185.0
+        },
+        {
+          "month": "2025-06",
+          "topic": "Shopping",
+          "total_eur": 179.9
+        },
+        {
+          "month": "2025-06",
+          "topic": "Transport",
+          "total_eur": 84.2
+        },
+        {
+          "month": "2025-07",
+          "topic": "Cash",
+          "total_eur": 400.0
+        },
+        {
+          "month": "2025-07",
+          "topic": "Other",
+          "total_eur": 393.94
+        },
+        {
+          "month": "2025-07",
+          "topic": "Groceries",
+          "total_eur": 406.4
+        },
+        {
+          "month": "2025-07",
+          "topic": "Needs review",
+          "total_eur": 1208.0
+        },
+        {
+          "month": "2025-07",
+          "topic": "Shopping",
+          "total_eur": 201.86
+        },
+        {
+          "month": "2025-07",
+          "topic": "Transport",
+          "total_eur": 150.6
+        },
+        {
+          "month": "2025-08",
+          "topic": "Cash",
+          "total_eur": 250.0
+        },
+        {
+          "month": "2025-08",
+          "topic": "Other",
+          "total_eur": 308.84
+        },
+        {
+          "month": "2025-08",
+          "topic": "Groceries",
+          "total_eur": 294.3
+        },
+        {
+          "month": "2025-08",
+          "topic": "Needs review",
+          "total_eur": 1214.0
+        },
+        {
+          "month": "2025-08",
+          "topic": "Shopping",
+          "total_eur": 84.4
+        },
+        {
+          "month": "2025-08",
+          "topic": "Transport",
+          "total_eur": 127.3
+        },
+        {
+          "month": "2025-09",
+          "topic": "Cash",
+          "total_eur": 300.0
+        },
+        {
+          "month": "2025-09",
+          "topic": "Other",
+          "total_eur": 412.44
+        },
+        {
+          "month": "2025-09",
+          "topic": "Groceries",
+          "total_eur": 520.1
+        },
+        {
+          "month": "2025-09",
+          "topic": "Needs review",
+          "total_eur": 1186.5
+        },
+        {
+          "month": "2025-09",
+          "topic": "Shopping",
+          "total_eur": 36.5
+        },
+        {
+          "month": "2025-09",
+          "topic": "Transport",
+          "total_eur": 96.9
+        },
+        {
+          "month": "2025-10",
+          "topic": "Cash",
+          "total_eur": 200.0
+        },
+        {
+          "month": "2025-10",
+          "topic": "Other",
+          "total_eur": 307.94
+        },
+        {
+          "month": "2025-10",
+          "topic": "Groceries",
+          "total_eur": 273.2
+        },
+        {
+          "month": "2025-10",
+          "topic": "Needs review",
+          "total_eur": 1223.0
+        },
+        {
+          "month": "2025-10",
+          "topic": "Shopping",
+          "total_eur": 90.7
+        },
+        {
+          "month": "2025-10",
+          "topic": "Transport",
+          "total_eur": 106.1
+        },
+        {
+          "month": "2025-11",
+          "topic": "Cash",
+          "total_eur": 150.0
+        },
+        {
+          "month": "2025-11",
+          "topic": "Other",
+          "total_eur": 554.44
+        },
+        {
+          "month": "2025-11",
+          "topic": "Groceries",
+          "total_eur": 339.5
+        },
+        {
+          "month": "2025-11",
+          "topic": "Needs review",
+          "total_eur": 1212.0
+        },
+        {
+          "month": "2025-11",
+          "topic": "Shopping",
+          "total_eur": 57.2
+        },
+        {
+          "month": "2025-11",
+          "topic": "Transport",
+          "total_eur": 107.0
+        },
+        {
+          "month": "2025-12",
+          "topic": "Cash",
+          "total_eur": 200.0
+        },
+        {
+          "month": "2025-12",
+          "topic": "Other",
+          "total_eur": 364.44
+        },
+        {
+          "month": "2025-12",
+          "topic": "Groceries",
+          "total_eur": 280.7
+        },
+        {
+          "month": "2025-12",
+          "topic": "Needs review",
+          "total_eur": 1234.5
+        },
+        {
+          "month": "2025-12",
+          "topic": "Shopping",
+          "total_eur": 12.7
+        },
+        {
+          "month": "2025-12",
+          "topic": "Transport",
+          "total_eur": 254.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_stacked",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "12-stacked-months-de",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Monatliche Ausgaben nach Kategorie 2025 als gestapelte Balken.",
+      "seconds": 41.8,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month,\n  topic\nORDER BY\n  month,\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "month",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "topic": "Needs review",
+          "total_eur": 1181.5
+        },
+        {
+          "month": "2025-01",
+          "topic": "Groceries",
+          "total_eur": 550.0
+        },
+        {
+          "month": "2025-01",
+          "topic": "Cash",
+          "total_eur": 300.0
+        },
+        {
+          "month": "2025-01",
+          "topic": "Sonstige",
+          "total_eur": 373.44
+        },
+        {
+          "month": "2025-01",
+          "topic": "Transport",
+          "total_eur": 78.0
+        },
+        {
+          "month": "2025-01",
+          "topic": "Shopping",
+          "total_eur": 61.1
+        },
+        {
+          "month": "2025-02",
+          "topic": "Needs review",
+          "total_eur": 1184.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Groceries",
+          "total_eur": 413.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Shopping",
+          "total_eur": 156.4
+        },
+        {
+          "month": "2025-02",
+          "topic": "Sonstige",
+          "total_eur": 375.74
+        },
+        {
+          "month": "2025-02",
+          "topic": "Transport",
+          "total_eur": 86.2
+        },
+        {
+          "month": "2025-02",
+          "topic": "Cash",
+          "total_eur": 50.0
+        },
+        {
+          "month": "2025-03",
+          "topic": "Needs review",
+          "total_eur": 1212.0
+        },
+        {
+          "month": "2025-03",
+          "topic": "Groceries",
+          "total_eur": 320.13
+        },
+        {
+          "month": "2025-03",
+          "topic": "Cash",
+          "total_eur": 200.0
+        },
+        {
+          "month": "2025-03",
+          "topic": "Shopping",
+          "total_eur": 137.1
+        },
+        {
+          "month": "2025-03",
+          "topic": "Transport",
+          "total_eur": 97.2
+        },
+        {
+          "month": "2025-03",
+          "topic": "Sonstige",
+          "total_eur": 324.34
+        },
+        {
+          "month": "2025-04",
+          "topic": "Needs review",
+          "total_eur": 1175.0
+        },
+        {
+          "month": "2025-04",
+          "topic": "Groceries",
+          "total_eur": 252.7
+        },
+        {
+          "month": "2025-04",
+          "topic": "Shopping",
+          "total_eur": 227.7
+        },
+        {
+          "month": "2025-04",
+          "topic": "Cash",
+          "total_eur": 150.0
+        },
+        {
+          "month": "2025-04",
+          "topic": "Transport",
+          "total_eur": 120.4
+        },
+        {
+          "month": "2025-04",
+          "topic": "Sonstige",
+          "total_eur": 338.94
+        },
+        {
+          "month": "2025-05",
+          "topic": "Needs review",
+          "total_eur": 1204.0
+        },
+        {
+          "month": "2025-05",
+          "topic": "Groceries",
+          "total_eur": 440.72
+        },
+        {
+          "month": "2025-05",
+          "topic": "Transport",
+          "total_eur": 118.4
+        },
+        {
+          "month": "2025-05",
+          "topic": "Sonstige",
+          "total_eur": 381.54
+        },
+        {
+          "month": "2025-05",
+          "topic": "Cash",
+          "total_eur": 100.0
+        },
+        {
+          "month": "2025-05",
+          "topic": "Shopping",
+          "total_eur": 65.8
+        },
+        {
+          "month": "2025-06",
+          "topic": "Needs review",
+          "total_eur": 1185.0
+        },
+        {
+          "month": "2025-06",
+          "topic": "Groceries",
+          "total_eur": 384.2
+        },
+        {
+          "month": "2025-06",
+          "topic": "Shopping",
+          "total_eur": 179.9
+        },
+        {
+          "month": "2025-06",
+          "topic": "Cash",
+          "total_eur": 100.0
+        },
+        {
+          "month": "2025-06",
+          "topic": "Transport",
+          "total_eur": 84.2
+        },
+        {
+          "month": "2025-06",
+          "topic": "Sonstige",
+          "total_eur": 367.74
+        },
+        {
+          "month": "2025-07",
+          "topic": "Needs review",
+          "total_eur": 1208.0
+        },
+        {
+          "month": "2025-07",
+          "topic": "Groceries",
+          "total_eur": 406.4
+        },
+        {
+          "month": "2025-07",
+          "topic": "Cash",
+          "total_eur": 400.0
+        },
+        {
+          "month": "2025-07",
+          "topic": "Shopping",
+          "total_eur": 201.86
+        },
+        {
+          "month": "2025-07",
+          "topic": "Transport",
+          "total_eur": 150.6
+        },
+        {
+          "month": "2025-07",
+          "topic": "Sonstige",
+          "total_eur": 393.94
+        },
+        {
+          "month": "2025-08",
+          "topic": "Needs review",
+          "total_eur": 1214.0
+        },
+        {
+          "month": "2025-08",
+          "topic": "Groceries",
+          "total_eur": 294.3
+        },
+        {
+          "month": "2025-08",
+          "topic": "Cash",
+          "total_eur": 250.0
+        },
+        {
+          "month": "2025-08",
+          "topic": "Transport",
+          "total_eur": 127.3
+        },
+        {
+          "month": "2025-08",
+          "topic": "Shopping",
+          "total_eur": 84.4
+        },
+        {
+          "month": "2025-08",
+          "topic": "Sonstige",
+          "total_eur": 308.84
+        },
+        {
+          "month": "2025-09",
+          "topic": "Needs review",
+          "total_eur": 1186.5
+        },
+        {
+          "month": "2025-09",
+          "topic": "Groceries",
+          "total_eur": 520.1
+        },
+        {
+          "month": "2025-09",
+          "topic": "Cash",
+          "total_eur": 300.0
+        },
+        {
+          "month": "2025-09",
+          "topic": "Sonstige",
+          "total_eur": 412.44
+        },
+        {
+          "month": "2025-09",
+          "topic": "Transport",
+          "total_eur": 96.9
+        },
+        {
+          "month": "2025-09",
+          "topic": "Shopping",
+          "total_eur": 36.5
+        },
+        {
+          "month": "2025-10",
+          "topic": "Needs review",
+          "total_eur": 1223.0
+        },
+        {
+          "month": "2025-10",
+          "topic": "Groceries",
+          "total_eur": 273.2
+        },
+        {
+          "month": "2025-10",
+          "topic": "Cash",
+          "total_eur": 200.0
+        },
+        {
+          "month": "2025-10",
+          "topic": "Transport",
+          "total_eur": 106.1
+        },
+        {
+          "month": "2025-10",
+          "topic": "Shopping",
+          "total_eur": 90.7
+        },
+        {
+          "month": "2025-10",
+          "topic": "Sonstige",
+          "total_eur": 307.94
+        },
+        {
+          "month": "2025-11",
+          "topic": "Needs review",
+          "total_eur": 1212.0
+        },
+        {
+          "month": "2025-11",
+          "topic": "Groceries",
+          "total_eur": 339.5
+        },
+        {
+          "month": "2025-11",
+          "topic": "Sonstige",
+          "total_eur": 554.44
+        },
+        {
+          "month": "2025-11",
+          "topic": "Cash",
+          "total_eur": 150.0
+        },
+        {
+          "month": "2025-11",
+          "topic": "Transport",
+          "total_eur": 107.0
+        },
+        {
+          "month": "2025-11",
+          "topic": "Shopping",
+          "total_eur": 57.2
+        },
+        {
+          "month": "2025-12",
+          "topic": "Needs review",
+          "total_eur": 1234.5
+        },
+        {
+          "month": "2025-12",
+          "topic": "Groceries",
+          "total_eur": 280.7
+        },
+        {
+          "month": "2025-12",
+          "topic": "Transport",
+          "total_eur": 254.0
+        },
+        {
+          "month": "2025-12",
+          "topic": "Cash",
+          "total_eur": 200.0
+        },
+        {
+          "month": "2025-12",
+          "topic": "Sonstige",
+          "total_eur": 364.44
+        },
+        {
+          "month": "2025-12",
+          "topic": "Shopping",
+          "total_eur": 12.7
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_stacked",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "13-doughnut-categories-en",
+      "set": "chart",
+      "kind": "doughnut",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Show the share of my 2025 spending by category as a doughnut.",
+      "seconds": 38.16,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 5",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "total_eur": 14419.5
+        },
+        {
+          "topic": "Groceries",
+          "total_eur": 4474.95
+        },
+        {
+          "topic": "Cash",
+          "total_eur": 2400.0
+        },
+        {
+          "topic": "Transport",
+          "total_eur": 1426.3
+        },
+        {
+          "topic": "Shopping",
+          "total_eur": 1311.36
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "14-doughnut-merchants-de",
+      "set": "chart",
+      "kind": "doughnut",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig den Anteil der groessten Haendler an meinen Ausgaben 2025 als Donut.",
+      "seconds": 42.61,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(counterparty, description) AS merchant_name,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  merchant_name\nORDER BY\n  total_eur DESC\nLIMIT 6",
+      "columns": [
+        "merchant_name",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "merchant_name": "Hausverwaltung Bergmann GmbH",
+          "total_eur": 13800.0
+        },
+        {
+          "merchant_name": "Sparkasse Geldautomat",
+          "total_eur": 2400.0
+        },
+        {
+          "merchant_name": "AMAZON EU S.A R.L.",
+          "total_eur": 1269.6
+        },
+        {
+          "merchant_name": "KAUFLAND BERLIN",
+          "total_eur": 1098.5
+        },
+        {
+          "merchant_name": "Vattenfall Europe Sales GmbH",
+          "total_eur": 936.0
+        },
+        {
+          "merchant_name": "REWE Markt GmbH",
+          "total_eur": 732.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "15-sankey-income-en",
+      "set": "chart",
+      "kind": "sankey",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Draw a sankey of my 2025 income flowing into the spending categories.",
+      "seconds": 40.1,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": "SELECT\n  'Income' AS source,\n  COALESCE(category, 'Needs review') AS target,\n  ROUND(-SUM(amount), 2) AS amount_eur\nFROM transaction_view\nWHERE\n  booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND amount < 0\n  AND NOT COALESCE(category, 'Needs review') IN ('Income', 'Unknown')\nGROUP BY\n  target\nUNION ALL\nSELECT\n  CAST(ROUND(SUM(amount), 2) AS REAL) AS amount_eur,\n  'Income' AS source,\n  'Income' AS target\nFROM transaction_view\nWHERE\n  booked_on BETWEEN '2025-01-01' AND '2025-12-31' AND amount > 0\nLIMIT 200",
+      "columns": [
+        "source",
+        "target",
+        "amount_eur"
+      ],
+      "rows": [
+        {
+          "source": "Income",
+          "target": "Cash",
+          "amount_eur": 2400.0
+        },
+        {
+          "source": "Income",
+          "target": "Communication",
+          "amount_eur": 719.76
+        },
+        {
+          "source": "Income",
+          "target": "Dining",
+          "amount_eur": 965.7
+        },
+        {
+          "source": "Income",
+          "target": "Groceries",
+          "amount_eur": 4474.95
+        },
+        {
+          "source": "Income",
+          "target": "Health",
+          "amount_eur": 691.2
+        },
+        {
+          "source": "Income",
+          "target": "Housing",
+          "amount_eur": 936.0
+        },
+        {
+          "source": "Income",
+          "target": "Insurance",
+          "amount_eur": 510.0
+        },
+        {
+          "source": "Income",
+          "target": "Needs review",
+          "amount_eur": 14419.5
+        },
+        {
+          "source": "Income",
+          "target": "Shopping",
+          "amount_eur": 1311.36
+        },
+        {
+          "source": "Income",
+          "target": "Subscriptions",
+          "amount_eur": 681.12
+        },
+        {
+          "source": "Income",
+          "target": "Transport",
+          "amount_eur": 1426.3
+        },
+        {
+          "source": 34234.9,
+          "target": "Income",
+          "amount_eur": "Income"
+        }
+      ],
+      "error": "The chart could not be drawn from these rows: One row carries no positive figure in amount_eur. Every flow is a positive euro amount, so spending travels as `ROUND(-SUM(amount), 2)`.",
+      "refusals": [],
+      "shape": "sankey",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": []
+    },
+    {
+      "id": "16-sankey-income-de",
+      "set": "chart",
+      "kind": "sankey",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig als Sankey, wie mein Einkommen 2025 in die Ausgabenkategorien fliesst.",
+      "seconds": 60.64,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  'Einkommen' AS source,\n  COALESCE(category, 'Needs review') AS target,\n  ROUND(-SUM(amount), 2) AS amount_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  target\nHAVING\n  target <> 'Einkommen'\nLIMIT 200",
+      "columns": [
+        "source",
+        "target",
+        "amount_eur"
+      ],
+      "rows": [
+        {
+          "source": "Einkommen",
+          "target": "Cash",
+          "amount_eur": 2400.0
+        },
+        {
+          "source": "Einkommen",
+          "target": "Communication",
+          "amount_eur": 719.76
+        },
+        {
+          "source": "Einkommen",
+          "target": "Dining",
+          "amount_eur": 965.7
+        },
+        {
+          "source": "Einkommen",
+          "target": "Groceries",
+          "amount_eur": 4474.95
+        },
+        {
+          "source": "Einkommen",
+          "target": "Health",
+          "amount_eur": 691.2
+        },
+        {
+          "source": "Einkommen",
+          "target": "Housing",
+          "amount_eur": 936.0
+        },
+        {
+          "source": "Einkommen",
+          "target": "Insurance",
+          "amount_eur": 510.0
+        },
+        {
+          "source": "Einkommen",
+          "target": "Needs review",
+          "amount_eur": 14419.5
+        },
+        {
+          "source": "Einkommen",
+          "target": "Shopping",
+          "amount_eur": 1311.36
+        },
+        {
+          "source": "Einkommen",
+          "target": "Subscriptions",
+          "amount_eur": 681.12
+        },
+        {
+          "source": "Einkommen",
+          "target": "Transport",
+          "amount_eur": 1426.3
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "sankey",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "17-two-halves-en",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Compare my total spending in the first half of 2025 with the second half in a chart.",
+      "seconds": 53.42,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "WITH totals AS (\n  SELECT\n    COALESCE(category, 'Needs review') AS topic,\n    ROUND(-SUM(amount), 2) AS total_eur\n  FROM transaction_view\n  WHERE\n    amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY\n    topic\n  ORDER BY\n    total_eur DESC\n  LIMIT 6\n)\nSELECT\n  COALESCE(category, 'Needs review') AS topic,\n  CASE WHEN booked_on <= '2025-06-30' THEN 'first half' ELSE 'second half' END AS period,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND COALESCE(category, 'Needs review') IN (\n    SELECT\n      topic\n    FROM totals\n  )\nGROUP BY\n  topic,\n  period\nLIMIT 200",
+      "columns": [
+        "topic",
+        "period",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Cash",
+          "period": "first half",
+          "total_eur": 900.0
+        },
+        {
+          "topic": "Cash",
+          "period": "second half",
+          "total_eur": 1500.0
+        },
+        {
+          "topic": "Dining",
+          "period": "first half",
+          "total_eur": 475.5
+        },
+        {
+          "topic": "Dining",
+          "period": "second half",
+          "total_eur": 490.2
+        },
+        {
+          "topic": "Groceries",
+          "period": "first half",
+          "total_eur": 2360.75
+        },
+        {
+          "topic": "Groceries",
+          "period": "second half",
+          "total_eur": 2114.2
+        },
+        {
+          "topic": "Needs review",
+          "period": "first half",
+          "total_eur": 7141.5
+        },
+        {
+          "topic": "Needs review",
+          "period": "second half",
+          "total_eur": 7278.0
+        },
+        {
+          "topic": "Shopping",
+          "period": "first half",
+          "total_eur": 828.0
+        },
+        {
+          "topic": "Shopping",
+          "period": "second half",
+          "total_eur": 483.36
+        },
+        {
+          "topic": "Transport",
+          "period": "first half",
+          "total_eur": 584.4
+        },
+        {
+          "topic": "Transport",
+          "period": "second half",
+          "total_eur": 841.9
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_grouped",
+      "shape_match": false,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "18-two-months-de",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Vergleiche meine Ausgaben im Januar 2025 mit denen im Juli 2025 als Diagramm.",
+      "seconds": 51.22,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  CASE\n    WHEN booked_on BETWEEN '2025-01-01' AND '2025-01-31'\n    THEN 'Januar'\n    ELSE 'Juli'\n  END AS period,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND (\n    booked_on BETWEEN '2025-01-01' AND '2025-01-31'\n    OR booked_on BETWEEN '2025-07-01' AND '2025-07-31'\n  )\nGROUP BY\n  topic,\n  period\nORDER BY\n  SUM(ABS(amount)) DESC\nLIMIT 6",
+      "columns": [
+        "topic",
+        "period",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "period": "Juli",
+          "total_eur": 1208.0
+        },
+        {
+          "topic": "Needs review",
+          "period": "Januar",
+          "total_eur": 1181.5
+        },
+        {
+          "topic": "Groceries",
+          "period": "Januar",
+          "total_eur": 550.0
+        },
+        {
+          "topic": "Groceries",
+          "period": "Juli",
+          "total_eur": 406.4
+        },
+        {
+          "topic": "Cash",
+          "period": "Juli",
+          "total_eur": 400.0
+        },
+        {
+          "topic": "Cash",
+          "period": "Januar",
+          "total_eur": 300.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_grouped",
+      "shape_match": false,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "19-quarters-en",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Chart my spending per quarter in 2025.",
+      "seconds": 36.78,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y', booked_on) || '-Q' || (\n    (\n      STRFTIME('%m', booked_on) - 1\n    ) / 3 + 1\n  ) AS quarter,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  quarter\nORDER BY\n  quarter\nLIMIT 200",
+      "columns": [
+        "quarter",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "quarter": "2025-Q1",
+          "total_eur": 7100.15
+        },
+        {
+          "quarter": "2025-Q2",
+          "total_eur": 6876.24
+        },
+        {
+          "quarter": "2025-Q3",
+          "total_eur": 7592.08
+        },
+        {
+          "quarter": "2025-Q4",
+          "total_eur": 6967.42
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "20-daily-march-en",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Show my spending per day in March 2025 as a line chart.",
+      "seconds": 41.78,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m-%d', booked_on) AS day,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-03-01' AND '2025-03-31'\nGROUP BY\n  day\nORDER BY\n  day\nLIMIT 200",
+      "columns": [
+        "day",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "day": "2025-03-01",
+          "total_eur": 1189.9
+        },
+        {
+          "day": "2025-03-02",
+          "total_eur": 145.4
+        },
+        {
+          "day": "2025-03-03",
+          "total_eur": 41.9
+        },
+        {
+          "day": "2025-03-04",
+          "total_eur": 12.0
+        },
+        {
+          "day": "2025-03-05",
+          "total_eur": 158.79
+        },
+        {
+          "day": "2025-03-07",
+          "total_eur": 12.99
+        },
+        {
+          "day": "2025-03-08",
+          "total_eur": 46.79
+        },
+        {
+          "day": "2025-03-11",
+          "total_eur": 63.09
+        },
+        {
+          "day": "2025-03-13",
+          "total_eur": 28.0
+        },
+        {
+          "day": "2025-03-14",
+          "total_eur": 20.73
+        },
+        {
+          "day": "2025-03-15",
+          "total_eur": 78.0
+        },
+        {
+          "day": "2025-03-17",
+          "total_eur": 34.0
+        },
+        {
+          "day": "2025-03-18",
+          "total_eur": 18.8
+        },
+        {
+          "day": "2025-03-19",
+          "total_eur": 43.99
+        },
+        {
+          "day": "2025-03-22",
+          "total_eur": 32.69
+        },
+        {
+          "day": "2025-03-24",
+          "total_eur": 200.0
+        },
+        {
+          "day": "2025-03-25",
+          "total_eur": 137.1
+        },
+        {
+          "day": "2025-03-27",
+          "total_eur": 11.2
+        },
+        {
+          "day": "2025-03-28",
+          "total_eur": 15.4
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "21-groceries-months-en",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Show what I spent on groceries per month in 2025.",
+      "seconds": 40.82,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND category = 'Groceries'\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 550.0
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 413.0
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 320.13
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 252.7
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 440.72
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 384.2
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 406.4
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 294.3
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 520.1
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 273.2
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 339.5
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 280.7
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "22-all-categories-de",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig die Ausgaben aller Kategorien 2025 als Balkendiagramm, auch die kleinen.",
+      "seconds": 36.75,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "total_eur": 14419.5
+        },
+        {
+          "topic": "Groceries",
+          "total_eur": 4474.95
+        },
+        {
+          "topic": "Cash",
+          "total_eur": 2400.0
+        },
+        {
+          "topic": "Transport",
+          "total_eur": 1426.3
+        },
+        {
+          "topic": "Shopping",
+          "total_eur": 1311.36
+        },
+        {
+          "topic": "Dining",
+          "total_eur": 965.7
+        },
+        {
+          "topic": "Housing",
+          "total_eur": 936.0
+        },
+        {
+          "topic": "Communication",
+          "total_eur": 719.76
+        },
+        {
+          "topic": "Health",
+          "total_eur": 691.2
+        },
+        {
+          "topic": "Subscriptions",
+          "total_eur": 681.12
+        },
+        {
+          "topic": "Insurance",
+          "total_eur": 510.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "23-income-versus-spending-en",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Chart my income and my spending per month in 2025 side by side.",
+      "seconds": 45.22,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  CASE WHEN amount > 0 THEN 'Income' ELSE 'Spending' END AS topic,\n  ROUND(CASE WHEN amount > 0 THEN SUM(amount) ELSE -SUM(amount) END, 2) AS total_eur\nFROM transaction_view\nWHERE\n  booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month,\n  topic\nORDER BY\n  month,\n  topic\nLIMIT 200",
+      "columns": [
+        "month",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "topic": "Income",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-01",
+          "topic": "Spending",
+          "total_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "topic": "Income",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Spending",
+          "total_eur": 2265.34
+        },
+        {
+          "month": "2025-03",
+          "topic": "Income",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-03",
+          "topic": "Spending",
+          "total_eur": 2290.77
+        },
+        {
+          "month": "2025-04",
+          "topic": "Income",
+          "total_eur": 2884.9
+        },
+        {
+          "month": "2025-04",
+          "topic": "Spending",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-05",
+          "topic": "Income",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-05",
+          "topic": "Spending",
+          "total_eur": 2310.46
+        },
+        {
+          "month": "2025-06",
+          "topic": "Income",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-06",
+          "topic": "Spending",
+          "total_eur": 2301.04
+        },
+        {
+          "month": "2025-07",
+          "topic": "Income",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-07",
+          "topic": "Spending",
+          "total_eur": 2760.8
+        },
+        {
+          "month": "2025-08",
+          "topic": "Income",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-08",
+          "topic": "Spending",
+          "total_eur": 2278.84
+        },
+        {
+          "month": "2025-09",
+          "topic": "Income",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-09",
+          "topic": "Spending",
+          "total_eur": 2552.44
+        },
+        {
+          "month": "2025-10",
+          "topic": "Income",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-10",
+          "topic": "Spending",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-11",
+          "topic": "Income",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-11",
+          "topic": "Spending",
+          "total_eur": 2420.14
+        },
+        {
+          "month": "2025-12",
+          "topic": "Income",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-12",
+          "topic": "Spending",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_grouped",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "24-net-per-month-de",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig den monatlichen Saldo 2025, also Einnahmen minus Ausgaben, als Diagramm.",
+      "seconds": 57.41,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 2,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(SUM(amount), 2) AS saldo_eur\nFROM transaction_view\nWHERE\n  booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "saldo_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "saldo_eur": 305.96
+        },
+        {
+          "month": "2025-02",
+          "saldo_eur": 584.66
+        },
+        {
+          "month": "2025-03",
+          "saldo_eur": 559.23
+        },
+        {
+          "month": "2025-04",
+          "saldo_eur": 620.16
+        },
+        {
+          "month": "2025-05",
+          "saldo_eur": 539.54
+        },
+        {
+          "month": "2025-06",
+          "saldo_eur": 548.96
+        },
+        {
+          "month": "2025-07",
+          "saldo_eur": 89.2
+        },
+        {
+          "month": "2025-08",
+          "saldo_eur": 571.16
+        },
+        {
+          "month": "2025-09",
+          "saldo_eur": 297.56
+        },
+        {
+          "month": "2025-10",
+          "saldo_eur": 649.06
+        },
+        {
+          "month": "2025-11",
+          "saldo_eur": 429.86
+        },
+        {
+          "month": "2025-12",
+          "saldo_eur": 503.66
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": [
+        "Repair 1 of 2: The code does not compile: SyntaxError: expecting ';'"
+      ]
+    },
+    {
+      "id": "25-doughnut-supermarkets-de",
+      "set": "chart",
+      "kind": "doughnut",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig als Donut, wie sich meine Lebensmittelausgaben 2025 auf die einzelnen Maerkte verteilen.",
+      "seconds": 41.1,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(title, counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  category = 'Groceries'\n  AND amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  merchant\nLIMIT 200",
+      "columns": [
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "merchant": "Kaufland",
+          "total_eur": 1098.5
+        },
+        {
+          "merchant": "REWE",
+          "total_eur": 732.0
+        },
+        {
+          "merchant": "ALDI",
+          "total_eur": 642.7
+        },
+        {
+          "merchant": "Lidl",
+          "total_eur": 599.3
+        },
+        {
+          "merchant": "EDEKA",
+          "total_eur": 445.83
+        },
+        {
+          "merchant": "Sonstige",
+          "total_eur": 956.62
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "26-sankey-subcategories-en",
+      "set": "chart",
+      "kind": "sankey",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Draw a sankey of how my 2025 spending flows from its categories into their subcategories.",
+      "seconds": 63.69,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS Category,\n  subcategory AS Subcategory,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND COALESCE(category, 'Needs review') <> subcategory\nGROUP BY\n  Category,\n  Subcategory\nLIMIT 200",
+      "columns": [
+        "Category",
+        "Subcategory",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "Category": "Cash",
+          "Subcategory": "Cash withdrawal",
+          "total_eur": 2400.0
+        },
+        {
+          "Category": "Communication",
+          "Subcategory": "Mobile",
+          "total_eur": 239.88
+        },
+        {
+          "Category": "Dining",
+          "Subcategory": "Cafe",
+          "total_eur": 62.0
+        },
+        {
+          "Category": "Dining",
+          "Subcategory": "Delivery",
+          "total_eur": 393.2
+        },
+        {
+          "Category": "Dining",
+          "Subcategory": "Restaurant",
+          "total_eur": 214.5
+        },
+        {
+          "Category": "Dining",
+          "Subcategory": "Takeaway",
+          "total_eur": 296.0
+        },
+        {
+          "Category": "Groceries",
+          "Subcategory": "Bakery",
+          "total_eur": 110.5
+        },
+        {
+          "Category": "Groceries",
+          "Subcategory": "Drugstore",
+          "total_eur": 420.62
+        },
+        {
+          "Category": "Groceries",
+          "Subcategory": "Supermarket",
+          "total_eur": 3943.83
+        },
+        {
+          "Category": "Health",
+          "Subcategory": "Doctor",
+          "total_eur": 189.0
+        },
+        {
+          "Category": "Health",
+          "Subcategory": "Fitness",
+          "total_eur": 478.8
+        },
+        {
+          "Category": "Health",
+          "Subcategory": "Pharmacy",
+          "total_eur": 23.4
+        },
+        {
+          "Category": "Housing",
+          "Subcategory": "Electricity",
+          "total_eur": 936.0
+        },
+        {
+          "Category": "Shopping",
+          "Subcategory": "Home",
+          "total_eur": 41.76
+        },
+        {
+          "Category": "Shopping",
+          "Subcategory": "Online marketplace",
+          "total_eur": 1269.6
+        },
+        {
+          "Category": "Subscriptions",
+          "Subcategory": "Music",
+          "total_eur": 131.88
+        },
+        {
+          "Category": "Subscriptions",
+          "Subcategory": "Software",
+          "total_eur": 285.48
+        },
+        {
+          "Category": "Subscriptions",
+          "Subcategory": "Streaming",
+          "total_eur": 263.76
+        },
+        {
+          "Category": "Transport",
+          "Subcategory": "Fuel",
+          "total_eur": 386.2
+        },
+        {
+          "Category": "Transport",
+          "Subcategory": "Public transport",
+          "total_eur": 888.2
+        },
+        {
+          "Category": "Transport",
+          "Subcategory": "Ride hailing",
+          "total_eur": 151.9
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "sankey",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "27-needs-review-bar-de",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig mir als Diagramm, wie viel von meinen Ausgaben 2025 kategorisiert ist und wie viel noch in Needs review liegt.",
+      "seconds": 57.33,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  CASE WHEN NOT category IS NULL THEN 'With category' ELSE 'Needs review' END AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  topic\nORDER BY\n  topic\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "total_eur": 14419.5
+        },
+        {
+          "topic": "With category",
+          "total_eur": 14116.39
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "28-friends-doughnut-de",
+      "set": "chart",
+      "kind": "doughnut",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie verteilen sich meine PayPal-Zahlungen an Freunde 2025? Zeig es als Donut.",
+      "seconds": 69.72,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(title, counterparty, description) AS name,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%paypal%'\nGROUP BY\n  name\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "name",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "name": "Jonas Keller",
+          "total_eur": 204.5
+        },
+        {
+          "name": "Lea Hoffmann",
+          "total_eur": 144.0
+        },
+        {
+          "name": "Max Schulz",
+          "total_eur": 137.5
+        },
+        {
+          "name": "Anna Weber",
+          "total_eur": 133.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "29-daily-december-line-de",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig meine taeglichen Ausgaben im Dezember 2025 als Liniendiagramm.",
+      "seconds": 44.37,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%d.%m', booked_on) AS day,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-12-01' AND '2025-12-31'\nGROUP BY\n  day\nORDER BY\n  STRFTIME('%m%d', booked_on)\nLIMIT 200",
+      "columns": [
+        "day",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "day": "01.12",
+          "total_eur": 1297.0
+        },
+        {
+          "day": "02.12",
+          "total_eur": 58.6
+        },
+        {
+          "day": "04.12",
+          "total_eur": 29.8
+        },
+        {
+          "day": "05.12",
+          "total_eur": 39.99
+        },
+        {
+          "day": "06.12",
+          "total_eur": 127.0
+        },
+        {
+          "day": "07.12",
+          "total_eur": 84.19
+        },
+        {
+          "day": "08.12",
+          "total_eur": 19.99
+        },
+        {
+          "day": "09.12",
+          "total_eur": 49.8
+        },
+        {
+          "day": "10.12",
+          "total_eur": 7.2
+        },
+        {
+          "day": "11.12",
+          "total_eur": 84.49
+        },
+        {
+          "day": "12.12",
+          "total_eur": 10.3
+        },
+        {
+          "day": "14.12",
+          "total_eur": 10.0
+        },
+        {
+          "day": "15.12",
+          "total_eur": 96.7
+        },
+        {
+          "day": "16.12",
+          "total_eur": 69.7
+        },
+        {
+          "day": "19.12",
+          "total_eur": 8.99
+        },
+        {
+          "day": "20.12",
+          "total_eur": 39.5
+        },
+        {
+          "day": "22.12",
+          "total_eur": 50.79
+        },
+        {
+          "day": "24.12",
+          "total_eur": 35.7
+        },
+        {
+          "day": "25.12",
+          "total_eur": 110.8
+        },
+        {
+          "day": "26.12",
+          "total_eur": 105.7
+        },
+        {
+          "day": "28.12",
+          "total_eur": 10.1
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "30-groceries-stacked-quarters-en",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Show my grocery spending per quarter in 2025, split into supermarket, bakery and drugstore, as a stacked bar chart.",
+      "seconds": 65.35,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  CASE\n    WHEN booked_on BETWEEN '2025-01-01' AND '2025-03-31'\n    THEN '2025-Q1'\n    WHEN booked_on BETWEEN '2025-04-01' AND '2025-06-30'\n    THEN '2025-Q2'\n    WHEN booked_on BETWEEN '2025-07-01' AND '2025-09-30'\n    THEN '2025-Q3'\n    WHEN booked_on BETWEEN '2025-10-01' AND '2025-12-31'\n    THEN '2025-Q4'\n  END AS quarter,\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND subcategory IN ('Supermarket', 'Bakery', 'Drugstore')\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  quarter,\n  topic\nORDER BY\n  quarter,\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "quarter",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "quarter": "2025-Q1",
+          "topic": "Groceries",
+          "total_eur": 1283.13
+        },
+        {
+          "quarter": "2025-Q2",
+          "topic": "Groceries",
+          "total_eur": 1077.62
+        },
+        {
+          "quarter": "2025-Q3",
+          "topic": "Groceries",
+          "total_eur": 1220.8
+        },
+        {
+          "quarter": "2025-Q4",
+          "topic": "Groceries",
+          "total_eur": 893.4
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": false,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "31-groceries-area-de",
+      "set": "chart",
+      "kind": "area",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig die kumulierten Lebensmittelausgaben 2025 als Flaechendiagramm.",
+      "seconds": 52.23,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "WITH monthly_spending AS (\n  SELECT\n    STRFTIME('%Y-%m', booked_on) AS month,\n    ROUND(-SUM(amount), 2) AS spending\n  FROM transaction_view\n  WHERE\n    category = 'Groceries'\n    AND amount < 0\n    AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY\n    month\n)\nSELECT\n  month,\n  ROUND(SUM(spending) OVER (ORDER BY month), 2) AS cumulative_eur\nFROM monthly_spending\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "cumulative_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "cumulative_eur": 550.0
+        },
+        {
+          "month": "2025-02",
+          "cumulative_eur": 963.0
+        },
+        {
+          "month": "2025-03",
+          "cumulative_eur": 1283.13
+        },
+        {
+          "month": "2025-04",
+          "cumulative_eur": 1535.83
+        },
+        {
+          "month": "2025-05",
+          "cumulative_eur": 1976.55
+        },
+        {
+          "month": "2025-06",
+          "cumulative_eur": 2360.75
+        },
+        {
+          "month": "2025-07",
+          "cumulative_eur": 2767.15
+        },
+        {
+          "month": "2025-08",
+          "cumulative_eur": 3061.45
+        },
+        {
+          "month": "2025-09",
+          "cumulative_eur": 3581.55
+        },
+        {
+          "month": "2025-10",
+          "cumulative_eur": 3854.75
+        },
+        {
+          "month": "2025-11",
+          "cumulative_eur": 4194.25
+        },
+        {
+          "month": "2025-12",
+          "cumulative_eur": 4474.95
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "area",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "32-top-merchants-half-en",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Which five merchants took the most money in the second half of 2025? Show them as horizontal bars.",
+      "seconds": 48.85,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(title, counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-07-01' AND '2025-12-31'\nGROUP BY\n  merchant\nORDER BY\n  total_eur DESC\nLIMIT 5",
+      "columns": [
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "merchant": "Hausverwaltung Bergmann",
+          "total_eur": 6900.0
+        },
+        {
+          "merchant": "Cash withdrawal",
+          "total_eur": 1500.0
+        },
+        {
+          "merchant": "Kaufland",
+          "total_eur": 521.9
+        },
+        {
+          "merchant": "Vattenfall",
+          "total_eur": 468.0
+        },
+        {
+          "merchant": "Amazon",
+          "total_eur": 441.6
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_horizontal",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "33-grocery-lines-de",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie viel habe ich 2025 pro Monat bei Rewe, Edeka, Lidl, Aldi und dm ausgegeben, als Linien?",
+      "seconds": 62.6,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COALESCE(title, counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND (\n    LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%rewe%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%edeka%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%lidl%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%aldi%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%dm%'\n  )\nGROUP BY\n  month,\n  merchant\nORDER BY\n  month ASC\nLIMIT 200",
+      "columns": [
+        "month",
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "merchant": "EDEKA",
+          "total_eur": 137.0
+        },
+        {
+          "month": "2025-01",
+          "merchant": "Lidl",
+          "total_eur": 92.1
+        },
+        {
+          "month": "2025-01",
+          "merchant": "REWE",
+          "total_eur": 59.9
+        },
+        {
+          "month": "2025-02",
+          "merchant": "ALDI",
+          "total_eur": 40.4
+        },
+        {
+          "month": "2025-02",
+          "merchant": "Lidl",
+          "total_eur": 83.7
+        },
+        {
+          "month": "2025-02",
+          "merchant": "REWE",
+          "total_eur": 100.8
+        },
+        {
+          "month": "2025-02",
+          "merchant": "dm",
+          "total_eur": 21.2
+        },
+        {
+          "month": "2025-03",
+          "merchant": "ALDI",
+          "total_eur": 110.5
+        },
+        {
+          "month": "2025-03",
+          "merchant": "EDEKA",
+          "total_eur": 73.83
+        },
+        {
+          "month": "2025-03",
+          "merchant": "REWE",
+          "total_eur": 26.8
+        },
+        {
+          "month": "2025-03",
+          "merchant": "dm",
+          "total_eur": 20.9
+        },
+        {
+          "month": "2025-04",
+          "merchant": "ALDI",
+          "total_eur": 49.3
+        },
+        {
+          "month": "2025-04",
+          "merchant": "Lidl",
+          "total_eur": 68.1
+        },
+        {
+          "month": "2025-04",
+          "merchant": "dm",
+          "total_eur": 21.0
+        },
+        {
+          "month": "2025-05",
+          "merchant": "ALDI",
+          "total_eur": 118.4
+        },
+        {
+          "month": "2025-05",
+          "merchant": "EDEKA",
+          "total_eur": 14.8
+        },
+        {
+          "month": "2025-05",
+          "merchant": "Lidl",
+          "total_eur": 20.4
+        },
+        {
+          "month": "2025-05",
+          "merchant": "REWE",
+          "total_eur": 181.1
+        },
+        {
+          "month": "2025-05",
+          "merchant": "dm",
+          "total_eur": 30.8
+        },
+        {
+          "month": "2025-06",
+          "merchant": "ALDI",
+          "total_eur": 70.0
+        },
+        {
+          "month": "2025-06",
+          "merchant": "EDEKA",
+          "total_eur": 30.8
+        },
+        {
+          "month": "2025-06",
+          "merchant": "dm",
+          "total_eur": 115.1
+        },
+        {
+          "month": "2025-07",
+          "merchant": "ALDI",
+          "total_eur": 30.4
+        },
+        {
+          "month": "2025-07",
+          "merchant": "EDEKA",
+          "total_eur": 35.4
+        },
+        {
+          "month": "2025-07",
+          "merchant": "Lidl",
+          "total_eur": 67.8
+        },
+        {
+          "month": "2025-07",
+          "merchant": "REWE",
+          "total_eur": 140.1
+        },
+        {
+          "month": "2025-08",
+          "merchant": "ALDI",
+          "total_eur": 66.2
+        },
+        {
+          "month": "2025-08",
+          "merchant": "EDEKA",
+          "total_eur": 27.5
+        },
+        {
+          "month": "2025-08",
+          "merchant": "REWE",
+          "total_eur": 16.9
+        },
+        {
+          "month": "2025-08",
+          "merchant": "dm",
+          "total_eur": 33.7
+        },
+        {
+          "month": "2025-09",
+          "merchant": "ALDI",
+          "total_eur": 35.1
+        },
+        {
+          "month": "2025-09",
+          "merchant": "EDEKA",
+          "total_eur": 54.1
+        },
+        {
+          "month": "2025-09",
+          "merchant": "Lidl",
+          "total_eur": 94.3
+        },
+        {
+          "month": "2025-09",
+          "merchant": "REWE",
+          "total_eur": 51.3
+        },
+        {
+          "month": "2025-09",
+          "merchant": "dm",
+          "total_eur": 87.7
+        },
+        {
+          "month": "2025-10",
+          "merchant": "ALDI",
+          "total_eur": 72.1
+        },
+        {
+          "month": "2025-10",
+          "merchant": "EDEKA",
+          "total_eur": 23.9
+        },
+        {
+          "month": "2025-10",
+          "merchant": "Lidl",
+          "total_eur": 55.0
+        },
+        {
+          "month": "2025-10",
+          "merchant": "REWE",
+          "total_eur": 42.6
+        },
+        {
+          "month": "2025-10",
+          "merchant": "dm",
+          "total_eur": 24.2
+        },
+        {
+          "month": "2025-11",
+          "merchant": "ALDI",
+          "total_eur": 22.1
+        },
+        {
+          "month": "2025-11",
+          "merchant": "Lidl",
+          "total_eur": 38.7
+        },
+        {
+          "month": "2025-11",
+          "merchant": "REWE",
+          "total_eur": 50.9
+        },
+        {
+          "month": "2025-11",
+          "merchant": "dm",
+          "total_eur": 11.4
+        },
+        {
+          "month": "2025-12",
+          "merchant": "ALDI",
+          "total_eur": 28.2
+        },
+        {
+          "month": "2025-12",
+          "merchant": "EDEKA",
+          "total_eur": 48.5
+        },
+        {
+          "month": "2025-12",
+          "merchant": "Lidl",
+          "total_eur": 79.2
+        },
+        {
+          "month": "2025-12",
+          "merchant": "REWE",
+          "total_eur": 61.6
+        },
+        {
+          "month": "2025-12",
+          "merchant": "dm",
+          "total_eur": 35.7
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "34-grocery-lines-en",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 3,
+      "language": "en",
+      "question": "How much did I spend at Rewe, Edeka, Lidl, Aldi and dm per month in 2025? Draw it as lines.",
+      "seconds": 64.09,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COALESCE(title, counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND (\n    LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%rewe%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%edeka%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%lidl%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%aldi%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%dm%'\n  )\nGROUP BY\n  month,\n  merchant\nORDER BY\n  month,\n  merchant\nLIMIT 200",
+      "columns": [
+        "month",
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "merchant": "EDEKA",
+          "total_eur": 137.0
+        },
+        {
+          "month": "2025-01",
+          "merchant": "Lidl",
+          "total_eur": 92.1
+        },
+        {
+          "month": "2025-01",
+          "merchant": "REWE",
+          "total_eur": 59.9
+        },
+        {
+          "month": "2025-02",
+          "merchant": "ALDI",
+          "total_eur": 40.4
+        },
+        {
+          "month": "2025-02",
+          "merchant": "Lidl",
+          "total_eur": 83.7
+        },
+        {
+          "month": "2025-02",
+          "merchant": "REWE",
+          "total_eur": 100.8
+        },
+        {
+          "month": "2025-02",
+          "merchant": "dm",
+          "total_eur": 21.2
+        },
+        {
+          "month": "2025-03",
+          "merchant": "ALDI",
+          "total_eur": 110.5
+        },
+        {
+          "month": "2025-03",
+          "merchant": "EDEKA",
+          "total_eur": 73.83
+        },
+        {
+          "month": "2025-03",
+          "merchant": "REWE",
+          "total_eur": 26.8
+        },
+        {
+          "month": "2025-03",
+          "merchant": "dm",
+          "total_eur": 20.9
+        },
+        {
+          "month": "2025-04",
+          "merchant": "ALDI",
+          "total_eur": 49.3
+        },
+        {
+          "month": "2025-04",
+          "merchant": "Lidl",
+          "total_eur": 68.1
+        },
+        {
+          "month": "2025-04",
+          "merchant": "dm",
+          "total_eur": 21.0
+        },
+        {
+          "month": "2025-05",
+          "merchant": "ALDI",
+          "total_eur": 118.4
+        },
+        {
+          "month": "2025-05",
+          "merchant": "EDEKA",
+          "total_eur": 14.8
+        },
+        {
+          "month": "2025-05",
+          "merchant": "Lidl",
+          "total_eur": 20.4
+        },
+        {
+          "month": "2025-05",
+          "merchant": "REWE",
+          "total_eur": 181.1
+        },
+        {
+          "month": "2025-05",
+          "merchant": "dm",
+          "total_eur": 30.8
+        },
+        {
+          "month": "2025-06",
+          "merchant": "ALDI",
+          "total_eur": 70.0
+        },
+        {
+          "month": "2025-06",
+          "merchant": "EDEKA",
+          "total_eur": 30.8
+        },
+        {
+          "month": "2025-06",
+          "merchant": "dm",
+          "total_eur": 115.1
+        },
+        {
+          "month": "2025-07",
+          "merchant": "ALDI",
+          "total_eur": 30.4
+        },
+        {
+          "month": "2025-07",
+          "merchant": "EDEKA",
+          "total_eur": 35.4
+        },
+        {
+          "month": "2025-07",
+          "merchant": "Lidl",
+          "total_eur": 67.8
+        },
+        {
+          "month": "2025-07",
+          "merchant": "REWE",
+          "total_eur": 140.1
+        },
+        {
+          "month": "2025-08",
+          "merchant": "ALDI",
+          "total_eur": 66.2
+        },
+        {
+          "month": "2025-08",
+          "merchant": "EDEKA",
+          "total_eur": 27.5
+        },
+        {
+          "month": "2025-08",
+          "merchant": "REWE",
+          "total_eur": 16.9
+        },
+        {
+          "month": "2025-08",
+          "merchant": "dm",
+          "total_eur": 33.7
+        },
+        {
+          "month": "2025-09",
+          "merchant": "ALDI",
+          "total_eur": 35.1
+        },
+        {
+          "month": "2025-09",
+          "merchant": "EDEKA",
+          "total_eur": 54.1
+        },
+        {
+          "month": "2025-09",
+          "merchant": "Lidl",
+          "total_eur": 94.3
+        },
+        {
+          "month": "2025-09",
+          "merchant": "REWE",
+          "total_eur": 51.3
+        },
+        {
+          "month": "2025-09",
+          "merchant": "dm",
+          "total_eur": 87.7
+        },
+        {
+          "month": "2025-10",
+          "merchant": "ALDI",
+          "total_eur": 72.1
+        },
+        {
+          "month": "2025-10",
+          "merchant": "EDEKA",
+          "total_eur": 23.9
+        },
+        {
+          "month": "2025-10",
+          "merchant": "Lidl",
+          "total_eur": 55.0
+        },
+        {
+          "month": "2025-10",
+          "merchant": "REWE",
+          "total_eur": 42.6
+        },
+        {
+          "month": "2025-10",
+          "merchant": "dm",
+          "total_eur": 24.2
+        },
+        {
+          "month": "2025-11",
+          "merchant": "ALDI",
+          "total_eur": 22.1
+        },
+        {
+          "month": "2025-11",
+          "merchant": "Lidl",
+          "total_eur": 38.7
+        },
+        {
+          "month": "2025-11",
+          "merchant": "REWE",
+          "total_eur": 50.9
+        },
+        {
+          "month": "2025-11",
+          "merchant": "dm",
+          "total_eur": 11.4
+        },
+        {
+          "month": "2025-12",
+          "merchant": "ALDI",
+          "total_eur": 28.2
+        },
+        {
+          "month": "2025-12",
+          "merchant": "EDEKA",
+          "total_eur": 48.5
+        },
+        {
+          "month": "2025-12",
+          "merchant": "Lidl",
+          "total_eur": 79.2
+        },
+        {
+          "month": "2025-12",
+          "merchant": "REWE",
+          "total_eur": 61.6
+        },
+        {
+          "month": "2025-12",
+          "merchant": "dm",
+          "total_eur": 35.7
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g001-bar",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Vergleiche meine Ausgaben in diesem Quartal nach Kategorie als Balkendiagramm.",
+      "seconds": 47.8,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-10-01' AND '2025-12-31'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "total_eur": 3669.5
+        },
+        {
+          "topic": "Groceries",
+          "total_eur": 893.4
+        },
+        {
+          "topic": "Cash",
+          "total_eur": 550.0
+        },
+        {
+          "topic": "Transport",
+          "total_eur": 467.1
+        },
+        {
+          "topic": "Health",
+          "total_eur": 308.7
+        },
+        {
+          "topic": "Housing",
+          "total_eur": 234.0
+        },
+        {
+          "topic": "Dining",
+          "total_eur": 206.4
+        },
+        {
+          "topic": "Communication",
+          "total_eur": 179.94
+        },
+        {
+          "topic": "Subscriptions",
+          "total_eur": 170.28
+        },
+        {
+          "topic": "Shopping",
+          "total_eur": 160.6
+        },
+        {
+          "topic": "Insurance",
+          "total_eur": 127.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g002-bar",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Give me a breakdown of what I spent at supermarkets in 2025.",
+      "seconds": 51.52,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(title, counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  category = 'Groceries'\n  AND amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  merchant\nORDER BY\n  total_eur DESC\nLIMIT 12",
+      "columns": [
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "merchant": "Kaufland",
+          "total_eur": 1098.5
+        },
+        {
+          "merchant": "REWE",
+          "total_eur": 732.0
+        },
+        {
+          "merchant": "ALDI",
+          "total_eur": 642.7
+        },
+        {
+          "merchant": "Lidl",
+          "total_eur": 599.3
+        },
+        {
+          "merchant": "EDEKA",
+          "total_eur": 445.83
+        },
+        {
+          "merchant": "Netto",
+          "total_eur": 425.5
+        },
+        {
+          "merchant": "dm",
+          "total_eur": 401.7
+        },
+        {
+          "merchant": "Steinecke",
+          "total_eur": 110.5
+        },
+        {
+          "merchant": "Rossmann",
+          "total_eur": 18.92
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_horizontal",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g003-bar",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Show how much each subscription service cost me in 2025.",
+      "seconds": 51.77,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  subcategory AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND category = 'Subscriptions'\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  subcategory\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Software",
+          "total_eur": 285.48
+        },
+        {
+          "topic": "Streaming",
+          "total_eur": 263.76
+        },
+        {
+          "topic": "Music",
+          "total_eur": 131.88
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_horizontal",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g004-bar",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Vergleiche meine Dining-Ausgaben 2025 nach Subkategorie als Balkendiagramm.",
+      "seconds": 46.16,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  subcategory AS subcategory_name,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND category = 'Dining'\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  subcategory\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "subcategory_name",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "subcategory_name": "Delivery",
+          "total_eur": 393.2
+        },
+        {
+          "subcategory_name": "Takeaway",
+          "total_eur": 296.0
+        },
+        {
+          "subcategory_name": "Restaurant",
+          "total_eur": 214.5
+        },
+        {
+          "subcategory_name": "Cafe",
+          "total_eur": 62.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g005-bar",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Compare my spending across categories in November 2025.",
+      "seconds": 43.63,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-11-01' AND '2025-11-30'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "total_eur": 1212.0
+        },
+        {
+          "topic": "Groceries",
+          "total_eur": 339.5
+        },
+        {
+          "topic": "Health",
+          "total_eur": 228.9
+        },
+        {
+          "topic": "Cash",
+          "total_eur": 150.0
+        },
+        {
+          "topic": "Transport",
+          "total_eur": 107.0
+        },
+        {
+          "topic": "Dining",
+          "total_eur": 88.3
+        },
+        {
+          "topic": "Housing",
+          "total_eur": 78.0
+        },
+        {
+          "topic": "Communication",
+          "total_eur": 59.98
+        },
+        {
+          "topic": "Shopping",
+          "total_eur": 57.2
+        },
+        {
+          "topic": "Subscriptions",
+          "total_eur": 56.76
+        },
+        {
+          "topic": "Insurance",
+          "total_eur": 42.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g006-bar",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie viel habe ich 2025 fuer Transport ausgegeben, aufgeteilt nach Unterkategorien? Bitte als Balkendiagramm.",
+      "seconds": 40.82,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  subcategory AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND subcategory IN ('Public transport', 'Fuel', 'Ride hailing', 'Car')\nGROUP BY\n  topic\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Fuel",
+          "total_eur": 386.2
+        },
+        {
+          "topic": "Public transport",
+          "total_eur": 888.2
+        },
+        {
+          "topic": "Ride hailing",
+          "total_eur": 151.9
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g007-bar",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Give me a breakdown of my spending across categories in Q3 2025.",
+      "seconds": 36.74,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-07-01' AND '2025-09-30'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 6",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "total_eur": 3608.5
+        },
+        {
+          "topic": "Groceries",
+          "total_eur": 1220.8
+        },
+        {
+          "topic": "Cash",
+          "total_eur": 950.0
+        },
+        {
+          "topic": "Transport",
+          "total_eur": 374.8
+        },
+        {
+          "topic": "Shopping",
+          "total_eur": 322.76
+        },
+        {
+          "topic": "Dining",
+          "total_eur": 283.8
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g001-line",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Show my monthly income across 2025 as a line chart.",
+      "seconds": 35.41,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount > 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 2884.9
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 2850.0
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 2850.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g002-line",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Plot my daily spending in November 2025 as a line chart.",
+      "seconds": 36.31,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  booked_on AS day,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-11-01' AND '2025-11-30'\nGROUP BY\n  day\nORDER BY\n  day\nLIMIT 200",
+      "columns": [
+        "day",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "day": "2025-11-01",
+          "total_eur": 1247.7
+        },
+        {
+          "day": "2025-11-02",
+          "total_eur": 92.8
+        },
+        {
+          "day": "2025-11-04",
+          "total_eur": 10.1
+        },
+        {
+          "day": "2025-11-05",
+          "total_eur": 147.69
+        },
+        {
+          "day": "2025-11-06",
+          "total_eur": 100.0
+        },
+        {
+          "day": "2025-11-07",
+          "total_eur": 12.99
+        },
+        {
+          "day": "2025-11-08",
+          "total_eur": 19.99
+        },
+        {
+          "day": "2025-11-09",
+          "total_eur": 44.5
+        },
+        {
+          "day": "2025-11-11",
+          "total_eur": 10.99
+        },
+        {
+          "day": "2025-11-13",
+          "total_eur": 23.4
+        },
+        {
+          "day": "2025-11-15",
+          "total_eur": 78.0
+        },
+        {
+          "day": "2025-11-17",
+          "total_eur": 51.7
+        },
+        {
+          "day": "2025-11-19",
+          "total_eur": 66.99
+        },
+        {
+          "day": "2025-11-21",
+          "total_eur": 197.4
+        },
+        {
+          "day": "2025-11-22",
+          "total_eur": 50.89
+        },
+        {
+          "day": "2025-11-23",
+          "total_eur": 57.2
+        },
+        {
+          "day": "2025-11-24",
+          "total_eur": 83.1
+        },
+        {
+          "day": "2025-11-25",
+          "total_eur": 67.7
+        },
+        {
+          "day": "2025-11-27",
+          "total_eur": 57.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g003-line",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig mir den Verlauf meiner Fahrt- und Transportkosten pro Quartal im Jahr 2025.",
+      "seconds": 52.75,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  CASE\n    WHEN booked_on BETWEEN '2025-01-01' AND '2025-03-31'\n    THEN '2025-Q1'\n    WHEN booked_on BETWEEN '2025-04-01' AND '2025-06-30'\n    THEN '2025-Q2'\n    WHEN booked_on BETWEEN '2025-07-01' AND '2025-09-30'\n    THEN '2025-Q3'\n    WHEN booked_on BETWEEN '2025-10-01' AND '2025-12-31'\n    THEN '2025-Q4'\n  END AS quarter,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND category = 'Transport'\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  quarter\nORDER BY\n  quarter\nLIMIT 200",
+      "columns": [
+        "quarter",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "quarter": "2025-Q1",
+          "total_eur": 261.4
+        },
+        {
+          "quarter": "2025-Q2",
+          "total_eur": 323.0
+        },
+        {
+          "quarter": "2025-Q3",
+          "total_eur": 374.8
+        },
+        {
+          "quarter": "2025-Q4",
+          "total_eur": 467.1
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g004-line",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Stelle meine Monatsausgaben bei Amazon 2025 als Liniengrafik dar.",
+      "seconds": 45.62,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COALESCE(title, counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%amazon eu s.a r.l%'\nGROUP BY\n  month,\n  merchant\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "merchant": "Amazon",
+          "total_eur": 61.1
+        },
+        {
+          "month": "2025-02",
+          "merchant": "Amazon",
+          "total_eur": 156.4
+        },
+        {
+          "month": "2025-03",
+          "merchant": "Amazon",
+          "total_eur": 137.1
+        },
+        {
+          "month": "2025-04",
+          "merchant": "Amazon",
+          "total_eur": 227.7
+        },
+        {
+          "month": "2025-05",
+          "merchant": "Amazon",
+          "total_eur": 65.8
+        },
+        {
+          "month": "2025-06",
+          "merchant": "Amazon",
+          "total_eur": 179.9
+        },
+        {
+          "month": "2025-07",
+          "merchant": "Amazon",
+          "total_eur": 160.1
+        },
+        {
+          "month": "2025-08",
+          "merchant": "Amazon",
+          "total_eur": 84.4
+        },
+        {
+          "month": "2025-09",
+          "merchant": "Amazon",
+          "total_eur": 36.5
+        },
+        {
+          "month": "2025-10",
+          "merchant": "Amazon",
+          "total_eur": 90.7
+        },
+        {
+          "month": "2025-11",
+          "merchant": "Amazon",
+          "total_eur": 57.2
+        },
+        {
+          "month": "2025-12",
+          "merchant": "Amazon",
+          "total_eur": 12.7
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g005-line",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie haben sich meine Ausgaben im Oktober 2025 von Tag zu Tag entwickelt?",
+      "seconds": 41.48,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%d', booked_on) AS day,\n  booked_on AS date,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-10-01' AND '2025-10-31'\nGROUP BY\n  day,\n  date\nLIMIT 200",
+      "columns": [
+        "day",
+        "date",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "day": "01",
+          "date": "2025-10-01",
+          "total_eur": 1199.0
+        },
+        {
+          "day": "02",
+          "date": "2025-10-02",
+          "total_eur": 82.5
+        },
+        {
+          "day": "05",
+          "date": "2025-10-05",
+          "total_eur": 159.59
+        },
+        {
+          "day": "19",
+          "date": "2025-10-19",
+          "total_eur": 87.39
+        },
+        {
+          "day": "25",
+          "date": "2025-10-25",
+          "total_eur": 119.7
+        },
+        {
+          "day": "26",
+          "date": "2025-10-26",
+          "total_eur": 140.9
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g001-area",
+      "set": "chart",
+      "kind": "area",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Plot my cumulative income over 2025 month by month as an area chart.",
+      "seconds": 34.73,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": "WITH monthly_income AS (\n  SELECT\n    STRFTIME('%Y-%m', booked_on) AS month,\n    SUM(amount) AS total_eur\n  FROM transaction_view\n  WHERE\n    amount > 0\n    AND category = 'Income'\n    AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY\n    month\n)\nSELECT\n  month,\n  ROUND(SUM(total_eur) OVER (ORDER BY month), 2) AS cumulative_eur\nFROM monthly_income\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "cumulative_eur"
+      ],
+      "rows": [],
+      "error": "The query behind the chart returned no rows, so there is nothing to draw.",
+      "refusals": [],
+      "shape": "area",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": []
+    },
+    {
+      "id": "g002-area",
+      "set": "chart",
+      "kind": "area",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Wie haben sich meine Ausgaben im Jahr 2025 Quartal fuer Quartal aufsummiert? Zeig mir den Verlauf.",
+      "seconds": 52.18,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "WITH QuarterSpending AS (\n  SELECT\n    CASE\n      WHEN booked_on BETWEEN '2025-01-01' AND '2025-03-31'\n      THEN '2025-Q1'\n      WHEN booked_on BETWEEN '2025-04-01' AND '2025-06-30'\n      THEN '2025-Q2'\n      WHEN booked_on BETWEEN '2025-07-01' AND '2025-09-30'\n      THEN '2025-Q3'\n      WHEN booked_on BETWEEN '2025-10-01' AND '2025-12-31'\n      THEN '2025-Q4'\n    END AS quarter,\n    ROUND(-SUM(amount), 2) AS total_eur\n  FROM transaction_view\n  WHERE\n    amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY\n    quarter\n)\nSELECT\n  quarter,\n  ROUND(SUM(total_eur) OVER (ORDER BY quarter), 2) AS cumulative_eur\nFROM QuarterSpending\nORDER BY\n  quarter\nLIMIT 200",
+      "columns": [
+        "quarter",
+        "cumulative_eur"
+      ],
+      "rows": [
+        {
+          "quarter": "2025-Q1",
+          "cumulative_eur": 7100.15
+        },
+        {
+          "quarter": "2025-Q2",
+          "cumulative_eur": 13976.39
+        },
+        {
+          "quarter": "2025-Q3",
+          "cumulative_eur": 21568.47
+        },
+        {
+          "quarter": "2025-Q4",
+          "cumulative_eur": 28535.89
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "area",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g003-area",
+      "set": "chart",
+      "kind": "area",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig die aufgelaufenen Ausgaben fuer Wohnen ueber das Jahr 2025 als Flaechendiagramm.",
+      "seconds": 44.26,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(SUM(SUM(amount)) OVER (ORDER BY STRFTIME('%Y-%m', booked_on)), -2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND category = 'Housing'\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": -78.0
+        },
+        {
+          "month": "2025-02",
+          "total_eur": -156.0
+        },
+        {
+          "month": "2025-03",
+          "total_eur": -234.0
+        },
+        {
+          "month": "2025-04",
+          "total_eur": -312.0
+        },
+        {
+          "month": "2025-05",
+          "total_eur": -390.0
+        },
+        {
+          "month": "2025-06",
+          "total_eur": -468.0
+        },
+        {
+          "month": "2025-07",
+          "total_eur": -546.0
+        },
+        {
+          "month": "2025-08",
+          "total_eur": -624.0
+        },
+        {
+          "month": "2025-09",
+          "total_eur": -702.0
+        },
+        {
+          "month": "2025-10",
+          "total_eur": -780.0
+        },
+        {
+          "month": "2025-11",
+          "total_eur": -858.0
+        },
+        {
+          "month": "2025-12",
+          "total_eur": -936.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "area",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g001-doughnut",
+      "set": "chart",
+      "kind": "doughnut",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Wie teilen sich meine Ausgaben fuer Gastronomie im vierten Quartal 2025 auf? Bitte als Donut.",
+      "seconds": 50.97,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  subcategory AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND subcategory IN ('Restaurant', 'Cafe', 'Takeaway', 'Delivery')\n  AND booked_on BETWEEN '2025-10-01' AND '2025-12-31'\nGROUP BY\n  topic\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Cafe",
+          "total_eur": 9.4
+        },
+        {
+          "topic": "Delivery",
+          "total_eur": 90.0
+        },
+        {
+          "topic": "Restaurant",
+          "total_eur": 27.0
+        },
+        {
+          "topic": "Takeaway",
+          "total_eur": 80.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g002-doughnut",
+      "set": "chart",
+      "kind": "doughnut",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Stelle meine Transportausgaben 2025 nach Unterkategorien als Ringdiagramm dar.",
+      "seconds": 49.98,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  subcategory AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND subcategory IN ('Public transport', 'Fuel', 'Ride hailing', 'Car')\nGROUP BY\n  topic\nLIMIT 200",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Fuel",
+          "total_eur": 386.2
+        },
+        {
+          "topic": "Public transport",
+          "total_eur": 888.2
+        },
+        {
+          "topic": "Ride hailing",
+          "total_eur": 151.9
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g003-doughnut",
+      "set": "chart",
+      "kind": "doughnut",
+      "difficulty": 3,
+      "language": "en",
+      "question": "How was my spending split across my top categories last month?",
+      "seconds": 51.14,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-11-01' AND '2025-11-30'\nGROUP BY\n  topic\nORDER BY\n  total_eur DESC\nLIMIT 6",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "total_eur": 1212.0
+        },
+        {
+          "topic": "Groceries",
+          "total_eur": 339.5
+        },
+        {
+          "topic": "Health",
+          "total_eur": 228.9
+        },
+        {
+          "topic": "Cash",
+          "total_eur": 150.0
+        },
+        {
+          "topic": "Transport",
+          "total_eur": 107.0
+        },
+        {
+          "topic": "Dining",
+          "total_eur": 88.3
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g004-doughnut",
+      "set": "chart",
+      "kind": "doughnut",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Show the breakdown of my 2025 grocery spending by subcategory as a doughnut chart.",
+      "seconds": 50.18,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  subcategory AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND category = 'Groceries'\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  subcategory\nORDER BY\n  total_eur DESC\nLIMIT 5",
+      "columns": [
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Supermarket",
+          "total_eur": 3943.83
+        },
+        {
+          "topic": "Drugstore",
+          "total_eur": 420.62
+        },
+        {
+          "topic": "Bakery",
+          "total_eur": 110.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "doughnut",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g001-bar_horizontal",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Show my top 8 merchants by spending in Q4 2025 as a horizontal bar chart.",
+      "seconds": 40.42,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(title, counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-10-01' AND '2025-12-31'\nGROUP BY\n  merchant\nORDER BY\n  total_eur DESC\nLIMIT 8",
+      "columns": [
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "merchant": "Hausverwaltung Bergmann",
+          "total_eur": 3450.0
+        },
+        {
+          "merchant": "Cash withdrawal",
+          "total_eur": 550.0
+        },
+        {
+          "merchant": "Shell",
+          "total_eur": 263.0
+        },
+        {
+          "merchant": "Vattenfall",
+          "total_eur": 234.0
+        },
+        {
+          "merchant": "Zahnarztpraxis DR Lorenz",
+          "total_eur": 189.0
+        },
+        {
+          "merchant": "Lidl",
+          "total_eur": 172.9
+        },
+        {
+          "merchant": "Amazon",
+          "total_eur": 160.6
+        },
+        {
+          "merchant": "REWE",
+          "total_eur": 155.1
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_horizontal",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g002-bar_horizontal",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Welche Streaming- und Abo-Dienste haben mich 2025 am meisten gekostet? Zeig mir die Rangliste im Diagramm.",
+      "seconds": 55.68,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(title, counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  AND (\n    LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%netflix international bv%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%spotify ab%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%adobe systems software%'\n    OR LOWER(description || ' ' || COALESCE(counterparty, '')) LIKE '%amazon prime membership%'\n  )\nGROUP BY\n  merchant\nORDER BY\n  total_eur ASC\nLIMIT 200",
+      "columns": [
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "merchant": "Amazon Prime",
+          "total_eur": 107.88
+        },
+        {
+          "merchant": "Spotify",
+          "total_eur": 131.88
+        },
+        {
+          "merchant": "Netflix",
+          "total_eur": 155.88
+        },
+        {
+          "merchant": "Adobe",
+          "total_eur": 285.48
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_horizontal",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g003-bar_horizontal",
+      "set": "chart",
+      "kind": "bar_horizontal",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Rank my top 5 merchants in November 2025 by total spending.",
+      "seconds": 46.98,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(title, counterparty, description) AS merchant,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-11-01' AND '2025-11-30'\nGROUP BY\n  merchant\nORDER BY\n  total_eur DESC\nLIMIT 5",
+      "columns": [
+        "merchant",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "merchant": "Hausverwaltung Bergmann",
+          "total_eur": 1150.0
+        },
+        {
+          "merchant": "Zahnarztpraxis DR Lorenz",
+          "total_eur": 189.0
+        },
+        {
+          "merchant": "Kaufland",
+          "total_eur": 150.1
+        },
+        {
+          "merchant": "Cash withdrawal",
+          "total_eur": 150.0
+        },
+        {
+          "merchant": "Vattenfall",
+          "total_eur": 78.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_horizontal",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g001-bar_grouped",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Zeig mir die Ausgaben fuer Housing und Insurance pro Monat im ersten Halbjahr 2025 als gruppiertes Balkendiagramm.",
+      "seconds": 61.8,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-01-01' AND '2025-06-30'\n  AND category IN ('Housing', 'Insurance')\nGROUP BY\n  month,\n  topic\nLIMIT 200",
+      "columns": [
+        "month",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "topic": "Housing",
+          "total_eur": 78.0
+        },
+        {
+          "month": "2025-01",
+          "topic": "Insurance",
+          "total_eur": 42.5
+        },
+        {
+          "month": "2025-02",
+          "topic": "Housing",
+          "total_eur": 78.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Insurance",
+          "total_eur": 42.5
+        },
+        {
+          "month": "2025-03",
+          "topic": "Housing",
+          "total_eur": 78.0
+        },
+        {
+          "month": "2025-03",
+          "topic": "Insurance",
+          "total_eur": 42.5
+        },
+        {
+          "month": "2025-04",
+          "topic": "Housing",
+          "total_eur": 78.0
+        },
+        {
+          "month": "2025-04",
+          "topic": "Insurance",
+          "total_eur": 42.5
+        },
+        {
+          "month": "2025-05",
+          "topic": "Housing",
+          "total_eur": 78.0
+        },
+        {
+          "month": "2025-05",
+          "topic": "Insurance",
+          "total_eur": 42.5
+        },
+        {
+          "month": "2025-06",
+          "topic": "Housing",
+          "total_eur": 78.0
+        },
+        {
+          "month": "2025-06",
+          "topic": "Insurance",
+          "total_eur": 42.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_grouped",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g002-bar_grouped",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Compare my quarterly expenses for Groceries, Dining, and Transport across 2025 side by side.",
+      "seconds": 55.17,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y', booked_on) || '-' || (\n    (\n      STRFTIME('%m', booked_on) - 1\n    ) / 3 + 1\n  ) AS quarter,\n  COALESCE(category, 'Needs review') AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND category IN ('Groceries', 'Dining', 'Transport')\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  quarter,\n  topic\nORDER BY\n  quarter,\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "quarter",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "quarter": "2025-1",
+          "topic": "Groceries",
+          "total_eur": 1283.13
+        },
+        {
+          "quarter": "2025-1",
+          "topic": "Transport",
+          "total_eur": 261.4
+        },
+        {
+          "quarter": "2025-1",
+          "topic": "Dining",
+          "total_eur": 242.1
+        },
+        {
+          "quarter": "2025-2",
+          "topic": "Groceries",
+          "total_eur": 1077.62
+        },
+        {
+          "quarter": "2025-2",
+          "topic": "Transport",
+          "total_eur": 323.0
+        },
+        {
+          "quarter": "2025-2",
+          "topic": "Dining",
+          "total_eur": 233.4
+        },
+        {
+          "quarter": "2025-3",
+          "topic": "Groceries",
+          "total_eur": 1220.8
+        },
+        {
+          "quarter": "2025-3",
+          "topic": "Transport",
+          "total_eur": 374.8
+        },
+        {
+          "quarter": "2025-3",
+          "topic": "Dining",
+          "total_eur": 283.8
+        },
+        {
+          "quarter": "2025-4",
+          "topic": "Groceries",
+          "total_eur": 893.4
+        },
+        {
+          "quarter": "2025-4",
+          "topic": "Transport",
+          "total_eur": 467.1
+        },
+        {
+          "quarter": "2025-4",
+          "topic": "Dining",
+          "total_eur": 206.4
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_grouped",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g003-bar_grouped",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Vergleiche meine Barauszahlungen mit den Shopping-Ausgaben in den Monaten von Oktober bis Dezember 2025 als gruppierte Balken.",
+      "seconds": 60.03,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  CASE STRFTIME('%m', booked_on)\n    WHEN '10'\n    THEN 'Oktober'\n    WHEN '11'\n    THEN 'November'\n    WHEN '12'\n    THEN 'Dezember'\n  END AS period,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-10-01' AND '2025-12-31'\n  AND category IN ('Cash', 'Shopping')\nGROUP BY\n  topic,\n  period\nORDER BY\n  total_eur DESC\nLIMIT 6",
+      "columns": [
+        "topic",
+        "period",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Cash",
+          "period": "Dezember",
+          "total_eur": 200.0
+        },
+        {
+          "topic": "Cash",
+          "period": "Oktober",
+          "total_eur": 200.0
+        },
+        {
+          "topic": "Cash",
+          "period": "November",
+          "total_eur": 150.0
+        },
+        {
+          "topic": "Shopping",
+          "period": "Oktober",
+          "total_eur": 90.7
+        },
+        {
+          "topic": "Shopping",
+          "period": "November",
+          "total_eur": 57.2
+        },
+        {
+          "topic": "Shopping",
+          "period": "Dezember",
+          "total_eur": 12.7
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_grouped",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g001-bar_stacked",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "difficulty": 2,
+      "language": "en",
+      "question": "Show what I spent on Housing and Subscriptions per quarter in 2025 as a stacked bar chart.",
+      "seconds": 65.18,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  CASE\n    WHEN booked_on BETWEEN '2025-01-01' AND '2025-03-31'\n    THEN '2025-Q1'\n    WHEN booked_on BETWEEN '2025-04-01' AND '2025-06-30'\n    THEN '2025-Q2'\n    WHEN booked_on BETWEEN '2025-07-01' AND '2025-09-30'\n    THEN '2025-Q3'\n    WHEN booked_on BETWEEN '2025-10-01' AND '2025-12-31'\n    THEN '2025-Q4'\n  END AS period,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND category IN ('Housing', 'Subscriptions')\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  topic,\n  period\nORDER BY\n  total_eur DESC\nLIMIT 6",
+      "columns": [
+        "topic",
+        "period",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Housing",
+          "period": "2025-Q1",
+          "total_eur": 234.0
+        },
+        {
+          "topic": "Housing",
+          "period": "2025-Q2",
+          "total_eur": 234.0
+        },
+        {
+          "topic": "Housing",
+          "period": "2025-Q3",
+          "total_eur": 234.0
+        },
+        {
+          "topic": "Housing",
+          "period": "2025-Q4",
+          "total_eur": 234.0
+        },
+        {
+          "topic": "Subscriptions",
+          "period": "2025-Q1",
+          "total_eur": 170.28
+        },
+        {
+          "topic": "Subscriptions",
+          "period": "2025-Q2",
+          "total_eur": 170.28
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_stacked",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g002-bar_stacked",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Stacked bar chart of my Transport spending by subcategory for each month in the first half of 2025.",
+      "seconds": 52.33,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  subcategory AS topic,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND category = 'Transport'\n  AND booked_on BETWEEN '2025-01-01' AND '2025-06-30'\nGROUP BY\n  month,\n  topic\nLIMIT 200",
+      "columns": [
+        "month",
+        "topic",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "topic": "Public transport",
+          "total_eur": 78.0
+        },
+        {
+          "month": "2025-02",
+          "topic": "Public transport",
+          "total_eur": 86.2
+        },
+        {
+          "month": "2025-03",
+          "topic": "Fuel",
+          "total_eur": 48.2
+        },
+        {
+          "month": "2025-03",
+          "topic": "Public transport",
+          "total_eur": 49.0
+        },
+        {
+          "month": "2025-04",
+          "topic": "Public transport",
+          "total_eur": 75.7
+        },
+        {
+          "month": "2025-04",
+          "topic": "Ride hailing",
+          "total_eur": 44.7
+        },
+        {
+          "month": "2025-05",
+          "topic": "Public transport",
+          "total_eur": 99.1
+        },
+        {
+          "month": "2025-05",
+          "topic": "Ride hailing",
+          "total_eur": 19.3
+        },
+        {
+          "month": "2025-06",
+          "topic": "Public transport",
+          "total_eur": 84.2
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_stacked",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g003-bar_stacked",
+      "set": "chart",
+      "kind": "bar_stacked",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig meine Restaurant- und Lieferdienstausgaben (Dining) nach Unterkategorie pro Monat im vierten Quartal 2025 als gestapeltes Balkendiagramm.",
+      "seconds": 30.09,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  COALESCE(category, 'Needs review') AS topic,\n  subcategory,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND booked_on BETWEEN '2025-10-01' AND '2025-12-31'\n  AND category = 'Dining'\nGROUP BY\n  month,\n  topic,\n  subcategory\nORDER BY\n  month,\n  total_eur DESC\nLIMIT 200",
+      "columns": [
+        "month",
+        "topic",
+        "subcategory",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-10",
+          "topic": "Dining",
+          "subcategory": "Takeaway",
+          "total_eur": 30.8
+        },
+        {
+          "month": "2025-11",
+          "topic": "Dining",
+          "subcategory": "Delivery",
+          "total_eur": 68.0
+        },
+        {
+          "month": "2025-11",
+          "topic": "Dining",
+          "subcategory": "Takeaway",
+          "total_eur": 20.3
+        },
+        {
+          "month": "2025-12",
+          "topic": "Dining",
+          "subcategory": "Takeaway",
+          "total_eur": 28.9
+        },
+        {
+          "month": "2025-12",
+          "topic": "Dining",
+          "subcategory": "Restaurant",
+          "total_eur": 27.0
+        },
+        {
+          "month": "2025-12",
+          "topic": "Dining",
+          "subcategory": "Delivery",
+          "total_eur": 22.0
+        },
+        {
+          "month": "2025-12",
+          "topic": "Dining",
+          "subcategory": "Cafe",
+          "total_eur": 9.4
+        }
+      ],
+      "error": "The chart could not be drawn from these rows: The rows carry 2 pairs of month and topic more than once (2025-11 / Dining, 2025-12 / Dining), and a chart that draws a series needs one figure per pair. The query has to group by both columns and return each combination once.",
+      "refusals": [],
+      "shape": "bar_stacked",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": []
+    },
+    {
+      "id": "g001-sankey",
+      "set": "chart",
+      "kind": "sankey",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig mir fuer Q4 2025 als Sankey-Diagramm, wie mein Einkommen in die einzelnen Ausgabenkategorien geflossen ist.",
+      "seconds": 135.02,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  'Einkommen' AS source,\n  COALESCE(category, 'Needs review') AS target,\n  ROUND(-SUM(amount), 2) AS amount_eur\nFROM transaction_view\nWHERE\n  booked_on BETWEEN '2025-10-01' AND '2025-12-31'\n  AND category <> 'Income'\n  AND amount < 0\nGROUP BY\n  target\nLIMIT 200",
+      "columns": [
+        "source",
+        "target",
+        "amount_eur"
+      ],
+      "rows": [
+        {
+          "source": "Einkommen",
+          "target": "Cash",
+          "amount_eur": 550.0
+        },
+        {
+          "source": "Einkommen",
+          "target": "Communication",
+          "amount_eur": 179.94
+        },
+        {
+          "source": "Einkommen",
+          "target": "Dining",
+          "amount_eur": 206.4
+        },
+        {
+          "source": "Einkommen",
+          "target": "Groceries",
+          "amount_eur": 893.4
+        },
+        {
+          "source": "Einkommen",
+          "target": "Health",
+          "amount_eur": 308.7
+        },
+        {
+          "source": "Einkommen",
+          "target": "Housing",
+          "amount_eur": 234.0
+        },
+        {
+          "source": "Einkommen",
+          "target": "Insurance",
+          "amount_eur": 127.5
+        },
+        {
+          "source": "Einkommen",
+          "target": "Shopping",
+          "amount_eur": 160.6
+        },
+        {
+          "source": "Einkommen",
+          "target": "Subscriptions",
+          "amount_eur": 170.28
+        },
+        {
+          "source": "Einkommen",
+          "target": "Transport",
+          "amount_eur": 467.1
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "sankey",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "g002-sankey",
+      "set": "chart",
+      "kind": "sankey",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Where did my income go in November 2025? Give me a visual breakdown of the flows.",
+      "seconds": 74.21,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": false,
+      "attempts": 1,
+      "sql": "WITH income_total AS (\n  SELECT\n    ROUND(SUM(amount), 2) AS total_eur\n  FROM transaction_view\n  WHERE\n    booked_on BETWEEN '2025-11-01' AND '2025-11-30'\n    AND category = 'Income'\n    AND amount > 0\n), spending_by_category AS (\n  SELECT\n    COALESCE(category, 'Needs review') AS topic,\n    ROUND(-SUM(amount), 2) AS total_eur\n  FROM transaction_view\n  WHERE\n    booked_on BETWEEN '2025-11-01' AND '2025-11-30' AND amount < 0\n  GROUP BY\n    topic\n)\nSELECT\n  'Income' AS source,\n  topic AS target,\n  (\n    SELECT\n      total_eur\n    FROM income_total\n  ) * (\n    spending_by_category.total_eur / (\n      SELECT\n        SUM(total_eur)\n      FROM spending_by_category\n    )\n  ) AS total_eur\nFROM spending_by_category\nWHERE\n  topic <> 'Income'\nLIMIT 200",
+      "columns": [
+        "source",
+        "target",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "source": "Income",
+          "target": "Cash",
+          "total_eur": null
+        },
+        {
+          "source": "Income",
+          "target": "Communication",
+          "total_eur": null
+        },
+        {
+          "source": "Income",
+          "target": "Dining",
+          "total_eur": null
+        },
+        {
+          "source": "Income",
+          "target": "Groceries",
+          "total_eur": null
+        },
+        {
+          "source": "Income",
+          "target": "Health",
+          "total_eur": null
+        },
+        {
+          "source": "Income",
+          "target": "Housing",
+          "total_eur": null
+        },
+        {
+          "source": "Income",
+          "target": "Insurance",
+          "total_eur": null
+        },
+        {
+          "source": "Income",
+          "target": "Needs review",
+          "total_eur": null
+        },
+        {
+          "source": "Income",
+          "target": "Shopping",
+          "total_eur": null
+        },
+        {
+          "source": "Income",
+          "target": "Subscriptions",
+          "total_eur": null
+        },
+        {
+          "source": "Income",
+          "target": "Transport",
+          "total_eur": null
+        }
+      ],
+      "error": "The chart could not be drawn from these rows: 11 rows carry no positive figure in total_eur. Every flow is a positive euro amount, so spending travels as `ROUND(-SUM(amount), 2)`.",
+      "refusals": [],
+      "shape": "sankey",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": false,
+      "notes": []
+    },
+    {
+      "id": "g003-sankey",
+      "set": "chart",
+      "kind": "sankey",
+      "difficulty": 2,
+      "language": "de",
+      "question": "Stelle als Sankey dar, wie sich meine Ausgaben fuer Subscriptions 2025 auf die einzelnen Abos und Dienste aufteilen.",
+      "seconds": 68.81,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  'Subscriptions' AS Abos,\n  COALESCE(title, counterparty, description) AS target,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND category = 'Subscriptions'\n  AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  target\nLIMIT 200",
+      "columns": [
+        "Abos",
+        "target",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "Abos": "Subscriptions",
+          "target": "Adobe",
+          "total_eur": 285.48
+        },
+        {
+          "Abos": "Subscriptions",
+          "target": "Amazon Prime",
+          "total_eur": 107.88
+        },
+        {
+          "Abos": "Subscriptions",
+          "target": "Netflix",
+          "total_eur": 155.88
+        },
+        {
+          "Abos": "Subscriptions",
+          "target": "Spotify",
+          "total_eur": 131.88
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "sankey",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "35-this-month-versus-last-en",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Compare this month with last month by category.",
+      "seconds": 46.73,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  CASE\n    WHEN booked_on BETWEEN '2025-12-01' AND '2025-12-31'\n    THEN 'This month'\n    ELSE 'Last month'\n  END AS period,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-11-01' AND '2025-12-31'\nGROUP BY\n  topic,\n  period\nORDER BY\n  SUM(ABS(amount)) DESC\nLIMIT 6",
+      "columns": [
+        "topic",
+        "period",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Needs review",
+          "period": "This month",
+          "total_eur": 1234.5
+        },
+        {
+          "topic": "Needs review",
+          "period": "Last month",
+          "total_eur": 1212.0
+        },
+        {
+          "topic": "Groceries",
+          "period": "Last month",
+          "total_eur": 339.5
+        },
+        {
+          "topic": "Groceries",
+          "period": "This month",
+          "total_eur": 280.7
+        },
+        {
+          "topic": "Transport",
+          "period": "This month",
+          "total_eur": 254.0
+        },
+        {
+          "topic": "Health",
+          "period": "Last month",
+          "total_eur": 228.9
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_grouped",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "36-this-month-versus-last-de",
+      "set": "chart",
+      "kind": "bar_grouped",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Vergleiche diesen Monat mit dem letzten Monat nach Kategorie.",
+      "seconds": 61.9,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  COALESCE(category, 'Needs review') AS topic,\n  CASE\n    WHEN booked_on BETWEEN '2025-12-01' AND '2025-12-31'\n    THEN 'Dieser Monat'\n    WHEN booked_on BETWEEN '2025-11-01' AND '2025-11-30'\n    THEN 'Letzter Monat'\n  END AS period,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0\n  AND (\n    booked_on BETWEEN '2025-11-01' AND '2025-11-30'\n    OR booked_on BETWEEN '2025-12-01' AND '2025-12-31'\n  )\nGROUP BY\n  topic,\n  period\nHAVING\n  topic IN (\n    SELECT\n      COALESCE(category, 'Needs review')\n    FROM transaction_view\n    WHERE\n      amount < 0\n      AND (\n        booked_on BETWEEN '2025-11-01' AND '2025-11-30'\n        OR booked_on BETWEEN '2025-12-01' AND '2025-12-31'\n      )\n    GROUP BY\n      COALESCE(category, 'Needs review')\n    ORDER BY\n      ROUND(-SUM(amount), 2) DESC\n    LIMIT 6\n  )\nORDER BY\n  topic,\n  period\nLIMIT 200",
+      "columns": [
+        "topic",
+        "period",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "topic": "Cash",
+          "period": "Dieser Monat",
+          "total_eur": 200.0
+        },
+        {
+          "topic": "Cash",
+          "period": "Letzter Monat",
+          "total_eur": 150.0
+        },
+        {
+          "topic": "Dining",
+          "period": "Dieser Monat",
+          "total_eur": 87.3
+        },
+        {
+          "topic": "Dining",
+          "period": "Letzter Monat",
+          "total_eur": 88.3
+        },
+        {
+          "topic": "Groceries",
+          "period": "Dieser Monat",
+          "total_eur": 280.7
+        },
+        {
+          "topic": "Groceries",
+          "period": "Letzter Monat",
+          "total_eur": 339.5
+        },
+        {
+          "topic": "Health",
+          "period": "Dieser Monat",
+          "total_eur": 39.9
+        },
+        {
+          "topic": "Health",
+          "period": "Letzter Monat",
+          "total_eur": 228.9
+        },
+        {
+          "topic": "Needs review",
+          "period": "Dieser Monat",
+          "total_eur": 1234.5
+        },
+        {
+          "topic": "Needs review",
+          "period": "Letzter Monat",
+          "total_eur": 1212.0
+        },
+        {
+          "topic": "Transport",
+          "period": "Dieser Monat",
+          "total_eur": 254.0
+        },
+        {
+          "topic": "Transport",
+          "period": "Letzter Monat",
+          "total_eur": 107.0
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar_grouped",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "37-change-per-month-en",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Show me for each month of 2025 how much more or less I spent than the month before.",
+      "seconds": 40.67,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "WITH MonthlySpend AS (\n  SELECT\n    STRFTIME('%Y-%m', booked_on) AS month,\n    ROUND(-SUM(amount), 2) AS total_eur\n  FROM transaction_view\n  WHERE\n    amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY\n    month\n)\nSELECT\n  month,\n  ROUND(total_eur - LAG(total_eur) OVER (ORDER BY month), 2) AS change_eur\nFROM MonthlySpend\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "change_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "change_eur": null
+        },
+        {
+          "month": "2025-02",
+          "change_eur": -278.7
+        },
+        {
+          "month": "2025-03",
+          "change_eur": 25.43
+        },
+        {
+          "month": "2025-04",
+          "change_eur": -26.03
+        },
+        {
+          "month": "2025-05",
+          "change_eur": 45.72
+        },
+        {
+          "month": "2025-06",
+          "change_eur": -9.42
+        },
+        {
+          "month": "2025-07",
+          "change_eur": 459.76
+        },
+        {
+          "month": "2025-08",
+          "change_eur": -481.96
+        },
+        {
+          "month": "2025-09",
+          "change_eur": 273.6
+        },
+        {
+          "month": "2025-10",
+          "change_eur": -351.5
+        },
+        {
+          "month": "2025-11",
+          "change_eur": 219.2
+        },
+        {
+          "month": "2025-12",
+          "change_eur": -73.8
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "38-change-per-month-de",
+      "set": "chart",
+      "kind": "bar",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig mir für jeden Monat 2025, wie viel mehr oder weniger ich als im Monat davor ausgegeben habe.",
+      "seconds": 45.91,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "WITH monthly_spending AS (\n  SELECT\n    STRFTIME('%Y-%m', booked_on) AS month,\n    ROUND(-SUM(amount), 2) AS total_eur\n  FROM transaction_view\n  WHERE\n    amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY\n    month\n), ranked_months AS (\n  SELECT\n    month,\n    total_eur,\n    LAG(total_eur) OVER (ORDER BY month) AS prev_total_eur\n  FROM monthly_spending\n)\nSELECT\n  month,\n  ROUND(total_eur - COALESCE(prev_total_eur, 0), 2) AS change_eur\nFROM ranked_months\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "change_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "change_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "change_eur": -278.7
+        },
+        {
+          "month": "2025-03",
+          "change_eur": 25.43
+        },
+        {
+          "month": "2025-04",
+          "change_eur": -26.03
+        },
+        {
+          "month": "2025-05",
+          "change_eur": 45.72
+        },
+        {
+          "month": "2025-06",
+          "change_eur": -9.42
+        },
+        {
+          "month": "2025-07",
+          "change_eur": 459.76
+        },
+        {
+          "month": "2025-08",
+          "change_eur": -481.96
+        },
+        {
+          "month": "2025-09",
+          "change_eur": 273.6
+        },
+        {
+          "month": "2025-10",
+          "change_eur": -351.5
+        },
+        {
+          "month": "2025-11",
+          "change_eur": 219.2
+        },
+        {
+          "month": "2025-12",
+          "change_eur": -73.8
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "bar",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "39-average-line-en",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Show my spending per month in 2025 with my average as a reference line.",
+      "seconds": 38.92,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 2265.34
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 2290.77
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 2310.46
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 2301.04
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 2760.8
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 2278.84
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 2552.44
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 2420.14
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "40-average-line-de",
+      "set": "chart",
+      "kind": "line",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Zeig meine Ausgaben pro Monat 2025 und wo mein Durchschnitt liegt.",
+      "seconds": 39.56,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', booked_on) AS month,\n  ROUND(-SUM(amount), 2) AS total_eur\nFROM transaction_view\nWHERE\n  amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\nGROUP BY\n  month\nORDER BY\n  month\nLIMIT 200",
+      "columns": [
+        "month",
+        "total_eur"
+      ],
+      "rows": [
+        {
+          "month": "2025-01",
+          "total_eur": 2544.04
+        },
+        {
+          "month": "2025-02",
+          "total_eur": 2265.34
+        },
+        {
+          "month": "2025-03",
+          "total_eur": 2290.77
+        },
+        {
+          "month": "2025-04",
+          "total_eur": 2264.74
+        },
+        {
+          "month": "2025-05",
+          "total_eur": 2310.46
+        },
+        {
+          "month": "2025-06",
+          "total_eur": 2301.04
+        },
+        {
+          "month": "2025-07",
+          "total_eur": 2760.8
+        },
+        {
+          "month": "2025-08",
+          "total_eur": 2278.84
+        },
+        {
+          "month": "2025-09",
+          "total_eur": 2552.44
+        },
+        {
+          "month": "2025-10",
+          "total_eur": 2200.94
+        },
+        {
+          "month": "2025-11",
+          "total_eur": 2420.14
+        },
+        {
+          "month": "2025-12",
+          "total_eur": 2346.34
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "line",
+      "shape_match": true,
+      "columns_map": true,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "41-cumulative-halves-en",
+      "set": "chart",
+      "kind": "area",
+      "difficulty": 3,
+      "language": "en",
+      "question": "Compare how my spending added up over the first half of 2025 and over the second half.",
+      "seconds": 58.07,
+      "figure_match": false,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "WITH monthly_totals AS (\n  SELECT\n    CASE\n      WHEN booked_on BETWEEN '2025-01-01' AND '2025-06-30'\n      THEN 'Erstes Halbjahr'\n      ELSE 'Zweites Halbjahr'\n    END AS half,\n    STRFTIME('%m', booked_on) AS month_raw,\n    ROUND(-SUM(amount), 2) AS monthly_eur\n  FROM transaction_view\n  WHERE\n    amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY\n    half,\n    month_raw\n), mapped_months AS (\n  SELECT\n    CASE\n      WHEN half = 'Erstes Halbjahr'\n      THEN CAST(SUBSTRING(month_raw, 2) AS INTEGER)\n      WHEN half = 'Zweites Halbjahr'\n      THEN CAST(SUBSTRING(month_raw, 2) - 6 AS INTEGER)\n    END AS month_of_half,\n    half,\n    monthly_eur\n  FROM monthly_totals\n)\nSELECT\n  month_of_half,\n  half,\n  ROUND(SUM(monthly_eur) OVER (PARTITION BY half ORDER BY month_of_half), 2) AS cumulative_eur\nFROM mapped_months\nORDER BY\n  half,\n  month_of_half\nLIMIT 200",
+      "columns": [
+        "month_of_half",
+        "half",
+        "cumulative_eur"
+      ],
+      "rows": [
+        {
+          "month_of_half": 1,
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 2544.04
+        },
+        {
+          "month_of_half": 2,
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 4809.38
+        },
+        {
+          "month_of_half": 3,
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 7100.15
+        },
+        {
+          "month_of_half": 4,
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 9364.89
+        },
+        {
+          "month_of_half": 5,
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 11675.35
+        },
+        {
+          "month_of_half": 6,
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 13976.39
+        },
+        {
+          "month_of_half": -6,
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 2200.94
+        },
+        {
+          "month_of_half": -5,
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 4621.08
+        },
+        {
+          "month_of_half": -4,
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 6967.42
+        },
+        {
+          "month_of_half": 1,
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 9728.22
+        },
+        {
+          "month_of_half": 2,
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 12007.06
+        },
+        {
+          "month_of_half": 3,
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 14559.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "area",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": false,
+      "drawn": true,
+      "notes": []
+    },
+    {
+      "id": "42-cumulative-halves-de",
+      "set": "chart",
+      "kind": "area",
+      "difficulty": 3,
+      "language": "de",
+      "question": "Vergleiche, wie sich meine Ausgaben im ersten und im zweiten Halbjahr 2025 aufsummiert haben.",
+      "seconds": 61.52,
+      "figure_match": true,
+      "sql_valid": true,
+      "first_attempt": true,
+      "attempts": 1,
+      "sql": "WITH MonthlyData AS (\n  SELECT\n    CASE\n      WHEN booked_on BETWEEN '2025-01-01' AND '2025-06-30'\n      THEN 'Erstes Halbjahr'\n      ELSE 'Zweites Halbjahr'\n    END AS half,\n    CASE\n      WHEN booked_on BETWEEN '2025-01-01' AND '2025-06-30'\n      THEN CAST(STRFTIME('%m', booked_on) AS INTEGER) - 1\n      WHEN booked_on BETWEEN '2025-07-01' AND '2025-12-31'\n      THEN CAST(STRFTIME('%m', booked_on) AS INTEGER) - 6\n    END AS month_of_half,\n    ROUND(-SUM(amount), 2) AS monthly_eur\n  FROM transaction_view\n  WHERE\n    amount < 0 AND booked_on BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY\n    half,\n    month_of_half\n)\nSELECT\n  month_of_half,\n  half,\n  ROUND(SUM(monthly_eur) OVER (PARTITION BY half ORDER BY month_of_half), 2) AS cumulative_eur\nFROM MonthlyData\nORDER BY\n  half,\n  month_of_half\nLIMIT 200",
+      "columns": [
+        "month_of_half",
+        "half",
+        "cumulative_eur"
+      ],
+      "rows": [
+        {
+          "month_of_half": 0,
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 2544.04
+        },
+        {
+          "month_of_half": 1,
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 4809.38
+        },
+        {
+          "month_of_half": 2,
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 7100.15
+        },
+        {
+          "month_of_half": 3,
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 9364.89
+        },
+        {
+          "month_of_half": 4,
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 11675.35
+        },
+        {
+          "month_of_half": 5,
+          "half": "Erstes Halbjahr",
+          "cumulative_eur": 13976.39
+        },
+        {
+          "month_of_half": 1,
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 2760.8
+        },
+        {
+          "month_of_half": 2,
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 5039.64
+        },
+        {
+          "month_of_half": 3,
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 7592.08
+        },
+        {
+          "month_of_half": 4,
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 9793.02
+        },
+        {
+          "month_of_half": 5,
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 12213.16
+        },
+        {
+          "month_of_half": 6,
+          "half": "Zweites Halbjahr",
+          "cumulative_eur": 14559.5
+        }
+      ],
+      "error": null,
+      "refusals": [],
+      "shape": "area",
+      "shape_match": true,
+      "columns_map": false,
+      "language_ok": true,
+      "drawn": true,
+      "notes": []
+    }
+  ]
+}

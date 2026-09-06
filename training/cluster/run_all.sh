@@ -19,7 +19,7 @@ LOGS=$REPO/training/cluster/logs
 
 MODELS="local:gemma-4-e4b local:qwen3.5-9b local:gemma-4-12b"
 
-# The SQL set is 152 questions, the chart set 63 whole charts, the subset 30 chat turns. The
+# The SQL set is 152 questions, the chart set 73 whole charts, the subset 30 chat turns. The
 # limits are what the smoke run's seconds per case say those need, roughly doubled. A case
 # statement rather than an associative array, because the laptop's bash is 3.2 and has none.
 limit_for() {

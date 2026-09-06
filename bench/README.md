@@ -212,7 +212,7 @@ A turn that never called the tool at all is a miss whose error says so, which is
 loss this subset exists to measure. The request the chat agent wrote is kept on every result.
 
 The sub-agent sets stay the primary numbers: an adapter attaches to the sub-agent, and this
-subset is 30 cases against their 215.
+subset is 30 cases against their 225.
 
 ## The baseline
 
@@ -310,6 +310,26 @@ credit meter moved 1,27 USD over both runs together, and that figure also carrie
 datapoints of two aborted starts, so a full run of both sets is around fifty to sixty cents per
 model: cents, not euros. Running the two models as two processes at once takes about as long as
 the slower one.
+
+## The three local candidates on the cluster
+
+2026-09-06, on the HPI cluster: Gemma 4 E4B, Qwen3.5 9B and Gemma 4 12B, the same Q4_K_M GGUFs
+and wire formats the laptop runs, through llama-cpp with CUDA on one RTX PRO 6000 per job, 32k
+context. `training/cluster/` holds the scripts and
+`results/20260906-cluster-compare.md` the whole thing, per kind and per difficulty, with the
+decision rule.
+
+| model | sql | chart | chart drawn | e2e | median s (sql / chart / e2e) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Gemma 4 E4B | 66 % | 45 % | 90 % | 53 % | 8.2 / 34.9 / 34.3 |
+| Qwen3.5 9B | 70 % | 42 % | 78 % | 73 % | 25.4 / 45.1 / 50.8 |
+| **Gemma 4 12B** | **87 %** | **81 %** | **94 %** | **77 %** | 10.0 / 46.7 / 46.9 |
+
+Figure match, 152 questions, 73 charts, 30 end-to-end cases. First attempt on the SQL set is
+75 %, 30 % and 82 %: Qwen writes a statement that runs and is then sent back by the check pass,
+which is also why its SQL run took 87 minutes against the 12B's 31. The seconds are the
+cluster's GPU and say nothing about the laptop, where the pair costs 5.9 GB plus 7 GB and the
+generation rates in `results/20260906-local-tokens-per-second.md`.
 
 ## Validated, then grown
 

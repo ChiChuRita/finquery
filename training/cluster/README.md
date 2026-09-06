@@ -60,7 +60,7 @@ Paths on the cluster, all in scratch because home has 26 GB free and one GGUF is
 
 ## The sets
 
-`--set sql` is 152 questions and `--set chart` 63 chart requests, both through the sub-agent
+`--set sql` is 152 questions and `--set chart` 73 chart requests, both through the sub-agent
 path the app uses. `--set e2e` is 30 cases (15 and 15) drawn from the training half of those two
 sets and run through the whole chat turn, with the candidate as the chat model and as the
 sub-agent model. The sub-agent tables are the primary numbers; the end-to-end table is the
