@@ -17,3 +17,52 @@ Rules:
 - [ ] Removals and merges done, each commit green (pytest, build, oxlint), oxlint count at or below 41
 - [ ] Docs references verified; stale docs fixed or removed
 - [ ] A short Comments note: lines removed, files removed, dependencies removed, what was left for tickets 53 and 54, anything found that needs a decision
+
+## Comments
+
+### Audit, 2026-09-06
+
+How the list was found, not guessed: `uvx vulture src tests --min-confidence 80`, an AST scan of
+every top-level function, class and CONSTANT in `src/finquery/` and `bench/finquery_bench/`
+counted against the whole repository as one string (`/tmp/unused2.py`), `uvx ruff check` with
+`F,B,SIM,RET,PIE,C4`, `npx knip` in `frontend/`, `npx oxlint`, `uv run python
+docs/explainers/check_refs.py`, and a copy of that checker widened to `docs/adr`,
+`docs/research`, `docs/course`, `bench/README.md`, `README.md` and `CONTEXT.md`
+(`/tmp/check_refs_all.py`).
+
+| File | What | Why | Action |
+| --- | --- | --- | --- |
+| `src/finquery/__init__.py` | `hello()` | The `uv init` sample function. No caller anywhere, docs included. | Removed, file left empty as the package marker |
+| `src/finquery/changesets.py` | `_taxonomy_label` | One definition, no call site. | Removed |
+| `src/finquery/prose.py` | `_SCRIPTS` | A constant `_is_foreign` never reads; it tests `name.startswith("LATIN")` itself. | Removed |
+| `src/finquery/api/dashboard.py` | `import json` | Unused import (ruff F401). | Removed |
+| `bench/finquery_bench/cli.py` | `COMMANDS` | Never read; argparse names the subcommands. | Removed |
+| `bench/finquery_bench/datapoints.py` | `DIFFICULTIES` | Never read; the field is typed `int`. | Removed |
+| `tests/test_background_turns.py` | `default_profile_id` import | Unused import (ruff F401). | Removed |
+| `tests/test_chart.py` | second `check_chart_code` import | Imported twice from the same module (ruff F811). | Removed |
+| `frontend/package.json` | `date-fns` | Not imported by anything under `frontend/src` (knip). `react-day-picker` carries its own date maths. | Removed |
+| `frontend/src/components/empty-state.tsx` | `export` on `STARTER_SUGGESTIONS` | Used only in its own file; the export is what makes oxlint refuse the file for fast refresh. | `export` dropped, one oxlint warning fewer |
+| `frontend/src/components/chart-tool.tsx` | `export` on `SHAPE_LABELS` | Same. | `export` dropped, one oxlint warning fewer |
+| `frontend/src/lib/workspace.tsx` | `export` on `rememberActiveTab` | Same. | `export` dropped, one oxlint warning fewer |
+
+Checked and deliberately left alone:
+
+| Thing | Why it stays |
+| --- | --- |
+| Every route handler vulture called unused | All eighteen are reached over HTTP by `frontend/src/lib/api.ts` or by a test; a decorated handler simply has no Python caller. Each one was grepped by its path. |
+| `_stripped_and_not_empty` in `api/profiles.py`, `api/memories.py`, `api/conversations.py` | Same name, three different rules (a 120-character cap, `clean_text`, a title cut to `TITLE_LENGTH`) and three different messages. Merging them would add an abstraction, not delete code. |
+| `strip_markers` in `local/qwen.py` and `local/gemma.py` | Different bodies over different `TEMPLATE_MARKERS`; Gemma's also drops channel lines. |
+| `to_cents` in `prose.py` and `ingest/typed.py` | Different signatures and different inputs (a written phrase, an amount plus a direction). |
+| `NONE = '__none__'` in `split-editor.tsx`, `transaction-dialogs.tsx`, `transaction-cells.tsx` | One line each. Sharing it would mean importing a component module for a sentinel. |
+| Numbers formatted in `query-result.tsx` rather than `lib/format.ts` | A raw SQL cell is a plain number, not a euro figure; `formatEur` would be wrong there. |
+| `fixtures/chart-benchmark.json` beside `bench/chart-benchmark.json` | The smaller one is still what `tests/test_chart.py` reads. |
+| `fixtures/edge/`, `scripts/*.py`, `training/preference/` | All read: `tests/test_edge_cases.py`, the measurement and generation runs the docs cite, the DPO export. |
+| Every `TODO` in `src/` | Each names a live ceiling with an upgrade path; none has been passed. |
+| `python-multipart` | Not imported by name; FastAPI needs it for `UploadFile`. |
+| `@tanstack/charts` (knip calls it unused) | knip cannot load `vite.config.ts` here, so it misses the chart-runtime entry, which is the only importer. |
+| The other 38 oxlint warnings | 30 are `only-export-components` on files that genuinely export a hook or a context next to a component (`workspace.tsx`, `routes.tsx`, `theme.tsx`, the vendored AI Elements, shadcn `ui/`). Silencing them means new files, which the ticket rules out. The rest are `set-state-in-effect`, `static-components` and `incompatible-library`: real, but each is a behaviour change to fix. |
+| Unreachable `yield` after `return`/`raise` in `tests/test_chat.py` and `tests/test_edge_cases.py` | That is what makes those functions generators. Both already say so in a `pragma` comment. |
+
+Nothing was touched under `src/finquery/weblookup/`, `categorize/`, `extract/bill.py`,
+`providers.py`, `settings.py`, `local/`, `api/models.py`, `api/chat.py`, `db.py`,
+`frontend/src/lib/slots.ts`, the model selector or the onboarding model step (tickets 53 and 54).
