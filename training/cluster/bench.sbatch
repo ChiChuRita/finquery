@@ -37,7 +37,7 @@ if [ -f "$REPO/.env" ]; then
   exit 1
 fi
 
-export PATH="$CUDA_HOME/bin:$ROOT/uv/bin:$HOME/.local/bin:$PATH"
+export PATH="$CUDA_HOME/bin:$ROOT/uv/bin:$PATH"
 export LD_LIBRARY_PATH="$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}"
 export UV_CACHE_DIR="$ROOT/uv-cache"
 export UV_PYTHON_INSTALL_DIR="$ROOT/uv-python"

@@ -47,10 +47,10 @@ sync_repo() {
 
 install_uv() {
   step "uv"
-  export PATH="$ROOT/uv/bin:$HOME/.local/bin:$PATH"
-  if ! command -v uv > /dev/null; then
-    # The standalone installer, into scratch: there is no module system and no uv on the login
-    # node's PATH by default.
+  export PATH="$ROOT/uv/bin:$PATH"
+  if [ ! -x "$ROOT/uv/bin/uv" ]; then
+    # The standalone installer, into scratch. There is no module system, and /sc/home is
+    # mounted noexec, so a copy of uv in the home directory cannot be run at all.
     curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$ROOT/uv/bin" sh
   fi
   uv --version
@@ -64,12 +64,20 @@ install_cuda() {
   fi
   # The nodes carry the driver and nothing else: no nvcc, no headers, no module system. The
   # runfile installs the toolkit alone, which needs no root as long as it stays out of /usr.
-  curl -sSL --retry 3 -o "$ROOT/$CUDA_RUNFILE" \
-    "https://developer.download.nvidia.com/compute/cuda/$CUDA_VERSION/local_installers/$CUDA_RUNFILE"
+  if [ ! -f "$ROOT/$CUDA_RUNFILE" ]; then
+    curl -sSL --retry 3 -o "$ROOT/$CUDA_RUNFILE" \
+      "https://developer.download.nvidia.com/compute/cuda/$CUDA_VERSION/local_installers/$CUDA_RUNFILE"
+  fi
   sh "$ROOT/$CUDA_RUNFILE" --silent --toolkit --toolkitpath="$CUDA_HOME" \
     --defaultroot="$CUDA_HOME" --no-man-page --override
-  rm -f "$ROOT/$CUDA_RUNFILE"
+  # Everything the installer writes into this scratch lands as 600, whatever the umask says, so
+  # nvcc cannot be run until the execute bit is put back on the programs and the libraries.
+  find "$CUDA_HOME" -type d -exec chmod u+rwx {} +
+  find "$CUDA_HOME/bin" "$CUDA_HOME/nvvm/bin" -type f -exec chmod u+x {} +
+  find "$CUDA_HOME" -type f -name '*.so*' -exec chmod u+x {} +
+  # Only once nvcc really runs is the 5 GB installer worth deleting.
   "$CUDA_HOME/bin/nvcc" --version | tail -2
+  rm -f "$ROOT/$CUDA_RUNFILE"
 }
 
 # The files to have on disk, read out of the app's own catalog so the two never drift: one line
@@ -112,7 +120,7 @@ download_models() {
 build_environment() {
   step "the environment on $(hostname)"
   nvidia-smi --query-gpu=name,compute_cap,memory.total --format=csv
-  export PATH="$CUDA_HOME/bin:$ROOT/uv/bin:$HOME/.local/bin:$PATH"
+  export PATH="$CUDA_HOME/bin:$ROOT/uv/bin:$PATH"
   export LD_LIBRARY_PATH="$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}"
   export CUDA_HOME
   # Home has 26 GB free and a wheel cache is gigabytes, so uv keeps everything in scratch.

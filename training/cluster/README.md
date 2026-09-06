@@ -47,6 +47,8 @@ Paths on the cluster, all in scratch because home has 26 GB free and one GGUF is
   RTX PRO 6000 nodes if a rerun wants them.
 - The nodes have the driver and nothing else: no `module`, no `nvcc`, no CUDA headers. The
   toolkit is installed from NVIDIA's runfile into scratch, which needs no root.
+- `/sc/home` is mounted `noexec`, so uv, its Python and the virtual environment all live in
+  scratch. A binary in the home directory cannot be run at all, whatever its mode bits say.
 - The nodes reach PyPI and Hugging Face, but the benchmark jobs run `uv run --offline`: a
   benchmark has no business resolving packages.
 
