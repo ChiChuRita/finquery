@@ -86,7 +86,7 @@ once.
    on this page is a stored number**. Every tile and every card ran its statement through the
    same guard a chat question goes through, just now, on load. That is also why the defaults
    cost no model call: their SQL and their chart code are written in the repo, not by a model.
-   Say that a card can be renamed, moved, refreshed and removed, and come back here in step 12
+   Say that a card can be renamed, moved, refreshed and removed, and come back here in step 13
    with a chart from the chat.
 
 ### 3. Question cards (fast, two turns)
@@ -130,25 +130,30 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 12. **"Show my five biggest merchants of 2025 as horizontal bars."** 86 s. A ranking with
     long labels reads as horizontal bars; five bars, the landlord longest. Toggle the theme
     once here: the chart repaints in the other palette. (Not the doughnut, see below.)
-13. **Press "Add to dashboard"** on the monthly spending card. Instant. The button turns into
-    "On the dashboard" and stays that way after a reload. Go to the Dashboard: the chart is the
-    fifth card, drawn from its own statement re-run just now, not from a picture.
-14. **Type into the Dashboard's Add line:** "spending on groceries per month". To time on the
-    local provider (about 30 s hosted; expect a chart turn locally, so nearer the 96 s of step
-    11). It runs the same chart sub-agent a chat runs, shows the same chain of thought in the
-    card's details, and offers **Keep** and **Discard**. Keep it, rename it inline, move it left
-    once, press Refresh (the card stamps "Refreshed ..."), then remove it through its
-    confirmation if you want the page tidy again.
+13. **Press "Add to dashboard"** on the monthly spending card. Instant. The card reads "On the
+    dashboard" with a Remove next to it and stays that way after a reload. Go to the Dashboard:
+    the chart is the fifth card, drawn from its own statement re-run just now, not from a
+    picture.
+14. **"Track my spending on groceries per month."** The assistant decides for itself that this
+    is a chart to keep: the card says "On the dashboard" as it is drawn and the answer says so
+    in one line. Ask **"what is on my dashboard?"**, then **"show me the groceries one"** (it
+    draws that card in the answer), then **"make it a bar chart"** (the card is replaced at once
+    and the chat card carries an Undo), and **"take it off the dashboard"** (a line with an Undo
+    too). On the page itself, rename a card inline, move it left once and press Refresh, which
+    stamps "Refreshed ...".
+15. **Narrow the range.** The bar above the tiles: press "Last 3 months", then pick two days by
+    hand. Every tile and every card re-queries for those days, without a model call, and the URL
+    carries the range, so a reload and the back button keep it. "All" puts it back.
 
 ### 6. A bulk changeset (fast)
 
-15. **"Recategorize all Amazon Prime bookings as Shopping."** 66 s. A changeset card with the
+16. **"Recategorize all Amazon Prime bookings as Shopping."** 66 s. A changeset card with the
     12 affected rows, old category struck through, "A preview. Nothing is written until you
     press Apply." Press **Apply**: instant, the card turns to Applied with an Undo.
 
 ### 7. A bill photo becomes a split (fast, vision)
 
-16. Drop `bill-edeka-2025-03-14.png` on the composer. Before you send, point at the chip: a
+17. Drop `bill-edeka-2025-03-14.png` on the composer. Before you send, point at the chip: a
     photo is a **thumbnail** you can hover for the picture at readable size, with a remove
     button that is always visible; a CSV or a PDF is an icon chip with its name. Send **"Here is
     the receipt for this payment."** 100 s. The sent message keeps the thumbnail, and it is a
@@ -160,12 +165,12 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 
 ### 8. Memory across two conversations (fast, two turns)
 
-17. Still in this chat: **"Remember: my flatmate is Max Schulz."** 49 s to 84 s. A `remember`
+18. Still in this chat: **"Remember: my flatmate is Max Schulz."** 49 s to 84 s. A `remember`
     step and a one-line confirmation. Keep the sentence this short: the fast model stores a
     short fact nearly word for word, and it is the word "flatmate" in the stored fact that the
     next step needs. A longer sentence came back stored without that word, and the next
     question then missed.
-18. **New chat.** **"How much did I send my flatmate in 2025?"** 59 s. "The total amount sent
+19. **New chat.** **"How much did I send my flatmate in 2025?"** 59 s. "The total amount sent
     to your flatmate, Max Schulz, was 137,50 EUR", with "5 memories used" under it: the model
     wrote "Max Schulz" into its request, and the SQL matched the PayPal description. Open
     `/memory` in a tab: the fact, "you asked for it", edit and delete. Worth a sentence: a turn
@@ -174,14 +179,14 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 
 ### 9. A model switch to Qwen for one prepared question (quality)
 
-19. In the composer, pick **Qwen3.5 9B** and ask **"What was my largest single expense in
+20. In the composer, pick **Qwen3.5 9B** and ask **"What was my largest single expense in
     2025, and what was it for?"** 138 s, of which the first is the model loading and about 12
     are visible thinking. The answer names the rent (1.150,00 EUR, 01.01.2025). The turn chip
     reads "Qwen3.5 9B model" while every earlier turn keeps "Gemma 4 E4B model".
 
 ### 10. A turn keeps running when you walk away, then Stop (quality)
 
-20. Ask Qwen something long: **"Explain in detail how my spending developed over 2025, month
+21. Ask Qwen something long: **"Explain in detail how my spending developed over 2025, month
     by month, and what might explain each change."** While it thinks, click another chat in the
     sidebar: that chat's row and its tab keep a small spinner, because the turn is a task on the
     server and not something this tab owns. The composer of that chat is closed while it
@@ -194,39 +199,39 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 
 ### 11. The context badge, the download, thumbs, a Regenerate pair (fast)
 
-21. Click the percentage in the conversation header: used tokens over the 32k budget, the
+22. Click the percentage in the conversation header: used tokens over the 32k budget, the
     model, memories in the prompt, and the note that past 60 percent the older turns are
     summarized.
-22. **Download this conversation** from the button next to that badge. Instant. It writes
+23. **Download this conversation** from the button next to that badge. Instant. It writes
     markdown, and it is not only the text: the query steps come with their SQL and row counts,
     the charts with their plan and SQL, the changesets with their status and rows, the Question
     cards with the answers given, the attachments as links. Open the file: the audit trail
     leaves the machine as a file you can read.
-23. **Thumbs up** the Qwen answer: instant, "This response was useful" stays pressed.
-24. Back in the charts conversation (its tab), press **Regenerate** on the area chart. 28 s.
+24. **Thumbs up** the Qwen answer: instant, "This response was useful" stays pressed.
+25. Back in the charts conversation (its tab), press **Regenerate** on the area chart. 28 s.
     Two charts side by side, "Both charts drew the rows of the same query. Pick the better
     one." Press **Pick** under one: "Stored as a preference pair". Open `/feedback`: the
     records, and Export JSONL.
 
 ### 12. Web lookup with the outbound log (fast)
 
-25. Settings, **Web lookup** on. The card says "Off" turned to "On" and the outbound log is
+26. Settings, **Web lookup** on. The card says "Off" turned to "On" and the outbound log is
     still empty: "nothing has ever left this machine for this profile".
-26. New chat: **"What is dean&david on my statement?"** 53 s. The lookup step shows the
+27. New chat: **"What is dean&david on my statement?"** 53 s. The lookup step shows the
     merchant token that left, the searches, the category it suggests and the sources under the
     answer.
-27. Back to Settings: the outbound log lists the request, its target and the token, and
+28. Back to Settings: the outbound log lists the request, its target and the token, and
     nothing else. Switch web lookup off again.
 
 ### 13. A second import, in the background, then the Imports overview (fast)
 
-28. Drop `sparkasse-2025.csv` on the composer a second time and send it. 58 s. **While it
+29. Drop `sparkasse-2025.csv` on the composer a second time and send it. 58 s. **While it
     runs, switch to another conversation**: the spinner on its tab and its sidebar row is the
     import carrying on without you, and `/import` shows that row as **Still importing** with a
     Continue in chat button. Come back and watch the rest arrive. Every one of its 433 bookings
     is already there, so the import writes nothing and asks about the duplicates on a card.
     Leave the card unanswered.
-29. Open `/import`. It imports nothing itself, it is the overview of what every past import
+30. Open `/import`. It imports nothing itself, it is the overview of what every past import
     produced. Two rows: the first with 433 imported, the second with "433 undecided" in amber
     and a **Continue in chat** link. Click it: the conversation with the open card. Back on
     `/import`, **Delete** the second import: the confirmation names what goes with it (its
@@ -235,7 +240,7 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 
 ### 14. The Transactions page with the split (no model)
 
-30. Open `/transactions`. 433 rows. Type "edeka" into the search, set From 01.03.2025 to
+31. Open `/transactions`. 433 rows. Type "edeka" into the search, set From 01.03.2025 to
     31.03.2025: the EDEKA row of 14.03.2025 has a chevron. Expand it: the two legs from step
     16, summing to the parent. Edit one category inline (click the cell, pick, click away: it
     saves). Clear the filters.
@@ -258,7 +263,9 @@ Measured on 2026-09-05 on the local provider, before the result check and the gr
 | Area chart | fast | 96 s |
 | Horizontal bars, five merchants | fast | 86 s |
 | Add to dashboard, from a chat chart card | none | instant |
-| Add chart from the Dashboard's own line | fast | to time (about 30 s hosted) |
+| A chart the assistant keeps on the dashboard by itself | fast | as a chart turn |
+| Edit, rename or remove a dashboard card from a chat | fast for an edit, none otherwise | to time |
+| Narrow the dashboard to a date range | none | instant |
 | Refresh a dashboard card (re-runs its SQL) | none | to time |
 | Doughnut per category (folded to six slices, then failed its check, not in the live script) | fast | 118 s |
 | Bulk changeset proposal | fast | 66 s |
@@ -325,7 +332,7 @@ Measured on 2026-09-05 on the local provider, before the result check and the gr
   the conversation moves on still works, but the demo reads better in order.
 - A step misfires: every one has a fallback in the same words one step earlier. The doughnut
   falls back to the horizontal bars of step 12, the flatmate question to the rent question on
-  Qwen (step 19), the lookup to the second import (step 28), the Dashboard's Add line to the
-  chart already pinned in step 13, and the PDF to the pre-imported profile. If the laptop itself
+  Qwen (step 20), the lookup to the second import (step 29), the chart the assistant keeps by
+  itself to the one added by hand in step 13, and the PDF to the pre-imported profile. If the laptop itself
   gives up, `FINQUERY_PROVIDER=openrouter` runs the identical script hosted, and
   `FINQUERY_OPENROUTER_FAST_MODEL` points the fast slot at a stronger model for one step.
