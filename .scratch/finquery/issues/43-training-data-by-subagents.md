@@ -19,3 +19,7 @@ Decisions, settled earlier and still standing:
 - [ ] training/labeling/ static page for the chart samples (rendered chart, plan, SQL, rows) with labels in localStorage and export
 - [ ] Split into train and validation stratified by kind, difficulty and language; README in training/ with counts and the loop
 - [ ] Tests: the generators are reproducible for a seed, every kept sample passes the guard or the self-check when replayed
+
+## Comments
+
+2026-09-06, ticket 57 (`docs/research/finetuning-data-2026-09-06.md`): the sizes are revised up. 600 query and 300 chart become **900 query rows plus 150 repair and 150 check-pass rows, and 500 chart requests** (500 plan + 500 code + 150 repair), because the published structured-output learning curve elbows at roughly 300 samples per task and the query adapter has eight kinds over two languages, not one task; hold out 400 of each for validation. Three additions to the spec, none of which change what this ticket builds: the adapter is attached for a whole run (`bench/finquery_bench/models.py`), so the query set needs check-pass rows and the chart set needs repair rows or those prompts regress; the second judging pass must validate the `reasoning` line as strictly as execution validates the SQL, since a rationale field at partial coverage measurably loses to no rationale at all; and benchmark growth has to happen first, because `splits.py` re-cuts a stratum when items are added and can move a datapoint into `heldout` after it seeded a training sample. Ticket 43 stays not started.
