@@ -45,11 +45,14 @@ GRAM = 4
 """The n of the character n-grams. Four holds a word stem together and still slides over a
 changed number or a changed name."""
 
-THRESHOLD = 0.6
-"""Jaccard over those n-grams, above which two questions are the same question. Measured on the
-benchmark against itself: unrelated questions of the same kind sit around 0.2 to 0.35, and the
-German and English twins of one datapoint, which are the closest honest pair there is, sit
-below this."""
+THRESHOLD = 0.55
+"""Jaccard over those n-grams, above which two questions are the same question.
+
+Measured on the benchmark against itself, 25,200 pairs: 52 of them reach 0.5 and 23 reach 0.55,
+and reading those 23 they really are the same question twice (`g008-total` and `g003-entity`
+have the same masked form). So 0.55 is where a pair stops being two questions, and "Wie viel
+habe ich 2025 fuer Fitness First bezahlt?" against the benchmark's "... ausgegeben?" lands at
+0.587, which is exactly the kind of candidate this exists to refuse."""
 
 
 @dataclass(frozen=True)
@@ -130,14 +133,19 @@ def normal_form(text: str, words: set[str]) -> str:
     "How much did I spend at REWE in March 2025" and "How much did I spend at ALDI in May 2025"
     are the same question, and one of them being in the benchmark is enough.
     """
-    parts = []
+    parts: list[str] = []
     for word in fold(text).split():
         if word.isdigit():
-            parts.append("#")
+            token = "#"
         elif word in words:
-            parts.append("@")
+            token = "@"
         else:
-            parts.append(word)
+            token = word
+        # A merchant of two words is one merchant: `Fitness First` and `Netflix` both mask to a
+        # single `@`, so the two questions around them meet.
+        if token == "@" and parts[-1:] == ["@"]:
+            continue
+        parts.append(token)
     return " ".join(parts)
 
 
