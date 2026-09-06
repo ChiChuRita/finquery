@@ -2,11 +2,12 @@
 
 Date: 2026-09-04
 Amended: 2026-09-05 (ticket 23, the quality slot became Qwen3.5 9B; ticket 17, the sub-agent
-output ceiling)
+output ceiling); 2026-09-06 (ticket 61, the shipped pair is Gemma 4 12B with E4B, and every
+sub-agent role has a model setting)
 Status: accepted
 
 The file keeps its ticket-16 name so the links to it still work; the decision was never about
-Gemma alone, and since the amendment only the fast slot is a Gemma model.
+Gemma alone, and the pair it ships is a Gemma pair again since the 2026-09-06 amendment below.
 
 ## Context
 
@@ -95,6 +96,9 @@ further), so a conversation now runs to roughly 20k tokens before it needs to.
 
 ## The models per slot
 
+*Superseded in part by the 2026-09-06 amendment at the end of this file: the chat seat ships
+Gemma 4 12B, and Qwen3.5 9B is one of the two local entries a user can pick.*
+
 Fast is `gemma-4-E4B-it` (Q4_K_M plus its F16 projector, 6.0 GB) and quality is `Qwen3.5-9B`
 (Q4_K_M plus its F16 projector, 6.6 GB), both from `unsloth` on Hugging Face. On OpenRouter the
 same two are `google/gemma-4-26b-a4b-it` and `qwen/qwen3.5-9b`, so a turn does not change
@@ -136,3 +140,67 @@ it buys.
   question is the piece to check first when a local answer looks wrong.
 - A third model means a third wire module and one more entry in `WIRE_FORMATS`, not a change
   to `LlamaCppModel`.
+
+## Amendment, 2026-09-06 (ticket 61): the shipped pair, and a model per sub-agent role
+
+The quality slot part of the 2026-09-05 amendment is superseded. Qwen3.5 9B stays a catalog
+entry; it is no longer what the app ships on.
+
+### What the benchmark said
+
+Three candidates, Q4_K_M through llama-cpp with CUDA on one RTX PRO 6000 of the HPI cluster,
+32k context, the same wire formats and the same sub-agent paths the laptop runs
+(`bench/results/20260906-cluster-compare.md`, ticket 56):
+
+| model | SQL figure match | SQL first attempt | chart figure match | chart shape match | end to end |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Gemma 4 E4B | 66 % | 75 % | 45 % | 85 % | 53 % |
+| Qwen3.5 9B | 70 % | 30 % | 42 % | 89 % | 73 % |
+| Gemma 4 12B | **87 %** | **82 %** | **81 %** | **96 %** | **77 %** |
+
+152 SQL datapoints, 73 chart, 30 end to end. On the SQL set the 12B is right on 35 that E4B
+misses and wrong on 4 that E4B gets; against Qwen3.5 9B the gap is the same size and in the
+same direction. The decision rule was accuracy first, speed as a tie-breaker within about five
+points, and the pair has to fit in memory: nothing was within five points of the 12B, so speed
+never decided anything.
+
+### The decision
+
+- **The pair is Gemma 4 12B and Gemma 4 E4B.** `local:gemma-4-12b` is the entry a new
+  conversation starts on when `FINQUERY_PROVIDER=local`, and E4B keeps the fast seat: resident,
+  the adapter target, and what a role set to `fast` runs on. The pair is about 12.9 GB at 32k
+  against Qwen's 13.5 GB, so it costs no memory to switch to it
+  (`bench/results/20260906-local-tokens-per-second.md`). It costs speed: 22.4 tok/s generation
+  and 205 tok/s prompt processing against 29.5 and 329 for the Qwen pair, which the demo script
+  budgets for.
+- **Which model a sub-agent runs on is a setting per role**, `FINQUERY_SUBAGENT_MODEL_<ROLE>`
+  over the seven roles of `finquery.providers.SUBAGENT_ROLES` (query, chart, categorizer,
+  extraction, memory, summary, weblookup). Each takes `chat` (the conversation's own entry),
+  `fast` (the fast slot of that entry's provider) or a catalog key. The default is `chat`,
+  which is what the numbers above buy: the sub-agent path is where the benchmark scores, so the
+  demo runs it on the 12B. `fast` is what every role meant before, and a role that is switched
+  back to it costs nothing but its own quality.
+- **Adapters still attach only on the fast seat.** A LoRA trained on E4B's base weights is not
+  a LoRA for a 12B. A role on `fast` with an adapter registered gets it; a role on `chat` asks
+  and does not get it, and the run carries an audit note saying so.
+- **Sub-agent settings do not depend on the provider any more.** Reasoning is off and
+  `SUBAGENT_MAX_TOKENS` is 3072 for a sub-agent call whatever model answers it: a bigger model
+  is not a reason for a sub-agent to think or to write more.
+- **Hosted development is Gemma 4 26B A4B on both slots.** OpenRouter serves no Gemma 4 12B, so
+  the 26B A4B is the nearest thing in the family and in the tool-call wire format. The two
+  hosted chat entries are constants of the catalog rather than settings, so pointing the fast
+  slot at one of them does not take the other out of the picker.
+
+### Memory, and what gives way if it does not fit
+
+The 32k cap of the table above was measured with Qwen in the chat seat. The three 12B rows in
+that table are ticket 16's, from before the seat existed, and they had E4B and the 12B loaded
+by one process at 32k without flash attention or a q8_0 KV cache. `uv run finquery-check` ends
+by loading E4B and the 12B together and printing what is resident against the Metal working set
+of the machine, so the number is measured on the day rather than remembered from a ticket
+(`finquery.local.check.check_pair`).
+
+If they do not fit at the configured context, the chat seat is loaded again at 16k and the
+check says so. The fast slot is never the one that is evicted: every adapter attaches there and
+a sub-agent runs behind almost every turn. `FINQUERY_LOCAL_N_CTX=16384` is what makes that
+permanent, at the cost of compression starting sooner (ADR 0007).

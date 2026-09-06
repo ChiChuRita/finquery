@@ -95,15 +95,15 @@ async def test_the_entry_switches_mid_conversation_and_every_turn_carries_its_en
     assert "".join(str(c["delta"]) for c in second if c["type"] == "text-delta").strip() == "the second answer"
 
     # Three resolutions per turn: the chat model on the conversation's entry, then the two
-    # post-turn steps (follow-up suggestions, memory distillation), both on the fast slot of
-    # that entry's provider.
+    # post-turn steps (follow-up suggestions, memory distillation), which are on that same
+    # entry because every sub-agent role is set to `chat`.
     assert scripts.resolved == [
         (first_key, "chat"),
-        ("openrouter:fast", "fast"),
-        ("openrouter:fast", "fast"),
+        (first_key, "summary"),
+        (first_key, "memory"),
         (second_key, "chat"),
-        ("openrouter:fast", "fast"),
-        ("openrouter:fast", "fast"),
+        (second_key, "summary"),
+        (second_key, "memory"),
     ]
     detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
     entries = [m["metadata"]["model_key"] for m in detail["messages"] if m["role"] == "assistant"]

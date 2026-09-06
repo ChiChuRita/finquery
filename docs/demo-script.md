@@ -15,28 +15,33 @@ question with one query runs a little longer than the table says. The sub-agent 
 worked examples and a reasoning field (tickets 40 and 42), which is a few hundred more tokens to
 evaluate per call. Read the table as a floor, not a promise.
 
-Four models in the picker, two of them on this laptop: **Qwen3.5 9B (local)**, **Qwen3.5 9B
-(cloud)**, **Gemma 4 12B (local)** and **Gemma 4 26B (cloud)**. Whichever one a chat runs on,
-its sub-agents (SQL, chart, categorizer, extraction, memory, and the result check) run on the
-fast model of that same provider: **Gemma 4 E4B** locally, the hosted fast model in the cloud.
-Nobody picks the fast model; it is a model the app runs, listed on the Settings card.
+Four models in the picker, two of them on this laptop: **Gemma 4 12B (local)**, **Gemma 4 26B
+(cloud)**, **Qwen3.5 9B (local)** and **Qwen3.5 9B (cloud)**. The demo starts on **Gemma 4 12B
+(local)**, which is what a new chat opens on, and every sub-agent (SQL, chart, categorizer,
+extraction, memory, the result check) runs on it too, because that is where the benchmark says
+the quality is: 87 percent figure match on the 152 SQL questions against 66 for Gemma 4 E4B and
+70 for Qwen3.5 9B, and 81 percent on the chart set against 45 and 42
+(`bench/results/20260906-cluster-compare.md`). **Gemma 4 E4B** is still resident as the fast
+slot, and any sub-agent role can be put back on it with one environment variable; nobody picks
+it in the UI.
 
-The script stays on Gemma 4 E4B for the ordinary questions and switches to a chat entry for
-exactly one prepared question, because a Qwen turn is two to three minutes. A fast turn with one
-query is about a minute, most of it prompt evaluation: llama.cpp's multimodal handler re-reads
-the whole prompt on every request and a turn is four to six requests (the chat model, the query
-sub-agent, the check, the chat model again, then follow-ups and distillation).
+That quality is bought with time. E4B alone generates at 46.7 tok/s and reads a prompt at 545
+tok/s; E4B plus the 12B, which is what this demo runs, generates at 22.4 and reads at 205
+(`bench/results/20260906-local-tokens-per-second.md`). Every timing in the table at the end was
+measured with E4B answering and E4B behind the tools, so budget roughly twice each of them, and
+say out loud where the time goes: llama.cpp's multimodal handler re-reads the whole prompt on
+every request and a turn is four to six requests (the chat model, the query sub-agent, the
+check, the chat model again, then follow-ups and distillation).
 
-Two models are resident at once and no more: E4B plus one chat model, 13.5 GB with Qwen3.5 9B
-and about 12.9 GB with Gemma 4 12B. The two local chat models share one seat, so switching from
-one to the other unloads the first and loads the second, which costs the turn that asks for it
-about 20 seconds. Close everything else heavy before you start.
+Two models are resident at once and no more: E4B plus one chat model, about 12.9 GB with Gemma 4
+12B and 13.5 GB with Qwen3.5 9B. The two local chat models share one seat, so switching from one
+to the other unloads the first and loads the second, which costs the turn that asks for it about
+20 seconds. Close everything else heavy before you start.
 
 Both providers are live at the same time. `FINQUERY_PROVIDER=local` only decides which entry a
 new chat starts on, so with `OPENROUTER_API_KEY` in `.env` the two cloud entries are one click
-away in the same picker. Either hosted id can be pointed somewhere else without a code change
-(`FINQUERY_OPENROUTER_QUALITY_MODEL`, `FINQUERY_OPENROUTER_SECOND_CHAT_MODEL`,
-`FINQUERY_OPENROUTER_FAST_MODEL`). That is the escape hatch behind the fallbacks at the end of
+away in the same picker. The hosted fast slot can be pointed somewhere else without a code change
+(`FINQUERY_OPENROUTER_FAST_MODEL`). That is the escape hatch behind the fallbacks at the end of
 this script: a laptop that will not cooperate runs the same chat on a cloud entry, one switch in
 the composer, without restarting anything.
 
@@ -54,10 +59,13 @@ uv run finquery                           # http://127.0.0.1:8000
 
 `finquery-check` covers the fast slot and every local chat model whose weights are on disk, one
 seat at a time (about 3 seconds to load each), and takes two to three minutes, nearly all of it
-Qwen thinking about a three-number sum. Green means the demo can start. Open Settings once
-before the audience arrives: the Models card lists all four entries with their availability,
-which local model is in the seat, where each file came from (a parked copy or Hugging Face), and
-the sanity check button.
+Qwen thinking about a three-number sum. It then loads the pair the demo runs, E4B and Gemma 4
+12B, at the same time and prints what is resident against the Metal working set of this machine;
+if they do not fit it says to set `FINQUERY_LOCAL_N_CTX=16384`, which shrinks the chat seat and
+leaves the fast slot alone. Green means the demo can start. Open Settings once before the
+audience arrives: the Models card lists all four entries with their availability, which local
+model is in the seat, which model each sub-agent role runs on, where each file came from (a
+parked copy or Hugging Face), and the sanity check button.
 
 Have the browser at 1440 wide, the theme you prefer (both are fine), and these four files in a
 Finder window: `fixtures/synthetic/bill-edeka-2025-03-14.png`,
@@ -66,7 +74,10 @@ Finder window: `fixtures/synthetic/bill-edeka-2025-03-14.png`,
 
 ## The script
 
-Times are for the fast slot unless the step says Qwen. "Instant" means no model runs.
+Times were measured with Gemma 4 E4B answering and behind every tool, which is what "fast"
+means in the column below. The demo now runs the chat and the sub-agents on Gemma 4 12B, which
+generates at about half the rate, so read every number as a floor and roughly double it.
+"Instant" means no model runs.
 
 ### 1. Onboarding (no model, about 2 minutes of talking)
 
@@ -79,9 +90,12 @@ once.
    that the Settings page uses the same code. Continue.
 2. **Step 2, how I should answer.** Pick **English** (or **Deutsch** for a German audience).
    Do not leave "Follow my message": the small local model drifts into German on German data,
-   and a fixed language is the honest demo. Leave the model on Gemma 4 E4B, leave web lookup
-   off (it comes later, with its log). Continue.
-3. **Step 3, your first data.** Press **Load the sample year**. 32 s. It imports 433
+   and a fixed language is the honest demo. Leave the model on **Gemma 4 12B (local)**, which
+   is what a new chat starts on, and leave web lookup off (it comes later, with its log).
+   Continue.
+3. **Step 3, your first data.** Press **Load the sample year**. 32 s when the categorizer ran
+   on E4B, so closer to a minute now that it runs on the 12B: this is the step to talk over,
+   and the counted summary is what you come back to. It imports 433
    bookings of a synthetic German household through the same function the composer's
    `import_file` tool uses, categorizes them (384 by the merchant dictionary, 24 by the
    categorizer sub-agent, 25 left for you) and lands in a chat with the import step and the
@@ -170,7 +184,7 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
     button that is always visible; a CSV or a PDF is an icon chip with its name. Send **"Here is
     the receipt for this payment."** 100 s. The sent message keeps the thumbnail, and it is a
     link to the copy the server stored, so the transcript still shows what was read a week
-    later. The fast slot reads the photo: seven line items that add up to the printed total of
+    later. The extraction sub-agent reads the photo, on the 12B like every other role: seven line items that add up to the printed total of
     20,73 EUR, matched against the EDEKA booking of 14.03.2025. A split proposal appears inside
     the import step: two legs, Groceries 11,75 EUR and Shopping 8,98 EUR. Press **Apply**. Say
     the rule: queries count the legs, never the parent.
@@ -178,7 +192,7 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 ### 8. Memory across two conversations (fast, two turns)
 
 18. Still in this chat: **"Remember: my flatmate is Max Schulz."** 49 s to 84 s. A `remember`
-    step and a one-line confirmation. Keep the sentence this short: the fast model stores a
+    step and a one-line confirmation. Keep the sentence this short: the memory sub-agent stores a
     short fact nearly word for word, and it is the word "flatmate" in the stored fact that the
     next step needs. A longer sentence came back stored without that word, and the next
     question then missed.
@@ -191,21 +205,24 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 
 ### 9. A model switch for one prepared question
 
-20. Open the composer's model picker. Four entries: **Qwen3.5 9B (local)**, **Qwen3.5 9B
-    (cloud)**, **Gemma 4 12B (local)** and **Gemma 4 26B (cloud)**, each saying where it runs,
-    and any that is not ready is greyed out with the reason (no API key, or weights still coming
-    down). Pick **Qwen3.5 9B (local)** and ask **"What was my largest single expense in 2025, and
-    what was it for?"** 138 s, of which the first is the seat being loaded and about 12 are
-    visible thinking. The answer names the rent (1.150,00 EUR, 01.01.2025). The turn chip reads
-    "Qwen3.5 9B (local)" while every earlier turn keeps its own model's name: switching a chat
-    never relabels a turn that is already on screen.
+20. Open the composer's model picker. Four entries: **Gemma 4 12B (local)**, **Gemma 4 26B
+    (cloud)**, **Qwen3.5 9B (local)** and **Qwen3.5 9B (cloud)**, each saying where it runs, and
+    any that is not ready is greyed out with the reason (no API key, or weights still coming
+    down). Pick **Qwen3.5 9B (local)**, the other local entry, and ask **"What was my largest
+    single expense in 2025, and what was it for?"** About 20 seconds of that turn is the seat
+    swap (the 12B is unloaded and the 9B loaded in its place, which is the whole reason a seat
+    exists), then 138 s were measured for the answer itself, about 12 of them visible thinking.
+    The answer names the rent (1.150,00 EUR, 01.01.2025). The turn chip reads "Qwen3.5 9B
+    (local)" while every earlier turn keeps its own model's name: switching a chat never
+    relabels a turn that is already on screen. Say why the default is the other one: the same
+    question set scored 87 percent on the 12B and 70 on the 9B.
 
-    If there is time and a key in `.env`, switch the same chat to **Qwen3.5 9B (cloud)** and ask
-    it again: same weights, one second instead of two minutes, and the sub-agents move to the
-    hosted fast model with it. Nothing was restarted, and the two turns sit next to each other
-    with their own chips.
+    If there is time and a key in `.env`, switch the same chat to **Gemma 4 26B (cloud)** and
+    ask it again: the same family and the same wire format, one second instead of two minutes,
+    and its sub-agents move to OpenRouter with it. Nothing was restarted, and the two turns sit
+    next to each other with their own chips.
 
-### 10. A turn keeps running when you walk away, then Stop (quality)
+### 10. A turn keeps running when you walk away, then Stop
 
 21. Ask Qwen something long: **"Explain in detail how my spending developed over 2025, month
     by month, and what might explain each change."** While it thinks, click another chat in the
@@ -216,7 +233,8 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
     transcript picks it up mid-sentence. Reload the page for the same point twice as loudly: the
     question, the thinking and the tool steps are all still there and the stream reattaches.
     Then press **Stop**. The partial thinking, tool steps and text stay, chipped "Stopped": Stop
-    is the only thing that ends a turn. Switch the composer back to **Gemma 4 E4B**.
+    is the only thing that ends a turn. Switch the composer back to **Gemma 4 12B (local)**,
+    which swaps the seat back.
 
 ### 11. The context badge and the download (fast)
 
@@ -323,7 +341,7 @@ Measured on 2026-09-05 on the local provider, before the result check and the gr
 
 - **The PDF statement.** It works locally: `sparkasse-kontoauszug-2025.pdf` extracted all 433
   bookings with 0 flagged rows and reconciled to the printed closing balance, in 24 minutes
-  (1458 s, about 97 s per page: one bounded extraction call per page on the fast slot, and
+  (1458 s, about 97 s per page on E4B: one bounded extraction call per page, and
   the local provider asks for four pages at a time but one model answers them in turn). That is
   a coffee break, not a demo step. Show it on OpenRouter (131 s for the same file in ticket 11
   with four pages in flight; a hosted provider now runs twelve, and
@@ -331,12 +349,13 @@ Measured on 2026-09-05 on the local provider, before the result check and the gr
   open a profile where it was imported beforehand and show the reconciliation sentence on the
   Imports overview. Before ticket 17 the same extraction ran away until the context was full;
   the sub-agent output ceiling is what makes it finish at all.
-- **The doughnut, asked for in chat.** The fast model's code pass never gives `radialArc` its
+- **The doughnut, asked for in chat.** On E4B the chart code pass never gave `radialArc` its
   `color` channel, three rounds running, so the card says the chart could not be drawn and the
   answer gives the six figures instead (the twelve categories are folded to five plus "Other"
   in code first). It is honest and it costs two minutes, so it is not in the script. On
-  OpenRouter the same request draws (88 to 100 percent on the chart benchmark), and Qwen is
-  worst of all on this shape (12 percent). The Dashboard's own doughnut is a different thing
+  OpenRouter the same request draws (88 to 100 percent on the chart benchmark), and the 12B is
+  96 percent on shape match against E4B's 85 on the cluster set, so it is worth trying once
+  before the demo rather than assuming it still fails. The Dashboard's own doughnut is a different thing
   and does draw: its code is in the repo, not written by a model, which is a point worth making
   if somebody asks why one works and the other does not.
 - **Context compression.** It starts at 60 percent of the 32k budget, about 20k tokens of
@@ -370,5 +389,6 @@ Measured on 2026-09-05 on the local provider, before the result check and the gr
   falls back to the horizontal bars of step 12, the flatmate question to the rent question on
   Qwen (step 20), the lookup to the second import (step 27), the chart the assistant keeps by
   itself to the one added by hand in step 13, and the PDF to the pre-imported profile. If the laptop itself
-  gives up, `FINQUERY_PROVIDER=openrouter` runs the identical script hosted, and
-  `FINQUERY_OPENROUTER_FAST_MODEL` points the fast slot at a stronger model for one step.
+  gives up, `FINQUERY_PROVIDER=openrouter` runs the identical script hosted on Gemma 4 26B A4B,
+  and `FINQUERY_SUBAGENT_MODEL_QUERY=fast` moves one role back to the fast slot if a local turn
+  has to be shortened.

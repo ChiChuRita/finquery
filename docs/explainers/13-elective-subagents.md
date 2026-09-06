@@ -4,8 +4,9 @@
 own (writing SQL, judging a result, planning and coding a chart, categorizing merchants, reading
 a statement page or a receipt, distilling memories, deciding the next web search step, proposing
 a CSV mapping, extracting typed bookings, summarizing, suggesting follow-ups) is a separate
-Pydantic AI agent on the fast slot with one forced tool, called from inside a tool of the chat
-agent, narrating its steps into the thinking panel. The sheet's extra credit (a controlling LLM
+Pydantic AI agent with one forced tool, called from inside a tool of the chat agent, narrating
+its steps into the thinking panel. Which model each of them runs on is a setting per role, and
+the default is the model the conversation runs on. The sheet's extra credit (a controlling LLM
 that continues without waiting) we do not claim: the chat agent waits for its tool result; what
 runs on without anyone waiting is the turn itself, on the server, and the user.
 
@@ -17,7 +18,7 @@ sequenceDiagram
   participant S as Server task (RunningTurn)
   participant A as Chat agent (chosen slot)
   participant T as Tool (our code)
-  participant B as Sub-agent (fast slot, forced tool)
+  participant B as Sub-agent (its role's model, forced tool)
   U->>S: message
   S->>A: run
   A->>T: query(request) / chart(request) / import_file(...) / lookup_merchant(...)
@@ -32,10 +33,12 @@ sequenceDiagram
 
 In words:
 
-1. The chat agent has tools. A tool that needs a model resolves the fast slot through
-   `ctx.deps.resolve_model("fast")` whatever slot the conversation runs on, and runs a dedicated
-   agent with `subagent_settings` (reasoning off on OpenRouter, a 3072 token output ceiling on
-   both providers).
+1. The chat agent has tools. A tool that needs a model asks for its **role** through
+   `ctx.deps.resolve_model("query")` (or `"chart"`, `"categorizer"`, `"extraction"`, `"memory"`,
+   `"summary"`, `"weblookup"`) and runs a dedicated agent with `subagent_settings` (reasoning
+   off and a 3072 token output ceiling, on any model). One setting per role decides which model
+   answers: the conversation's own entry by default, the provider's fast slot, or a catalog key.
+   The tool never learns which of those it got.
 2. Each sub-agent has exactly one tool and no text output, so its answer is a schema. On the
    local provider that makes llama.cpp build a grammar and turns thinking off; instead every
    schema opens with a `reasoning` field the model fills first (ticket 42).
@@ -52,21 +55,23 @@ In words:
 
 ## The sub-agents
 
-| Sub-agent | Forced tool | Called from | Module |
-| --- | --- | --- | --- |
-| query | `run_sql` | `query`, `chart`, the bench | `src/finquery/query/subagent.py:query_agent` |
-| result check | `judge_result` | `run_query` | `src/finquery/query/check.py:check_agent` |
-| chart plan | `chart_plan` | `chart`, dashboard preview, the render-failure retry | `src/finquery/chart/subagent.py:plan_agent` |
-| chart code | `chart_code` | same | `src/finquery/chart/subagent.py:code_agent` |
-| categorizer | `categorize` | imports, cards, receipt legs | `src/finquery/categorize/subagent.py:categorizer_agent` |
-| statement reader | `read_statement` | `import_file` for a PDF or a scanned page | `src/finquery/extract/subagent.py:statement_agent` |
-| receipt reader | `read_bill` | `import_file` for a photo | `src/finquery/extract/subagent.py:bill_agent` |
-| memory distillation | `remember_facts` | after every turn | `src/finquery/memory.py:distill_agent` |
-| web lookup decision | `decide` | `lookup_merchant`, categorizer stage | `src/finquery/weblookup/loop.py:lookup_agent` |
-| CSV mapping | `propose_mapping` | `import_file` for an unknown header | `src/finquery/ingest/mapping_agent.py:mapping_agent` |
-| typed bookings | `propose_transactions` | `extract_transaction` | `src/finquery/ingest/typed.py:extraction_agent` |
-| rolling summary | text | the turn that crosses 60 percent | `src/finquery/context.py:summary_agent` |
-| follow-ups | text | after every turn | `src/finquery/followups.py:followup_agent` |
+Thirteen sub-agents, seven roles: a role is a kind of work, and the model setting is per kind.
+
+| Sub-agent | Role | Forced tool | Called from | Module |
+| --- | --- | --- | --- | --- |
+| query | query | `run_sql` | `query`, `chart`, the bench | `src/finquery/query/subagent.py:query_agent` |
+| result check | query | `judge_result` | `run_query` | `src/finquery/query/check.py:check_agent` |
+| chart plan | chart | `chart_plan` | `chart`, dashboard preview, the render-failure retry | `src/finquery/chart/subagent.py:plan_agent` |
+| chart code | chart | `chart_code` | same | `src/finquery/chart/subagent.py:code_agent` |
+| categorizer | categorizer | `categorize` | imports, cards, receipt legs | `src/finquery/categorize/subagent.py:categorizer_agent` |
+| statement reader | extraction | `read_statement` | `import_file` for a PDF or a scanned page | `src/finquery/extract/subagent.py:statement_agent` |
+| receipt reader | extraction | `read_bill` | `import_file` for a photo | `src/finquery/extract/subagent.py:bill_agent` |
+| memory distillation | memory | `remember_facts` | after every turn | `src/finquery/memory.py:distill_agent` |
+| web lookup decision | weblookup | `decide` | `lookup_merchant`, categorizer stage | `src/finquery/weblookup/loop.py:lookup_agent` |
+| CSV mapping | extraction | `propose_mapping` | `import_file` for an unknown header | `src/finquery/ingest/mapping_agent.py:mapping_agent` |
+| typed bookings | extraction | `propose_transactions` | `extract_transaction` | `src/finquery/ingest/typed.py:extraction_agent` |
+| rolling summary | summary | text | the turn that crosses 60 percent | `src/finquery/context.py:summary_agent` |
+| follow-ups | summary | text | after every turn | `src/finquery/followups.py:followup_agent` |
 
 ## The code path
 
@@ -74,7 +79,9 @@ In words:
    `extract_transaction`, `add_transaction`, `lookup_merchant`, `propose_changeset`,
    `apply_simple_edit`, `remember`, `set_rule`, `review_batch`, `review_duplicates`, plus the
    `ask_user` toolset. `ChatDeps` carries `resolve_model`, `subagent_settings` and `narrate`.
-2. `src/finquery/providers.py:subagent_settings` and `SUBAGENT_MAX_TOKENS`.
+2. `src/finquery/providers.py:subagent_settings` and `SUBAGENT_MAX_TOKENS`; the roles are
+   `src/finquery/providers.py:SUBAGENT_ROLES` and the rule that resolves one is
+   `src/finquery/catalog.py:Catalog.for_role`.
 3. `src/finquery/agent.py:guarded`: an unexpected exception inside any tool is one sentence in
    its step.
 4. `src/finquery/api/chat.py:Narration` and `_pump`: narration lines and agent chunks travel
@@ -91,16 +98,17 @@ In words:
    and `src/finquery/api/chat.py:reattach` (01, ADR 0012).
 8. Tests: `tests/test_query.py`, `tests/test_query_check.py`, `tests/test_chart.py`,
    `tests/test_categorization.py`, `tests/test_extraction.py`, `tests/test_web_lookup.py`,
-   `tests/test_memory.py`, all with the fast slot scripted per forced tool.
+   `tests/test_memory.py`, all with the sub-agent side scripted per forced tool, and
+   `tests/test_model_catalog.py` for which model each role resolved to.
 
 ## Where the model is in the loop, and where it is not
 
 - Model: the chat agent decides which tool to call and writes the request; the sub-agent writes
   its one structured answer; the check judges.
-- Not the model: dispatch (a tool call is a Python function), which slot a sub-agent runs on,
-  its settings and ceiling, the deterministic work around it, the narration, the retry framing
-  and its limits (one resubmit, two repairs, one reread, one refusal round), the tool result's
-  shape.
+- Not the model: dispatch (a tool call is a Python function), which model a sub-agent runs on
+  (its role's setting), its settings and ceiling, the deterministic work around it, the
+  narration, the retry framing and its limits (one resubmit, two repairs, one reread, one
+  refusal round), the tool result's shape.
 
 ## Guards and failure handling
 
@@ -120,6 +128,7 @@ In words:
 | Figure | Value | Source |
 | --- | --- | --- |
 | Reasoning off for sub-agents | the follow-up step from 11 s to 3 s on OpenRouter | ticket 02 |
+| The sub-agent path per model, cluster, 2026-09-06 | SQL figure match: Gemma 4 12B 87 %, Qwen3.5 9B 70 %, Gemma 4 E4B 66 %. Charts: 81 %, 42 %, 45 % | `bench/results/20260906-cluster-compare.md` |
 | Requests per fast turn with one query, local | four to six model requests: chat, query, check, chat again, follow-ups, distillation | `docs/demo-script.md` |
 | Prompt growth from the ticket 42 pass (worked examples, reasoning field, corrections) | chart plan 967 to 1286 tokens; chart code 1339 to 1853; categorizer 606 to 857; statement page 422 to 747; receipt 858 to 1292; distillation 532 to 769; follow-ups 155 to 324; web lookup 519 to 819; chat agent 3592 to 3919 | ticket 42 |
 | What the pass bought on charts | Gemini 92 % to 97 % figure match; area 67 % to 100 % | ticket 42, `bench/README.md` |
@@ -150,12 +159,16 @@ In words:
   the sub-agent answers. Ticket 33 made the turn a server task, so the user and the browser
   continue without waiting, and a turn survives a reload; that is a different thing and we say
   so.
-- **Why always the fast slot?** So the adapters slot into one base, so a Qwen turn does not pay
-  Qwen's thinking on every sub-call, and so a sub-agent's behaviour is the same whichever model
-  the user picked for the chat.
-- **How do you test them without a model?** Every test scripts the fast slot per forced tool name
-  (`run_sql`, `chart_plan`, `chart_code`, `categorize`, ...) and asserts the stream and the
-  database (ADR 0003).
+- **Which model does a sub-agent run on?** Whichever its role is set to, and the default is the
+  conversation's own entry. Until ticket 61 it was always the fast slot, which kept behaviour
+  identical whatever the user picked and let the adapters share one base. The cluster benchmark
+  then measured the sub-agent path itself: the fast slot is 21 points worse at SQL and 36 at
+  charts than Gemma 4 12B, so the default moved to the model the user picked. A role set back to
+  `fast` gets the old behaviour and the adapters, which attach on that seat only.
+- **How do you test them without a model?** Every test scripts the sub-agent side per forced
+  tool name (`run_sql`, `chart_plan`, `chart_code`, `categorize`, ...) and asserts the stream and
+  the database (ADR 0003). The scripted resolver records `(entry key, role)`, so which model each
+  role asked for is asserted too.
 - **Is Pydantic AI implementing the elective?** It dispatches a tool call to a Python function.
   Which sub-agents exist, what they see, how they are bounded, retried and narrated is ours.
 

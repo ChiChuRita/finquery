@@ -6,13 +6,16 @@ Four ways to name one, and the runner needs no code change to move between them:
   is what the app itself stores on a conversation. `local:gemma-4-e4b` is the sub-agent slot,
   which the catalog keys `local:fast`;
 - `fast` or `quality`: the pre-catalog names, kept because every recorded run uses them.
-  `quality` is the Qwen entry of the configured provider and `fast` its sub-agent slot;
+  `quality` is the default entry of the configured provider (Gemma 4 12B locally since ticket
+  61) and `fast` its sub-agent slot;
 - `google/gemini-3.8-flash`: any OpenRouter id, resolved directly;
 - `local:fast` with an optional `--adapter query`: the local sub-agent slot, with a LoRA adapter
   attached for the run through the `finquery_adapter` model setting.
 
 Whatever the target, every role the sub-agents ask for resolves to the same model: a benchmark
-compares weights, so a run must not quietly answer half its datapoints on something else.
+compares weights, so a run must not quietly answer half its datapoints on something else. That
+also makes `--model local:gemma-4-12b` the "chat and sub-agents on the same model" shape the
+demo runs, with no second flag to pass.
 """
 
 from dataclasses import dataclass
@@ -33,7 +36,8 @@ from finquery.settings import Settings
 
 LOCAL_PREFIX = "local:"
 LEGACY_SLOTS = {"fast": "fast", "quality": "chat"}
-"""The pre-catalog `--model` values, as the role they name on the configured provider."""
+"""The pre-catalog `--model` values, as the model role they name on the configured provider.
+Neither is a sub-agent role: a benchmark pins one model to every role of the run."""
 
 LOCAL_ALIASES = {"local:fast": "local:fast", "local:quality": "local:qwen3.5-9b", "local:gemma-4-e4b": "local:fast"}
 """Names for a local model that are not its catalog key, and what they resolve to.
@@ -119,7 +123,7 @@ def resolve_target(spec: str, adapter: str | None, settings: Settings) -> Target
         raise RuntimeError("an adapter only attaches on the local provider")
     catalog = Catalog(settings, local=build_local_stack(settings, download=False))
     model = catalog.model(catalog.default_key, LEGACY_SLOTS[spec])  # type: ignore[arg-type]
-    model_settings = subagent_settings(settings)
+    model_settings = subagent_settings()
     if adapter:
         from finquery.local.model import LocalModelSettings
 

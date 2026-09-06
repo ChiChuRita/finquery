@@ -25,14 +25,24 @@ SQLite database lives in `data/finquery.db` (override with `FINQUERY_DB_PATH`). 
 database opens with onboarding; "Load the sample year" in its last step imports the shipped
 synthetic dataset, which is also where the demo starts (`docs/demo-script.md`).
 
-The provider is one switch, and the two slots are the same two models either way. **Fast** is
-Gemma 4 (E4B locally, 26B hosted) and runs every sub-agent: SQL, chart, categorizer, extraction,
-memory, the result check and the web lookup. **Quality** is Qwen3.5 9B and only ever answers in
-the chat. `FINQUERY_PROVIDER=openrouter` resolves both slots to OpenRouter ids;
-`FINQUERY_PROVIDER=local` runs both in this process (see below). Nothing else changes, and the
-selector in the composer names the model the running provider really resolved each slot to, so
-"Gemma 4 E4B" and "Gemma 4 26B" are two different labels for the same slot. On OpenRouter either
-slot can be pointed at another model without a code change.
+The picker offers four chat models across both providers, and a conversation stores which one
+it runs on:
+
+| Catalog entry | Where it runs | What it is for |
+| --- | --- | --- |
+| `local:gemma-4-12b` | this process, llama-cpp with Metal | the demo default: 87 % figure match on the SQL benchmark, 81 % on charts |
+| `openrouter:google/gemma-4-26b-a4b-it` | OpenRouter | the hosted default, same family and wire format, for development |
+| `local:qwen3.5-9b` | this process | the local alternative (70 % and 42 %) |
+| `openrouter:qwen/qwen3.5-9b` | OpenRouter | the same weights hosted, for comparing the two side by side |
+
+Behind the chat, every job with a model of its own is a sub-agent: SQL, chart, categorizer,
+extraction, memory, summary and web lookup. Each of those seven roles has a setting saying which
+model runs it, `FINQUERY_SUBAGENT_MODEL_<ROLE>`, taking `chat` (the conversation's own entry,
+the default), `fast` (**Gemma 4 E4B** locally, resident, where the LoRA adapters attach, or
+`FINQUERY_OPENROUTER_FAST_MODEL` in the cloud) or a catalog key. `FINQUERY_PROVIDER` decides one
+thing: which entry a new conversation starts on. Both providers are live at once, and every name
+on screen comes from `GET /api/models`. The numbers above are the cluster benchmark of
+2026-09-06, `bench/results/20260906-cluster-compare.md`.
 
 Settings (environment or `.env`):
 
@@ -41,7 +51,7 @@ Settings (environment or `.env`):
 | `FINQUERY_PROVIDER`                     | `openrouter`               | `openrouter` or `local`                    |
 | `OPENROUTER_API_KEY`                    |                            | Required for `openrouter`                  |
 | `FINQUERY_OPENROUTER_FAST_MODEL`        | `google/gemma-4-26b-a4b-it`| Hosted model behind the fast slot          |
-| `FINQUERY_OPENROUTER_QUALITY_MODEL`     | `qwen/qwen3.5-9b`          | Hosted model behind the quality slot       |
+| `FINQUERY_SUBAGENT_MODEL_<ROLE>`        | `chat`                     | Model per sub-agent role: `chat`, `fast` or a catalog key |
 | `FINQUERY_DB_PATH`                      | `data/finquery.db`         | SQLite file                                |
 | `FINQUERY_HOST`                         | `127.0.0.1`                | Bind address                               |
 | `FINQUERY_PORT`                         | `8000`                     | Port                                       |
@@ -61,26 +71,32 @@ CMAKE_ARGS="-DGGML_METAL=on" uv sync
 FINQUERY_PROVIDER=local uv run finquery
 ```
 
-The two slots become Gemma 4 E4B (fast, also the slot every sub-agent runs on) and Qwen3.5 9B
-(quality), running in this process through llama-cpp-python with Metal. Startup begins
-downloading the four GGUF files (12.6 GB) into `models/`; watch it on the Settings page, which
-also has a sanity check button. A file already sitting in `FINQUERY_PARKED_MODELS_DIR` whose
-sha256 matches is linked in instead of downloaded, and the Settings card says which of the two
-happened per file. Each model loads on its first use and then stays resident: both together
-take 13.5 GB at the 32k context cap, so run nothing else heavy beside them.
+A new chat starts on Gemma 4 12B, with Gemma 4 E4B resident as the fast slot, both running in
+this process through llama-cpp-python with Metal. Startup begins downloading the GGUF files into
+`models/`; watch it on the Settings page, which also has a sanity check button. A file already
+sitting in `FINQUERY_PARKED_MODELS_DIR` whose sha256 matches is linked in instead of downloaded,
+and the Settings card says which of the two happened per file. A model loads on its first use
+and then stays in its seat: the pair takes about 12.9 GB at the 32k context cap, so run nothing
+else heavy beside them. The two local chat models share one seat, so picking the other one
+unloads the first.
 
 Prove the setup before a demo:
 
 ```sh
-uv run finquery-check    # both slots: answer, thinking, tool call, vision
+uv run finquery-check    # every local model: answer, thinking, tool call, vision, then the pair
 ```
 
-What to expect locally on a 24 GB M4 Pro: a question with one query is about a minute on the
-fast slot and two to three on the quality slot, most of it thinking and prompt evaluation
-(llama.cpp's multimodal handler re-reads the whole prompt every request). The demo script has
-a measured time per step: `docs/demo-script.md`.
+It ends by holding Gemma 4 E4B and Gemma 4 12B at the same time and printing what is resident
+against the Metal working set of the machine. If they do not fit at the configured context it
+loads the chat seat again at 16k and says to set `FINQUERY_LOCAL_N_CTX=16384`: the fast slot is
+never the one that is evicted.
 
-The two models speak different chat formats, which is why `src/finquery/local/` has one wire
+What to expect locally on a 24 GB M4 Pro: a question with one query is a minute or two with the
+chat and its sub-agents on Gemma 4 12B, most of it prompt evaluation (llama.cpp's multimodal
+handler re-reads the whole prompt every request). The demo script has a measured time per step:
+`docs/demo-script.md`.
+
+The models speak two different chat formats, which is why `src/finquery/local/` has one wire
 module each. See `docs/adr/0006-local-gemma-4-through-llama-cpp.md`, including what the two
 of them take out of a 24 GB Mac at 32k.
 
@@ -111,7 +127,7 @@ uv run pytest                    # the HTTP-seam suite
 cd frontend && npm run build     # typecheck and bundle
 ```
 
-Tests drive the FastAPI app over HTTP with both model slots replaced by scripted models. No test
+Tests drive the FastAPI app over HTTP with every model replaced by a scripted one. No test
 calls OpenRouter and none loads a real model. See `docs/adr/0003-single-http-test-seam.md`. Four
 of them skip unless the private fixtures are present (two Trade Republic exports, one statement
 PDF) or the local smoke suite is asked for.
@@ -143,6 +159,16 @@ Figure match, exact to the cent, on 2026-09-05:
 | Qwen3.5 9B | quality, hosted and local | 57 %, **69 %** with the current prompt | 40 % |
 | Gemma 4 E4B | local fast slot, every sub-agent | **57 %** (median 9.2 s per question) | **48 %** (73 % drawn) |
 
+Then the three local candidates on the HPI cluster, same GGUFs and same sub-agent paths, on
+2026-09-06 (`bench/results/20260906-cluster-compare.md`), which is what the shipped pair was
+chosen on:
+
+| Model | SQL (152) | Charts (73) | End to end (30) |
+| --- | ---: | ---: | ---: |
+| Gemma 4 12B | **87 %** | **81 %** | **77 %** |
+| Qwen3.5 9B | 70 % | 42 % | 73 % |
+| Gemma 4 E4B | 66 % | 45 % | 53 % |
+
 The E4B run is the one local number and it was taken on the baseline prompt, so it has no second
 figure yet. Read the second figure in each SQL cell as the prompt alone: those runs are
 `--no-check`, so
@@ -172,7 +198,7 @@ from what the profile holds, with three suggested questions under it. No model r
 Import a bank CSV export by dropping it on the chat composer and sending it: the assistant runs
 the import as a tool call, with the rows read, imported and categorized ticking past in the tool
 step. Sparkasse, DKB, ING, N26, comdirect and Trade Republic are recognized by their CSV headers;
-any other bank gets a mapping proposed by the fast slot and confirmed on a Question card before
+any other bank gets a mapping proposed by the extraction sub-agent and confirmed on a Question card before
 anything is written. An Excel workbook takes the same path one step earlier: openpyxl reads a
 sheet into the same rows, and a cell that is already a date or a number stays one, so nothing is
 parsed back out of a string with a guessed separator. Statement PDFs, Word documents and photos
@@ -191,7 +217,7 @@ to remove them all in one click.
 
 The commit is followed by categorization in stages: your own category rules, a dictionary
 of about sixty German merchants, then, if you switched web lookup on, a web lookup of the
-merchants nobody recognizes, and finally the categorizer sub-agent on the fast slot with a
+merchants nobody recognizes, and finally the categorizer sub-agent with a
 confidence per merchant. Every row gets a friendly title and a short description. What stays
 below the confidence threshold is Needs review, and the assistant asks about those merchants in
 Question cards right there. Each answer becomes a category rule and recategorizes every booking
@@ -230,12 +256,12 @@ and how many of its bookings are still Needs review. An import with something op
 takes its bookings, its candidates and the decisions on them with it, which is the way back from
 an import into the wrong profile.
 
-Then ask in the chat. The query sub-agent writes the SQL on the fast slot, a guard admits only a
+Then ask in the chat. The query sub-agent writes the SQL, a guard admits only a
 single read-only SELECT over your own transactions, and the tool step in the transcript shows the
 statement and the rows behind every number. A statement that runs and answers a different
 question is the failure a guard cannot see, so the result is checked against the question before
 you see it: an empty or degenerate result is rewritten once in code, and a second pass on the
-fast slot says whether the rows answer what was asked. Both say so in the thinking panel
+check pass says whether the rows answer what was asked. Both say so in the thinking panel
 ("Checking the result", "Rewriting: ..."), and a query costs at most three model calls.
 
 Ask for a chart and the chart sub-agent plans it, gets its rows the same way, writes a TanStack
@@ -267,7 +293,7 @@ it with `uv run python scripts/generate_synthetic.py`.
 ## Web lookup
 
 Off by default, one switch per profile in Settings. With it on, the assistant can find out what
-an unknown merchant is: the fast slot drives its own search loop (search, read a page, or finish,
+an unknown merchant is: the web lookup sub-agent drives its own search loop (search, read a page, or finish,
 at most four searches and three page reads), and what comes back is a suggested category with a
 confidence plus the sources, which the transcript shows under the answer.
 
@@ -293,7 +319,7 @@ merchant token leaves at most once per profile: the result is cached. Search nee
 | `src/finquery/context.py`, `memory.py`, `onboarding.py`, `followups.py` | the per-turn prompt, durable facts, the first-run state, post-turn suggestions |
 | `src/finquery/api/` | REST and chat endpoints; `running.py` is the turns being produced right now, each a task with a buffer its readers subscribe to |
 | `src/finquery/local/` | the local provider: catalog, downloads, runtime, the Gemma 4 and Qwen3.5 wire formats, `finquery-check` |
-| `src/finquery/db.py`, `taxonomy.py`, `providers.py`, `settings.py`, `app.py`, `main.py` | the models and the query view, the default categories, the two slots, configuration, the app factory, the CLI |
+| `src/finquery/db.py`, `taxonomy.py`, `providers.py`, `settings.py`, `app.py`, `main.py` | the models and the query view, the default categories, the model roles, configuration, the app factory, the CLI |
 | `src/finquery/attachments.py`, `progress.py`, `prose.py`, `nullish.py` | files dropped into a chat, a tool's live progress part, the figures check on what the model writes, and the one place that knows what a model writes when it means nothing |
 | `frontend/` | Vite, React 19, Tailwind 4, shadcn, AI Elements, TanStack Router, Query and Charts. `src/chart-runtime/` is a second page: the sandboxed frame charts render in |
 | `bench/` | the two benchmark sets, the runner, the validation page, the results |

@@ -17,7 +17,7 @@ import threading
 import time
 from collections.abc import AsyncIterator, Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
@@ -44,6 +44,16 @@ T = TypeVar("T")
 def adapter_note() -> str | None:
     """The audit note for the run in progress, if it fell back to the base weights."""
     return _note.get()
+
+
+@contextmanager
+def audited(text: str | None) -> Iterator[None]:
+    """Publish one audit note for the length of a run, so the model can put it on its response."""
+    token = _note.set(text)
+    try:
+        yield
+    finally:
+        _note.reset(token)
 
 
 class Slot(Protocol):
@@ -293,6 +303,19 @@ class LocalStack:
             self._seats.pop(seat).close()
         self._wanted[seat] = spec
 
+    def unload(self, seat: ModelRole) -> None:
+        """Free the model in one seat, so the next use loads it again at the current `n_ctx`.
+
+        Blocking, and the same order as a swap: drain first, so the abandoned token pull of a
+        cancelled turn has returned before the weights it was reading are freed. Only
+        `finquery.local.check` calls this, between its two attempts at the pair; a turn changes
+        seats through `take_seat` under the seat's lock.
+        """
+        if seat in self._seats:
+            self.drain(seat)
+            self._seats.pop(seat).close()
+        self._wanted.pop(seat, None)
+
     def slot(self, seat: ModelRole) -> Slot:
         """The model in one seat, downloading and loading it first if needed. Blocking."""
         if (loaded := self._seats.get(seat)) is not None:
@@ -350,8 +373,5 @@ class LocalStack:
         """
         async with self.holding("fast", LOCAL_FAST) as loaded:
             with self.adapters.attached_to(name, loaded) as note:
-                token = _note.set(note.text if note is not None else None)
-                try:
+                with audited(note.text if note is not None else None):
                     yield loaded
-                finally:
-                    _note.reset(token)

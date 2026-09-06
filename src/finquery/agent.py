@@ -320,8 +320,8 @@ class ChatDeps:
     """What a turn needs from the app: the profile's data, the turn, and its models.
 
     Nothing is implicitly profile scoped: a tool touches exactly what is on here.
-    `subagent_settings` is what every sub-agent a tool starts runs with (reasoning off on
-    OpenRouter), so a tool never has to know provider specifics. `narrate` is where a tool says
+    `subagent_settings` is what every sub-agent a tool starts runs with (reasoning off and one
+    output ceiling on any model), so a tool never has to know provider specifics. `narrate` is where a tool says
     what it is doing while it works: the chat endpoint turns each line into reasoning text, so a
     sub-agent's plan and its repairs show up in the thinking panel.
     """
@@ -331,8 +331,9 @@ class ChatDeps:
     conversation_id: str
     resolve_model: ModelResolver
     """Already bound to this conversation's catalog entry: `resolve_model("chat")` is the entry
-    itself and `resolve_model("fast")` the sub-agent slot of that entry's provider. Nothing here
-    knows which provider that is. See finquery.catalog."""
+    itself, and a sub-agent asks for its own role (`"query"`, `"chart"`, `"extraction"`, ...),
+    which one setting each turns into the chat entry (the default), the provider's fast slot or
+    a pinned catalog key. Nothing here knows which provider that is. See finquery.catalog."""
     subagent_settings: ModelSettings
     web_client: WebClient
     """The search and page fetch of `lookup_merchant`. Untouched unless the profile switched
@@ -1107,7 +1108,7 @@ async def extract_transaction(ctx: RunContext[ChatDeps], text: str) -> dict[str,
     with ctx.deps.session_factory() as session:
         context = load_query_context(session, ctx.deps.profile_id)
         try:
-            model = ctx.deps.resolve_model("fast")
+            model = ctx.deps.resolve_model("extraction")
             proposals = await propose_transactions(
                 text,
                 today=context.today,

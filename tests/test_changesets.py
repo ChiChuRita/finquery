@@ -113,7 +113,7 @@ async def test_the_preview_of_a_proposal_is_what_applying_it_produces(
     _, chunks = await chat(conversation_id, "Put every Netflix booking into Subscriptions.")
 
     # The chat model, then the two post-turn steps. No model touches the proposal itself.
-    assert scripts.roles == ["chat", "fast", "fast"]
+    assert scripts.roles == ["chat", "summary", "memory"]
     preview = tool_output(chunks)
     assert preview["status"] == "proposed"
     assert preview["kind"] == "recategorize"
