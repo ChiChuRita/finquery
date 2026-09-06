@@ -14,14 +14,16 @@ lora:
   r: 32
   alpha: 64
   dropout: 0.05
-  target_modules:
-    - q_proj
-    - k_proj
-    - v_proj
-    - o_proj
-    - gate_proj
-    - up_proj
-    - down_proj
+  # The attention and MLP projections of the language model, as a regular expression rather
+  # than a list of seven names. Gemma 4 wraps the projections of its vision and audio towers in
+  # `Gemma4ClippableLinear`, which PEFT refuses outright, and a bare `q_proj` matches those too
+  # (research note section 5; the cluster confirmed it on 2026-09-06 with "Target module
+  # Gemma4ClippableLinear is not supported"). Anchoring on `language_model.layers` picks the
+  # projections that are plain linear layers and nothing else. `auto` is not the answer here:
+  # PEFT's own default is q_proj and v_proj alone, 0.06 percent of the parameters, and QLoRA's
+  # finding is that rank stops mattering once every layer is adapted. `train.py` reads back what
+  # really got a LoRA and refuses an embedding or the head there.
+  target_modules: '.*language_model\.layers\.\d+\.(self_attn\.[qkvo]_proj|mlp\.(gate|up|down)_proj)'
 
 train:
   epochs: 3

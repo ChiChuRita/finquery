@@ -15,14 +15,13 @@ first thing it does is refuse to run if an OpenRouter key is in the environment.
 
 import argparse
 import json
+import math
 import os
 import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
-import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -52,6 +51,10 @@ class Config:
 
     @staticmethod
     def read(path: Path, root: Path) -> "Config":
+        # Imported here, not at the top: `check_lora` and the rest of this module are read by
+        # check_adapter.py and by the tests, neither of which has the training environment.
+        import yaml
+
         payload = yaml.safe_load(path.read_text(encoding="utf-8"))
         return Config(
             name=payload["name"],
@@ -75,6 +78,19 @@ FORBIDDEN_LORA = ("use_rslora", "use_dora", "rank_pattern", "alpha_pattern", "mo
 FORBIDDEN_MODULES = ("embed_tokens", "lm_head", "embed_tokens_per_layer")
 
 
+AUTO_MODULES = "auto"
+"""`target_modules: auto` in a config: let PEFT pick, and check what it picked afterwards.
+
+Gemma 4 needs this. Its projections are wrapped in `Gemma4ClippableLinear` outside the language
+model, and PEFT refuses one of those with "Target module Gemma4ClippableLinear is not
+supported", so an explicit `q_proj, k_proj, ...` list fails before the first step. PEFT's own
+defaults for this architecture are scoped to the language model's layers, which is what the
+research note says and what the run of 2026-09-06 confirmed. `check_adapted` then reads the
+wrapped model and refuses anything that is an embedding or the head, so the guarantee the
+explicit list was there for is kept, from the model rather than from the YAML.
+"""
+
+
 def check_lora(lora: dict[str, Any]) -> None:
     for key in FORBIDDEN_LORA:
         if lora.get(key):
@@ -83,9 +99,34 @@ def check_lora(lora: dict[str, Any]) -> None:
                 "alpha and ignores the rest, so the adapter would have the wrong scale in "
                 "llama.cpp with nothing to warn you. See docs/research/finetuning-data-2026-09-06.md."
             )
-    for module in lora.get("target_modules", []):
+    targets = lora.get("target_modules") or []
+    if targets == AUTO_MODULES:
+        return
+    # A string is a regular expression, which is what the Gemma 4 configs use; a list is names.
+    for module in [targets] if isinstance(targets, str) else targets:
         if any(bad in module for bad in FORBIDDEN_MODULES):
             raise SystemExit(f"{module} is an embedding or the head, which the GGUF converter rejects.")
+
+
+def check_adapted(model: Any) -> list[str]:
+    """The modules that really got a LoRA, read off the wrapped model. Returns their suffixes."""
+    found: set[str] = set()
+    for name, _ in model.named_modules():
+        parts = name.split(".")
+        # `...self_attn.q_proj.lora_A` and `...self_attn.q_proj.lora_A.default` both name the
+        # module that was adapted one segment in front of `lora_A`.
+        if "lora_A" in parts and parts.index("lora_A") > 0:
+            found.add(parts[parts.index("lora_A") - 1])
+    adapted = sorted(found)
+    if not adapted:
+        raise SystemExit("no module got a LoRA: the adapter would be empty.")
+    carried = [name for name in adapted if any(bad in name for bad in FORBIDDEN_MODULES)]
+    if carried:
+        raise SystemExit(
+            f"PEFT adapted {carried}, which the GGUF converter rejects and can silently skip on "
+            "a tied-embedding model. Name the projections in the config's target_modules."
+        )
+    return adapted
 
 
 def load_samples(path: Path) -> list[dict[str, Any]]:
@@ -126,6 +167,19 @@ def report_lengths(tokenizer: Any, pairs: list[dict[str, str]], seq_len: int) ->
             "will be truncated. Raise `seq_len` in the config.",
             flush=True,
         )
+
+
+def warmup_steps(samples: int, train: dict[str, Any], max_steps: int | None) -> tuple[int, int]:
+    """The total number of optimizer steps and the warmup that is three percent of it.
+
+    TRL 1.12 takes `warmup_steps` and no longer takes a ratio, so the ratio the config names is
+    turned into steps here rather than being silently dropped. At least one step: a cosine
+    schedule that starts at the full learning rate on a small set is what a diverging first
+    epoch looks like.
+    """
+    per_epoch = max(1, math.ceil(samples / (train["per_device_batch"] * train["grad_accum"])))
+    total = max_steps or per_epoch * train["epochs"]
+    return total, max(1, round(total * train["warmup_ratio"]))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -170,15 +224,20 @@ def main(argv: list[str] | None = None) -> int:
         bnb_4bit_use_double_quant=True,
         bnb_4bit_compute_dtype=torch.bfloat16,
     )
+    targets = config.lora["target_modules"]
     peft_config = LoraConfig(
         r=config.lora["r"],
         lora_alpha=config.lora["alpha"],
         lora_dropout=config.lora["dropout"],
-        target_modules=list(config.lora["target_modules"]),
         bias="none",
         task_type="CAUSAL_LM",
+        # A string reaches PEFT as a regular expression it full-matches every module name
+        # against; a list reaches it as names. `auto` passes nothing and lets PEFT choose.
+        **({} if targets == AUTO_MODULES else {"target_modules": targets if isinstance(targets, str) else list(targets)}),
     )
     train = config.train
+    total_steps, warmup = warmup_steps(len(pairs), train, args.max_steps)
+    print(f"{total_steps} steps, {warmup} of them warmup", flush=True)
     sft = SFTConfig(
         output_dir=str(output),
         max_length=train["seq_len"],
@@ -187,7 +246,7 @@ def main(argv: list[str] | None = None) -> int:
         gradient_accumulation_steps=train["grad_accum"],
         learning_rate=float(train["lr"]),
         lr_scheduler_type=train["scheduler"],
-        warmup_ratio=train["warmup_ratio"],
+        warmup_steps=warmup,
         weight_decay=train["weight_decay"],
         seed=train["seed"],
         bf16=True,
@@ -211,8 +270,20 @@ def main(argv: list[str] | None = None) -> int:
         },
         **({"max_steps": args.max_steps} if args.max_steps else {}),
     )
-    trainer = SFTTrainer(model=config.base, args=sft, train_dataset=dataset, peft_config=peft_config)
+    # The tokenizer and not an `AutoProcessor`: Gemma 4 is multimodal, so TRL would otherwise
+    # load `Gemma4Processor` and pull in the whole image pipeline for a dataset that is two
+    # strings per row. There is no image in any training sample and there never will be: the
+    # sub-agents this trains are text in, tool call out.
+    trainer = SFTTrainer(
+        model=config.base,
+        args=sft,
+        train_dataset=dataset,
+        peft_config=peft_config,
+        processing_class=tokenizer,
+    )
     trainer.model.print_trainable_parameters()
+    adapted = check_adapted(trainer.model)
+    print(f"adapted modules: {', '.join(adapted)}", flush=True)
 
     started = time.monotonic()
     result = trainer.train()
@@ -232,6 +303,7 @@ def main(argv: list[str] | None = None) -> int:
         "seconds": round(seconds, 1),
         "seconds_per_step": round(seconds / steps, 2),
         "lora": config.lora,
+        "adapted_modules": adapted,
         "train": train,
     }
     (output / "train-summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")

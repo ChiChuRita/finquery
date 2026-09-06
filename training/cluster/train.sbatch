@@ -45,7 +45,12 @@ export HF_HOME="$ROOT/hf-cache"
 # Nothing is downloaded during a run: the bases are on scratch and a job that reaches for the
 # network is a job whose weights are not the ones that were checked.
 export HF_HUB_OFFLINE=1
+export HF_HUB_DISABLE_PROGRESS_BARS=1
 export TOKENIZERS_PARALLELISM=false
+# Triton compiles and then caches a shared object at the first backward pass. Its default cache
+# is in the home directory, which is mounted noexec here, so the cache goes to scratch.
+export TRITON_CACHE_DIR="$ROOT/triton-cache"
+export XDG_CACHE_HOME="$ROOT/cache"
 
 cd "$REPO/training/cluster"
 echo "$(date -Is) ${SLURM_JOB_ID:-local} $CONFIG on $(hostname)"
