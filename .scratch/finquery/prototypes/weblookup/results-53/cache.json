@@ -602,5 +602,57 @@
   "fetched": [],
   "evidence": "",
   "capped": false
+ },
+ "vogtlandbahn": {
+  "token": "vogtlandbahn",
+  "summary": "vogtlandbahn is a regional train operator brand in Saxony, Germany.",
+  "category": "Transport",
+  "subcategory": "Public transport",
+  "confidence": 0.95,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Vogtlandbahn",
+    "title": "Vogtlandbahn – Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 1,
+  "seconds": 10.072340416023508,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "what is vogtlandbahn"
+  ],
+  "fetched": [
+   "https://de.wikipedia.org/wiki/Vogtlandbahn"
+  ],
+  "evidence": "",
+  "capped": false
+ },
+ "hans glueck burgergrill": {
+  "token": "hans glueck burgergrill",
+  "summary": "German franchise restaurant chain selling burgers",
+  "category": "Dining",
+  "subcategory": "Restaurant",
+  "confidence": 0.9,
+  "sources": [
+   {
+    "url": "https://de.wikipedia.org/wiki/Hans_im_Glück_(Restaurantkette)",
+    "title": "Hans im Glück (Restaurantkette) – Wikipedia"
+   }
+  ],
+  "searches": 1,
+  "fetches": 1,
+  "seconds": 10.949876166996546,
+  "refused": null,
+  "error": null,
+  "queries": [
+   "what is hans glueck burgergrill"
+  ],
+  "fetched": [
+   "https://de.wikipedia.org/wiki/Hans_im_Glück_(Restaurantkette)"
+  ],
+  "evidence": "",
+  "capped": false
  }
 }
