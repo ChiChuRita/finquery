@@ -120,7 +120,7 @@ that token never leaves twice. Avoid: cache (unqualified), lookup history.
 
 ## Conversation
 
-**Conversation**: profile-scoped, with a title, a model slot, a rolling summary and its turns.
+**Conversation**: profile-scoped, with a title, a catalog entry, a rolling summary and its turns.
 A turn is one agent run: the user's message plus everything the assistant produced for it,
 stored both as Pydantic AI message history and as AI SDK UI messages. A turn can be marked
 interrupted when Stop cut it short. Avoid: chat, thread, session.
@@ -130,12 +130,13 @@ the request that asked for it, so it survives a reload, a switch of conversation
 tab; a browser that comes back subscribes to the same stream from its first chunk. At most one
 per conversation, and Stop is the only thing that ends one early. A conversation, a conversation
 list row and an import row all report whether one is running, which is what the spinner and the
-closed composer are drawn from. See ADR 0012. Avoid: job, background task (the task is how it is
+closed composer are drawn from. A running turn keeps the entry it started on, whatever the
+picker is switched to while it runs. See ADR 0012. Avoid: job, background task (the task is how it is
 built, the running turn is what it is).
 
 **Question card**: the card in the transcript that asks the user for a decision only they can
 make, with buttons per row and a free text field. It is the `ask_user` tool: the run ends with
-the call pending and resumes from the answer, so no model slot waits for a human. Used for
+the call pending and resumes from the answer, so no model waits for a human. Used for
 uncertain categorization, duplicate decisions, a mapping confirmation and extraction review.
 See ADR 0008. Avoid: prompt, dialog, confirmation.
 
@@ -144,7 +145,7 @@ distilled), created from a turn and shared across all conversations of the profi
 note, knowledge.
 
 **Rolling summary**: the text that replaces turns older than the last six once history passes
-sixty percent of the slot's context. Stored on the conversation with a summary-through marker,
+sixty percent of the entry's context. Stored on the conversation with a summary-through marker,
 shown as a divider in the transcript, editable. Avoid: compaction, compression (those are the
 process, the summary is the artifact).
 
@@ -187,20 +188,34 @@ period (a period is what a chart is about).
 
 ## Models
 
-**Model slot**: one of two logical positions, **fast** and **quality**. The chat agent uses the
-slot chosen in the conversation, sub-agents always use fast. Fast is Gemma 4 E4B and quality is
-Qwen3.5 9B, on either provider, and the selector labels them with those names; what a
-conversation stores and every module passes around is still the slot. A profile has a default
-slot, chosen in onboarding, that a new conversation of it starts on. Avoid: model name, tier,
-engine.
+**Catalog entry**: one chat model the picker offers, keyed by a stable string and belonging to
+one provider: `local:qwen3.5-9b`, `openrouter:qwen/qwen3.5-9b`, `local:gemma-4-12b`,
+`openrouter:google/gemma-4-26b-a4b-it`. It carries a label, its provider, its local weights or
+its hosted id, and its availability with a reason when it cannot answer. A conversation, a turn
+and a profile default all store the key. See ADR 0013. Avoid: model slot (that is the role
+below), tier, engine.
 
-**Provider**: the setting (FINQUERY_PROVIDER) that resolves each slot to a concrete model:
-openrouter during development, local for the demo and hand-in. See ADR 0002. Avoid: backend,
-vendor.
+**Model role**: what a model is being asked to be in one turn, **chat** or **fast**. Chat is the
+conversation's catalog entry; fast is the sub-agent slot of that entry's provider (Gemma 4 E4B
+locally, `FINQUERY_OPENROUTER_FAST_MODEL` in the cloud). Those two lines are the whole
+resolution rule and they live in `finquery.catalog`. Before ticket 54 a role was called a slot
+and `fast`/`quality` were also the two chat choices; a stored `fast` or `quality` now reads as
+the Qwen entry of the configured provider. Avoid: slot (unqualified), position.
+
+**Seat**: one of the two places a local model can be loaded. The fast seat holds Gemma 4 E4B and
+stays resident, because every adapter attaches there. The chat seat holds one of the two local
+chat models, and choosing the other drains the seat, unloads it and loads the new one at the
+same context: three models do not fit in 24 GB. See ADR 0013. Avoid: slot, instance.
+
+**Provider**: where a model runs, `local` or `openrouter`. Both are live at once and a catalog
+entry names its own, so it is a fact about an entry, not about the process. The setting
+(FINQUERY_PROVIDER) decides one thing: which entry a new conversation starts on. See ADR 0002
+and 0013. Avoid: backend, vendor.
 
 **Sub-agent**: a Pydantic AI agent the chat agent delegates to for one job (query, chart,
-categorizer, extraction, memory distillation). Always on the fast slot. Avoid: tool (a tool is
-what the chat agent calls; the sub-agent is what runs behind it), worker.
+categorizer, extraction, memory distillation). Always on the fast slot of the chat entry's
+provider. Avoid: tool (a tool is what the chat agent calls; the sub-agent is what runs behind
+it), worker.
 
 **Wire format**: how one local model writes a whole turn into a single text stream: the markers
 around its thinking, the syntax of its tool calls, and what its chat template calls the
@@ -208,7 +223,7 @@ reasoning of an earlier assistant message. Gemma 4 and Qwen3.5 have one each, so
 provider has one module each and picks it from the model, not from the slot. Avoid: chat format
 (llama.cpp's word for the template itself), protocol.
 
-**Adapter**: a LoRA adapter attached to the fast slot for one sub-agent (query, chart) on the
+**Adapter**: a LoRA adapter attached to the fast seat for one sub-agent (query, chart) on the
 local provider. Not to be confused with the Vercel stream adapter, which the code calls the
 "stream adapter" or "Vercel adapter". Avoid: fine-tune, checkpoint.
 

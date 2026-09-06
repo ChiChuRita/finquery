@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     (FINQUERY_OPENROUTER_QUALITY_MODEL, FINQUERY_OPENROUTER_SECOND_CHAT_MODEL). The defaults are
     Qwen3.5 9B, the model class the local provider ships, and the closest hosted Gemma 4 there
     is: OpenRouter has no Gemma 4 12B. Any OpenRouter id works here to try another model without
-    a code change. See docs/adr/0012-model-catalog-across-providers.md."""
+    a code change. See docs/adr/0013-model-catalog-across-providers.md."""
 
 
 def page_concurrency(settings: Settings) -> int:

@@ -15,21 +15,30 @@ question with one query runs a little longer than the table says. The sub-agent 
 worked examples and a reasoning field (tickets 40 and 42), which is a few hundred more tokens to
 evaluate per call. Read the table as a floor, not a promise.
 
-Two slots, two speeds. **Fast** is Gemma 4 E4B, which also runs every sub-agent (SQL, chart,
-categorizer, extraction, memory, and the result check). **Quality** is Qwen3.5 9B, which thinks
-for a long time before it answers. The script stays on the fast slot and switches to Qwen for
+Four models in the picker, two of them on this laptop: **Qwen3.5 9B (local)**, **Qwen3.5 9B
+(cloud)**, **Gemma 4 12B (local)** and **Gemma 4 26B (cloud)**. Whichever one a chat runs on,
+its sub-agents (SQL, chart, categorizer, extraction, memory, and the result check) run on the
+fast model of that same provider: **Gemma 4 E4B** locally, the hosted fast model in the cloud.
+Nobody picks the fast model; it is a model the app runs, listed on the Settings card.
+
+The script stays on Gemma 4 E4B for the ordinary questions and switches to a chat entry for
 exactly one prepared question, because a Qwen turn is two to three minutes. A fast turn with one
 query is about a minute, most of it prompt evaluation: llama.cpp's multimodal handler re-reads
 the whole prompt on every request and a turn is four to six requests (the chat model, the query
 sub-agent, the check, the chat model again, then follow-ups and distillation).
 
-Both models resident take 13.5 GB. Close everything else heavy before you start.
+Two models are resident at once and no more: E4B plus one chat model, 13.5 GB with Qwen3.5 9B
+and about 12.9 GB with Gemma 4 12B. The two local chat models share one seat, so switching from
+one to the other unloads the first and loads the second, which costs the turn that asks for it
+about 20 seconds. Close everything else heavy before you start.
 
-On OpenRouter the same two slots are the same two models by default, and either can be pointed
-somewhere else without a code change (`FINQUERY_OPENROUTER_FAST_MODEL`,
-`FINQUERY_OPENROUTER_QUALITY_MODEL`). That is the escape hatch behind the fallbacks at the end
-of this script: a laptop that will not cooperate can run the whole thing hosted, and a step that
-needs a stronger model than E4B can run hosted for that one step.
+Both providers are live at the same time. `FINQUERY_PROVIDER=local` only decides which entry a
+new chat starts on, so with `OPENROUTER_API_KEY` in `.env` the two cloud entries are one click
+away in the same picker. Either hosted id can be pointed somewhere else without a code change
+(`FINQUERY_OPENROUTER_QUALITY_MODEL`, `FINQUERY_OPENROUTER_SECOND_CHAT_MODEL`,
+`FINQUERY_OPENROUTER_FAST_MODEL`). That is the escape hatch behind the fallbacks at the end of
+this script: a laptop that will not cooperate runs the same chat on a cloud entry, one switch in
+the composer, without restarting anything.
 
 ## Before you start
 
@@ -39,14 +48,16 @@ cp .env.example .env                      # FINQUERY_PROVIDER=local, no key need
 # optional: FINQUERY_PARKED_MODELS_DIR=/path/to/already-downloaded/ggufs
 cd frontend && npm install && npm run build && cd ..
 mv data/finquery.db data/finquery.before-demo.db 2>/dev/null   # a clean database
-uv run finquery-check                     # both slots answer, think, call a tool, see
+uv run finquery-check                     # every local model answers, thinks, calls a tool, sees
 uv run finquery                           # http://127.0.0.1:8000
 ```
 
-`finquery-check` loads both models once (about 3 seconds each) and takes two to three minutes,
-nearly all of it Qwen thinking about a three-number sum. Green means the demo can start. Open
-Settings once before the audience arrives: the Models card shows both files ready, where each
-came from (a parked copy or Hugging Face), and the sanity check button.
+`finquery-check` covers the fast slot and every local chat model whose weights are on disk, one
+seat at a time (about 3 seconds to load each), and takes two to three minutes, nearly all of it
+Qwen thinking about a three-number sum. Green means the demo can start. Open Settings once
+before the audience arrives: the Models card lists all four entries with their availability,
+which local model is in the seat, where each file came from (a parked copy or Hugging Face), and
+the sanity check button.
 
 Have the browser at 1440 wide, the theme you prefer (both are fine), and these two files in a
 Finder window: `fixtures/synthetic/bill-edeka-2025-03-14.png` and
@@ -177,12 +188,21 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
     leaves at most two facts behind and never one carrying an amount or a date, which is why
     this list is short rather than a diary.
 
-### 9. A model switch to Qwen for one prepared question (quality)
+### 9. A model switch for one prepared question
 
-20. In the composer, pick **Qwen3.5 9B** and ask **"What was my largest single expense in
-    2025, and what was it for?"** 138 s, of which the first is the model loading and about 12
-    are visible thinking. The answer names the rent (1.150,00 EUR, 01.01.2025). The turn chip
-    reads "Qwen3.5 9B model" while every earlier turn keeps "Gemma 4 E4B model".
+20. Open the composer's model picker. Four entries: **Qwen3.5 9B (local)**, **Qwen3.5 9B
+    (cloud)**, **Gemma 4 12B (local)** and **Gemma 4 26B (cloud)**, each saying where it runs,
+    and any that is not ready is greyed out with the reason (no API key, or weights still coming
+    down). Pick **Qwen3.5 9B (local)** and ask **"What was my largest single expense in 2025, and
+    what was it for?"** 138 s, of which the first is the seat being loaded and about 12 are
+    visible thinking. The answer names the rent (1.150,00 EUR, 01.01.2025). The turn chip reads
+    "Qwen3.5 9B (local)" while every earlier turn keeps its own model's name: switching a chat
+    never relabels a turn that is already on screen.
+
+    If there is time and a key in `.env`, switch the same chat to **Qwen3.5 9B (cloud)** and ask
+    it again: same weights, one second instead of two minutes, and the sub-agents move to the
+    hosted fast model with it. Nothing was restarted, and the two turns sit next to each other
+    with their own chips.
 
 ### 10. A turn keeps running when you walk away, then Stop (quality)
 

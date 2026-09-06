@@ -3,7 +3,7 @@
 The rule this file holds the app to is two lines: a conversation's chat model is its catalog
 entry, and every sub-agent behind that turn runs on the fast slot of that entry's provider.
 The scripted resolver is asked for `(entry key, role)`, so both halves are assertable without a
-model anywhere near it. See docs/adr/0012-model-catalog-across-providers.md.
+model anywhere near it. See docs/adr/0013-model-catalog-across-providers.md.
 """
 
 from pathlib import Path

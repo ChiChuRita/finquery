@@ -3,7 +3,7 @@
 A role says what a model is being asked to do in one turn: `chat` is the conversation's own
 catalog entry, `fast` is the sub-agent slot of that entry's provider. Everything outside this
 module and `finquery.catalog` asks for a role and gets a model.
-See docs/adr/0002-provider-switch-with-two-slots.md and docs/adr/0012-model-catalog-across-providers.md.
+See docs/adr/0002-provider-switch-with-two-slots.md and docs/adr/0013-model-catalog-across-providers.md.
 """
 
 from collections.abc import Callable

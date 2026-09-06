@@ -7,7 +7,7 @@ chat models, and choosing the other swaps it: drain the running one, unload it, 
 at the same context size. Three models do not fit and are never loaded together.
 
 A seat is filled on its first use, not at startup, so the app can start (and show download
-progress) before any weights exist. See docs/adr/0012-model-catalog-across-providers.md.
+progress) before any weights exist. See docs/adr/0013-model-catalog-across-providers.md.
 """
 
 import asyncio

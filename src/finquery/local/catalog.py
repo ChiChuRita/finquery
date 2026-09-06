@@ -46,7 +46,7 @@ class ModelSpec:
     a chat choice, so its key is `local:fast`."""
     seat: ModelRole
     """Which of the two seats in memory it occupies: `fast` (Gemma 4 E4B, resident) or `chat`
-    (one of the two chat models, swapped in and out). See docs/adr/0012."""
+    (one of the two chat models, swapped in and out). See docs/adr/0013."""
     name: str
     label: str
     """How the UI names this model: the selector, the turn chips, the models card."""

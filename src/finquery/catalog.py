@@ -10,7 +10,7 @@ Gemma 4 E4B for a local entry (resident, the adapters attach there) and
 `FINQUERY_OPENROUTER_FAST_MODEL` for a cloud one. That is the whole resolution rule, and
 `Catalog.resolver` is where it lives: one entry key in, a role to model callable out.
 
-See docs/adr/0012-model-catalog-across-providers.md, which amends 0002 and 0006.
+See docs/adr/0013-model-catalog-across-providers.md, which amends 0002 and 0006.
 """
 
 from collections.abc import Callable

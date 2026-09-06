@@ -71,7 +71,7 @@ def create_app(
         # Both providers are live at once, so the local stack exists whatever the provider
         # setting says. Nothing is downloaded or loaded here: an OpenRouter run only gets the
         # local entries listed with their real availability, and the Settings models card is
-        # where their download starts. See docs/adr/0012.
+        # where their download starts. See docs/adr/0013.
         app.state.local = (
             local if local is not None else build_local_stack(settings, download=settings.provider == "local")
         )
