@@ -13,6 +13,7 @@ import httpx
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall
 
+from finquery.chart.selfcheck import check_chart_code
 from finquery.chart.shapes import SHAPE_NAMES
 from finquery.chart.subagent import EXAMPLES
 
@@ -506,6 +507,14 @@ EXAMPLE_SQL = {
         "SELECT '2025-Q' || ((CAST(strftime('%m', booked_on) AS INTEGER) - 1) / 3 + 1) AS quarter, "
         "ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 "
         "GROUP BY 1 ORDER BY 1"
+    ),
+    # The line example that carries a series: one row per month and shop, five shops.
+    "month, merchant, total_eur": (
+        "SELECT strftime('%Y-%m', booked_on) AS month, counterparty AS merchant, "
+        "ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 "
+        "AND (counterparty LIKE 'REWE%' OR counterparty LIKE 'EDEKA%' OR counterparty "
+        "LIKE 'LIDL%' OR counterparty LIKE 'ALDI%' OR counterparty LIKE 'dm %') "
+        "GROUP BY 1, 2 ORDER BY 1, 2"
     ),
     # The doughnut example over a column called `label`, which is not the one the first
     # doughnut example reads.
@@ -1557,6 +1566,196 @@ async def test_the_second_chart_in_a_row_is_the_one_the_model_is_told_to_describ
     # And that is what the answer under the card was written from.
     assert two["title"] in answer(second) and one["title"] not in answer(second)
 
+
+# ------------------------------------------------------- a line that carries several series
+
+# The five grocery shops the shipped year really holds, which is the request ticket 50 was
+# reported for: "spending at my five grocery stores per month" came back with one store.
+# The bookings are imported here without the enrichment pass, so a shop is named by the text
+# the bank wrote ("REWE Markt GmbH"), which is what `merchant` holds in every one of these rows.
+FIVE_SHOPS = ("REWE", "EDEKA", "LIDL", "ALDI", "dm")
+
+SHOPS_SQL = (
+    "SELECT strftime('%Y-%m', booked_on) AS month, counterparty AS merchant, "
+    "ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 "
+    "AND (counterparty LIKE 'REWE%' OR counterparty LIKE 'EDEKA%' OR counterparty LIKE 'LIDL%' "
+    "OR counterparty LIKE 'ALDI%' OR counterparty LIKE 'dm %') GROUP BY 1, 2 ORDER BY 1, 2"
+)
+
+# Nine shops over twelve months: three more series than the palette has colours.
+MANY_SHOPS_SQL = (
+    "SELECT strftime('%Y-%m', booked_on) AS month, "
+    "'Laden ' || (abs(amount_cents) % 9) AS merchant, "
+    "ROUND(-SUM(amount), 2) AS total_eur FROM transaction_view WHERE amount_cents < 0 "
+    "GROUP BY 1, 2 ORDER BY 1"
+)
+
+SHOPS_PLAN = {
+    "shape": "line",
+    "language": "de",
+    "title": "Ausgaben pro Monat und Supermarkt",
+    "question": "spending at the five grocery shops per month in 2025",
+    "columns": ["month", "merchant", "total_eur"],
+    "reasoning": "Five shops over twelve months are five lines.",
+}
+
+# The worked example of a line with a series, read from the prompt rather than copied.
+SHOPS_CODE = EXAMPLES["line"][1].code
+
+
+async def test_a_line_over_five_shops_draws_five_series_and_a_legend(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The chart the user asked for on 2026-09-06 and did not get.
+
+    The shape catalogue had no multi-series line, so the check's "two marks draw different euro
+    columns" finding made the repair loop drop every shop but one. One `lineY` with a `color`
+    channel is the answer, and nothing here is a repair round.
+    """
+    await import_synthetic(client, profile_id)
+    respond = scripted_chart(plan=SHOPS_PLAN, sql=SHOPS_SQL, codes=[SHOPS_CODE])
+    scripts.fast = ask_chart_then_report("spending at the five grocery shops per month in 2025")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Zeig meine Ausgaben pro Monat bei Rewe, Edeka, Lidl, Aldi und dm als Linien.")
+
+    output = chart_output(chunks)
+    assert output["error"] is None and output["rendered"] is True
+    assert output["shape"] == "line", "five shops over a year are still a line"
+    assert output["code"] == SHOPS_CODE
+    assert output["notes"] == [], "no repair round: a series on a line is not a finding"
+    assert len(respond.prompts["code"]) == 1  # type: ignore[attr-defined]
+    names = {row["merchant"] for row in output["rows"]}
+    assert len(names) == 5, "five shops are five lines, and the fold leaves them alone"
+    for shop in FIVE_SHOPS:
+        assert any(name.upper().startswith(shop.upper()) for name in names), shop
+    # One figure per month and shop, which is what one stroke per shop needs.
+    pairs = [(row["month"], row["merchant"]) for row in output["rows"]]
+    assert len(pairs) == len(set(pairs))
+    # The legend is in the code the check admitted, because more than one series needs one.
+    assert "colorLegend" in output["code"] and "color: 'merchant'" in output["code"]
+    # And the statement was asked for the long rows a line with a series draws.
+    statement = respond.prompts["sql"][0]  # type: ignore[attr-defined]
+    assert "Return exactly these columns, in this order: month, merchant, total_eur." in statement
+    assert "GROUP BY month, merchant" in statement
+    assert "one per line of the chart" in statement
+    # The stack's hint, which pushes the group towards the category column, is not this one's.
+    assert "Build merchant from the `category` column" not in statement
+
+
+async def test_a_line_over_more_shops_than_colours_leaves_the_smallest_out(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """Nine shops over six colours: the three smallest go, and they are not summed into a line.
+
+    The one fold that drops instead of summing. A seventh stroke holding the tail would be read
+    as a shop nobody ever paid, so what the fold owes the user is the note naming what is gone.
+    """
+    await import_synthetic(client, profile_id)
+    plan = {**SHOPS_PLAN, "question": "spending per month and shop in 2025"}
+    respond = scripted_chart(plan=plan, sql=MANY_SHOPS_SQL, codes=[SHOPS_CODE])
+    scripts.fast = ask_chart_then_report("spending per month and shop in 2025 as lines")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Ausgaben pro Monat und Laden als Linien bitte.")
+
+    output = chart_output(chunks)
+    assert output["error"] is None and output["rendered"] is True
+    assert len(respond.prompts["code"]) == 1, "the fold is arithmetic, not a repair round"  # type: ignore[attr-defined]
+    kept = {row["merchant"] for row in output["rows"]}
+    assert len(kept) == 6
+    assert "The query returned 9 series and a chart has 6 colours" in narration(chunks)
+    assert "the 3 smallest are left out" in narration(chunks)
+    assert "Nothing is summed into a rest line" in narration(chunks)
+    # Dropped and not summed: the three smallest are named in the note and their euros are gone.
+    dropped = narration(chunks).split("left out (")[1].split(")")[0].split(", ")
+    assert len(dropped) == 3 and not (set(dropped) & kept)
+    page = (await client.get("/api/transactions", params={"profile_id": profile_id, "limit": 1000})).json()
+    spent = -sum(row["amount_cents"] for row in page["rows"] if row["amount_cents"] < 0) / 100
+    assert round(sum(row["total_eur"] for row in output["rows"]), 2) < round(spent, 2)
+
+
+async def test_seven_lines_are_over_the_palette_and_the_check_says_so() -> None:
+    """The ceiling is the palette, on a line exactly as on a stack, and it is polish.
+
+    Seven strokes over six colours paints two shops the same, which is worth a note and not
+    worth throwing the chart away for. The cure is the other one, though: a line has no tail to
+    sum into, so the finding asks for the six largest and no seventh line.
+    """
+    rows = [
+        {"month": f"2025-{month:02d}", "merchant": f"Laden {shop}", "total_eur": 10.0 + shop}
+        for month in range(1, 4)
+        for shop in range(7)
+    ]
+    result = await check_chart_code(SHOPS_CODE, rows, "line")
+    assert result.findings == (
+        "The palette holds 6 colours and this chart draws 7 of them, so two series would be "
+        "painted the same. Draw the 6 largest series and leave the rest out: several series "
+        "added into one more line is a line nobody spent that money at.",
+    )
+    assert not result.fatal, "a seventh colour still answers the question, so the chart is shown"
+
+
+TWO_EURO_LINE_PLAN = {
+    "shape": "line",
+    "language": "en",
+    "title": "Income and spending per month",
+    "question": "income and spending per month in 2025",
+    "columns": ["month", "income_eur", "spending_eur"],
+    "reasoning": "Two figures per month.",
+}
+
+TWO_LINES_CODE = """\
+const amounts = data.map((row) => row.income_eur);
+return defineChart({
+  marks: [
+    lineY(data, { x: 'month', y: 'income_eur', stroke: palette[0], strokeWidth: 2 }),
+    lineY(data, { x: 'month', y: 'spending_eur', stroke: palette[1], strokeWidth: 2 }),
+  ],
+  scales: {
+    x: { scale: () => scalePoint().padding(0.06), axis: { ticks: { format: monthShort } } },
+    y: {
+      scale: scaleLinear().domain([Math.min(0, ...amounts), Math.max(0, ...amounts)]),
+      nice: true,
+      grid: true,
+      axis: { ticks: { format: eurShort } },
+    },
+  },
+  tooltip: { use: tooltip, format: (point) => eur(point.datum.income_eur) },
+});"""
+
+ONE_LINE_CODE = TWO_LINES_CODE.replace(
+    "    lineY(data, { x: 'month', y: 'spending_eur', stroke: palette[1], strokeWidth: 2 }),\n", ""
+)
+
+
+async def test_two_euro_columns_on_a_line_with_no_series_are_still_repaired(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The finding that broke the five shops still holds where it was written for.
+
+    Two strokes over two euro columns and no colour channel between them: nothing says which is
+    which, so one of them is dropped. A line that carries a series is telling them apart and is
+    not this case, which is the whole distinction ticket 50 turns on.
+    """
+    await import_synthetic(client, profile_id)
+    respond = scripted_chart(
+        plan=TWO_EURO_LINE_PLAN, sql=TWO_FIGURES_SQL, codes=[TWO_LINES_CODE, ONE_LINE_CODE]
+    )
+    scripts.fast = ask_chart_then_report("income and spending per month in 2025 as lines")
+    scripts.fast_call = respond  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+
+    _, chunks = await chat(conversation_id, "Draw my income and my spending per month as lines.")
+
+    output = chart_output(chunks)
+    assert output["error"] is None
+    assert output["code"] == ONE_LINE_CODE
+    assert "Two marks draw different euro columns (income_eur, spending_eur)" in output["notes"][0]
+    # The euro columns were never mistaken for series names, so no month was folded away.
+    assert output["row_count"] == 12
 
 def test_the_chart_benchmark_set_covers_every_shape() -> None:
     """The set the quality pass is measured on: at least twenty prompts, both languages, all

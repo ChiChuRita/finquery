@@ -13,8 +13,11 @@ from finquery.dashboard import DEFAULTS
 
 from .conftest import Chat, Scripts, new_conversation, tool_call_of, turn_of
 from .test_chart import (
+    MANY_SHOPS_SQL,
     MANY_TOPICS_SQL,
     MONTHLY_SQL,
+    SHOPS_CODE,
+    SHOPS_PLAN,
     STACKED_CODE,
     STACKED_PLAN,
     ask_chart_then_report,
@@ -254,6 +257,43 @@ async def test_a_pinned_stacked_chart_draws_the_rows_it_drew_in_the_chat(
     assert refreshed.status_code == 200, refreshed.text
     assert refreshed.json()["rows"] == output["rows"]
 
+
+async def test_a_pinned_line_with_several_series_draws_the_lines_it_drew_in_the_chat(
+    client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str
+) -> None:
+    """The five-shop line, pinned: the card re-runs the statement and folds it the same way.
+
+    Nine shops come back and six are drawn, in the chat and again on every load, because the
+    statement is stored unfolded and `fold_rows` is one function (ticket 39). A card that did
+    not fold would cycle the palette and give two shops the same colour.
+    """
+    await import_synthetic(client, profile_id)
+    scripts.fast = ask_chart_then_report("spending per month and shop in 2025 as lines")
+    scripts.fast_call = scripted_chart(plan=SHOPS_PLAN, sql=MANY_SHOPS_SQL, codes=[SHOPS_CODE])  # type: ignore[assignment]
+    conversation_id = await new_conversation(client, profile_id)
+    _, chunks = await chat(conversation_id, "Ausgaben pro Monat und Laden als Linien bitte.")
+    output = chart_output(chunks)
+    assert output["shape"] == "line" and output["rendered"] is True
+    assert len({row["merchant"] for row in output["rows"]}) == 6
+
+    pinned = await client.post(
+        "/api/dashboard/charts/from-turn",
+        json={
+            "profile_id": profile_id,
+            "turn_id": turn_of(chunks),
+            "tool_call_id": tool_call_of(chunks, "chart"),
+        },
+    )
+    assert pinned.status_code == 201, pinned.text
+    card = pinned.json()
+
+    stored = next(
+        other for other in (await dashboard(client, profile_id))["charts"] if other["id"] == card["id"]
+    )
+    assert stored["rows"] == output["rows"], "a stored line draws the lines it drew in the chat"
+    assert len({row["merchant"] for row in stored["rows"]}) == 6
+    pairs = [(row["month"], row["merchant"]) for row in stored["rows"]]
+    assert len(pairs) == len(set(pairs)), "one figure per month and shop, which is what a stroke needs"
 
 async def test_a_chart_asked_for_on_the_dashboard_is_previewed_before_it_is_kept(
     client: httpx.AsyncClient, scripts: Scripts, profile_id: str

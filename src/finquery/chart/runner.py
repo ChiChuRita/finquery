@@ -113,14 +113,16 @@ def _failed(request: str, reason: str, **rest: Any) -> ChartOutcome:
 
 
 def _euro_last(plan: ChartPlan) -> ChartPlan:
-    """The euro column of a grouped or stacked chart is the last of its three, whatever the plan said.
+    """The euro column of a chart with a series is the last of its three, whatever the plan said.
 
-    Everything downstream reads those columns as position, group and figure: the query hint,
+    Everything downstream reads those columns as position, series and figure: the query hint,
     the pair rule of the check and the fold. The plan pass asked for `month, total_eur, topic`
     on 2026-09-05, so all three read the euro column as the group and the chart was refused for
-    carrying "the pair 2025-09 / 36.5 twice". The order is ours to fix, so it is fixed here.
+    carrying "the pair 2025-09 / 36.5 twice". The order is ours to fix, so it is fixed here, for
+    a five-line chart exactly as for a stack.
     """
-    if not SHAPES[plan.shape].crossed or len(plan.columns) != 3:
+    rule = SHAPES[plan.shape]
+    if not (rule.crossed or rule.may_series) or len(plan.columns) != 3:
         return plan
     euros = [name for name in plan.columns if is_euro_column(name)]
     if len(euros) != 1 or plan.columns[-1] == euros[0]:
@@ -161,12 +163,16 @@ def _honest_shape(
 
     Either way the chart becomes plain bars, and the reason is narrated.
     """
-    if plan.shape in {"line", "area"} and len(rows) < MIN_TREND_POINTS:
-        return (
-            plan.model_copy(update={"shape": PLAIN_BARS}),
-            f"{len(rows)} points are a comparison and not a trend, so the shape becomes "
-            f"{PLAIN_BARS}.",
-        )
+    if plan.shape in {"line", "area"}:
+        # One stroke per series, so what has to be long enough is the axis and not the row
+        # count: five stores over two months are ten rows and still two points each.
+        positions = len({str(row.get(columns[0])) for row in rows}) if columns else len(rows)
+        if positions < MIN_TREND_POINTS:
+            return (
+                plan.model_copy(update={"shape": PLAIN_BARS}),
+                f"{positions} points are a comparison and not a trend, so the shape becomes "
+                f"{PLAIN_BARS}.",
+            )
     if not SHAPES[plan.shape].crossed:
         return plan, None
     grouping = _grouping_columns(columns, rows)
@@ -255,28 +261,46 @@ async def run_chart(
             f"row is a flow from a name into itself, which a sankey refuses."
         )
     elif len(plan.columns) > 2:
-        # A grouped chart needs a real second dimension, so the statement has to group by both
-        # columns. Selecting a column that is NULL for every booking (`category` before anything
-        # is categorized) or grouping by only one of them silently produces a single series.
+        # A chart with a series needs a real second dimension, so the statement has to group by
+        # both columns. Selecting a column that is NULL for every booking (`category` before
+        # anything is categorized) or grouping by only one of them silently produces a single
+        # series, which is a stack of one bar or a line chart with one line on it.
         position, group = plan.columns[0], plan.columns[1]
         shaped += (
             f" `GROUP BY {position}, {group}`, so there is one row per "
-            f"combination and never two rows with the same pair: a stacked bar needs one value "
-            f"per position and series. Build {group} from the `category` column with "
-            f"`coalesce(category, 'Needs review') AS {group}` so an uncategorized "
-            f"booking is an honest bucket, and never from a CASE over the booking text."
+            f"combination and never two rows with the same pair: a chart that draws a series "
+            f"needs one value per position and series."
         )
-        # A chart has six colours, and folding the tail into one group is arithmetic this app
-        # does itself (`chart.fold.fold_rows`). Asking the statement for it is what cost the
-        # stacked bars three rounds on 2026-09-05: the CASE relabelled the small categories
-        # 'Other' while the statement still grouped by the month alone, so every month came
-        # back with several 'Other' rows and the stack could not be drawn at all.
+        if SHAPES[plan.shape].crossed:
+            shaped += (
+                f" Build {group} from the `category` column with "
+                f"`coalesce(category, 'Needs review') AS {group}` so an uncategorized "
+                f"booking is an honest bucket, and never from a CASE over the booking text."
+            )
+        else:
+            # A line per name: the names are whatever the request named, most often merchants
+            # (`title`), so nothing here pushes the statement towards the category column.
+            shaped += (
+                f" {group} holds the names the request asks about, one per line of the chart, "
+                f"and a name a booking really carries: a merchant is `coalesce(title, "
+                f"counterparty, description)` and a category is the `category` column. A name "
+                f"with nothing booked in some {position} simply has no row for it."
+            )
+        # A chart has six colours, and folding the tail is arithmetic this app does itself
+        # (`chart.fold.fold_rows`). Asking the statement for it is what cost the stacked bars
+        # three rounds on 2026-09-05: the CASE relabelled the small categories 'Other' while the
+        # statement still grouped by the month alone, so every month came back with several
+        # 'Other' rows and the stack could not be drawn at all.
+        keeps = (
+            f"keeps the largest {MAX_SERIES - 1} and sums the rest itself"
+            if SHAPES[plan.shape].crossed
+            else f"keeps the largest {MAX_SERIES} and leaves the rest out"
+        )
         shaped += (
             f" Return every group under its own name: never rename one to 'Other' or 'Sonstige', "
             f"never fold the small ones together and never put a LIMIT on the groups. This app "
-            f"keeps the largest {MAX_SERIES - 1} and sums the rest itself, after the query, "
-            f"because a chart has {MAX_SERIES} colours. When the question names the groups it "
-            f"wants, select only those."
+            f"{keeps}, after the query, because a chart has {MAX_SERIES} colours. When the "
+            f"question names the groups it wants, select only those."
         )
     outcome = await run_query(
         resolve_model=resolve_model,

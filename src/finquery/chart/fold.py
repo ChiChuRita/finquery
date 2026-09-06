@@ -1,4 +1,4 @@
-"""Folding rows a shape cannot draw as they came back: the stack's tail, the doughnut's tail, a self loop.
+"""Folding rows a shape cannot draw as they came back: a tail, a seventh line, a self loop.
 
 Folding is arithmetic and not a judgement, so it is done in code rather than asked of the SQL or
 left to a repair round (`docs/chart-runtime.md`, "The check"). It lives here rather than in the
@@ -58,6 +58,8 @@ def fold_rows(
         return Folded(rows)
     if rule.crossed:
         return _fold_groups(columns, rows, language)
+    if rule.may_series and len(columns) > 2:
+        return _keep_largest_series(columns, rows)
     if shape == "doughnut":
         return _fold_slices(columns, rows, language)
     if shape == "sankey":
@@ -138,6 +140,41 @@ def _fold_groups(columns: Sequence[str], rows: list[dict[str, Any]], language: s
         f"{len(totals) - len(kept)} smallest are one '{rest}' group per {position}."
     )
     return Folded(folded, note)
+
+
+def _keep_largest_series(columns: Sequence[str], rows: list[dict[str, Any]]) -> Folded:
+    """A line or an area over more series than the palette has colours: the smallest go.
+
+    The only fold that drops instead of summing. A sixth grocery store added into a "Sonstige"
+    line is a stroke that answers no question anybody asked: nobody spends money at Sonstige,
+    and a reader reads that line as a shop. So the largest `MAX_SERIES` series by total are
+    drawn and the rest are named in the note, which is where the user reads what is missing.
+    """
+    series, value = columns[1], columns[2]
+    # A column of figures names no series: "income_eur, spending_eur" is two euro columns in one
+    # row, which the check refuses in its own words rather than folding twelve months away here.
+    if _numeric(rows, series) or not _numeric(rows, value):
+        return Folded(rows)
+    totals: dict[str, float] = {}
+    for row in rows:
+        name = str(row.get(series))
+        totals[name] = totals.get(name, 0.0) + float(row[value])
+    if len(totals) <= MAX_SERIES:
+        return Folded(rows)
+    ranked = sorted(totals.items(), key=lambda item: item[1], reverse=True)
+    kept = {name for name, _ in ranked[:MAX_SERIES]}
+    dropped = [name for name, _ in ranked[MAX_SERIES:]]
+    left = (
+        f"the smallest is left out ({dropped[0]})"
+        if len(dropped) == 1
+        else f"the {len(dropped)} smallest are left out ({', '.join(dropped)})"
+    )
+    note = (
+        f"The query returned {len(totals)} series and a chart has {MAX_SERIES} colours, so {left}."
+        f" Nothing is summed into a rest line, because the total of several {series} values is "
+        f"not a {series}."
+    )
+    return Folded([row for row in rows if str(row.get(series)) in kept], note)
 
 
 def _drop_self_loops(columns: Sequence[str], rows: list[dict[str, Any]]) -> Folded:
