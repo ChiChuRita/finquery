@@ -1,0 +1,2828 @@
+{
+  "year": 2025,
+  "today": "2025-12-31",
+  "households": [
+    {
+      "slug": "student",
+      "label": "Student in Leipzig",
+      "holder": "Tim Baumgartner",
+      "note": "A student on BAfoeG and a university job: small amounts, discounters, a semester fee twice a year and one big purchase in October.",
+      "seed": 20250201,
+      "today": "2025-12-31",
+      "accounts": [
+        {
+          "name": "Sparkasse Leipzig Girokonto",
+          "file": "households/student-2025.csv",
+          "iban": "DE21860555920001234567",
+          "bookings": 300,
+          "opening_eur": 1842.0,
+          "closing_eur": 7796.16
+        }
+      ],
+      "bookings": 300,
+      "first_booked_on": "2025-01-01",
+      "last_booked_on": "2025-12-28",
+      "needs_review_bookings": 38,
+      "spent_eur": 12239.74,
+      "received_eur": 18193.9,
+      "edge_cases": [
+        "the semester fee is paid twice, in April and in October, to the same office",
+        "the Zalando refund in March is money coming in on a shopping merchant",
+        "the notebook in October costs more than a whole month of groceries",
+        "BAfoeG and the university job are both income and both stay in Needs review"
+      ],
+      "merchants": [
+        {
+          "name": "WG Hausverwaltung Lindenau",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 4560.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Sparkasse Geldautomat",
+          "category": "Cash",
+          "subcategory": "Cash withdrawal",
+          "bookings": 18,
+          "spent_eur": 2198.7,
+          "received_eur": 0.0
+        },
+        {
+          "name": "MediaMarkt Leipzig",
+          "category": "Shopping",
+          "subcategory": "Electronics",
+          "bookings": 1,
+          "spent_eur": 749.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Universitaet Leipzig",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 14,
+          "spent_eur": 520.0,
+          "received_eur": 6240.0
+        },
+        {
+          "name": "LIDL Vertriebs GmbH",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 22,
+          "spent_eur": 516.9,
+          "received_eur": 0.0
+        },
+        {
+          "name": "NETTO MARKEN-DISCOUNT",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 22,
+          "spent_eur": 393.7,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Decathlon Deutschland",
+          "category": "Shopping",
+          "subcategory": "Clothing",
+          "bookings": 8,
+          "spent_eur": 392.6,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Deutsche Bahn AG",
+          "category": "Transport",
+          "subcategory": "Public transport",
+          "bookings": 12,
+          "spent_eur": 348.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "ALDI SÜD",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 11,
+          "spent_eur": 293.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "PENNY Markt GmbH",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 18,
+          "spent_eur": 267.9,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Lieferando.de",
+          "category": "Dining",
+          "subcategory": "Delivery",
+          "bookings": 12,
+          "spent_eur": 250.2,
+          "received_eur": 0.0
+        },
+        {
+          "name": "dm drogerie markt",
+          "category": "Groceries",
+          "subcategory": "Drugstore",
+          "bookings": 18,
+          "spent_eur": 245.8,
+          "received_eur": 0.0
+        },
+        {
+          "name": "McFIT GmbH",
+          "category": "Health",
+          "subcategory": "Fitness",
+          "bookings": 12,
+          "spent_eur": 238.8,
+          "received_eur": 0.0
+        },
+        {
+          "name": "FlixBus DACH GmbH",
+          "category": "Transport",
+          "subcategory": "Public transport",
+          "bookings": 1,
+          "spent_eur": 189.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "AMAZON EU S.A R.L.",
+          "category": "Shopping",
+          "subcategory": "Online marketplace",
+          "bookings": 6,
+          "spent_eur": 186.1,
+          "received_eur": 0.0
+        },
+        {
+          "name": "congstar GmbH",
+          "category": "Communication",
+          "subcategory": "Mobile",
+          "bookings": 12,
+          "spent_eur": 155.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Cafe Puschkin",
+          "category": "Dining",
+          "subcategory": "Cafe",
+          "bookings": 16,
+          "spent_eur": 145.2,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Thalia Bücher GmbH",
+          "category": "Leisure",
+          "subcategory": "Books",
+          "bookings": 4,
+          "spent_eur": 118.6,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Bäckerei Steinecke",
+          "category": "Groceries",
+          "subcategory": "Bakery",
+          "bookings": 20,
+          "spent_eur": 110.1,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Döner Haus Connewitz",
+          "category": "Dining",
+          "subcategory": "Takeaway",
+          "bookings": 13,
+          "spent_eur": 110.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "MCDONALDS DEUTSCHLAND",
+          "category": "Dining",
+          "subcategory": "Takeaway",
+          "bookings": 10,
+          "spent_eur": 83.5,
+          "received_eur": 0.0
+        },
+        {
+          "name": "SPOTIFY AB",
+          "category": "Subscriptions",
+          "subcategory": "Music",
+          "bookings": 12,
+          "spent_eur": 71.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "NETFLIX INTERNATIONAL BV",
+          "category": "Subscriptions",
+          "subcategory": "Streaming",
+          "bookings": 12,
+          "spent_eur": 59.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Apotheke am Markt",
+          "category": "Health",
+          "subcategory": "Pharmacy",
+          "bookings": 1,
+          "spent_eur": 35.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Studentenwerk Leipzig",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 0.0,
+          "received_eur": 11904.0
+        },
+        {
+          "name": "Zalando SE",
+          "category": "Shopping",
+          "subcategory": "Clothing",
+          "bookings": 1,
+          "spent_eur": 0.0,
+          "received_eur": 49.9
+        }
+      ],
+      "categories": [
+        {
+          "category": "Cash",
+          "bookings": 18,
+          "spent_eur": 2198.7,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Communication",
+          "bookings": 12,
+          "spent_eur": 155.88,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Dining",
+          "bookings": 51,
+          "spent_eur": 588.9,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Groceries",
+          "bookings": 111,
+          "spent_eur": 1827.4,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Health",
+          "bookings": 13,
+          "spent_eur": 273.8,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Leisure",
+          "bookings": 4,
+          "spent_eur": 118.6,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Needs review",
+          "bookings": 38,
+          "spent_eur": 5080.0,
+          "received_eur": 18144.0
+        },
+        {
+          "category": "Shopping",
+          "bookings": 16,
+          "spent_eur": 1327.7,
+          "received_eur": 49.9
+        },
+        {
+          "category": "Subscriptions",
+          "bookings": 24,
+          "spent_eur": 131.76,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Transport",
+          "bookings": 13,
+          "spent_eur": 537.0,
+          "received_eur": 0.0
+        }
+      ],
+      "monthly": [
+        {
+          "month": "2025-01",
+          "bookings": 25,
+          "spent_eur": 970.77,
+          "received_eur": 1512.0,
+          "spent_by_category_eur": {
+            "Cash": 216.3,
+            "Communication": 12.99,
+            "Dining": 53.7,
+            "Groceries": 149.6,
+            "Health": 19.9,
+            "Needs review": 380.0,
+            "Shopping": 98.3,
+            "Subscriptions": 10.98,
+            "Transport": 29.0
+          }
+        },
+        {
+          "month": "2025-02",
+          "bookings": 24,
+          "spent_eur": 807.07,
+          "received_eur": 1512.0,
+          "spent_by_category_eur": {
+            "Cash": 94.4,
+            "Communication": 12.99,
+            "Dining": 48.1,
+            "Groceries": 126.6,
+            "Health": 19.9,
+            "Needs review": 380.0,
+            "Shopping": 85.1,
+            "Subscriptions": 10.98,
+            "Transport": 29.0
+          }
+        },
+        {
+          "month": "2025-03",
+          "bookings": 26,
+          "spent_eur": 976.67,
+          "received_eur": 1561.9,
+          "spent_by_category_eur": {
+            "Cash": 192.9,
+            "Communication": 12.99,
+            "Dining": 37.5,
+            "Groceries": 176.5,
+            "Health": 19.9,
+            "Needs review": 380.0,
+            "Shopping": 116.9,
+            "Subscriptions": 10.98,
+            "Transport": 29.0
+          }
+        },
+        {
+          "month": "2025-04",
+          "bookings": 26,
+          "spent_eur": 1020.37,
+          "received_eur": 1512.0,
+          "spent_by_category_eur": {
+            "Cash": 65.2,
+            "Communication": 12.99,
+            "Dining": 35.6,
+            "Groceries": 161.2,
+            "Health": 19.9,
+            "Leisure": 19.5,
+            "Needs review": 640.0,
+            "Shopping": 26.0,
+            "Subscriptions": 10.98,
+            "Transport": 29.0
+          }
+        },
+        {
+          "month": "2025-05",
+          "bookings": 28,
+          "spent_eur": 959.27,
+          "received_eur": 1512.0,
+          "spent_by_category_eur": {
+            "Cash": 231.5,
+            "Communication": 12.99,
+            "Dining": 96.0,
+            "Groceries": 141.5,
+            "Health": 19.9,
+            "Leisure": 23.0,
+            "Needs review": 380.0,
+            "Shopping": 14.4,
+            "Subscriptions": 10.98,
+            "Transport": 29.0
+          }
+        },
+        {
+          "month": "2025-06",
+          "bookings": 25,
+          "spent_eur": 863.47,
+          "received_eur": 1512.0,
+          "spent_by_category_eur": {
+            "Cash": 113.5,
+            "Communication": 12.99,
+            "Dining": 75.4,
+            "Groceries": 175.1,
+            "Health": 19.9,
+            "Needs review": 380.0,
+            "Shopping": 46.6,
+            "Subscriptions": 10.98,
+            "Transport": 29.0
+          }
+        },
+        {
+          "month": "2025-07",
+          "bookings": 23,
+          "spent_eur": 1097.07,
+          "received_eur": 1512.0,
+          "spent_by_category_eur": {
+            "Cash": 305.5,
+            "Communication": 12.99,
+            "Dining": 22.4,
+            "Groceries": 81.2,
+            "Health": 19.9,
+            "Needs review": 380.0,
+            "Shopping": 46.1,
+            "Subscriptions": 10.98,
+            "Transport": 218.0
+          }
+        },
+        {
+          "month": "2025-08",
+          "bookings": 23,
+          "spent_eur": 862.07,
+          "received_eur": 1512.0,
+          "spent_by_category_eur": {
+            "Cash": 240.7,
+            "Communication": 12.99,
+            "Dining": 31.9,
+            "Groceries": 122.5,
+            "Health": 19.9,
+            "Needs review": 380.0,
+            "Shopping": 14.1,
+            "Subscriptions": 10.98,
+            "Transport": 29.0
+          }
+        },
+        {
+          "month": "2025-09",
+          "bookings": 21,
+          "spent_eur": 775.17,
+          "received_eur": 1512.0,
+          "spent_by_category_eur": {
+            "Cash": 103.0,
+            "Communication": 12.99,
+            "Dining": 56.3,
+            "Groceries": 141.8,
+            "Health": 19.9,
+            "Needs review": 380.0,
+            "Shopping": 21.2,
+            "Subscriptions": 10.98,
+            "Transport": 29.0
+          }
+        },
+        {
+          "month": "2025-10",
+          "bookings": 26,
+          "spent_eur": 1890.97,
+          "received_eur": 1512.0,
+          "spent_by_category_eur": {
+            "Cash": 188.4,
+            "Communication": 12.99,
+            "Dining": 52.2,
+            "Groceries": 149.9,
+            "Health": 19.9,
+            "Needs review": 640.0,
+            "Shopping": 787.6,
+            "Subscriptions": 10.98,
+            "Transport": 29.0
+          }
+        },
+        {
+          "month": "2025-11",
+          "bookings": 26,
+          "spent_eur": 839.57,
+          "received_eur": 1512.0,
+          "spent_by_category_eur": {
+            "Cash": 103.4,
+            "Communication": 12.99,
+            "Dining": 49.3,
+            "Groceries": 162.6,
+            "Health": 19.9,
+            "Needs review": 380.0,
+            "Shopping": 71.4,
+            "Subscriptions": 10.98,
+            "Transport": 29.0
+          }
+        },
+        {
+          "month": "2025-12",
+          "bookings": 27,
+          "spent_eur": 1177.27,
+          "received_eur": 1512.0,
+          "spent_by_category_eur": {
+            "Cash": 343.9,
+            "Communication": 12.99,
+            "Dining": 30.5,
+            "Groceries": 238.9,
+            "Health": 54.9,
+            "Leisure": 76.1,
+            "Needs review": 380.0,
+            "Subscriptions": 10.98,
+            "Transport": 29.0
+          }
+        }
+      ]
+    },
+    {
+      "slug": "family",
+      "label": "Family with two children in Dortmund",
+      "holder": "Familie Aksoy",
+      "note": "Two salaries, Kindergeld, a Kita fee and the biggest grocery bill of the six: the household whose months are not equal, with a holiday in July and Christmas in December.",
+      "seed": 20250302,
+      "today": "2025-12-31",
+      "accounts": [
+        {
+          "name": "Sparkasse Dortmund Girokonto",
+          "file": "households/family-2025.csv",
+          "iban": "DE31440501990002345678",
+          "bookings": 486,
+          "opening_eur": 5123.0,
+          "closing_eur": 25489.9
+        }
+      ],
+      "bookings": 486,
+      "first_booked_on": "2025-01-01",
+      "last_booked_on": "2025-12-28",
+      "needs_review_bookings": 61,
+      "spent_eur": 45820.1,
+      "received_eur": 66187.0,
+      "edge_cases": [
+        "July is the holiday month and December the most expensive one",
+        "the electricity settlement in June is money coming back on a spending category",
+        "the school supplies land in August and nowhere else",
+        "Kindergeld and both salaries are income that stays in Needs review"
+      ],
+      "merchants": [
+        {
+          "name": "Wohnungsgenossenschaft Dortmund-Sued",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 17400.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Stadt Dortmund Elternbeitrag",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 3000.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "KAUFLAND DORTMUND",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 37,
+          "spent_eur": 2885.7,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Techniker Krankenkasse",
+          "category": "Insurance",
+          "subcategory": "Health insurance",
+          "bookings": 12,
+          "spent_eur": 2640.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Sparkasse Geldautomat",
+          "category": "Cash",
+          "subcategory": "Cash withdrawal",
+          "bookings": 17,
+          "spent_eur": 2072.1,
+          "received_eur": 0.0
+        },
+        {
+          "name": "EDEKA Sander",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 36,
+          "spent_eur": 1976.6,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Deutsche Bahn AG",
+          "category": "Transport",
+          "subcategory": "Public transport",
+          "bookings": 13,
+          "spent_eur": 1524.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "REWE Markt GmbH",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 25,
+          "spent_eur": 1475.1,
+          "received_eur": 0.0
+        },
+        {
+          "name": "ARAL Tankstelle",
+          "category": "Transport",
+          "subcategory": "Fuel",
+          "bookings": 17,
+          "spent_eur": 1347.8,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Stadtwerke Dortmund AG",
+          "category": "Housing",
+          "subcategory": "Electricity",
+          "bookings": 13,
+          "spent_eur": 1068.0,
+          "received_eur": 187.0
+        },
+        {
+          "name": "Shell Station",
+          "category": "Transport",
+          "subcategory": "Fuel",
+          "bookings": 14,
+          "spent_eur": 926.6,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Allianz Versicherungs-AG",
+          "category": "Insurance",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 816.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "OTTO GmbH",
+          "category": "Shopping",
+          "subcategory": "Online marketplace",
+          "bookings": 8,
+          "spent_eur": 775.3,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Decathlon Deutschland",
+          "category": "Shopping",
+          "subcategory": "Clothing",
+          "bookings": 13,
+          "spent_eur": 770.3,
+          "received_eur": 0.0
+        },
+        {
+          "name": "ALDI SÜD",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 15,
+          "spent_eur": 760.5,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Rossmann Drogeriemarkt",
+          "category": "Groceries",
+          "subcategory": "Drugstore",
+          "bookings": 29,
+          "spent_eur": 743.1,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Ferienpark Sonnenhof Sylt",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 1,
+          "spent_eur": 689.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Telekom Deutschland GmbH",
+          "category": "Communication",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 599.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Lieferando.de",
+          "category": "Dining",
+          "subcategory": "Delivery",
+          "bookings": 11,
+          "spent_eur": 408.3,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Pizzeria Da Vinci",
+          "category": "Dining",
+          "subcategory": "Restaurant",
+          "bookings": 11,
+          "spent_eur": 408.2,
+          "received_eur": 0.0
+        },
+        {
+          "name": "MediaMarkt Dortmund",
+          "category": "Shopping",
+          "subcategory": "Electronics",
+          "bookings": 1,
+          "spent_eur": 399.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Zalando SE",
+          "category": "Shopping",
+          "subcategory": "Clothing",
+          "bookings": 5,
+          "spent_eur": 385.4,
+          "received_eur": 0.0
+        },
+        {
+          "name": "AMAZON EU S.A R.L.",
+          "category": "Shopping",
+          "subcategory": "Online marketplace",
+          "bookings": 9,
+          "spent_eur": 383.4,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Apotheke am Westenhellweg",
+          "category": "Health",
+          "subcategory": "Pharmacy",
+          "bookings": 11,
+          "spent_eur": 363.4,
+          "received_eur": 0.0
+        },
+        {
+          "name": "BURGER KING",
+          "category": "Dining",
+          "subcategory": "Takeaway",
+          "bookings": 14,
+          "spent_eur": 335.1,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Zahnarztpraxis Dr. Kienzle",
+          "category": "Health",
+          "subcategory": "Doctor",
+          "bookings": 1,
+          "spent_eur": 320.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Bäckerei Kamps",
+          "category": "Groceries",
+          "subcategory": "Bakery",
+          "bookings": 28,
+          "spent_eur": 314.6,
+          "received_eur": 0.0
+        },
+        {
+          "name": "MCDONALDS DEUTSCHLAND",
+          "category": "Dining",
+          "subcategory": "Takeaway",
+          "bookings": 12,
+          "spent_eur": 296.2,
+          "received_eur": 0.0
+        },
+        {
+          "name": "SPOTIFY AB",
+          "category": "Subscriptions",
+          "subcategory": "Music",
+          "bookings": 12,
+          "spent_eur": 215.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Vodafone GmbH",
+          "category": "Communication",
+          "subcategory": "Mobile",
+          "bookings": 12,
+          "spent_eur": 215.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "AMAZON PRIME MEMBERSHIP",
+          "category": "Subscriptions",
+          "subcategory": "Streaming",
+          "bookings": 12,
+          "spent_eur": 107.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "DISNEY PLUS",
+          "category": "Subscriptions",
+          "subcategory": "Streaming",
+          "bookings": 12,
+          "spent_eur": 107.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Thalia Bücher GmbH",
+          "category": "Leisure",
+          "subcategory": "Books",
+          "bookings": 1,
+          "spent_eur": 89.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Familienkasse Nordrhein-Westfalen",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 0.0,
+          "received_eur": 6000.0
+        },
+        {
+          "name": "Hoesch Werkstoffe Personal",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 0.0,
+          "received_eur": 27840.0
+        },
+        {
+          "name": "Klinikum Dortmund gGmbH",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 0.0,
+          "received_eur": 32160.0
+        }
+      ],
+      "categories": [
+        {
+          "category": "Cash",
+          "bookings": 17,
+          "spent_eur": 2072.1,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Communication",
+          "bookings": 24,
+          "spent_eur": 815.76,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Dining",
+          "bookings": 48,
+          "spent_eur": 1447.8,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Groceries",
+          "bookings": 170,
+          "spent_eur": 8155.6,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Health",
+          "bookings": 12,
+          "spent_eur": 683.4,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Housing",
+          "bookings": 13,
+          "spent_eur": 1068.0,
+          "received_eur": 187.0
+        },
+        {
+          "category": "Insurance",
+          "bookings": 24,
+          "spent_eur": 3456.0,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Leisure",
+          "bookings": 1,
+          "spent_eur": 89.0,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Needs review",
+          "bookings": 61,
+          "spent_eur": 21089.0,
+          "received_eur": 66000.0
+        },
+        {
+          "category": "Shopping",
+          "bookings": 36,
+          "spent_eur": 2713.4,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Subscriptions",
+          "bookings": 36,
+          "spent_eur": 431.64,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Transport",
+          "bookings": 44,
+          "spent_eur": 3798.4,
+          "received_eur": 0.0
+        }
+      ],
+      "monthly": [
+        {
+          "month": "2025-01",
+          "bookings": 41,
+          "spent_eur": 3559.55,
+          "received_eur": 5500.0,
+          "spent_by_category_eur": {
+            "Cash": 86.5,
+            "Communication": 67.98,
+            "Dining": 117.6,
+            "Groceries": 577.5,
+            "Health": 28.2,
+            "Housing": 89.0,
+            "Insurance": 288.0,
+            "Needs review": 1700.0,
+            "Shopping": 246.2,
+            "Subscriptions": 35.97,
+            "Transport": 322.6
+          }
+        },
+        {
+          "month": "2025-02",
+          "bookings": 36,
+          "spent_eur": 3698.75,
+          "received_eur": 5500.0,
+          "spent_by_category_eur": {
+            "Cash": 185.9,
+            "Communication": 67.98,
+            "Dining": 112.3,
+            "Groceries": 885.2,
+            "Housing": 89.0,
+            "Insurance": 288.0,
+            "Needs review": 1700.0,
+            "Shopping": 83.5,
+            "Subscriptions": 35.97,
+            "Transport": 250.9
+          }
+        },
+        {
+          "month": "2025-03",
+          "bookings": 40,
+          "spent_eur": 3986.05,
+          "received_eur": 5500.0,
+          "spent_by_category_eur": {
+            "Cash": 306.5,
+            "Communication": 67.98,
+            "Dining": 173.8,
+            "Groceries": 568.1,
+            "Health": 388.9,
+            "Housing": 89.0,
+            "Insurance": 288.0,
+            "Needs review": 1700.0,
+            "Shopping": 120.5,
+            "Subscriptions": 35.97,
+            "Transport": 247.3
+          }
+        },
+        {
+          "month": "2025-04",
+          "bookings": 41,
+          "spent_eur": 3576.45,
+          "received_eur": 5500.0,
+          "spent_by_category_eur": {
+            "Cash": 246.7,
+            "Communication": 67.98,
+            "Dining": 115.5,
+            "Groceries": 627.2,
+            "Housing": 89.0,
+            "Insurance": 288.0,
+            "Needs review": 1700.0,
+            "Shopping": 153.5,
+            "Subscriptions": 35.97,
+            "Transport": 252.6
+          }
+        },
+        {
+          "month": "2025-05",
+          "bookings": 37,
+          "spent_eur": 3405.55,
+          "received_eur": 5500.0,
+          "spent_by_category_eur": {
+            "Cash": 105.9,
+            "Communication": 67.98,
+            "Dining": 120.5,
+            "Groceries": 522.0,
+            "Housing": 89.0,
+            "Insurance": 288.0,
+            "Needs review": 1700.0,
+            "Shopping": 162.8,
+            "Subscriptions": 35.97,
+            "Transport": 313.4
+          }
+        },
+        {
+          "month": "2025-06",
+          "bookings": 40,
+          "spent_eur": 3651.05,
+          "received_eur": 5687.0,
+          "spent_by_category_eur": {
+            "Cash": 264.5,
+            "Communication": 67.98,
+            "Dining": 83.3,
+            "Groceries": 686.8,
+            "Health": 45.5,
+            "Housing": 89.0,
+            "Insurance": 288.0,
+            "Needs review": 1700.0,
+            "Shopping": 115.5,
+            "Subscriptions": 35.97,
+            "Transport": 274.5
+          }
+        },
+        {
+          "month": "2025-07",
+          "bookings": 44,
+          "spent_eur": 4914.55,
+          "received_eur": 5500.0,
+          "spent_by_category_eur": {
+            "Cash": 197.6,
+            "Communication": 67.98,
+            "Dining": 107.9,
+            "Groceries": 732.4,
+            "Health": 60.7,
+            "Housing": 89.0,
+            "Insurance": 288.0,
+            "Needs review": 2389.0,
+            "Shopping": 294.8,
+            "Subscriptions": 35.97,
+            "Transport": 651.2
+          }
+        },
+        {
+          "month": "2025-08",
+          "bookings": 41,
+          "spent_eur": 3880.05,
+          "received_eur": 5500.0,
+          "spent_by_category_eur": {
+            "Cash": 158.0,
+            "Communication": 67.98,
+            "Dining": 61.5,
+            "Groceries": 732.5,
+            "Housing": 89.0,
+            "Insurance": 288.0,
+            "Leisure": 89.0,
+            "Needs review": 1700.0,
+            "Shopping": 329.5,
+            "Subscriptions": 35.97,
+            "Transport": 328.6
+          }
+        },
+        {
+          "month": "2025-09",
+          "bookings": 42,
+          "spent_eur": 3683.25,
+          "received_eur": 5500.0,
+          "spent_by_category_eur": {
+            "Cash": 161.5,
+            "Communication": 67.98,
+            "Dining": 152.1,
+            "Groceries": 698.8,
+            "Health": 70.9,
+            "Housing": 89.0,
+            "Insurance": 288.0,
+            "Needs review": 1700.0,
+            "Shopping": 105.9,
+            "Subscriptions": 35.97,
+            "Transport": 313.1
+          }
+        },
+        {
+          "month": "2025-10",
+          "bookings": 38,
+          "spent_eur": 3449.65,
+          "received_eur": 5500.0,
+          "spent_by_category_eur": {
+            "Cash": 215.9,
+            "Communication": 67.98,
+            "Dining": 140.8,
+            "Groceries": 659.6,
+            "Housing": 89.0,
+            "Insurance": 288.0,
+            "Needs review": 1700.0,
+            "Shopping": 42.5,
+            "Subscriptions": 35.97,
+            "Transport": 209.9
+          }
+        },
+        {
+          "month": "2025-11",
+          "bookings": 40,
+          "spent_eur": 3598.45,
+          "received_eur": 5500.0,
+          "spent_by_category_eur": {
+            "Cash": 75.1,
+            "Communication": 67.98,
+            "Dining": 141.6,
+            "Groceries": 646.2,
+            "Housing": 89.0,
+            "Insurance": 288.0,
+            "Needs review": 1700.0,
+            "Shopping": 233.7,
+            "Subscriptions": 35.97,
+            "Transport": 320.9
+          }
+        },
+        {
+          "month": "2025-12",
+          "bookings": 46,
+          "spent_eur": 4416.75,
+          "received_eur": 5500.0,
+          "spent_by_category_eur": {
+            "Cash": 68.0,
+            "Communication": 67.98,
+            "Dining": 120.9,
+            "Groceries": 819.3,
+            "Health": 89.2,
+            "Housing": 89.0,
+            "Insurance": 288.0,
+            "Needs review": 1700.0,
+            "Shopping": 825.0,
+            "Subscriptions": 35.97,
+            "Transport": 313.4
+          }
+        }
+      ]
+    },
+    {
+      "slug": "freelancer",
+      "label": "Freelance designer in Hamburg",
+      "holder": "Nora Wendt",
+      "note": "Income that does not arrive on the 28th: fifteen invoices over the year, two months with none at all, quarterly VAT going out and a studio rent going out every month.",
+      "seed": 20250403,
+      "today": "2025-12-31",
+      "accounts": [
+        {
+          "name": "Hamburger Sparkasse Geschaeftskonto",
+          "file": "households/freelancer-2025.csv",
+          "iban": "DE07200505501003456789",
+          "bookings": 381,
+          "opening_eur": 8620.0,
+          "closing_eur": -2415.6
+        }
+      ],
+      "bookings": 381,
+      "first_booked_on": "2025-01-01",
+      "last_booked_on": "2025-12-28",
+      "needs_review_bookings": 42,
+      "spent_eur": 42635.6,
+      "received_eur": 31600.0,
+      "edge_cases": [
+        "August and September carry no client payment at all",
+        "the VAT payments to the tax office are quarterly, not monthly",
+        "one client pays two invoices in the same week of October",
+        "the health insurance refund in November is money in on an Insurance merchant"
+      ],
+      "merchants": [
+        {
+          "name": "Techniker Krankenkasse",
+          "category": "Insurance",
+          "subcategory": "Health insurance",
+          "bookings": 13,
+          "spent_eur": 10080.0,
+          "received_eur": 420.0
+        },
+        {
+          "name": "Atelierhaus Ottensen GbR",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 9360.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Finanzamt Hamburg-Nord",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 4,
+          "spent_eur": 7200.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Betahaus Hamburg",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 2388.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Cyberport GmbH",
+          "category": "Shopping",
+          "subcategory": "Electronics",
+          "bookings": 1,
+          "spent_eur": 1899.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Sparkasse Geldautomat",
+          "category": "Cash",
+          "subcategory": "Cash withdrawal",
+          "bookings": 12,
+          "spent_eur": 1373.5,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Alnatura Produktions",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 27,
+          "spent_eur": 1211.3,
+          "received_eur": 0.0
+        },
+        {
+          "name": "REWE Markt GmbH",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 27,
+          "spent_eur": 1187.1,
+          "received_eur": 0.0
+        },
+        {
+          "name": "AMAZON EU S.A R.L.",
+          "category": "Shopping",
+          "subcategory": "Online marketplace",
+          "bookings": 16,
+          "spent_eur": 1009.4,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Deutsche Bahn AG",
+          "category": "Transport",
+          "subcategory": "Public transport",
+          "bookings": 10,
+          "spent_eur": 896.5,
+          "received_eur": 0.0
+        },
+        {
+          "name": "BIO COMPANY SE",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 24,
+          "spent_eur": 885.5,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Adobe Systems Software",
+          "category": "Subscriptions",
+          "subcategory": "Software",
+          "bookings": 12,
+          "spent_eur": 779.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "HVV Hamburger Verkehrsverbund",
+          "category": "Transport",
+          "subcategory": "Public transport",
+          "bookings": 12,
+          "spent_eur": 588.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Urban Sports Club GmbH",
+          "category": "Health",
+          "subcategory": "Fitness",
+          "bookings": 12,
+          "spent_eur": 588.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "DENNS BIOMARKT",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 19,
+          "spent_eur": 534.7,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Telefonica Germany GmbH",
+          "category": "Communication",
+          "subcategory": "Mobile",
+          "bookings": 12,
+          "spent_eur": 479.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "dean and david",
+          "category": "Dining",
+          "subcategory": "Takeaway",
+          "bookings": 26,
+          "spent_eur": 365.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "dm drogerie markt",
+          "category": "Groceries",
+          "subcategory": "Drugstore",
+          "bookings": 18,
+          "spent_eur": 358.5,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Lieferando.de",
+          "category": "Dining",
+          "subcategory": "Delivery",
+          "bookings": 13,
+          "spent_eur": 336.6,
+          "received_eur": 0.0
+        },
+        {
+          "name": "FREENOW GmbH",
+          "category": "Transport",
+          "subcategory": "Ride hailing",
+          "bookings": 17,
+          "spent_eur": 314.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "GitHub Inc",
+          "category": "Subscriptions",
+          "subcategory": "Software",
+          "bookings": 12,
+          "spent_eur": 227.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Starbucks Coffee",
+          "category": "Dining",
+          "subcategory": "Cafe",
+          "bookings": 21,
+          "spent_eur": 191.2,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Dropbox International",
+          "category": "Subscriptions",
+          "subcategory": "Software",
+          "bookings": 12,
+          "spent_eur": 143.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Microsoft Ireland Operations",
+          "category": "Subscriptions",
+          "subcategory": "Software",
+          "bookings": 12,
+          "spent_eur": 131.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Cafe Elbgold",
+          "category": "Dining",
+          "subcategory": "Cafe",
+          "bookings": 11,
+          "spent_eur": 105.9,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Kreativagentur Nord GmbH",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 4,
+          "spent_eur": 0.0,
+          "received_eur": 8540.0
+        },
+        {
+          "name": "Nordlicht Brauerei GmbH",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 2,
+          "spent_eur": 0.0,
+          "received_eur": 6310.0
+        },
+        {
+          "name": "Verlag Hoffmann KG",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 4,
+          "spent_eur": 0.0,
+          "received_eur": 6930.0
+        },
+        {
+          "name": "Werft Digital GmbH",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 4,
+          "spent_eur": 0.0,
+          "received_eur": 9400.0
+        }
+      ],
+      "categories": [
+        {
+          "category": "Cash",
+          "bookings": 12,
+          "spent_eur": 1373.5,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Communication",
+          "bookings": 12,
+          "spent_eur": 479.88,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Dining",
+          "bookings": 71,
+          "spent_eur": 998.7,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Groceries",
+          "bookings": 115,
+          "spent_eur": 4177.1,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Health",
+          "bookings": 12,
+          "spent_eur": 588.0,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Insurance",
+          "bookings": 13,
+          "spent_eur": 10080.0,
+          "received_eur": 420.0
+        },
+        {
+          "category": "Needs review",
+          "bookings": 42,
+          "spent_eur": 18948.0,
+          "received_eur": 31180.0
+        },
+        {
+          "category": "Shopping",
+          "bookings": 17,
+          "spent_eur": 2908.4,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Subscriptions",
+          "bookings": 48,
+          "spent_eur": 1283.52,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Transport",
+          "bookings": 39,
+          "spent_eur": 1798.5,
+          "received_eur": 0.0
+        }
+      ],
+      "monthly": [
+        {
+          "month": "2025-01",
+          "bookings": 33,
+          "spent_eur": 4727.15,
+          "received_eur": 2680.0,
+          "spent_by_category_eur": {
+            "Cash": 176.4,
+            "Communication": 39.99,
+            "Dining": 93.2,
+            "Groceries": 379.8,
+            "Health": 49.0,
+            "Insurance": 840.0,
+            "Needs review": 2779.0,
+            "Shopping": 84.6,
+            "Subscriptions": 106.96,
+            "Transport": 178.2
+          }
+        },
+        {
+          "month": "2025-02",
+          "bookings": 32,
+          "spent_eur": 2914.35,
+          "received_eur": 4600.0,
+          "spent_by_category_eur": {
+            "Cash": 178.6,
+            "Communication": 39.99,
+            "Dining": 56.4,
+            "Groceries": 423.9,
+            "Health": 49.0,
+            "Insurance": 840.0,
+            "Needs review": 979.0,
+            "Shopping": 83.4,
+            "Subscriptions": 106.96,
+            "Transport": 157.1
+          }
+        },
+        {
+          "month": "2025-03",
+          "bookings": 34,
+          "spent_eur": 4775.35,
+          "received_eur": 960.0,
+          "spent_by_category_eur": {
+            "Cash": 194.5,
+            "Communication": 39.99,
+            "Dining": 92.0,
+            "Groceries": 350.1,
+            "Health": 49.0,
+            "Insurance": 840.0,
+            "Needs review": 979.0,
+            "Shopping": 2026.4,
+            "Subscriptions": 106.96,
+            "Transport": 97.4
+          }
+        },
+        {
+          "month": "2025-04",
+          "bookings": 30,
+          "spent_eur": 4528.95,
+          "received_eur": 2240.0,
+          "spent_by_category_eur": {
+            "Cash": 64.7,
+            "Communication": 39.99,
+            "Dining": 51.3,
+            "Groceries": 454.7,
+            "Health": 49.0,
+            "Insurance": 840.0,
+            "Needs review": 2779.0,
+            "Shopping": 69.2,
+            "Subscriptions": 106.96,
+            "Transport": 74.1
+          }
+        },
+        {
+          "month": "2025-05",
+          "bookings": 32,
+          "spent_eur": 2770.05,
+          "received_eur": 1870.0,
+          "spent_by_category_eur": {
+            "Cash": 59.3,
+            "Communication": 39.99,
+            "Dining": 130.6,
+            "Groceries": 282.7,
+            "Health": 49.0,
+            "Insurance": 840.0,
+            "Needs review": 979.0,
+            "Shopping": 39.0,
+            "Subscriptions": 106.96,
+            "Transport": 243.5
+          }
+        },
+        {
+          "month": "2025-06",
+          "bookings": 31,
+          "spent_eur": 2679.75,
+          "received_eur": 4600.0,
+          "spent_by_category_eur": {
+            "Cash": 80.1,
+            "Communication": 39.99,
+            "Dining": 68.4,
+            "Groceries": 401.8,
+            "Health": 49.0,
+            "Insurance": 840.0,
+            "Needs review": 979.0,
+            "Shopping": 19.9,
+            "Subscriptions": 106.96,
+            "Transport": 94.6
+          }
+        },
+        {
+          "month": "2025-07",
+          "bookings": 29,
+          "spent_eur": 4384.55,
+          "received_eur": 2640.0,
+          "spent_by_category_eur": {
+            "Cash": 74.3,
+            "Communication": 39.99,
+            "Dining": 86.6,
+            "Groceries": 299.0,
+            "Health": 49.0,
+            "Insurance": 840.0,
+            "Needs review": 2779.0,
+            "Shopping": 42.4,
+            "Subscriptions": 106.96,
+            "Transport": 67.3
+          }
+        },
+        {
+          "month": "2025-08",
+          "bookings": 29,
+          "spent_eur": 2663.65,
+          "received_eur": 0.0,
+          "spent_by_category_eur": {
+            "Cash": 55.3,
+            "Communication": 39.99,
+            "Dining": 77.5,
+            "Groceries": 282.0,
+            "Health": 49.0,
+            "Insurance": 840.0,
+            "Needs review": 979.0,
+            "Shopping": 56.9,
+            "Subscriptions": 106.96,
+            "Transport": 177.0
+          }
+        },
+        {
+          "month": "2025-09",
+          "bookings": 27,
+          "spent_eur": 2955.95,
+          "received_eur": 0.0,
+          "spent_by_category_eur": {
+            "Cash": 183.0,
+            "Communication": 39.99,
+            "Dining": 68.1,
+            "Groceries": 323.3,
+            "Health": 49.0,
+            "Insurance": 840.0,
+            "Needs review": 979.0,
+            "Shopping": 67.4,
+            "Subscriptions": 106.96,
+            "Transport": 299.2
+          }
+        },
+        {
+          "month": "2025-10",
+          "bookings": 37,
+          "spent_eur": 4679.45,
+          "received_eur": 3640.0,
+          "spent_by_category_eur": {
+            "Cash": 94.0,
+            "Communication": 39.99,
+            "Dining": 103.7,
+            "Groceries": 337.5,
+            "Health": 49.0,
+            "Insurance": 840.0,
+            "Needs review": 2779.0,
+            "Shopping": 131.0,
+            "Subscriptions": 106.96,
+            "Transport": 198.3
+          }
+        },
+        {
+          "month": "2025-11",
+          "bookings": 34,
+          "spent_eur": 2781.55,
+          "received_eur": 3310.0,
+          "spent_by_category_eur": {
+            "Cash": 107.9,
+            "Communication": 39.99,
+            "Dining": 132.2,
+            "Groceries": 290.9,
+            "Health": 49.0,
+            "Insurance": 840.0,
+            "Needs review": 979.0,
+            "Shopping": 121.7,
+            "Subscriptions": 106.96,
+            "Transport": 113.9
+          }
+        },
+        {
+          "month": "2025-12",
+          "bookings": 33,
+          "spent_eur": 2774.85,
+          "received_eur": 5060.0,
+          "spent_by_category_eur": {
+            "Cash": 105.4,
+            "Communication": 39.99,
+            "Dining": 38.7,
+            "Groceries": 351.4,
+            "Health": 49.0,
+            "Insurance": 840.0,
+            "Needs review": 979.0,
+            "Shopping": 166.5,
+            "Subscriptions": 106.96,
+            "Transport": 97.9
+          }
+        }
+      ]
+    },
+    {
+      "slug": "pensioner",
+      "label": "Pensioner in Muenster",
+      "holder": "Helga Brinkmann",
+      "note": "A pension and a company pension in, a small rent out, the pharmacy every other week and more cash than any other household: few card payments, many standing orders.",
+      "seed": 20250504,
+      "today": "2025-12-31",
+      "accounts": [
+        {
+          "name": "Sparkasse Muensterland Girokonto",
+          "file": "households/pensioner-2025.csv",
+          "iban": "DE95400501500004567890",
+          "bookings": 349,
+          "opening_eur": 7380.0,
+          "closing_eur": 6102.14
+        }
+      ],
+      "bookings": 349,
+      "first_booked_on": "2025-01-01",
+      "last_booked_on": "2025-12-28",
+      "needs_review_bookings": 38,
+      "spent_eur": 24197.86,
+      "received_eur": 22920.0,
+      "edge_cases": [
+        "the heating settlement in February is the largest single payment of the year",
+        "the pharmacy is visited two to four times a month, in small amounts",
+        "the donation in December goes to a name the dictionary does not know",
+        "cash withdrawals are a real category here, not a rounding error"
+      ],
+      "merchants": [
+        {
+          "name": "Hausverwaltung Muenster-West",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 13,
+          "spent_eur": 9514.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Sparkasse Geldautomat",
+          "category": "Cash",
+          "subcategory": "Cash withdrawal",
+          "bookings": 40,
+          "spent_eur": 4952.8,
+          "received_eur": 0.0
+        },
+        {
+          "name": "EDEKA Kaufpark",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 31,
+          "spent_eur": 1311.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Stadtwerke Muenster GmbH",
+          "category": "Housing",
+          "subcategory": "Electricity",
+          "bookings": 13,
+          "spent_eur": 1176.0,
+          "received_eur": 120.0
+        },
+        {
+          "name": "ALDI SÜD",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 31,
+          "spent_eur": 886.3,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Techniker Krankenkasse",
+          "category": "Insurance",
+          "subcategory": "Health insurance",
+          "bookings": 12,
+          "spent_eur": 816.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "NETTO MARKEN-DISCOUNT",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 25,
+          "spent_eur": 622.9,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Deutsche Bahn AG",
+          "category": "Transport",
+          "subcategory": "Public transport",
+          "bookings": 12,
+          "spent_eur": 588.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "HUK-COBURG Versicherung",
+          "category": "Insurance",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 504.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Loewen-Apotheke Muenster",
+          "category": "Health",
+          "subcategory": "Pharmacy",
+          "bookings": 21,
+          "spent_eur": 495.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Zahnarztpraxis Dr. Lemke",
+          "category": "Health",
+          "subcategory": "Doctor",
+          "bookings": 1,
+          "spent_eur": 480.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Telekom Deutschland GmbH",
+          "category": "Communication",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 419.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Pizzeria Da Vinci",
+          "category": "Dining",
+          "subcategory": "Restaurant",
+          "bookings": 15,
+          "spent_eur": 378.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Apotheke am Prinzipalmarkt",
+          "category": "Health",
+          "subcategory": "Pharmacy",
+          "bookings": 16,
+          "spent_eur": 377.7,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Fielmann AG",
+          "category": "Health",
+          "subcategory": null,
+          "bookings": 1,
+          "spent_eur": 329.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Bäckerei Kamps",
+          "category": "Groceries",
+          "subcategory": "Bakery",
+          "bookings": 35,
+          "spent_eur": 314.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Der Spiegel Verlag",
+          "category": "Subscriptions",
+          "subcategory": "News",
+          "bookings": 12,
+          "spent_eur": 299.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "AMAZON EU S.A R.L.",
+          "category": "Shopping",
+          "subcategory": "Online marketplace",
+          "bookings": 7,
+          "spent_eur": 252.8,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Deutsches Rotes Kreuz Muenster",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 1,
+          "spent_eur": 200.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Cafe Extrablatt",
+          "category": "Dining",
+          "subcategory": "Cafe",
+          "bookings": 10,
+          "spent_eur": 146.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Thalia Bücher GmbH",
+          "category": "Leisure",
+          "subcategory": "Books",
+          "bookings": 5,
+          "spent_eur": 134.6,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Deutsche Rentenversicherung Bund",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 0.0,
+          "received_eur": 18960.0
+        },
+        {
+          "name": "Ruhegehaltskasse Westfalen",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 0.0,
+          "received_eur": 3840.0
+        }
+      ],
+      "categories": [
+        {
+          "category": "Cash",
+          "bookings": 40,
+          "spent_eur": 4952.8,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Communication",
+          "bookings": 12,
+          "spent_eur": 419.88,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Dining",
+          "bookings": 25,
+          "spent_eur": 524.0,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Groceries",
+          "bookings": 122,
+          "spent_eur": 3134.2,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Health",
+          "bookings": 39,
+          "spent_eur": 1681.7,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Housing",
+          "bookings": 13,
+          "spent_eur": 1176.0,
+          "received_eur": 120.0
+        },
+        {
+          "category": "Insurance",
+          "bookings": 24,
+          "spent_eur": 1320.0,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Leisure",
+          "bookings": 5,
+          "spent_eur": 134.6,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Needs review",
+          "bookings": 38,
+          "spent_eur": 9714.0,
+          "received_eur": 22800.0
+        },
+        {
+          "category": "Shopping",
+          "bookings": 7,
+          "spent_eur": 252.8,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Subscriptions",
+          "bookings": 12,
+          "spent_eur": 299.88,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Transport",
+          "bookings": 12,
+          "spent_eur": 588.0,
+          "received_eur": 0.0
+        }
+      ],
+      "monthly": [
+        {
+          "month": "2025-01",
+          "bookings": 27,
+          "spent_eur": 1937.58,
+          "received_eur": 1900.0,
+          "spent_by_category_eur": {
+            "Cash": 484.3,
+            "Communication": 34.99,
+            "Dining": 18.5,
+            "Groceries": 283.7,
+            "Health": 114.1,
+            "Housing": 98.0,
+            "Insurance": 110.0,
+            "Needs review": 720.0,
+            "Subscriptions": 24.99,
+            "Transport": 49.0
+          }
+        },
+        {
+          "month": "2025-02",
+          "bookings": 30,
+          "spent_eur": 2797.68,
+          "received_eur": 1900.0,
+          "spent_by_category_eur": {
+            "Cash": 494.6,
+            "Communication": 34.99,
+            "Dining": 58.9,
+            "Groceries": 233.5,
+            "Health": 62.0,
+            "Housing": 98.0,
+            "Insurance": 110.0,
+            "Needs review": 1594.0,
+            "Shopping": 37.7,
+            "Subscriptions": 24.99,
+            "Transport": 49.0
+          }
+        },
+        {
+          "month": "2025-03",
+          "bookings": 29,
+          "spent_eur": 2182.88,
+          "received_eur": 1900.0,
+          "spent_by_category_eur": {
+            "Cash": 257.6,
+            "Communication": 34.99,
+            "Dining": 67.3,
+            "Groceries": 260.8,
+            "Health": 560.2,
+            "Housing": 98.0,
+            "Insurance": 110.0,
+            "Needs review": 720.0,
+            "Subscriptions": 24.99,
+            "Transport": 49.0
+          }
+        },
+        {
+          "month": "2025-04",
+          "bookings": 29,
+          "spent_eur": 1945.28,
+          "received_eur": 1900.0,
+          "spent_by_category_eur": {
+            "Cash": 408.2,
+            "Communication": 34.99,
+            "Dining": 54.3,
+            "Groceries": 309.4,
+            "Health": 55.6,
+            "Housing": 98.0,
+            "Insurance": 110.0,
+            "Needs review": 720.0,
+            "Shopping": 80.8,
+            "Subscriptions": 24.99,
+            "Transport": 49.0
+          }
+        },
+        {
+          "month": "2025-05",
+          "bookings": 28,
+          "spent_eur": 1937.68,
+          "received_eur": 1900.0,
+          "spent_by_category_eur": {
+            "Cash": 519.4,
+            "Communication": 34.99,
+            "Dining": 49.7,
+            "Groceries": 278.2,
+            "Health": 53.4,
+            "Housing": 98.0,
+            "Insurance": 110.0,
+            "Needs review": 720.0,
+            "Subscriptions": 24.99,
+            "Transport": 49.0
+          }
+        },
+        {
+          "month": "2025-06",
+          "bookings": 28,
+          "spent_eur": 1858.88,
+          "received_eur": 1900.0,
+          "spent_by_category_eur": {
+            "Cash": 404.9,
+            "Communication": 34.99,
+            "Dining": 7.1,
+            "Groceries": 250.5,
+            "Health": 67.9,
+            "Housing": 98.0,
+            "Insurance": 110.0,
+            "Needs review": 720.0,
+            "Shopping": 91.5,
+            "Subscriptions": 24.99,
+            "Transport": 49.0
+          }
+        },
+        {
+          "month": "2025-07",
+          "bookings": 27,
+          "spent_eur": 1696.18,
+          "received_eur": 2020.0,
+          "spent_by_category_eur": {
+            "Cash": 313.5,
+            "Communication": 34.99,
+            "Dining": 52.1,
+            "Groceries": 207.1,
+            "Health": 51.1,
+            "Housing": 98.0,
+            "Insurance": 110.0,
+            "Leisure": 35.4,
+            "Needs review": 720.0,
+            "Subscriptions": 24.99,
+            "Transport": 49.0
+          }
+        },
+        {
+          "month": "2025-08",
+          "bookings": 26,
+          "spent_eur": 1609.68,
+          "received_eur": 1900.0,
+          "spent_by_category_eur": {
+            "Cash": 233.5,
+            "Communication": 34.99,
+            "Dining": 39.8,
+            "Groceries": 188.1,
+            "Health": 55.2,
+            "Housing": 98.0,
+            "Insurance": 110.0,
+            "Leisure": 56.1,
+            "Needs review": 720.0,
+            "Subscriptions": 24.99,
+            "Transport": 49.0
+          }
+        },
+        {
+          "month": "2025-09",
+          "bookings": 32,
+          "spent_eur": 2386.68,
+          "received_eur": 1900.0,
+          "spent_by_category_eur": {
+            "Cash": 493.2,
+            "Communication": 34.99,
+            "Dining": 38.9,
+            "Groceries": 388.0,
+            "Health": 398.3,
+            "Housing": 98.0,
+            "Insurance": 110.0,
+            "Leisure": 17.6,
+            "Needs review": 720.0,
+            "Shopping": 13.7,
+            "Subscriptions": 24.99,
+            "Transport": 49.0
+          }
+        },
+        {
+          "month": "2025-10",
+          "bookings": 30,
+          "spent_eur": 1999.88,
+          "received_eur": 1900.0,
+          "spent_by_category_eur": {
+            "Cash": 555.2,
+            "Communication": 34.99,
+            "Dining": 41.4,
+            "Groceries": 251.6,
+            "Health": 114.7,
+            "Housing": 98.0,
+            "Insurance": 110.0,
+            "Needs review": 720.0,
+            "Subscriptions": 24.99,
+            "Transport": 49.0
+          }
+        },
+        {
+          "month": "2025-11",
+          "bookings": 33,
+          "spent_eur": 1972.58,
+          "received_eur": 1900.0,
+          "spent_by_category_eur": {
+            "Cash": 533.6,
+            "Communication": 34.99,
+            "Dining": 42.6,
+            "Groceries": 214.2,
+            "Health": 90.6,
+            "Housing": 98.0,
+            "Insurance": 110.0,
+            "Leisure": 25.5,
+            "Needs review": 720.0,
+            "Shopping": 29.1,
+            "Subscriptions": 24.99,
+            "Transport": 49.0
+          }
+        },
+        {
+          "month": "2025-12",
+          "bookings": 30,
+          "spent_eur": 1872.88,
+          "received_eur": 1900.0,
+          "spent_by_category_eur": {
+            "Cash": 254.8,
+            "Communication": 34.99,
+            "Dining": 53.4,
+            "Groceries": 269.1,
+            "Health": 58.6,
+            "Housing": 98.0,
+            "Insurance": 110.0,
+            "Needs review": 920.0,
+            "Subscriptions": 24.99,
+            "Transport": 49.0
+          }
+        }
+      ]
+    },
+    {
+      "slug": "couple",
+      "label": "Couple with a joint account in Stuttgart",
+      "holder": "Jonas und Miriam Riedel",
+      "note": "Two accounts in one profile: a joint account that pays the household and a personal account that pays into it every month. A question here says which account it means, or means both.",
+      "seed": 20250605,
+      "today": "2025-12-31",
+      "accounts": [
+        {
+          "name": "Sparkasse Stuttgart Gemeinschaftskonto",
+          "file": "households/couple-joint-2025.csv",
+          "iban": "DE44600501010005678901",
+          "bookings": 353,
+          "opening_eur": 4210.0,
+          "closing_eur": 8719.64
+        },
+        {
+          "name": "Sparkasse Stuttgart Privatkonto Jonas",
+          "file": "households/couple-personal-2025.csv",
+          "iban": "DE18600501010006789012",
+          "bookings": 212,
+          "opening_eur": 2180.0,
+          "closing_eur": 15195.04
+        }
+      ],
+      "bookings": 565,
+      "first_booked_on": "2025-01-01",
+      "last_booked_on": "2025-12-28",
+      "needs_review_bookings": 63,
+      "spent_eur": 58215.32,
+      "received_eur": 75740.0,
+      "edge_cases": [
+        "the monthly transfer leaves the personal account and arrives on the joint one",
+        "the tax refund in March is the largest single amount coming in",
+        "the car repair and the holiday flat are names the dictionary does not know",
+        "REWE is paid from both accounts, so a merchant total spans them"
+      ],
+      "merchants": [
+        {
+          "name": "Gemeinschaftskonto Riedel",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 18000.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Immobilien Schmid Verwaltung",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 15840.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "REWE Markt GmbH",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 71,
+          "spent_eur": 2459.5,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Sparkasse Geldautomat",
+          "category": "Cash",
+          "subcategory": "Cash withdrawal",
+          "bookings": 18,
+          "spent_eur": 2386.3,
+          "received_eur": 0.0
+        },
+        {
+          "name": "IKEA Deutschland",
+          "category": "Shopping",
+          "subcategory": "Home",
+          "bookings": 9,
+          "spent_eur": 2152.1,
+          "received_eur": 0.0
+        },
+        {
+          "name": "EDEKA Nagel",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 31,
+          "spent_eur": 1590.2,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Deutsche Bahn AG",
+          "category": "Transport",
+          "subcategory": "Public transport",
+          "bookings": 13,
+          "spent_eur": 1516.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Stadtwerke Stuttgart GmbH",
+          "category": "Housing",
+          "subcategory": "Electricity",
+          "bookings": 12,
+          "spent_eur": 1344.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Shell Station",
+          "category": "Transport",
+          "subcategory": "Fuel",
+          "bookings": 20,
+          "spent_eur": 1290.1,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Vapiano SE",
+          "category": "Dining",
+          "subcategory": "Restaurant",
+          "bookings": 26,
+          "spent_eur": 1192.4,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Alnatura Produktions",
+          "category": "Groceries",
+          "subcategory": "Supermarket",
+          "bookings": 27,
+          "spent_eur": 1095.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Ferienhaus Alpenblick",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 1,
+          "spent_eur": 890.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "AMAZON EU S.A R.L.",
+          "category": "Shopping",
+          "subcategory": "Online marketplace",
+          "bookings": 17,
+          "spent_eur": 784.5,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Autohaus Schwaben Service",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 1,
+          "spent_eur": 689.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Allianz Versicherungs-AG",
+          "category": "Insurance",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 648.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "ARAL Tankstelle",
+          "category": "Transport",
+          "subcategory": "Fuel",
+          "bookings": 9,
+          "spent_eur": 646.6,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Vodafone GmbH",
+          "category": "Communication",
+          "subcategory": "Mobile",
+          "bookings": 12,
+          "spent_eur": 599.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Urban Sports Club GmbH",
+          "category": "Health",
+          "subcategory": "Fitness",
+          "bookings": 12,
+          "spent_eur": 588.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Decathlon Deutschland",
+          "category": "Shopping",
+          "subcategory": "Clothing",
+          "bookings": 10,
+          "spent_eur": 522.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Zalando SE",
+          "category": "Shopping",
+          "subcategory": "Clothing",
+          "bookings": 7,
+          "spent_eur": 504.4,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Lieferando.de",
+          "category": "Dining",
+          "subcategory": "Delivery",
+          "bookings": 14,
+          "spent_eur": 484.1,
+          "received_eur": 0.0
+        },
+        {
+          "name": "MediaMarkt Stuttgart",
+          "category": "Shopping",
+          "subcategory": "Electronics",
+          "bookings": 1,
+          "spent_eur": 450.0,
+          "received_eur": 0.0
+        },
+        {
+          "name": "dm drogerie markt",
+          "category": "Groceries",
+          "subcategory": "Drugstore",
+          "bookings": 21,
+          "spent_eur": 442.6,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Thalia Bücher GmbH",
+          "category": "Leisure",
+          "subcategory": "Books",
+          "bookings": 13,
+          "spent_eur": 378.6,
+          "received_eur": 0.0
+        },
+        {
+          "name": "dean and david",
+          "category": "Dining",
+          "subcategory": "Takeaway",
+          "bookings": 29,
+          "spent_eur": 366.1,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Starbucks Coffee",
+          "category": "Dining",
+          "subcategory": "Cafe",
+          "bookings": 36,
+          "spent_eur": 325.3,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Adobe Systems Software",
+          "category": "Subscriptions",
+          "subcategory": "Software",
+          "bookings": 12,
+          "spent_eur": 285.48,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Bäckerei Treiber",
+          "category": "Groceries",
+          "subcategory": "Bakery",
+          "bookings": 29,
+          "spent_eur": 249.2,
+          "received_eur": 0.0
+        },
+        {
+          "name": "NETFLIX INTERNATIONAL BV",
+          "category": "Subscriptions",
+          "subcategory": "Streaming",
+          "bookings": 12,
+          "spent_eur": 215.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Döner Haus Bad Cannstatt",
+          "category": "Dining",
+          "subcategory": "Takeaway",
+          "bookings": 17,
+          "spent_eur": 148.2,
+          "received_eur": 0.0
+        },
+        {
+          "name": "SPOTIFY AB",
+          "category": "Subscriptions",
+          "subcategory": "Music",
+          "bookings": 12,
+          "spent_eur": 131.88,
+          "received_eur": 0.0
+        },
+        {
+          "name": "Bosch Rexroth Personalservice",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 0.0,
+          "received_eur": 37440.0
+        },
+        {
+          "name": "Finanzamt Stuttgart",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 1,
+          "spent_eur": 0.0,
+          "received_eur": 2300.0
+        },
+        {
+          "name": "Jonas Riedel",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 0.0,
+          "received_eur": 18000.0
+        },
+        {
+          "name": "Miriam Riedel",
+          "category": "Needs review",
+          "subcategory": null,
+          "bookings": 12,
+          "spent_eur": 0.0,
+          "received_eur": 18000.0
+        }
+      ],
+      "categories": [
+        {
+          "category": "Cash",
+          "bookings": 18,
+          "spent_eur": 2386.3,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Communication",
+          "bookings": 12,
+          "spent_eur": 599.88,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Dining",
+          "bookings": 122,
+          "spent_eur": 2516.1,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Groceries",
+          "bookings": 179,
+          "spent_eur": 5836.5,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Health",
+          "bookings": 12,
+          "spent_eur": 588.0,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Housing",
+          "bookings": 12,
+          "spent_eur": 1344.0,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Insurance",
+          "bookings": 12,
+          "spent_eur": 648.0,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Leisure",
+          "bookings": 13,
+          "spent_eur": 378.6,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Needs review",
+          "bookings": 63,
+          "spent_eur": 35419.0,
+          "received_eur": 75740.0
+        },
+        {
+          "category": "Shopping",
+          "bookings": 44,
+          "spent_eur": 4413.0,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Subscriptions",
+          "bookings": 36,
+          "spent_eur": 633.24,
+          "received_eur": 0.0
+        },
+        {
+          "category": "Transport",
+          "bookings": 42,
+          "spent_eur": 3452.7,
+          "received_eur": 0.0
+        }
+      ],
+      "monthly": [
+        {
+          "month": "2025-01",
+          "bookings": 49,
+          "spent_eur": 4539.66,
+          "received_eur": 6120.0,
+          "spent_by_category_eur": {
+            "Cash": 161.7,
+            "Communication": 49.99,
+            "Dining": 166.5,
+            "Groceries": 549.0,
+            "Health": 49.0,
+            "Housing": 112.0,
+            "Insurance": 54.0,
+            "Needs review": 2820.0,
+            "Shopping": 218.8,
+            "Subscriptions": 52.77,
+            "Transport": 305.9
+          }
+        },
+        {
+          "month": "2025-02",
+          "bookings": 49,
+          "spent_eur": 4428.56,
+          "received_eur": 6120.0,
+          "spent_by_category_eur": {
+            "Cash": 185.9,
+            "Communication": 49.99,
+            "Dining": 205.6,
+            "Groceries": 418.7,
+            "Health": 49.0,
+            "Housing": 112.0,
+            "Insurance": 54.0,
+            "Leisure": 32.3,
+            "Needs review": 2820.0,
+            "Shopping": 174.4,
+            "Subscriptions": 52.77,
+            "Transport": 273.9
+          }
+        },
+        {
+          "month": "2025-03",
+          "bookings": 41,
+          "spent_eur": 4313.56,
+          "received_eur": 8420.0,
+          "spent_by_category_eur": {
+            "Cash": 153.2,
+            "Communication": 49.99,
+            "Dining": 219.5,
+            "Groceries": 426.3,
+            "Health": 49.0,
+            "Housing": 112.0,
+            "Insurance": 54.0,
+            "Needs review": 2820.0,
+            "Shopping": 193.8,
+            "Subscriptions": 52.77,
+            "Transport": 183.0
+          }
+        },
+        {
+          "month": "2025-04",
+          "bookings": 49,
+          "spent_eur": 5137.56,
+          "received_eur": 6120.0,
+          "spent_by_category_eur": {
+            "Cash": 395.0,
+            "Communication": 49.99,
+            "Dining": 322.1,
+            "Groceries": 581.1,
+            "Health": 49.0,
+            "Housing": 112.0,
+            "Insurance": 54.0,
+            "Needs review": 2820.0,
+            "Shopping": 439.6,
+            "Subscriptions": 52.77,
+            "Transport": 262.0
+          }
+        },
+        {
+          "month": "2025-05",
+          "bookings": 46,
+          "spent_eur": 5530.76,
+          "received_eur": 6120.0,
+          "spent_by_category_eur": {
+            "Cash": 118.0,
+            "Communication": 49.99,
+            "Dining": 158.3,
+            "Groceries": 585.5,
+            "Health": 49.0,
+            "Housing": 112.0,
+            "Insurance": 54.0,
+            "Leisure": 30.5,
+            "Needs review": 3710.0,
+            "Shopping": 85.0,
+            "Subscriptions": 52.77,
+            "Transport": 525.7
+          }
+        },
+        {
+          "month": "2025-06",
+          "bookings": 45,
+          "spent_eur": 4519.56,
+          "received_eur": 6120.0,
+          "spent_by_category_eur": {
+            "Cash": 182.2,
+            "Communication": 49.99,
+            "Dining": 235.1,
+            "Groceries": 320.6,
+            "Health": 49.0,
+            "Housing": 112.0,
+            "Insurance": 54.0,
+            "Needs review": 2820.0,
+            "Shopping": 340.4,
+            "Subscriptions": 52.77,
+            "Transport": 303.5
+          }
+        },
+        {
+          "month": "2025-07",
+          "bookings": 47,
+          "spent_eur": 4647.96,
+          "received_eur": 6120.0,
+          "spent_by_category_eur": {
+            "Cash": 213.4,
+            "Communication": 49.99,
+            "Dining": 232.5,
+            "Groceries": 343.0,
+            "Health": 49.0,
+            "Housing": 112.0,
+            "Insurance": 54.0,
+            "Leisure": 52.5,
+            "Needs review": 2820.0,
+            "Shopping": 347.6,
+            "Subscriptions": 52.77,
+            "Transport": 321.2
+          }
+        },
+        {
+          "month": "2025-08",
+          "bookings": 48,
+          "spent_eur": 5260.36,
+          "received_eur": 6120.0,
+          "spent_by_category_eur": {
+            "Cash": 197.0,
+            "Communication": 49.99,
+            "Dining": 171.1,
+            "Groceries": 421.9,
+            "Health": 49.0,
+            "Housing": 112.0,
+            "Insurance": 54.0,
+            "Leisure": 11.5,
+            "Needs review": 3509.0,
+            "Shopping": 325.6,
+            "Subscriptions": 52.77,
+            "Transport": 306.5
+          }
+        },
+        {
+          "month": "2025-09",
+          "bookings": 46,
+          "spent_eur": 5933.96,
+          "received_eur": 6120.0,
+          "spent_by_category_eur": {
+            "Cash": 357.8,
+            "Communication": 49.99,
+            "Dining": 190.3,
+            "Groceries": 699.3,
+            "Health": 49.0,
+            "Housing": 112.0,
+            "Insurance": 54.0,
+            "Leisure": 40.3,
+            "Needs review": 2820.0,
+            "Shopping": 1316.4,
+            "Subscriptions": 52.77,
+            "Transport": 192.1
+          }
+        },
+        {
+          "month": "2025-10",
+          "bookings": 47,
+          "spent_eur": 4469.16,
+          "received_eur": 6120.0,
+          "spent_by_category_eur": {
+            "Cash": 63.5,
+            "Communication": 49.99,
+            "Dining": 144.8,
+            "Groceries": 554.0,
+            "Health": 49.0,
+            "Housing": 112.0,
+            "Insurance": 54.0,
+            "Leisure": 175.1,
+            "Needs review": 2820.0,
+            "Shopping": 133.7,
+            "Subscriptions": 52.77,
+            "Transport": 260.3
+          }
+        },
+        {
+          "month": "2025-11",
+          "bookings": 45,
+          "spent_eur": 4393.16,
+          "received_eur": 6120.0,
+          "spent_by_category_eur": {
+            "Cash": 65.7,
+            "Communication": 49.99,
+            "Dining": 194.3,
+            "Groceries": 431.9,
+            "Health": 49.0,
+            "Housing": 112.0,
+            "Insurance": 54.0,
+            "Leisure": 24.3,
+            "Needs review": 2820.0,
+            "Shopping": 287.2,
+            "Subscriptions": 52.77,
+            "Transport": 252.0
+          }
+        },
+        {
+          "month": "2025-12",
+          "bookings": 53,
+          "spent_eur": 5041.06,
+          "received_eur": 6120.0,
+          "spent_by_category_eur": {
+            "Cash": 292.9,
+            "Communication": 49.99,
+            "Dining": 276.0,
+            "Groceries": 505.2,
+            "Health": 49.0,
+            "Housing": 112.0,
+            "Insurance": 54.0,
+            "Leisure": 12.1,
+            "Needs review": 2820.0,
+            "Shopping": 550.5,
+            "Subscriptions": 52.77,
+            "Transport": 266.6
+          }
+        }
+      ]
+    }
+  ]
+}
