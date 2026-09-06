@@ -23,8 +23,9 @@ FinQuery is a local-first personal-finance analyst. You drop bank statements, CS
 exports, Word documents and receipt photos into a chat, the assistant imports and categorizes them, and you ask questions
 in German or English. Every number in an answer comes from a SQL query the assistant really ran
 against your own transactions, shown in the transcript next to the answer, and never from the
-model's memory. Two models run on the laptop through llama.cpp: a fast Gemma 4 E4B that also
-runs every sub-agent, and a Qwen3.5 9B for the quality slot. Charts are generated code, checked
+model's memory. Two models run on the laptop through llama.cpp: Gemma 4 12B as the chat model and, for the demo,
+the model every sub-agent runs on, and Gemma 4 E4B resident as the fast slot and the adapter target
+(decided on the cluster benchmark of 2026-09-06; Qwen3.5 9B stays in the catalog). Charts are generated code, checked
 in a sandbox before they are drawn. Nothing about your money leaves the machine unless you
 switch on web lookup, and then only a scrubbed merchant name does, logged before it is sent.
 

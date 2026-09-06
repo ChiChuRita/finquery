@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FinQuery: numbers from queries, never from the model</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0b0b0c; --surface: #16171a; --line: rgba(255,255,255,.10); --fg: #f4f4f5; --muted: #9a9ba3;
+    --accent: #38d0a0; --warn: #f5b942; --bad: #f06a6a;
+    --sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font-family: var(--sans); }
+  body { overflow: hidden; }
+  .deck { position: relative; width: 100vw; height: 100vh; }
+  .slide {
+    position: absolute; inset: 0; display: none; padding: 56px 72px 64px; flex-direction: column;
+  }
+  .slide.active { display: flex; }
+  .slide h1 { font-size: 56px; line-height: 1.05; letter-spacing: -0.02em; margin: 0 0 14px; }
+  .slide h2 { font-size: 40px; line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 8px; }
+  .kicker { color: var(--accent); font-size: 15px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 14px; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 22px; margin: 0 0 24px; max-width: 26em; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; flex: 1; min-height: 0; align-items: start; }
+  .cols.wide-left { grid-template-columns: 1.25fr 1fr; }
+  .cols.wide-right { grid-template-columns: 1fr 1.35fr; }
+  ul { margin: 0; padding-left: 1.1em; font-size: 21px; line-height: 1.45; }
+  li { margin: 0 0 10px; }
+  li b { color: var(--fg); font-weight: 600; }
+  .muted { color: var(--muted); }
+  .shot { width: 100%; border: 1px solid var(--line); border-radius: 10px; display: block; background: var(--surface); }
+  .shot.tall { max-height: 62vh; object-fit: cover; object-position: top; }
+  figure { margin: 0; }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 8px; }
+  .foot { position: absolute; left: 72px; right: 72px; bottom: 22px; display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; }
+  .invariant {
+    border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 22px 26px; font-size: 28px; line-height: 1.3; margin: 8px 0 18px;
+  }
+  .invariant b { color: var(--accent); }
+  table { border-collapse: collapse; width: 100%; font-size: 20px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.win td { color: var(--accent); font-weight: 600; }
+  .pill { display: inline-block; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; font-size: 14px; color: var(--muted); margin-left: 8px; vertical-align: middle; }
+  code { font-family: var(--mono); font-size: .9em; background: var(--surface); padding: 1px 6px; border-radius: 5px; }
+  /* architecture diagram */
+  .arch { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 12px; align-items: stretch; flex: 1; min-height: 0; }
+  .box { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 14px 16px; font-size: 17px; line-height: 1.35; }
+  .box h4 { margin: 0 0 6px; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+  .box p { margin: 0 0 6px; }
+  .box .m { color: var(--muted); }
+  .arrow { align-self: center; color: var(--muted); font-size: 28px; padding: 0 4px; }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+  .badge { display: inline-block; background: rgba(56,208,160,.14); color: var(--accent); border-radius: 6px; padding: 2px 8px; font-size: 13px; font-weight: 600; letter-spacing: .04em; }
+  .badge.gray { background: rgba(255,255,255,.08); color: var(--muted); }
+  .badge.warn { background: rgba(245,185,66,.14); color: var(--warn); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 28px; font-size: 20px; line-height: 1.4; }
+  .grid2 .h { color: var(--accent); font-weight: 600; margin-bottom: 4px; font-size: 16px; letter-spacing: .06em; text-transform: uppercase; }
+  .notes { display: none; position: absolute; left: 0; right: 0; bottom: 0; background: rgba(20,20,22,.96); border-top: 1px solid var(--line); padding: 18px 72px; font-size: 16px; line-height: 1.45; color: var(--fg); max-height: 40vh; overflow: auto; }
+  body.show-notes .notes { display: block; }
+  .hint { position: fixed; right: 16px; top: 12px; color: var(--muted); font-size: 12px; }
+  @media print {
+    body { overflow: visible; background: var(--bg); }
+    .deck { width: auto; height: auto; }
+    .slide { display: flex !important; position: relative; height: 100vh; page-break-after: always; }
+    .hint, .notes { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="hint">arrows or space to move, N for notes, P to print to PDF</div>
+<div class="deck">
+
+<!-- 1 -->
+<section class="slide active">
+  <div class="kicker">Intelligent Agents, project presentation, 2026-09-07</div>
+  <h1>FinQuery</h1>
+  <p class="sub">A local-first personal-finance analyst. Drop your bank statements into a chat, ask in your own words, get numbers you can audit.</p>
+  <figure><img class="shot tall" src="img/dashboard.png" alt="The dashboard after importing the sample year"></figure>
+  <div class="foot"><span>Rahul Singh and [partner]</span><span>Everything runs on the laptop: two Gemma 4 models through llama.cpp, SQLite, a React app</span></div>
+  <div class="notes"><b>0:00 to 0:30.</b> One sentence on what it is, one on who did what. Then straight to the invariant. Do not read the screenshot; it is the dashboard the demo opens on.</div>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <div class="kicker">The one rule</div>
+  <h2>Numbers come from executed queries, never from the model</h2>
+  <div class="invariant">Every figure in an answer is the result of a <b>SQL statement the assistant really ran</b> against your own transactions, shown next to the answer. The model writes the question and the words. The database writes the numbers.</div>
+  <div class="cols">
+    <ul>
+      <li><b>A guard in front of the database.</b> One SELECT over a profile-scoped view, parsed with sqlglot, read-only, capped, refused when it invents categories or leaks cents.</li>
+      <li><b>A check pass after the query.</b> A degenerate result or a wrong-shaped answer is sent back once with the finding. 69 to 79 percent figure match on the same model.</li>
+      <li><b>Prose is verified too.</b> A figure typed into the answer that no query produced is flagged.</li>
+      <li><b>Charts are checked code.</b> The chart sub-agent writes JavaScript for TanStack Charts; a self-check runs it on the real rows before a sandboxed frame draws it.</li>
+    </ul>
+    <figure><img class="shot" src="img/chat-kept.png" alt="A chat answer with the query card and a chart"><figcaption>Query card, chart card and the answer in one turn. The card shows the SQL and the rows.</figcaption></figure>
+  </div>
+  <div class="notes"><b>0:30 to 1:45.</b> This is the thesis of the project and the answer to "why not just ask the model". Say the guard, the check pass and the chart self-check in one breath each. If asked where the check numbers come from: bench/results, Qwen3.5 9B cloud, 69 percent without the check pass, 79 with it.</div>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <div class="kicker">Architecture in one picture</div>
+  <h2>One chat agent, tools, sub-agents, a guard, a sandbox</h2>
+  <div class="arch">
+    <div class="stack">
+      <div class="box"><h4>Chat agent</h4><p>Gemma 4 12B, thinking on, one model per conversation, switchable mid-chat.</p><p class="m">Context: profile memory, rolling summary, the turn's tools.</p></div>
+      <div class="box"><h4>Composer</h4><p>Text, CSV, XLSX, PDF, DOCX, receipt photos. Every import and every decision happens in the chat.</p></div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="stack">
+      <div class="box"><h4>Sub-agents as tools</h4><p>query, chart, categorizer, extraction, memory, web lookup.</p><p class="m">Forced tool calls, reasoning first, one retry with the finding. Each role has its own model setting.</p></div>
+      <div class="box"><h4>Question cards</h4><p>A deferred tool: the run parks until you answer, by button or by typing. Answers become rules.</p></div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="stack">
+      <div class="box"><h4>SQL guard and SQLite</h4><p>Profile-scoped view, read-only, sqlglot-validated. The only source of numbers.</p></div>
+      <div class="box"><h4>Chart frame</h4><p>Sandboxed iframe, six-colour palette, house rules enforced by the frame, not by the model.</p></div>
+      <div class="box"><h4>Local runtime</h4><p>llama.cpp in process. Gemma 4 12B on the chat seat, Gemma 4 E4B resident on the fast seat, 12.9 GB together.</p></div>
+    </div>
+  </div>
+  <div class="notes"><b>1:45 to 2:45.</b> Left to right: what the user touches, what the model does, what the machine guarantees. The point to land: the model never touches the database directly and never draws directly. If asked about the two models: the 12B was chosen by benchmark yesterday, the E4B stays resident because the adapters train against it.</div>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <div class="kicker">Elective 1 of 4</div>
+  <h2>Intelligent context management <span class="pill">compression, isolation, selection</span></h2>
+  <div class="cols">
+    <ul>
+      <li><b>Isolation.</b> A profile is a workspace: its own transactions, conversations, memory, categories and rules. Every query runs through a temp view scoped to the profile.</li>
+      <li><b>Selection.</b> Each turn assembles exactly what it needs: the distilled memory block, the rolling summary, the recent turns, and only the tools that apply (web lookup is not even declared when it is off).</li>
+      <li><b>Compression.</b> At 60 percent of the 32k budget the older turns fold into a summary written by the fast model; the divider in the transcript is editable, so the user owns what was kept.</li>
+      <li><b>Memory.</b> After every turn at most two durable facts are distilled, never figures or dates unless the user states a rule. A Memory page shows and edits them.</li>
+    </ul>
+    <figure><img class="shot" src="img/chat.png" alt="The chat with the context badge in the header"><figcaption>The header badge shows tokens used against the budget; the divider marks where the summary starts.</figcaption></figure>
+  </div>
+  <div class="notes"><b>2:45 to 3:45.</b> Name the three words of the sheet explicitly: compression, isolation, selection, and point to where each lives. The demo shows the badge and a memory recalled in a new chat.</div>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <div class="kicker">Elective 2 of 4</div>
+  <h2>Sub-agent deployment <span class="pill">an LLM calls another LLM to do one task</span></h2>
+  <div class="cols wide-left">
+    <div>
+      <ul>
+        <li><b>Six sub-agents, each a tool call.</b> The chat agent decides when; the sub-agent gets one prompt, a forced tool schema and a reasoning field before the answer.</li>
+        <li><b>Self-correcting.</b> The query sub-agent gets a check pass and one rewrite; the chart sub-agent gets a self-check on the real rows and visible repair rounds.</li>
+        <li><b>Narrated.</b> Every sub-agent step streams into the transcript as a chain of thought, so the user sees what was asked and answered.</li>
+        <li><b>One model setting per role.</b> Default: the conversation's chat model. Switch a role to the fast seat and it runs on E4B, where the adapters attach.</li>
+      </ul>
+      <p class="muted" style="font-size:17px">Not claimed: the extra credit for a controller that continues without waiting. The turn is a server task that survives a closed tab, but the chat agent waits for its tool.</p>
+    </div>
+    <figure><img class="shot" src="img/roles.png" alt="The models card listing the sub-agent roles and the model each resolves to"><figcaption>The Settings models card: the four catalog entries, both fast seats and the seven roles.</figcaption></figure>
+  </div>
+  <div class="notes"><b>3:45 to 4:45.</b> The honest line about the extra credit is deliberate: say it before they ask. The strongest fact here is the check-and-retry loop: it turned 69 into 79 percent on the same model without training anything.</div>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <div class="kicker">Elective 3 of 4</div>
+  <h2>Multimodal ingestion <span class="pill">PDF, images, text, CSV, XLSX, DOCX</span></h2>
+  <div class="cols wide-right">
+    <ul>
+      <li><b>Inherently multimodal models.</b> Gemma 4 E4B and 12B read scanned statements and receipt photos through their vision projectors. Text-layer PDFs are read as text first, vision only where there is none.</li>
+      <li><b>Two guards on every extracted figure.</b> Verbatim: every amount and date must occur in the source. Reconciliation: opening balance plus bookings equals closing balance. Anything flagged goes to a review card, nothing is written silently.</li>
+      <li><b>Measured.</b> 19 of 19 receipt totals right on real and web receipts; the synthetic statement PDF reconciles to the cent; the real Edeka receipt needed an EXIF rotation fix.</li>
+      <li><b>Excel and Word</b> go through the same paths as CSV and pasted text. Audio is out of scope and said so.</li>
+    </ul>
+    <div class="stack">
+      <figure><img class="shot" src="img/receipt.png" alt="A receipt photo turned into a draft booking with its store resolved"><figcaption>A receipt photo becomes a draft with title, category and item legs.</figcaption></figure>
+      <figure><img class="shot" src="img/xlsx-import.png" alt="An Excel workbook imported through the chat"><figcaption>An Excel export imported through the chat: 433 rows, the preset recognized without a model call.</figcaption></figure>
+    </div>
+  </div>
+  <div class="notes"><b>4:45 to 5:45.</b> Lead with the guards, not the file types: the sheet asks for a VLM, we have one, but the interesting part is that a vision model is never trusted with a number it cannot point at in the source.</div>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <div class="kicker">Elective 4 of 4</div>
+  <h2>Self-controlled web search <span class="pill">find a page, read it, quote it</span></h2>
+  <div class="cols wide-left">
+    <ul>
+      <li><b>A loop the model drives.</b> Search, fetch or finish, up to four searches and three page reads, with a floor in code: at least one search, and a page read whenever a hit is the merchant's own site or Wikipedia.</li>
+      <li><b>Evidence, not vibes.</b> The finish carries a verbatim quote that must occur in what was read; confidence is capped when no source names the merchant.</li>
+      <li><b>Privacy by construction.</b> Only a scrubbed merchant token leaves the machine: never an amount, a date, an IBAN or a person's name. Every request is journaled before it is sent and shown in Settings.</li>
+      <li><b>Shared by three callers.</b> The chat tool, the categorizer at import in a batch, and receipt headers. Measured yesterday: lookups without a search 9 to 0, pages read 0 to 12.</li>
+    </ul>
+    <div class="stack">
+      <figure><img class="shot" src="img/web-lookup.png" alt="The web lookup card with the token, one search, one page read and the quote"></figure>
+      <figure><img class="shot" src="img/outbound-log.png" alt="The outbound log in Settings"><figcaption>The card and the outbound log: token, search, page, quote.</figcaption></figure>
+    </div>
+  </div>
+  <div class="notes"><b>5:45 to 6:45.</b> The graders' wording is "further than direct results". Say: it visits the page and quotes it, and here is the log that proves what left the machine. Use Combi or Vogtlandbahn as the example, never a well-known chain.</div>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <div class="kicker">Models, measured on the HPI cluster with the product's own runtime</div>
+  <h2>Which local models, and the fine-tuning loop</h2>
+  <div class="cols">
+    <div>
+      <table>
+        <thead><tr><th>Model, Q4_K_M</th><th class="num">SQL figure match</th><th class="num">Chart figure match</th><th class="num">End to end</th><th class="num">Laptop tok/s</th></tr></thead>
+        <tbody>
+          <tr><td>Gemma 4 E4B</td><td class="num">66 %</td><td class="num">45 %</td><td class="num">53 %</td><td class="num">47</td></tr>
+          <tr><td>Qwen3.5 9B</td><td class="num">70 %</td><td class="num">42 %</td><td class="num">73 %</td><td class="num">30</td></tr>
+          <tr class="win"><td>Gemma 4 12B</td><td class="num">87 %</td><td class="num">81 %</td><td class="num">77 %</td><td class="num">22</td></tr>
+        </tbody>
+      </table>
+      <p class="muted" style="font-size:16px;margin-top:10px">152 SQL and 73 chart cases, held-out third never used for training. Same GGUFs and wire formats as the laptop, one RTX PRO 6000 per job. bench/results/20260906-cluster-compare.md</p>
+    </div>
+    <div>
+      <ul>
+        <li><b>The decision rule</b> was written before the numbers: accuracy first, speed within five points, the pair must fit in 13.5 GB. Result: Gemma 4 12B for chat and sub-agents, E4B resident as the fast seat.</li>
+        <li><b>Four QLoRA adapters</b> <span class="badge warn">in progress</span> query and chart on both bases. Training data written by 60 agents over five new synthetic households, kept only by execution: guard, database, an independent second statement, chart self-check, a rendered picture judged.</li>
+        <li><b>The benchmark is the validation set.</b> Frozen split, the shipped household is benchmark-only and unseen in training, checkpoints every epoch scored on a quick set, only the best is converted to GGUF and scored for real.</li>
+        <li><b>Smoke-tested end to end</b> on an H100 yesterday: 20 steps, conversion, adapter attached, five benchmark cases right.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="notes"><b>6:45 to 7:40.</b> The table is the ownership moment: we chose Qwen on memory in week one and reversed it on evidence yesterday. Say the training status as it stands on Monday morning (the deck's NOTES.md has the line to update). Do not promise adapter numbers you do not have.</div>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <div class="kicker">What we own</div>
+  <h2>Decisions we made, and the ones we reversed on evidence</h2>
+  <div class="grid2">
+    <div><div class="h">Kept</div>Numbers only from executed SQL. Sub-agents as forced tool calls with reasoning first. Every import and every decision in the chat. Training equals production: a sample is byte for byte the prompt the sub-agent sends.</div>
+    <div><div class="h">Reversed</div>Qwen3.5 9B as quality slot, chosen on memory, replaced by Gemma 4 12B after the cluster benchmark. Preference optimisation built, measured and removed for multimodal ingestion. "No dashboard" turned into a dashboard of guarded queries with a date range.</div>
+    <div><div class="h">Not claimed, on purpose</div>Sub-agent extra credit. Python code execution (our sandbox runs JavaScript charts). Audio ingestion.</div>
+    <div><div class="h">Next</div>Adapter numbers against vanilla, the video, a second data round if the learning curve asks for it.</div>
+  </div>
+  <p class="muted" style="margin-top:26px;font-size:18px">Docs: docs/explainers (one chapter per required bullet and per elective, with sources), docs/adr (13 decisions), bench/ (the benchmark and every run), training/ (data harness and cluster loop).</p>
+  <div class="foot"><span>Questions</span><span>Hand-in as a ZIP archive on 2026-09-14</span></div>
+  <div class="notes"><b>7:40 to 8:00.</b> Close on ownership: three reversals, each with the evidence that forced it. Then stop and take questions. Likely questions and answers are in docs/explainers, one section per chapter.</div>
+</section>
+
+</div>
+<script>
+  const slides = [...document.querySelectorAll('.slide')];
+  let i = Math.max(0, Math.min(slides.length - 1, parseInt(location.hash.slice(1) || '0', 10) || 0));
+  const show = (n) => { slides.forEach((s, k) => s.classList.toggle('active', k === n)); i = n; location.hash = n; };
+  show(i);
+  addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') show(Math.min(slides.length - 1, i + 1));
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') show(Math.max(0, i - 1));
+    else if (e.key === 'Home') show(0);
+    else if (e.key === 'End') show(slides.length - 1);
+    else if (e.key.toLowerCase() === 'n') document.body.classList.toggle('show-notes');
+    else if (e.key.toLowerCase() === 'p') print();
+  });
+</script>
+</body>
+</html>
