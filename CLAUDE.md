@@ -28,10 +28,12 @@ See `docs/agents/domain.md`.
 
 ## Models for development and verification
 
-Hosted development runs on OpenRouter with `qwen/qwen3.5-9b` on both slots (set in `.env`),
-because Qwen3.5 9B is the model class the local provider ships. Do not switch a verification
-run to a stronger hosted model: what works on Gemini and fails on Qwen is a bug we want to see.
-The Monday demo runs on `FINQUERY_PROVIDER=local`.
+The shipped local pair is Gemma 4 12B (chat and, for the demo, every sub-agent) with Gemma 4 E4B
+resident as the fast slot and the adapter target, decided on the cluster benchmark of 2026-09-06.
+Hosted development runs on OpenRouter with `google/gemma-4-26b-a4b-it` on both slots (set in
+`.env`): OpenRouter has no Gemma 4 12B, and the 26B shares the family and the tool-call wire
+format. Do not switch a verification run to a stronger hosted model: what works on Gemini and
+fails on Gemma is a bug we want to see. The Monday demo runs on `FINQUERY_PROVIDER=local`.
 
 ## Benchmarks and fine-tuning
 
