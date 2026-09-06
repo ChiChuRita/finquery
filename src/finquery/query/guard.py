@@ -6,15 +6,17 @@ Two independent locks, because a generated statement is untrusted input:
   `transaction_view` through, with a LIMIT of at most `MAX_ROWS`. Its errors are written for
   the sub-agent to read and fix.
 - `execute_read_only` runs it on a connection whose `transaction_view` is a temp view already
-  filtered to one profile, with `query_only` on. SQLite resolves an unqualified name in the
-  temp schema before the main one, and the guard refuses a schema-qualified name, so no WHERE
-  clause can widen the profile scope and no statement can write.
+  filtered to one profile (and, when the dashboard asks for a date range, to those days), with
+  `query_only` on. SQLite resolves an unqualified name in the temp schema before the main one,
+  and the guard refuses a schema-qualified name, so no WHERE clause can widen the profile scope
+  and no statement can write.
 
 See docs/adr/0004-numbers-only-from-executed-queries.md.
 """
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 import sqlglot
@@ -300,14 +302,31 @@ def _invents_a_category(case: exp.Case) -> bool:
     return any(isinstance(result, exp.Literal) and result.is_string for result in results)
 
 
-def execute_read_only(session: Session, sql: str, profile_id: str) -> Rows:
+def execute_read_only(
+    session: Session,
+    sql: str,
+    profile_id: str,
+    *,
+    since: date | None = None,
+    until: date | None = None,
+) -> Rows:
     """Run validated SQL against one profile's slice of the query view.
 
     The profile filter is a temp view that shadows the real one for this connection only. It
     has to be created with the id inlined because SQLite forbids parameters in a view.
+
+    `since` and `until` narrow that same view by booking day, which is how the dashboard's date
+    range reaches every stored statement without a word of that statement changing (ticket 44).
+    They are `date` objects, so what is inlined is an ISO day and nothing else; the API parses
+    the two query parameters into dates before they ever get here.
     """
     connection = session.connection()
-    scope = f"CREATE TEMP VIEW {QUERY_VIEW} AS SELECT * FROM main.{QUERY_VIEW} WHERE profile_id = '{_quote(profile_id)}'"
+    where = [f"profile_id = '{_quote(profile_id)}'"]
+    if since is not None:
+        where.append(f"booked_on >= '{since.isoformat()}'")
+    if until is not None:
+        where.append(f"booked_on <= '{until.isoformat()}'")
+    scope = f"CREATE TEMP VIEW {QUERY_VIEW} AS SELECT * FROM main.{QUERY_VIEW} WHERE {' AND '.join(where)}"
     try:
         connection.exec_driver_sql(scope)
         connection.exec_driver_sql("PRAGMA query_only = ON")
