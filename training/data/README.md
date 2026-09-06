@@ -44,6 +44,7 @@ uv run python -m training.data.households build      # about a second each, then
 | `pensioner` | Muenster, a pension and a company pension, 349 bookings | the pharmacy every other week, the most cash of the six, a heating settlement in February |
 | `couple` | Stuttgart, a joint account and a personal one, 565 bookings | two accounts in one profile: say which one you mean, or mean both |
 
+The household CSVs are Latin-1 like a real Sparkasse export, so read them with that encoding.
 `fixtures/synthetic/households/households.json` is the truth: every merchant with the category
 the import path gives it, the totals per category, and the totals per month per category. Read a
 figure there before you claim it. Every household ends on 2025-12-28 and every question is asked
@@ -108,11 +109,16 @@ uv run python -m training.data.gate --task query --out training/data/out/w03 \
 uv run python -m training.data.render --kept training/data/out/c05/kept.jsonl \
   --out training/data/renders --session ticket62
 
-# 4. Is any question a benchmark question with the name swapped?
+# 4. Is any question a benchmark question with the name swapped? It scores the question text
+#    alone, so a three-word follow-up ("Und im November?") collides with benchmark follow-ups
+#    easily: rephrase it or make the follow-up carry one more word of its own.
 uv run python -m training.data.audit duplicates --task query training/data/out/w03/kept.jsonl
 
 # 5. Hand the batch to the judges, and apply what they answer.
 uv run python -m training.data.judge_pack pack  --task query --batch training/data/out/w03
+# charts: hand the renders over, or every review row says render: null
+uv run python -m training.data.judge_pack pack  --task chart --batch training/data/out/c05 \
+  --renders training/data/renders
 uv run python -m training.data.judge_pack apply --task query --batch training/data/out/w03 \
   --verdicts training/data/out/w03/verdicts.jsonl
 
@@ -271,8 +277,12 @@ For every row, in this order:
 2. work the figure out yourself, from `households.json` or from the CSV, without reading the
    statement;
 3. only then read the statement and the rows;
-4. **judge the reasoning as strictly as the SQL**: does it name the period, the filters, the
-   sign and the grouping the statement really implements? A right statement with a hand-wavy
+4. **judge the reasoning as strictly as the SQL**. For a query row the contract is the period,
+   the filters, the sign and the grouping the statement really implements. For a chart row the
+   plan reasoning's contract is the language, the comparison, the shape, the columns and the
+   period (there is no sign line), and the code reasoning names the marks, the scales, the
+   legend and the tooltip the code really draws; a plan that promises a colour or a bucket the
+   code never draws is a `fix`. A right statement with a hand-wavy
    reasoning is a `fix` or a `drop`, never a `keep`. A rationale field at partial coverage
    measurably loses to no rationale at all (ticket 57, section 3);
 5. for a chart, open the render and ask whether it answers the request as a picture.
@@ -322,4 +332,5 @@ If that fails, stop and tell the coordinator. `bench/SPLIT_FROZEN.md` says what 
 | `audit.py` | near-duplicates, the held-out report, the split freeze |
 | `smoke.sh` | all of it, on the sample batches, in seconds |
 | `samples/` | ten hand-written candidates of each kind, the wrong attempts, and a verdict file |
+| `batches/` | the writers' candidate files, committed with the run so the data has a provenance |
 | `out/`, `renders/`, `.db/` | everything the harness builds. Not committed |

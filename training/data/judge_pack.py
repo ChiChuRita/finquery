@@ -122,6 +122,10 @@ def review_rows(batch: Path, task: str, *, renders: Path | None = None) -> list[
             if not kept:
                 row["dropped_because"] = f"{item['reason']}: {item['why']}"
                 row["detail"] = item.get("detail", "")
+                # A self-check drop keeps its findings in a list; the judge reads them here rather
+                # than in report.md (smoke run of ticket 64).
+                if item.get("findings"):
+                    row["findings"] = item["findings"]
             if task == "query":
                 row.update(
                     {
