@@ -1,0 +1,126 @@
+{
+  "width": 640,
+  "height": 280,
+  "renders": [
+    {
+      "id": "smoke-c01-student-line-en",
+      "household": "student",
+      "shape": "line",
+      "language": "en",
+      "theme": "light",
+      "file": "smoke-c01-student-line-en.png",
+      "width": 640,
+      "height": 280,
+      "bytes": 11662,
+      "error": null
+    },
+    {
+      "id": "smoke-c02-family-lines-de",
+      "household": "family",
+      "shape": "line",
+      "language": "de",
+      "theme": "light",
+      "file": "smoke-c02-family-lines-de.png",
+      "width": 640,
+      "height": 280,
+      "bytes": 21257,
+      "error": null
+    },
+    {
+      "id": "smoke-c03-couple-area-en",
+      "household": "couple",
+      "shape": "area",
+      "language": "en",
+      "theme": "light",
+      "file": "smoke-c03-couple-area-en.png",
+      "width": 640,
+      "height": 280,
+      "bytes": 9406,
+      "error": null
+    },
+    {
+      "id": "smoke-c04-pensioner-bar-de",
+      "household": "pensioner",
+      "shape": "bar",
+      "language": "de",
+      "theme": "light",
+      "file": "smoke-c04-pensioner-bar-de.png",
+      "width": 640,
+      "height": 280,
+      "bytes": 15566,
+      "error": null
+    },
+    {
+      "id": "smoke-c05-freelancer-bar-horizontal-en",
+      "household": "freelancer",
+      "shape": "bar_horizontal",
+      "language": "en",
+      "theme": "light",
+      "file": "smoke-c05-freelancer-bar-horizontal-en.png",
+      "width": 640,
+      "height": 280,
+      "bytes": 12936,
+      "error": null
+    },
+    {
+      "id": "smoke-c06-family-grouped-de",
+      "household": "family",
+      "shape": "bar_grouped",
+      "language": "de",
+      "theme": "light",
+      "file": "smoke-c06-family-grouped-de.png",
+      "width": 640,
+      "height": 280,
+      "bytes": 16390,
+      "error": null
+    },
+    {
+      "id": "smoke-c07-couple-stacked-en",
+      "household": "couple",
+      "shape": "bar_stacked",
+      "language": "en",
+      "theme": "light",
+      "file": "smoke-c07-couple-stacked-en.png",
+      "width": 640,
+      "height": 280,
+      "bytes": 15674,
+      "error": null
+    },
+    {
+      "id": "smoke-c08-student-doughnut-de",
+      "household": "student",
+      "shape": "doughnut",
+      "language": "de",
+      "theme": "light",
+      "file": "smoke-c08-student-doughnut-de.png",
+      "width": 640,
+      "height": 280,
+      "bytes": 10724,
+      "error": null
+    },
+    {
+      "id": "smoke-c09-couple-sankey-en",
+      "household": "couple",
+      "shape": "sankey",
+      "language": "en",
+      "theme": "light",
+      "file": "smoke-c09-couple-sankey-en.png",
+      "width": 640,
+      "height": 280,
+      "bytes": 47306,
+      "error": null
+    },
+    {
+      "id": "smoke-c10-pensioner-quarters-en",
+      "household": "pensioner",
+      "shape": "area",
+      "language": "en",
+      "theme": "light",
+      "file": "smoke-c10-pensioner-quarters-en.png",
+      "width": 640,
+      "height": 280,
+      "bytes": 6924,
+      "error": null
+    }
+  ]
+}

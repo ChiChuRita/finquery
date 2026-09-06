@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>FinQuery chart render</title>
+    <!--
+      The page a headless render loads: one sandboxed frame, exactly the size a chart card
+      gives it, and one postMessage. Nothing is drawn here. The chart is drawn by the app's own
+      built runtime (`/chart-runtime.html`), which is why a render is evidence about the chart
+      the user would see rather than about a picture we made ourselves.
+
+      `render.py` serves this page beside `frontend/dist` and writes one `jobs/<id>.json` per
+      chart. `window.finqueryRenderState` is what the driver waits on.
+    -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+      }
+      #frame {
+        display: block;
+        width: 640px;
+        height: 280px;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body data-state="loading">
+    <iframe id="frame" title="chart" sandbox="allow-scripts" src="/chart-runtime.html"></iframe>
+    <script>
+      const CARD = 'finquery-chart'
+      const FRAME = 'finquery-chart-runtime'
+      const TIMEOUT = 20000
+
+      const frame = document.getElementById('frame')
+      let job = null
+      let greeted = false
+
+      function state(value, message) {
+        window.finqueryRenderState = value
+        window.finqueryRenderMessage = message || ''
+        document.body.dataset.state = value
+      }
+      state('loading')
+
+      function send() {
+        if (!job || !greeted) return
+        frame.contentWindow.postMessage(Object.assign({ source: CARD, kind: 'render' }, job), '*')
+      }
+
+      window.addEventListener('message', (event) => {
+        const data = event.data
+        if (!data || data.source !== FRAME) return
+        // The frame says hello when it is alive, ready when it has painted, error when it
+        // could not. A render that never paints is a failed render, not a blank picture.
+        if (data.kind === 'hello') {
+          greeted = true
+          send()
+        } else if (data.kind === 'ready') {
+          state('ready')
+        } else if (data.kind === 'error') {
+          state('error', data.message)
+        }
+      })
+
+      const id = new URLSearchParams(location.search).get('job')
+      fetch('jobs/' + id + '.json')
+        .then((response) => response.json())
+        .then((payload) => {
+          job = payload
+          document.body.style.background = payload.theme.surface
+          send()
+        })
+        .catch((error) => state('error', String(error)))
+
+      setTimeout(() => {
+        if (window.finqueryRenderState === 'loading') state('error', 'the frame never painted')
+      }, TIMEOUT)
+    </script>
+  </body>
+</html>
