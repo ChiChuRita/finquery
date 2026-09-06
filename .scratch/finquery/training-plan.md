@@ -1,0 +1,8 @@
+# Training plan, 2026-09-06 (grilled and settled)
+
+Targets: four QLoRA adapters, query and chart on Gemma 4 E4B and on Gemma 4 12B. Data: about 2,000 kept query samples and 1,000 kept chart samples over six synthetic households (the shipped one plus five new profiles), written by ten parallel Opus writer agents per task, kept only by execution (guard, database, independent recomputation; chart self-check plus a headless render), judged by a second Opus pass with the reasoning line validated as strictly as the SQL, charts additionally judged as images on a stratified fifth per shape. Benchmark: an Opus audit of the held-out cases (near-duplicates against training, ambiguous gold, fairness of the cases the 12B fails, balance per kind, difficulty and language), grown to about 400 held-out per set from the same run, frozen before any training row exists. Training on the HPI cluster, generous GPUs, four adapters in parallel, per-epoch checkpoints scored on a fixed 100-case quick set with the HF weights; only the best checkpoint is converted to GGUF and scored with the official llama-cpp benchmark against the vanilla base. Smoke tests before every long run. Numbers by Monday morning, a second data round during the week if the learning curve says so.
+
+Phases:
+0. Infrastructure, two agents in parallel: ticket 62 (data harness, households, audit tooling, on the laptop) and ticket 63 (cluster training, quick eval, conversion, smoke training on the cluster).
+1. Fan-out: 10 query writers and 10 chart writers, then judges, then the benchmark audit and the freeze (a Workflow, ticket 64).
+2. Training: four adapters in parallel, checkpoint curve, conversion of the best, official runs, the report (ticket 65).
