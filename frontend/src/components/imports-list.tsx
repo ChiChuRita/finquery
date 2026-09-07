@@ -133,7 +133,7 @@ function ImportCard({
 
 /** The imports of this profile: what each one came to, with a way back in and a way out. */
 export function ImportsList() {
-  const { profile, openTab } = useWorkspace()
+  const { profile, rememberLastConversation } = useWorkspace()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { data: imports } = useQuery(importsQuery(profile?.id))
@@ -152,7 +152,7 @@ export function ImportsList() {
         conversationId = review.conversation_id
         await queryClient.invalidateQueries(conversationsQuery(profile.id))
       }
-      openTab(conversationId)
+      rememberLastConversation(conversationId)
       await navigate({ to: '/c/$conversationId', params: { conversationId } })
     },
     onError: (failure) => setError(failure.message),

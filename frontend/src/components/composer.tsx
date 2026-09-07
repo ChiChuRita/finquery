@@ -231,7 +231,7 @@ function AttachedFiles({ rejected, onClear }: { rejected?: string; onClear: () =
   )
 }
 
-/** Keeps what is typed but unsent, so switching tabs never loses a half-written question. */
+/** Keeps what is typed but unsent, so switching chats never loses a half-written question. */
 function DraftKeeper({ conversationId }: { conversationId: string }) {
   const { textInput } = usePromptInputController()
 

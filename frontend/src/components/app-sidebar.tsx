@@ -73,7 +73,7 @@ function Brand() {
 }
 
 export function AppSidebar() {
-  const { conversations, profile, closeTab } = useWorkspace()
+  const { conversations, profile } = useWorkspace()
   const params = useParams({ strict: false }) as { conversationId?: string }
   const pathname = useLocation({ select: (location) => location.pathname })
   const { isMobile, setOpenMobile, state } = useSidebar()
@@ -103,19 +103,18 @@ export function AppSidebar() {
     // Leave it before it is gone, so nothing tries to render a deleted conversation.
     if (params.conversationId === conversation.id) await navigate({ to: '/' })
     await deleteConversation(conversation.id)
-    closeTab(conversation.id)
     forgetConversation(conversation.id)
     await refresh()
   }
 
   return (
     <Sidebar collapsible="icon">
-      {/* Two h-8 rows on the header's own padding and gap: 8 + 32 + 8 + 32 + 8 = 88, the height
-          of the tabs strip (h-10) and the page bar (h-12) together, so the brand row ends on the
-          strip's hairline and New chat is centred on the page title. `size="lg"` keeps the rail's
-          unpadded square for the 32px mark; `h-8 p-0` gives the expanded row the height of every
-          other row, with the mark on the icon axis. */}
-      <SidebarHeader className="px-4 pt-3 pb-2 group-data-[collapsible=icon]:px-2">
+      {/* Two h-8 rows. The top padding is 16 so the brand row ends at 16 + 32 = 48, the bottom
+          of the page bar (h-12): the hairline under every page title runs on into the sidebar at
+          the brand row's foot. New chat sits under that line, where the page's content starts.
+          `size="lg"` keeps the rail's unpadded square for the 32px mark; `h-8 p-0` gives the
+          expanded row the height of every other row, with the mark on the icon axis. */}
+      <SidebarHeader className="px-4 pt-4 pb-2 group-data-[collapsible=icon]:px-2">
         <SidebarMenu className="gap-3">
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="h-8 p-0" size="lg" tooltip="FinQuery">

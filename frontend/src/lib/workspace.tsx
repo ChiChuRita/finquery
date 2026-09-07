@@ -3,23 +3,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { conversationsQuery, profilesQuery, type Conversation, type Profile } from '@/lib/api'
 
-// What the browser remembers: the profile in use, its open tabs and which of them was in
-// front, and per conversation the scroll position and the unsent draft.
+// What the browser remembers: the profile in use, the conversation each profile was last in,
+// and per conversation the scroll position and the unsent draft.
 const ACTIVE_PROFILE_KEY = 'finquery-profile'
-const tabsKey = (profileId: string) => `finquery-tabs:${profileId}`
-const activeTabKey = (profileId: string) => `finquery-tab:${profileId}`
+// The stored name is older than this key's job (it held the tab that was in front) and is kept
+// so a browser that has one keeps its memory.
+const lastConversationKey = (profileId: string) => `finquery-tab:${profileId}`
 const draftKey = (conversationId: string) => `finquery-draft:${conversationId}`
 const scrollKey = (conversationId: string) => `finquery-scroll:${conversationId}`
-
-function readIds(key: string): string[] {
-  try {
-    const raw = localStorage.getItem(key)
-    const parsed = raw === null ? [] : (JSON.parse(raw) as unknown)
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : []
-  } catch {
-    return []
-  }
-}
 
 /** The profile the browser was left in, read before the first query goes out.
  *
@@ -56,15 +47,14 @@ export function forgetConversation(conversationId: string) {
   localStorage.removeItem(scrollKey(conversationId))
 }
 
-/** The tab that was in front in this profile, so leaving it and coming back lands there. */
-function rememberActiveTab(profileId: string, conversationId: string) {
-  localStorage.setItem(activeTabKey(profileId), conversationId)
-}
-
-/** Only a conversation that is still one of the profile's open tabs is worth going back to. */
-export function readActiveTab(profileId: string): string | undefined {
-  const stored = localStorage.getItem(activeTabKey(profileId))
-  return stored !== null && readIds(tabsKey(profileId)).includes(stored) ? stored : undefined
+/** The conversation to go back to, if this profile was ever in one.
+ *
+ * Nothing here says it still exists: it can have been deleted in another browser tab or in
+ * another window of this one. Opening it is how that is found out, so the conversation route
+ * sends a conversation the server does not have to the new chat page.
+ */
+export function readLastConversation(profileId: string): string | undefined {
+  return localStorage.getItem(lastConversationKey(profileId)) ?? undefined
 }
 
 interface Workspace {
@@ -73,10 +63,8 @@ interface Workspace {
   /** The active profile's conversations, most recent activity first. */
   conversations: Conversation[]
   switchProfile: (profileId: string) => void
-  /** Open conversations, in the order they were opened. */
-  tabs: Conversation[]
-  openTab: (conversationId: string) => void
-  closeTab: (conversationId: string) => void
+  /** Note this conversation as the profile's last, for the next time the profile is picked. */
+  rememberLastConversation: (conversationId: string) => void
 }
 
 const WorkspaceContext = createContext<Workspace | null>(null)
@@ -85,15 +73,6 @@ export function useWorkspace(): Workspace {
   const workspace = useContext(WorkspaceContext)
   if (!workspace) throw new Error('useWorkspace must be used inside WorkspaceProvider')
   return workspace
-}
-
-/** Local storage is the tab list. Every change reads it, edits it and writes it back, because
- *  React state is still empty on the render that opens a tab of a freshly loaded page, and
- *  writing that state through would drop every other tab of the profile. */
-function edited(profileId: string, edit: (ids: string[]) => string[]): string[] {
-  const ids = edit(readIds(tabsKey(profileId)))
-  localStorage.setItem(tabsKey(profileId), JSON.stringify(ids))
-  return ids
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
@@ -106,21 +85,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const profileId = profile?.id
   const { data: conversations } = useQuery(conversationsQuery(profileId))
-  const [tabIds, setTabIds] = useState<string[]>([])
 
-  const openTab = useCallback(
+  const rememberLastConversation = useCallback(
     (conversationId: string) => {
-      if (!profileId) return
-      rememberActiveTab(profileId, conversationId)
-      setTabIds(edited(profileId, (ids) => (ids.includes(conversationId) ? ids : [...ids, conversationId])))
-    },
-    [profileId],
-  )
-
-  const closeTab = useCallback(
-    (conversationId: string) => {
-      if (!profileId) return
-      setTabIds(edited(profileId, (ids) => ids.filter((id) => id !== conversationId)))
+      if (profileId) localStorage.setItem(lastConversationKey(profileId), conversationId)
     },
     [profileId],
   )
@@ -130,30 +98,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setActiveId(next)
   }, [])
 
-  // Local storage is the source of truth for which tabs are open, per profile.
-  useEffect(() => {
-    setTabIds(profileId ? readIds(tabsKey(profileId)) : [])
-  }, [profileId])
-
   // The fallback is a choice, so it is written down like any other: what is done after a reload
   // lands in the profile the sidebar names, and the next reload opens that same one again.
   useEffect(() => {
     if (profile && profile.id !== activeId) switchProfile(profile.id)
   }, [activeId, profile, switchProfile])
 
-  const workspace = useMemo<Workspace>(() => {
-    const byId = new Map((conversations ?? []).map((c) => [c.id, c]))
-    return {
-      closeTab,
+  const workspace = useMemo<Workspace>(
+    () => ({
       conversations: conversations ?? [],
-      openTab,
       profile,
       profiles: profiles ?? [],
+      rememberLastConversation,
       switchProfile,
-      // A tab whose conversation is gone (deleted in another browser tab) simply stops showing.
-      tabs: tabIds.map((id) => byId.get(id)).filter((c): c is Conversation => c !== undefined),
-    }
-  }, [closeTab, conversations, openTab, profile, profiles, switchProfile, tabIds])
+    }),
+    [conversations, profile, profiles, rememberLastConversation, switchProfile],
+  )
 
   return <WorkspaceContext.Provider value={workspace}>{children}</WorkspaceContext.Provider>
 }

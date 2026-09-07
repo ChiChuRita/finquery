@@ -251,8 +251,8 @@ export function ChatView({ conversation }: { conversation: ConversationDetail })
   // The turns before this index are the ones the rolling summary stands in for.
   const boundary = conversation.summarized_messages
 
-  // min-h-0 rather than h-full: with the tabs bar above it, a full-height child pushes the page
-  // past the viewport and the tabs and this header scroll out of view.
+  // min-h-0 rather than h-full: a full-height child of the scroll container pushes the page past
+  // the viewport and takes this header out of view with it.
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <PageBar title={conversation.title}>
@@ -364,7 +364,7 @@ function latestContext(messages: ChatMessage[]): ContextStats | undefined {
 
 const SETTLE_MS = 300
 
-/** Every tab comes back where it was left. */
+/** Every chat comes back where it was left. */
 function useRememberedScroll(conversationId: string) {
   const context = useRef<StickToBottomContext>(null)
 
@@ -397,7 +397,7 @@ function useRememberedScroll(conversationId: string) {
       window.clearTimeout(settled)
       window.clearTimeout(timer)
       // React has already detached the node here, and a detached node reports scrollTop 0, which
-      // would overwrite the position this tab was left at.
+      // would overwrite the position this chat was left at.
       if (element.isConnected) writeScrollTop(conversationId, element.scrollTop)
       element.removeEventListener('scroll', remember)
     }

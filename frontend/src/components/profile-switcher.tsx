@@ -15,7 +15,7 @@ import {
 import { SidebarMenuButton } from '@/components/ui/sidebar'
 import { useSidebar } from '@/hooks/use-sidebar'
 import { createProfile, deleteProfile, profilesQuery, renameProfile } from '@/lib/api'
-import { readActiveTab, useWorkspace } from '@/lib/workspace'
+import { readLastConversation, useWorkspace } from '@/lib/workspace'
 import { cn } from '@/lib/utils'
 
 export function ProfileSwitcher() {
@@ -35,9 +35,9 @@ export function ProfileSwitcher() {
     if (profileId === profile?.id) return
     await leaveConversation()
     switchProfile(profileId)
-    // Each profile keeps its own tabs, so coming back lands on the one that was in front.
-    const inFront = readActiveTab(profileId)
-    if (inFront) await navigate({ to: '/c/$conversationId', params: { conversationId: inFront } })
+    // Each profile remembers the conversation it was last in, so coming back lands there.
+    const last = readLastConversation(profileId)
+    if (last) await navigate({ to: '/c/$conversationId', params: { conversationId: last } })
   }
 
   return (

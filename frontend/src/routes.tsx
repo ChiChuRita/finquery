@@ -1,14 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createRootRoute, createRoute, createRouter, Link, Outlet, useNavigate } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, Outlet, useNavigate } from '@tanstack/react-router'
 import type { FileUIPart } from 'ai'
-import { PlusIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { AppSidebar } from '@/components/app-sidebar'
 import { ChatView } from '@/components/chat-view'
 import { Composer } from '@/components/composer'
-import { ConversationTabs } from '@/components/conversation-tabs'
 import { DashboardPage } from '@/components/dashboard-page'
 import { EmptyState } from '@/components/empty-state'
 import { ImportPage } from '@/components/import-page'
@@ -18,7 +16,6 @@ import { clampStep, OnboardingCard, OnboardingPage } from '@/components/onboardi
 import { DocumentPage, PageTrigger } from '@/components/page'
 import { TaxonomyCard } from '@/components/taxonomy-card'
 import { TransactionsPage } from '@/components/transactions-page'
-import { Button } from '@/components/ui/button'
 import { SIDEBAR_COOKIE_NAME, SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { WebLookupCard } from '@/components/web-lookup-card'
 import {
@@ -40,7 +37,6 @@ const rootRoute = createRootRoute({
       <SidebarProvider className="h-dvh min-h-0 overflow-hidden" defaultOpen={sidebarOpen()}>
         <AppSidebar />
         <SidebarInset className="min-w-0 overflow-hidden">
-          <ConversationTabs />
           <Outlet />
         </SidebarInset>
       </SidebarProvider>
@@ -106,15 +102,24 @@ const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', com
 
 function ConversationPage() {
   const { conversationId } = conversationRoute.useParams()
+  const navigate = useNavigate()
   const { data, error, isPending } = useQuery(conversationQuery(conversationId))
-  const { openTab, profile, switchProfile } = useWorkspace()
+  const { profile, rememberLastConversation, switchProfile } = useWorkspace()
 
   useEffect(() => {
     if (!data) return
     // Opening a conversation of another profile (a bookmark, a reload) switches the sidebar to it.
     if (profile && data.profile_id !== profile.id) switchProfile(data.profile_id)
-    else openTab(data.id)
-  }, [data, openTab, profile, switchProfile])
+    else rememberLastConversation(data.id)
+  }, [data, profile, rememberLastConversation, switchProfile])
+
+  // The conversation is not there: deleted in another window, or the one this profile was last
+  // in when it was deleted. A chat that does not exist is not a dead end, the way on from it is
+  // a new chat, so go there rather than show an error nothing can be done about. React Query has
+  // already retried by the time this is an error, so a passing network hiccup does not land here.
+  useEffect(() => {
+    if (error) void navigate({ to: '/', replace: true })
+  }, [error, navigate])
 
   if (isPending) {
     return (
@@ -123,21 +128,8 @@ function ConversationPage() {
       </div>
     )
   }
-  if (error || !data) {
-    // Most often it was deleted in another browser tab, which is why this says what to do
-    // rather than only what went wrong: without the link the tab is a dead end.
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm" role="alert">
-        <p className="text-muted-foreground">This chat could not be loaded. It may have been deleted.</p>
-        <Button asChild size="sm" variant="outline">
-          <Link to="/">
-            <PlusIcon data-icon="inline-start" />
-            New chat
-          </Link>
-        </Button>
-      </div>
-    )
-  }
+  // The effect above is on its way to the new chat page; nothing to show for that one render.
+  if (error || !data) return null
   // Key on the id so a fresh useChat is mounted with the persisted transcript for each conversation.
   return <ChatView conversation={data} key={data.id} />
 }

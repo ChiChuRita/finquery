@@ -79,10 +79,9 @@ In words:
    (the stream URL), `resume` when the conversation is running and this view did not start it;
    `foldReasoning`, `stoppedTool`, `InterruptedTurn`.
 10. `frontend/src/components/app-sidebar.tsx:AppSidebar`,
-    `frontend/src/components/conversation-tabs.tsx:ConversationTabs`,
     `frontend/src/components/profile-switcher.tsx:ProfileSwitcher`,
-    `frontend/src/lib/workspace.tsx:WorkspaceProvider` (active profile, open tabs, per
-    conversation draft and scroll position in local storage).
+    `frontend/src/lib/workspace.tsx:WorkspaceProvider` (active profile, the conversation each
+    profile was last in, per conversation draft and scroll position in local storage).
 11. `frontend/src/components/composer.tsx:Composer`: text, attachments, Enter sends, the Stop
     button while a turn runs.
 12. `frontend/src/lib/transcript-markdown.ts:messageToMarkdown`: the conversation download,
