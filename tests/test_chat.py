@@ -60,7 +60,6 @@ async def test_health(client: httpx.AsyncClient) -> None:
         "provider": "openrouter",
         "models": [
             "local:gemma-4-e4b",
-            "local:gemma-4-12b",
             "local:gemma-4-26b",
             "openrouter:google/gemma-4-26b-a4b-it",
         ],
@@ -419,7 +418,7 @@ async def test_a_turn_keeps_the_entry_that_produced_it_when_the_conversation_swi
     """Story 10: a turn's model label is what produced it and never changes."""
     keys = await model_keys(client)
     # The scripted resolver stands in for every entry, so a local one answers here too.
-    local_gemma, cloud_gemma = keys[1], keys[3]
+    local_gemma, cloud_gemma = keys[1], keys[-1]
     scripts.entries[local_gemma] = script("The local answer.")
     scripts.entries[cloud_gemma] = script("The cloud answer.")
     conversation_id = await new_conversation(client, profile_id, local_gemma)

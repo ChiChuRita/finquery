@@ -2,20 +2,21 @@
 
 Four ways to name one, and the runner needs no code change to move between them:
 
-- `local:gemma-4-e4b`, `local:gemma-4-12b`, `local:gemma-4-26b` or any other catalog key
-  (`finquery.catalog`), which is what the app itself stores on a conversation. E4B is also the
-  sub-agent slot, which the recorded runs name `local:fast`. A benchmark candidate the app does
-  not offer (`finquery_bench.candidates`, `local:qwen3.8-27b`) is named the same way;
+- `local:gemma-4-e4b`, `local:gemma-4-26b` or any other catalog key (`finquery.catalog`),
+  which is what the app itself stores on a conversation. E4B is also the sub-agent slot, which
+  the recorded runs name `local:fast`. A benchmark candidate the app does not offer
+  (`finquery_bench.candidates`, `local:qwen3.8-27b` and `local:gemma-4-12b`) is named the same
+  way, which is how every run recorded on the 12B still resolves;
 - `fast` or `quality`: the pre-catalog names, kept because every recorded run uses them.
-  `quality` is the default entry of the configured provider (Gemma 4 12B locally since ticket
-  61) and `fast` its sub-agent slot;
+  `quality` is the default entry of the configured provider (Gemma 4 26B A4B locally since
+  ticket 73) and `fast` its sub-agent slot;
 - `google/gemini-3.8-flash`: any OpenRouter id, resolved directly;
 - `local:fast` with an optional `--adapter query`: the local sub-agent slot, with a LoRA adapter
   attached for the run through the `finquery_adapter` model setting.
 
 Whatever the target, every role the sub-agents ask for resolves to the same model: a benchmark
 compares weights, so a run must not quietly answer half its datapoints on something else. That
-also makes `--model local:gemma-4-12b` the "chat and sub-agents on the same model" shape the
+also makes `--model local:gemma-4-26b` the "chat and sub-agents on the same model" shape the
 demo runs, with no second flag to pass.
 """
 

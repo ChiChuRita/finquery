@@ -302,7 +302,7 @@ export function ModelsCard() {
           <p className="font-medium text-xs">Adapters</p>
           <p className="text-2xs text-muted-foreground">
             Fine-tuned for Gemma 4 E4B. A chat on E4B runs the query and chart sub-agents with them; a chat on the
-            12B or the 26B runs them on that model's own weights.
+            26B runs them on that model's own weights.
           </p>
           <ul className="mt-1 flex flex-col gap-0.5">
             {data.adapters.map((adapter) => (

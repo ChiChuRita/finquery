@@ -43,15 +43,14 @@ def spec(key: str, seat: str, name: str, weights_size: int, wire: str) -> ModelS
     )
 
 
-FAST, GEMMA, BIG = "local:gemma-4-e4b", "local:gemma-4-12b", "local:gemma-4-26b"
+FAST, GEMMA = "local:gemma-4-e4b", "local:gemma-4-26b"
 
-#: Stand-ins for the three real local models, under the keys the catalog offers them under:
-#: E4B (the fast slot and the smallest chat entry) and the two bigger chat models. One of the
-#: three is loaded at a time.
+#: Stand-ins for the two real local models, under the keys the catalog offers them under:
+#: E4B (the fast slot and the smaller chat entry) and the 26B A4B in the chat seat, which is
+#: what a new conversation starts on since ticket 73. One of the two is loaded at a time.
 TINY_MODELS = {
     FAST: spec(FAST, "fast", "tiny-fast", 8, "gemma"),
     GEMMA: spec(GEMMA, "chat", "tiny-gemma", 24, "gemma"),
-    BIG: spec(BIG, "chat", "tiny-big", 16, "gemma"),
 }
 
 
@@ -108,12 +107,12 @@ class FakeAdapterApi:
         self.calls.append("free")
 
 
-NAMED = {"fast": FAST, "gemma": GEMMA, "big": BIG}
+NAMED = {"fast": FAST, "gemma": GEMMA}
 
 
 def _slots(**named: FakeSlot) -> dict[str, FakeSlot]:
-    """A stand-in slot per local model, overridden by keyword: `fast`, `gemma`, `big`."""
-    default = {FAST: FakeSlot("tiny-fast"), GEMMA: FakeSlot("tiny-gemma"), BIG: FakeSlot("tiny-big")}
+    """A stand-in slot per local model, overridden by keyword: `fast`, `gemma`."""
+    default = {FAST: FakeSlot("tiny-fast"), GEMMA: FakeSlot("tiny-gemma")}
     return {**default, **{NAMED[name]: slot for name, slot in named.items()}}
 
 
@@ -152,11 +151,11 @@ def _entries(response: httpx.Response) -> list[dict[str, Any]]:
     return [entry for entry in response.json()["entries"] if entry["provider"] == "local"]
 
 
-async def test_the_two_local_chat_models_share_one_seat(tmp_path: Path) -> None:
-    """A turn on the other chat model swaps it in, and nothing else stays loaded."""
+async def test_the_two_local_entries_share_one_loaded_model(tmp_path: Path) -> None:
+    """A turn on the other local entry swaps it in, and nothing else stays loaded."""
     slots = _slots(
-        big=FakeSlot("tiny-big", ("Hello from the 26B.",)),
-        gemma=FakeSlot("tiny-gemma", ("Hello from Gemma.",)),
+        fast=FakeSlot("tiny-fast", ("Hello from E4B.",)),
+        gemma=FakeSlot("tiny-gemma", ("Hello from the 26B.",)),
     )
     stack = local_stack(tmp_path, slots)
     async with local_client(stack) as client:
@@ -164,31 +163,32 @@ async def test_the_two_local_chat_models_share_one_seat(tmp_path: Path) -> None:
         assert body["provider"] == "local"
         assert body["default_key"] == GEMMA
         local_entries = [entry for entry in body["entries"] if entry["provider"] == "local"]
-        assert [entry["key"] for entry in local_entries] == [FAST, GEMMA, BIG]
+        assert [entry["key"] for entry in local_entries] == [FAST, GEMMA]
         assert all(entry["ready"] and entry["available"] and not entry["loaded"] for entry in local_entries)
         assert all(f["state"] == "ready" for entry in local_entries for f in entry["files"])
         assert [entry["key"] for entry in body["fast_slots"]] == [FAST, "openrouter:fast"]
         assert [(a["name"], a["present"]) for a in body["adapters"]] == [("query", False), ("chart", False)]
 
         profile_id = await default_profile_id(client)
-        await turn(client, await new_conversation(client, profile_id, BIG), "hi")
-        assert [entry["loaded"] for entry in _entries(await client.get("/api/models"))] == [False, False, True]
+        await turn(client, await new_conversation(client, profile_id, FAST), "hi")
+        assert [entry["loaded"] for entry in _entries(await client.get("/api/models"))] == [True, False]
+        e4b_requests = len(slots[FAST].requests)
 
         await turn(client, await new_conversation(client, profile_id, GEMMA), "hi")
         after = _entries(await client.get("/api/models"))
-        # One seat: the model that answered last is the one that is loaded.
-        assert [entry["loaded"] for entry in after] == [False, True, False]
-        assert [entry["n_ctx"] for entry in after] == [32768, 32768, 32768]
-        # The one that gave up the seat was unloaded, and the fast seat was never taken: with
-        # every sub-agent role on `chat`, nothing this turn asked for the fast slot.
-        assert (slots[BIG].closed, slots[GEMMA].closed, slots[FAST].closed) == (1, 0, 0)
+        # One model in memory: the entry that answered last is the one that is loaded.
+        assert [entry["loaded"] for entry in after] == [False, True]
+        assert [entry["n_ctx"] for entry in after] == [32768, 32768]
+        # The one that gave way was unloaded, and the second turn never asked for the fast
+        # slot: with every sub-agent role on `chat`, its sub-agents ran on the 26B too.
+        assert (slots[FAST].closed, slots[GEMMA].closed) == (1, 0)
         assert stack.loaded_spec("fast") is None
-        assert slots[FAST].requests == []
+        assert len(slots[FAST].requests) == e4b_requests
 
         # Each turn is its answer plus the two post-turn steps (follow-up suggestions and
         # memory distillation), all of them on the entry the conversation runs on rather than
         # on the fast slot, which is what the default `chat` on every sub-agent role means.
-        assert len(slots[BIG].requests) >= 3
+        assert e4b_requests >= 3
         assert len(slots[GEMMA].requests) >= 3
 
 
@@ -202,7 +202,7 @@ async def test_a_chat_on_e4b_holds_the_fast_seat_and_nothing_is_loaded_twice(tmp
 
         assert stack.loaded_spec("fast") is TINY_MODELS[FAST]
         assert stack.loaded_spec("chat") is None
-        assert [entry["loaded"] for entry in _entries(await client.get("/api/models"))] == [True, False, False]
+        assert [entry["loaded"] for entry in _entries(await client.get("/api/models"))] == [True, False]
         assert len(slots[FAST].requests) >= 3
 
 
@@ -437,7 +437,7 @@ async def test_an_adapter_attaches_on_e4b_and_a_bigger_model_runs_its_own_weight
 ) -> None:
     """The rule of ticket 67, at the model: the sub-agent asks every time, the seat decides.
 
-    On E4B the query adapter file is attached and detached around the run. On the 12B the same
+    On E4B the query adapter file is attached and detached around the run. On the 26B the same
     request runs on the base weights with no adapter call and no audit note, because that is
     what choosing a bigger model means, not a fallback to report.
     """
@@ -455,10 +455,10 @@ async def test_an_adapter_attaches_on_e4b_and_a_bigger_model_runs_its_own_weight
     assert on_e4b.all_messages()[-1].metadata is None  # type: ignore[union-attr]
 
     calls.clear()
-    on_12b = await Agent(stack.resolve(TINY_MODELS[GEMMA])).run("How much?", model_settings=settings)
-    assert on_12b.output == "42"
+    on_26b = await Agent(stack.resolve(TINY_MODELS[GEMMA])).run("How much?", model_settings=settings)
+    assert on_26b.output == "42"
     assert calls == []
-    assert on_12b.all_messages()[-1].metadata is None  # type: ignore[union-attr]
+    assert on_26b.all_messages()[-1].metadata is None  # type: ignore[union-attr]
     assert len(slots[GEMMA].requests) == 1
 
 
@@ -477,11 +477,10 @@ async def test_models_endpoint_lists_the_whole_catalog_on_openrouter(tmp_path: P
             assert body["default_key"] == "openrouter:google/gemma-4-26b-a4b-it"
             assert [(entry["key"], entry["label"]) for entry in body["entries"]] == [
                 (FAST, "Gemma 4 E4B (local)"),
-                (GEMMA, "Gemma 4 12B (local)"),
-                (BIG, "Gemma 4 26B (local)"),
+                (GEMMA, "Gemma 4 26B (local)"),
                 ("openrouter:google/gemma-4-26b-a4b-it", "Gemma 4 26B (cloud)"),
             ]
-            assert [entry["available"] for entry in body["entries"]] == [False, False, False, True]
+            assert [entry["available"] for entry in body["entries"]] == [False, False, True]
             assert all("not downloaded" in entry["reason"] for entry in body["entries"] if not entry["available"])
             # The local download endpoint answers on either provider now.
             assert (await client.post("/api/models/download")).status_code == 200

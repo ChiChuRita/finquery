@@ -196,12 +196,14 @@ period (a period is what a chart is about).
 ## Models
 
 **Catalog entry**: one chat model the picker offers, keyed by a stable string and belonging to
-one provider: `local:gemma-4-e4b`, `local:gemma-4-12b`, `local:gemma-4-26b` and
-`openrouter:google/gemma-4-26b-a4b-it`. A new conversation starts on the 12B locally and on the
-26B in the cloud (`Catalog.DEFAULT_KEYS`). It carries a label, its provider, its local weights
-or its hosted id, and its availability with a reason when it cannot answer. A conversation, a
-turn and a profile default all store the key. Qwen3.5 9B was an entry on both providers until
-ticket 67. See ADR 0013. Avoid: model slot (that is the role below), tier, engine.
+one provider: `local:gemma-4-e4b`, `local:gemma-4-26b` and
+`openrouter:google/gemma-4-26b-a4b-it`. A new conversation starts on the 26B on either provider
+(`Catalog.DEFAULT_KEYS`). It carries a label, its provider, its local weights or its hosted id,
+and its availability with a reason when it cannot answer. A conversation, a turn and a profile
+default all store the key. Qwen3.5 9B was an entry on both providers until ticket 67 and Gemma 4
+12B the local default until ticket 73; a key the catalog no longer offers reads as the default
+entry (`Catalog.key_of`). See ADR 0013. Avoid: model slot (that is the role below), tier,
+engine.
 
 **Model role**: what a model is being asked to be in one turn, **chat** or **fast**. Chat is the
 conversation's catalog entry; fast is the sub-agent slot of that entry's provider (the Gemma 4
@@ -219,10 +221,10 @@ lists them with what each resolves to. Avoid: sub-agent slot, tier.
 
 **Seat**: the model role a local model is the answer to, `fast` or `chat`. Gemma 4 E4B has the
 fast seat, so it is the model a sub-agent role set to `fast` runs on and the base the adapters
-attach to; the 12B and the 26B have the chat seat. Since ticket 68 a seat is not a place in
-memory: one local model is loaded at a time, and asking for another drains the loaded one,
+attach to; the 26B A4B has the chat seat. Since ticket 68 a seat is not a place in memory:
+one local model is loaded at a time, and asking for another drains the loaded one,
 unloads it and loads the new one at the configured context, under one lock. So a chat on the
-12B with every role on `chat` never swaps, and a role set to `fast` there swaps twice per
+26B with every role on `chat` never swaps, and a role set to `fast` there swaps twice per
 sub-agent call. See ADR 0013 with its ticket 68 amendment. Avoid: slot, instance.
 
 **Provider**: where a model runs, `local` or `openrouter`. Both are live at once and a catalog

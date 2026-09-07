@@ -10,6 +10,11 @@ Qwen3.8 27B is here because the user wants to see how the state of the art of th
 does on the finance sets (2026-09-07), after Qwen3.5 9B lost to Gemma 4 12B on every column.
 It is a dense 27B: on the 24 GB laptop it would not fit beside a resident E4B, which is one more
 reason it is a candidate and not an entry.
+
+Gemma 4 12B is here because it was the shipped chat model until ticket 73, when the 26B A4B took
+the seat on the same accuracy and much more speed. It keeps its catalog key, `local:gemma-4-12b`,
+so `finquery-bench --model local:gemma-4-12b`, the cluster scripts and every recorded run under
+that name still resolve: its runs are the baseline the newer numbers are read against.
 """
 
 from finquery.local.catalog import FileSpec, ModelSpec
@@ -38,4 +43,26 @@ QWEN38_27B = ModelSpec(
     ),
 )
 
-CANDIDATES: dict[str, ModelSpec] = {spec.key: spec for spec in (QWEN38_27B,)}
+LOCAL_GEMMA_12B = ModelSpec(
+    key="local:gemma-4-12b",
+    seat="chat",
+    name="gemma-4-12b-it",
+    label="Gemma 4 12B (local)",
+    wire="gemma",
+    weights=FileSpec(
+        kind="weights",
+        repo_id="unsloth/gemma-4-12b-it-GGUF",
+        filename="gemma-4-12b-it-Q4_K_M.gguf",
+        size=7121861440,
+        sha256="0a270ec9fe6b34f4a0d33992b6135117b484ebc4766ab76b51d4ae8c457e4c42",
+    ),
+    projector=FileSpec(
+        kind="projector",
+        repo_id="unsloth/gemma-4-12b-it-GGUF",
+        filename="mmproj-F16.gguf",
+        size=175115840,
+        sha256="91f086971e56d7a7d8d39e271873fccdb49541bd259d6e02c401a4f1cb7a219e",
+    ),
+)
+
+CANDIDATES: dict[str, ModelSpec] = {spec.key: spec for spec in (QWEN38_27B, LOCAL_GEMMA_12B)}

@@ -96,7 +96,7 @@ class Assembly:
 def context_budget(settings: Settings, local: "LocalStack | None") -> int:
     """The working budget for one turn, in tokens.
 
-    Every catalog entry has the same context today (32k for the three local models, 262k for the
+    Every catalog entry has the same context today (32k for the two local models, 262k for the
     hosted ones), so the budget does not depend on which entry a conversation runs on; give this
     an entry parameter when that stops being true. The configured budget is a cap, not a raise:
     when the demo runs local the resident context is the hard ceiling, and since both providers

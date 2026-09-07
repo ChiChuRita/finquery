@@ -6,7 +6,8 @@ sub-agent, which is now one setting per role rather than always the fast slot; s
 amendment of ADR 0006); 2026-09-07 (ticket 67: three local Gemma 4 entries and one cloud entry,
 Qwen removed, E4B a chat entry, adapters follow the seat, the key from Settings; below);
 2026-09-07 (ticket 68: one local model resident at a time, which supersedes the two seats;
-below)
+below); 2026-09-07 (ticket 73: Gemma 4 26B A4B is the local default and the 12B leaves the
+catalog; below)
 Status: accepted
 Amends: ADR 0002 (the provider switch) and ADR 0006 (the local provider)
 
@@ -160,3 +161,31 @@ nothing: since ticket 61 every sub-agent role defaults to `chat`, so a turn on t
   not to be trusted for an mmapped 13 GB file, and a wrong number is worse than none.
   `FINQUERY_LOCAL_N_CTX` stays as the one context cap, and at 32k every catalog model fits on
   its own.
+
+## Amendment, 2026-09-07 (ticket 73): the local default is Gemma 4 26B A4B, and three entries
+
+The entry list of the ticket 67 amendment above is superseded. Gemma 4 12B leaves the catalog.
+The user decided this on the cluster and laptop numbers of the same day: on the 459 question SQL
+set the 26B A4B ties the 12B, 79 against 78 percent figure match, and on the laptop it generates
+at 38.1 tok/s against 22.3 and reads a prompt at 480 tok/s against 205
+(`bench/results/20260907-local-tokens-per-second.md`, and the 26B SQL run of 2026-09-07). Its
+end-to-end result is 67 against the 12B's 77 on 30 turns; the user took the speed, because a
+demo turn is four to six requests and almost all of that time is prompt evaluation.
+
+- **The three entries are `local:gemma-4-e4b`, `local:gemma-4-26b` and
+  `openrouter:google/gemma-4-26b-a4b-it`**, listed in that order, and
+  `Catalog.DEFAULT_KEYS["local"]` is `local:gemma-4-26b`. The local default and the cloud entry
+  are now the same weights, so the pair a verification run compares is one model on two
+  providers. E4B keeps the fast seat, the adapters and its own chat entry.
+- **Gemma 4 12B is a benchmark candidate under its unchanged key.** The spec moved as it stood,
+  files and hashes included, from `finquery.local.catalog` to `finquery_bench.candidates`, so
+  `finquery-bench --model local:gemma-4-12b` and the cluster scripts keep working and every
+  recorded run still resolves to the model it was scored on. Nothing in `src/` imports from
+  `bench/`: the app cannot list, download or start a conversation on it.
+- **A conversation stored on `local:gemma-4-12b` reads as the default entry.** `Catalog.key_of`
+  already did that for any key the catalog no longer offers, which is the same path the
+  pre-catalog `fast` and `quality` take; a test says so for the 12B on the local provider.
+- **The weights on the laptop are the user's to delete.** `models/gemma-4-12b-it` (7.1 GB) and
+  `models/Qwen3.5-9B` are no longer wanted by anything the app or the benchmark runs on this
+  machine, but a benchmark run of the 12B candidate would download them again, so nothing
+  removes them automatically.

@@ -3,9 +3,9 @@
 The chat template inside the GGUF does the prompt building, so this module's job is the two
 translations around it: Pydantic AI messages to the OpenAI-shaped dicts the template expects,
 and the model's single text stream back to thinking parts, text parts and tool calls. Which
-template that is decides the details, and those live in `finquery.local.gemma` (the three Gemma 4
-sizes the catalog offers) and `finquery.local.qwen` (Qwen3.5 and Qwen3.8, benchmark candidates
-only since ticket 67), picked per model through `WIRE_FORMATS`.
+template that is decides the details, and those live in `finquery.local.gemma` (every Gemma 4
+size, the catalog's two and the 12B candidate) and `finquery.local.qwen` (Qwen3.5 and Qwen3.8,
+benchmark candidates only since ticket 67), picked per model through `WIRE_FORMATS`.
 
 Two rules from the spec hold for both. Thinking is switched on through the chat template
 rather than a request flag, and schema-constrained output is never combined with free tool
@@ -203,15 +203,15 @@ class LlamaCppModel(Model):
 
         An adapter is trained against the fast seat's base weights (Gemma 4 E4B, ADR 0006), so
         it is only ever attached there. The query and chart sub-agents ask for theirs on every
-        run (`finquery.providers.with_adapter`); on E4B they get it, and on the 12B or the 26B
-        they run on that model's own weights, which is the rule of ticket 67 and not a fallback,
-        so no audit note is written for it. The one fallback that is noted is an adapter file
-        missing on E4B (`AdapterRegistry.attached_to`).
+        run (`finquery.providers.with_adapter`); on E4B they get it, and on the 26B they run on
+        that model's own weights, which is the rule of ticket 67 and not a fallback, so no audit
+        note is written for it. The one fallback that is noted is an adapter file missing on E4B
+        (`AdapterRegistry.attached_to`).
         """
         # The benchmark scores adapters trained for the chat seat's base too; it says so with
         # FINQUERY_ADAPTERS_ANY_SEAT=1 and points FINQUERY_MODELS_DIR at that base's own adapters
         # directory (training/cluster/bench.sbatch). The app never sets it: its adapters directory
-        # holds E4B adapters, which cannot load onto the 12B.
+        # holds E4B adapters, which cannot load onto a chat model.
         any_seat = os.environ.get("FINQUERY_ADAPTERS_ANY_SEAT") == "1"
         if adapter is not None and (self._spec.seat == "fast" or any_seat):
             async with self._stack.with_adapter(adapter, self._spec) as loaded:  # type: ignore[arg-type]

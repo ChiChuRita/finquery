@@ -77,7 +77,7 @@ async def test_the_entry_switches_mid_conversation_and_every_turn_carries_its_en
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat
 ) -> None:
     keys = await model_keys(client)
-    first_key, second_key = keys[1], keys[3]
+    first_key, second_key = keys[1], keys[-1]
     scripts.entries[first_key] = script("the first answer", thought="f")
     scripts.entries[second_key] = script("the second answer", thought="q")
     profile_id = await default_profile_id(client)
@@ -123,7 +123,7 @@ async def test_switching_the_entry_while_a_turn_runs_lands_on_the_next_turn(
     started = asyncio.Event()
     release = asyncio.Event()
     keys = await model_keys(client)
-    first_key, second_key = keys[1], keys[3]
+    first_key, second_key = keys[1], keys[-1]
 
     async def waits(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[object]:
         started.set()
