@@ -4,15 +4,20 @@
 chip or the History can never name a model that is not listed. It answers with every catalog
 entry across both providers (`finquery.catalog`), each with its availability and, for a local
 one, the download progress the Settings card draws its bars from. The sub-agent fast slot of
-each provider comes with it, because it is a model the app runs that nobody picks, and so does
-every sub-agent role with the model its setting resolves to.
+each provider comes with it (locally that is the Gemma 4 E4B entry itself), and so does every
+sub-agent role with the model its setting resolves to.
+
+The OpenRouter key is set and cleared here too (`PUT` and `DELETE /api/models/openrouter-key`):
+the cloud entry needs one, and a machine whose `.env` has none should not need a restart to get
+it. The key is applied in-process and written to the key file for the next start; the browser
+only ever gets its last four characters back.
 """
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from finquery.catalog import Catalog, Entry
-from finquery.settings import Provider
+from finquery.settings import Provider, save_openrouter_key
 
 router = APIRouter()
 
@@ -70,11 +75,15 @@ class ModelsOut(BaseModel):
     default_key: str
     entries: list[EntryOut]
     fast_slots: list[EntryOut]
-    """The sub-agent slot of each provider. Never a chat choice, so never in `entries`."""
+    """The sub-agent slot of each provider. The local one is the Gemma 4 E4B entry, so its key
+    is also in `entries`; the hosted one is never a chat choice."""
     roles: list[RoleOut]
     """Every sub-agent role with its setting, so the models card can say which model does what."""
     adapters: list[AdapterOut]
     downloading: bool
+    openrouter_key_hint: str | None = None
+    """The last four characters of the key the cloud entry answers with, or None without one.
+    Enough to recognise a key, never enough to use it."""
 
 
 def _entry_out(catalog: Catalog, entry: Entry) -> EntryOut:
@@ -115,10 +124,15 @@ def _entry_out(catalog: Catalog, entry: Entry) -> EntryOut:
     )
 
 
+def key_hint(key: str | None) -> str | None:
+    return f"...{key[-4:]}" if key else None
+
+
 def _catalog_out(request: Request) -> ModelsOut:
     catalog: Catalog = request.app.state.models
     stack = catalog.local
     return ModelsOut(
+        openrouter_key_hint=key_hint(catalog.settings.openrouter_api_key),
         provider=catalog.settings.provider,
         default_key=catalog.default_key,
         entries=[_entry_out(catalog, entry) for entry in catalog.entries],
@@ -141,6 +155,31 @@ def _catalog_out(request: Request) -> ModelsOut:
 
 @router.get("/models", response_model=ModelsOut)
 async def get_models(request: Request) -> ModelsOut:
+    return _catalog_out(request)
+
+
+class KeyIn(BaseModel):
+    key: str = Field(min_length=1)
+
+
+@router.put("/models/openrouter-key", response_model=ModelsOut)
+async def put_openrouter_key(request: Request, body: KeyIn) -> ModelsOut:
+    """Take an OpenRouter key from Settings: live at once, and in the key file for next time."""
+    catalog: Catalog = request.app.state.models
+    key = body.key.strip()
+    if not key:
+        raise HTTPException(status_code=422, detail="The key is empty.")
+    save_openrouter_key(catalog.settings.key_file, key)
+    catalog.set_openrouter_key(key)
+    return _catalog_out(request)
+
+
+@router.delete("/models/openrouter-key", response_model=ModelsOut)
+async def delete_openrouter_key(request: Request) -> ModelsOut:
+    """Forget the key: the cloud entry reads as unavailable again, and the file line is emptied."""
+    catalog: Catalog = request.app.state.models
+    save_openrouter_key(catalog.settings.key_file, None)
+    catalog.set_openrouter_key(None)
     return _catalog_out(request)
 
 

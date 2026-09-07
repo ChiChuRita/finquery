@@ -350,3 +350,24 @@ def test_a_short_run_takes_a_seeded_sample() -> None:
     assert picked == [point.id for point in pick(list(points), n=5, seed=3)]
     assert picked != [point.id for point in pick(list(points), n=5, seed=4)]
     assert picked == [point.id for point in points if point.id in set(picked)], "file order is kept"
+
+
+def test_a_benchmark_candidate_resolves_like_a_catalog_model_and_stays_out_of_the_catalog(tmp_path: Path) -> None:
+    """Qwen3.8 27B is scored through the same stack as the catalog's models, without being one.
+
+    Its files are not in this test's models folder, so the runner says so in the app's own
+    words; a name nobody defined lists what would have worked, candidates included.
+    """
+    from finquery.catalog import Catalog
+
+    from .conftest import make_settings
+    from finquery.providers import ProviderNotAvailable
+    from finquery_bench.candidates import QWEN38_27B
+    from finquery_bench.models import resolve_target
+
+    settings = make_settings(provider="local", models_dir=tmp_path / "models")
+    with pytest.raises(ProviderNotAvailable, match="Qwen3.8 27B .* not downloaded"):
+        resolve_target("local:qwen3.8-27b", None, settings)
+    with pytest.raises(RuntimeError, match="local:qwen3.8-27b"):
+        resolve_target("local:nonsense", None, settings)
+    assert QWEN38_27B.key not in [entry.key for entry in Catalog(settings).entries]

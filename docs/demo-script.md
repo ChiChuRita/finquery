@@ -15,15 +15,15 @@ question with one query runs a little longer than the table says. The sub-agent 
 worked examples and a reasoning field (tickets 40 and 42), which is a few hundred more tokens to
 evaluate per call. Read the table as a floor, not a promise.
 
-Four models in the picker, two of them on this laptop: **Gemma 4 12B (local)**, **Gemma 4 26B
-(cloud)**, **Qwen3.5 9B (local)** and **Qwen3.5 9B (cloud)**. The demo starts on **Gemma 4 12B
+Four models in the picker, three of them on this laptop: **Gemma 4 E4B (local)**, **Gemma 4 12B
+(local)**, **Gemma 4 26B (local)** and **Gemma 4 26B (cloud)**. The demo starts on **Gemma 4 12B
 (local)**, which is what a new chat opens on, and every sub-agent (SQL, chart, categorizer,
 extraction, memory, the result check) runs on it too, because that is where the benchmark says
-the quality is: 87 percent figure match on the 152 SQL questions against 66 for Gemma 4 E4B and
-70 for Qwen3.5 9B, and 81 percent on the chart set against 45 and 42
-(`bench/results/20260906-cluster-compare.md`). **Gemma 4 E4B** is still resident as the fast
-slot, and any sub-agent role can be put back on it with one environment variable; nobody picks
-it in the UI.
+the quality is: 87 percent figure match on the 152 SQL questions against 66 for Gemma 4 E4B, and
+81 percent on the chart set against 45 (`bench/results/20260906-cluster-compare.md`; Qwen3.5 9B
+scored 70 and 42 and left the catalog in ticket 67). **Gemma 4 E4B** is resident as the fast
+slot and is also the smallest entry: a chat on it runs the query and chart sub-agents with their
+fine-tuned adapters, which is the way to show the adapters live.
 
 That quality is bought with time. E4B alone generates at 46.7 tok/s and reads a prompt at 545
 tok/s; E4B plus the 12B, which is what this demo runs, generates at 22.4 and reads at 205
@@ -34,9 +34,10 @@ every request and a turn is four to six requests (the chat model, the query sub-
 check, the chat model again, then follow-ups and distillation).
 
 Two models are resident at once and no more: E4B plus one chat model, about 12.9 GB with Gemma 4
-12B and 13.5 GB with Qwen3.5 9B. The two local chat models share one seat, so switching from one
-to the other unloads the first and loads the second, which costs the turn that asks for it about
-20 seconds. Close everything else heavy before you start.
+12B; the 26B is 12.9 GB of weights on its own, so run `finquery-check` before showing it. The
+12B and the 26B share one seat, so switching from one to the other unloads the first and loads
+the second, which costs the turn that asks for it about 20 seconds. Close everything else heavy
+before you start.
 
 Both providers are live at the same time. `FINQUERY_PROVIDER=local` only decides which entry a
 new chat starts on, so with `OPENROUTER_API_KEY` in `.env` the two cloud entries are one click
@@ -58,8 +59,8 @@ uv run finquery                           # http://127.0.0.1:8000
 ```
 
 `finquery-check` covers the fast slot and every local chat model whose weights are on disk, one
-seat at a time (about 3 seconds to load each), and takes two to three minutes, nearly all of it
-Qwen thinking about a three-number sum. It then loads the pair the demo runs, E4B and Gemma 4
+seat at a time (about 3 seconds to load each), and takes a few minutes. It then loads the pair
+the demo runs, E4B and Gemma 4
 12B, at the same time and prints what is resident against the Metal working set of this machine;
 if they do not fit it says to set `FINQUERY_LOCAL_N_CTX=16384`, which shrinks the chat seat and
 leaves the fast slot alone. Green means the demo can start. Open Settings once before the
@@ -205,26 +206,26 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 
 ### 9. A model switch for one prepared question
 
-20. Open the composer's model picker. Four entries: **Gemma 4 12B (local)**, **Gemma 4 26B
-    (cloud)**, **Qwen3.5 9B (local)** and **Qwen3.5 9B (cloud)**, each saying where it runs, and
+20. Open the composer's model picker. Four entries: **Gemma 4 E4B (local)**, **Gemma 4 12B
+    (local)**, **Gemma 4 26B (local)** and **Gemma 4 26B (cloud)**, each saying where it runs, and
     any that is not ready is greyed out with the reason (no API key, or weights still coming
-    down). Pick **Qwen3.5 9B (local)**, the other local entry, and ask **"What was my largest
-    single expense in 2025, and what was it for?"** About 20 seconds of that turn is the seat
-    swap (the 12B is unloaded and the 9B loaded in its place, which is the whole reason a seat
-    exists), then 138 s were measured for the answer itself, about 12 of them visible thinking.
-    The answer names the rent (1.150,00 EUR, 01.01.2025). The turn chip reads "Qwen3.5 9B
-    (local)" while every earlier turn keeps its own model's name: switching a chat never
-    relabels a turn that is already on screen. Say why the default is the other one: the same
-    question set scored 87 percent on the 12B and 70 on the 9B.
+    down). Pick **Gemma 4 E4B (local)**, the small one, and ask **"What was my largest single
+    expense in 2025, and what was it for?"** No seat swap: E4B is already resident as the fast
+    slot, and this is the entry whose query and chart sub-agents run with the fine-tuned
+    adapters (the models card says which adapter files are on disk). The answer names the rent
+    (1.150,00 EUR, 01.01.2025). The turn chip reads "Gemma 4 E4B (local)" while every earlier
+    turn keeps its own model's name: switching a chat never relabels a turn that is already on
+    screen. Say why the default is the 12B: the same question set scored 87 percent there and 66
+    on E4B before the adapters.
 
-    If there is time and a key in `.env`, switch the same chat to **Gemma 4 26B (cloud)** and
-    ask it again: the same family and the same wire format, one second instead of two minutes,
-    and its sub-agents move to OpenRouter with it. Nothing was restarted, and the two turns sit
-    next to each other with their own chips.
+    If there is time and a key (from `.env` or entered on the Settings page), switch the same
+    chat to **Gemma 4 26B (cloud)** and ask it again: the same family and the same wire format,
+    one second instead of a minute, and its sub-agents move to OpenRouter with it. Nothing was
+    restarted, and the two turns sit next to each other with their own chips.
 
 ### 10. A turn keeps running when you walk away, then Stop
 
-21. Ask Qwen something long: **"Explain in detail how my spending developed over 2025, month
+21. Ask E4B something long: **"Explain in detail how my spending developed over 2025, month
     by month, and what might explain each change."** While it thinks, click another chat in the
     sidebar: that chat's row and its tab keep a small spinner, because the turn is a task on the
     server and not something this tab owns. The composer of that chat is closed while it
@@ -326,7 +327,7 @@ Measured on 2026-09-05 on the local provider, before the result check and the gr
 | Bill photo, split proposal (vision) | fast | 100 s |
 | `remember` | fast | 49 s to 84 s |
 | Question answered from memory, fresh conversation | fast | 59 s |
-| Prepared question | Qwen | 138 s |
+| Prepared question | E4B | to time |
 | Switch chat mid-turn and come back, reload mid-turn | either | instant, the turn is untouched |
 | Stop | either | under a second after the click |
 | Download the conversation as markdown | none | instant |
@@ -387,7 +388,7 @@ Measured on 2026-09-05 on the local provider, before the result check and the gr
   the conversation moves on still works, but the demo reads better in order.
 - A step misfires: every one has a fallback in the same words one step earlier. The doughnut
   falls back to the horizontal bars of step 12, the flatmate question to the rent question on
-  Qwen (step 20), the lookup to the second import (step 27), the chart the assistant keeps by
+  E4B (step 20), the lookup to the second import (step 27), the chart the assistant keeps by
   itself to the one added by hand in step 13, and the PDF to the pre-imported profile. If the laptop itself
   gives up, `FINQUERY_PROVIDER=openrouter` runs the identical script hosted on Gemma 4 26B A4B,
   and `FINQUERY_SUBAGENT_MODEL_QUERY=fast` moves one role back to the fast slot if a local turn

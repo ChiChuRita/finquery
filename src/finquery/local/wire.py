@@ -2,10 +2,12 @@
 
 `finquery.local.gemma` and `finquery.local.qwen` each turn one model's single text stream into
 thinking parts, text parts and tool calls. The two are not variations on one format: Gemma 4
-writes channel markers and its own argument DSL, Qwen3.5 writes `<think>` blocks and XML-ish
+writes channel markers and its own argument DSL, Qwen writes `<think>` blocks and XML-ish
 parameter tags, and their chat templates take different arguments. This module is the shape
-they have in common, so `finquery.local.model` can pick one from the catalog entry and stay
-free of model specifics.
+they have in common, so `finquery.local.model` can pick one from the model spec and stay free
+of model specifics. Since ticket 67 every catalog entry is Gemma; the Qwen format stays for the
+benchmark candidates (`bench/finquery_bench/candidates.py`, Qwen3.8 27B), which are never in
+the catalog.
 
 Nothing here imports llama.cpp or either wire-format module, so both stay testable without a
 model and the registry (`finquery.local.model.WIRE_FORMATS`) has somewhere to point.

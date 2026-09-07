@@ -47,11 +47,19 @@ class Settings(BaseSettings):
     local_n_ctx: int = 32768
     """Context cap per resident model, and the size a swapped-in chat model is reloaded at.
 
-    32k is what Gemma 4 E4B and Qwen3.5 9B take together: 13.5 GB inside the 18.2 GB Metal
-    working set of a 24 GB Mac, with flash attention and a q8_0 KV cache. Lower it on a
-    smaller machine. See docs/adr/0006-local-gemma-4-through-llama-cpp.md."""
+    32k is what Gemma 4 E4B and Gemma 4 12B take together: about 12.9 GB inside the 18.2 GB
+    Metal working set of a 24 GB Mac, with flash attention and a q8_0 KV cache. Lower it on a
+    smaller machine, or when the 26B is in the chat seat and `finquery-check` says the pair
+    does not fit. See docs/adr/0006-local-gemma-4-through-llama-cpp.md."""
     # OpenRouter's own tooling expects this exact name, so it is read without the prefix.
     openrouter_api_key: str | None = Field(default=None, validation_alias="OPENROUTER_API_KEY")
+    """The key the cloud entry answers with. From the environment or `.env` at startup; the
+    Settings models card can set or clear it while the app runs (`Catalog.set_openrouter_key`),
+    which also writes it to `key_file` for the next start."""
+    key_file: Path = Path(".env")
+    """Where a key entered in Settings is kept (FINQUERY_KEY_FILE): the `.env` this process
+    reads at startup, so the same line serves both. Only the `OPENROUTER_API_KEY` line is
+    touched."""
     extraction_page_concurrency: int | None = None
     """How many statement pages the extraction sub-agent reads at once. Unset means 4 on the
     local provider (one model, serialized anyway) and 12 on a hosted one, where the pages really
@@ -59,9 +67,9 @@ class Settings(BaseSettings):
     openrouter_fast_model: str = "google/gemma-4-26b-a4b-it"
     """The hosted sub-agent slot: what a sub-agent role set to `fast` runs on when the chat is
     on a cloud entry (FINQUERY_OPENROUTER_FAST_MODEL). Its local counterpart is Gemma 4 E4B.
-    The two hosted chat entries are not settings: they are the catalog's own two ids
-    (`finquery.catalog.HOSTED_CHAT_MODELS`), so both are listed even when this slot happens to
-    point at one of them, which is what development on one hosted model does."""
+    The hosted chat entry is not a setting: it is the catalog's own id
+    (`finquery.catalog.HOSTED_CHAT_MODELS`), so it is listed even when this slot points at it,
+    which is what development on one hosted model does."""
 
     # One setting per sub-agent role (FINQUERY_SUBAGENT_MODEL_<ROLE>). Each takes `chat` (the
     # conversation's own entry, the default), `fast` (its provider's sub-agent slot) or a
@@ -77,6 +85,24 @@ class Settings(BaseSettings):
     def subagent_model(self, role: str) -> str:
         """What one sub-agent role is set to. See `finquery.providers.SUBAGENT_ROLES`."""
         return str(getattr(self, f"subagent_model_{role}"))
+
+
+KEY_LINE = "OPENROUTER_API_KEY"
+
+
+def save_openrouter_key(path: Path, key: str | None) -> None:
+    """Write the key the Settings page took into the env file, replacing the existing line.
+
+    Every other line is kept byte for byte, so a hand-edited `.env` keeps its comments and its
+    order. Clearing writes an empty value rather than dropping the line, so the file still
+    documents where the key goes. A file that does not exist yet is created with the one line.
+    """
+    lines = path.read_text().splitlines() if path.is_file() else []
+    fresh = f"{KEY_LINE}={key or ''}"
+    kept = [line for line in lines if not line.startswith(f"{KEY_LINE}=")]
+    at = next((i for i, line in enumerate(lines) if line.startswith(f"{KEY_LINE}=")), len(kept))
+    kept.insert(at, fresh)
+    path.write_text("\n".join(kept) + "\n")
 
 
 def page_concurrency(settings: Settings) -> int:

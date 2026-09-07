@@ -26,6 +26,7 @@ from finquery.local.catalog import FileSpec, ModelSpec, adapter_path
 from finquery.local.check import solid_png
 from finquery.local.downloads import DownloadManager, Report
 from finquery.local.runtime import LocalStack
+from finquery.providers import with_adapter
 
 from .conftest import NoWeb, chat_body, default_profile_id, make_settings, new_conversation, parse_sse
 
@@ -42,14 +43,15 @@ def spec(key: str, seat: str, name: str, weights_size: int, wire: str) -> ModelS
     )
 
 
-FAST, QWEN, GEMMA = "local:fast", "local:qwen3.5-9b", "local:gemma-4-12b"
+FAST, GEMMA, BIG = "local:gemma-4-e4b", "local:gemma-4-12b", "local:gemma-4-26b"
 
 #: Stand-ins for the three real local models, under the keys the catalog offers them under: the
-#: resident fast slot, and the two chat models that share the other seat, one wire format each.
+#: resident fast slot (E4B, also the smallest chat entry), and the two chat models that share
+#: the other seat.
 TINY_MODELS = {
     FAST: spec(FAST, "fast", "tiny-fast", 8, "gemma"),
-    QWEN: spec(QWEN, "chat", "tiny-quality", 16, "qwen"),
     GEMMA: spec(GEMMA, "chat", "tiny-gemma", 24, "gemma"),
+    BIG: spec(BIG, "chat", "tiny-big", 16, "gemma"),
 }
 
 
@@ -106,12 +108,12 @@ class FakeAdapterApi:
         self.calls.append("free")
 
 
-NAMED = {"fast": FAST, "qwen": QWEN, "gemma": GEMMA}
+NAMED = {"fast": FAST, "gemma": GEMMA, "big": BIG}
 
 
 def _slots(**named: FakeSlot) -> dict[str, FakeSlot]:
-    """A stand-in slot per local model, overridden by keyword: `fast`, `qwen`, `gemma`."""
-    default = {FAST: FakeSlot("tiny-fast"), QWEN: FakeSlot("tiny-quality"), GEMMA: FakeSlot("tiny-gemma")}
+    """A stand-in slot per local model, overridden by keyword: `fast`, `gemma`, `big`."""
+    default = {FAST: FakeSlot("tiny-fast"), GEMMA: FakeSlot("tiny-gemma"), BIG: FakeSlot("tiny-big")}
     return {**default, **{NAMED[name]: slot for name, slot in named.items()}}
 
 
@@ -146,17 +148,14 @@ async def turn(client: httpx.AsyncClient, conversation_id: str, text: str) -> li
 
 
 def _entries(response: httpx.Response) -> list[dict[str, Any]]:
-    """The two local chat entries of a `GET /api/models` body, in catalog order."""
+    """The local chat entries of a `GET /api/models` body, in catalog order."""
     return [entry for entry in response.json()["entries"] if entry["provider"] == "local"]
 
 
 async def test_the_two_local_chat_models_share_one_seat(tmp_path: Path) -> None:
-    """A turn on the other chat model swaps the seat; the fast slot stays put.
-
-    The Qwen prompt ends on an open `<think>`, so that model closes it before answering.
-    """
+    """A turn on the other chat model swaps the seat; the fast slot stays put."""
     slots = _slots(
-        qwen=FakeSlot("tiny-quality", ("Short one.</think>\n\nHello.",)),
+        big=FakeSlot("tiny-big", ("Hello from the 26B.",)),
         gemma=FakeSlot("tiny-gemma", ("Hello from Gemma.",)),
     )
     stack = local_stack(tmp_path, slots)
@@ -165,32 +164,46 @@ async def test_the_two_local_chat_models_share_one_seat(tmp_path: Path) -> None:
         assert body["provider"] == "local"
         assert body["default_key"] == GEMMA
         local_entries = [entry for entry in body["entries"] if entry["provider"] == "local"]
-        assert [entry["key"] for entry in local_entries] == [GEMMA, QWEN]
+        assert [entry["key"] for entry in local_entries] == [FAST, GEMMA, BIG]
         assert all(entry["ready"] and entry["available"] and not entry["loaded"] for entry in local_entries)
         assert all(f["state"] == "ready" for entry in local_entries for f in entry["files"])
         assert [entry["key"] for entry in body["fast_slots"]] == [FAST, "openrouter:fast"]
         assert [(a["name"], a["present"]) for a in body["adapters"]] == [("query", False), ("chart", False)]
 
         profile_id = await default_profile_id(client)
-        await turn(client, await new_conversation(client, profile_id, QWEN), "hi")
-        assert [entry["loaded"] for entry in _entries(await client.get("/api/models"))] == [False, True]
+        await turn(client, await new_conversation(client, profile_id, BIG), "hi")
+        assert [entry["loaded"] for entry in _entries(await client.get("/api/models"))] == [False, False, True]
 
         await turn(client, await new_conversation(client, profile_id, GEMMA), "hi")
         after = _entries(await client.get("/api/models"))
         # One seat: the model that answered last is the one that is loaded.
-        assert [entry["loaded"] for entry in after] == [True, False]
-        assert [entry["n_ctx"] for entry in after] == [32768, 32768]
+        assert [entry["loaded"] for entry in after] == [False, True, False]
+        assert [entry["n_ctx"] for entry in after] == [32768, 32768, 32768]
         # The one that gave up the seat was unloaded, and the fast seat was never taken: with
         # every sub-agent role on `chat`, nothing this turn asked for the fast slot.
-        assert (slots[QWEN].closed, slots[GEMMA].closed, slots[FAST].closed) == (1, 0, 0)
+        assert (slots[BIG].closed, slots[GEMMA].closed, slots[FAST].closed) == (1, 0, 0)
         assert stack.loaded_spec("fast") is None
         assert slots[FAST].requests == []
 
         # Each turn is its answer plus the two post-turn steps (follow-up suggestions and
         # memory distillation), all of them on the entry the conversation runs on rather than
         # on the fast slot, which is what the default `chat` on every sub-agent role means.
-        assert len(slots[QWEN].requests) >= 3
+        assert len(slots[BIG].requests) >= 3
         assert len(slots[GEMMA].requests) >= 3
+
+
+async def test_a_chat_on_e4b_holds_the_fast_seat_and_nothing_is_loaded_twice(tmp_path: Path) -> None:
+    """E4B is a chat entry and the fast slot at once (ticket 67): one seat, one load."""
+    slots = _slots(fast=FakeSlot("tiny-fast", ("Hello from E4B.",)))
+    stack = local_stack(tmp_path, slots)
+    async with local_client(stack) as client:
+        profile_id = await default_profile_id(client)
+        await turn(client, await new_conversation(client, profile_id, FAST), "hi")
+
+        assert stack.loaded_spec("fast") is TINY_MODELS[FAST]
+        assert stack.loaded_spec("chat") is None
+        assert [entry["loaded"] for entry in _entries(await client.get("/api/models"))] == [True, False, False]
+        assert len(slots[FAST].requests) >= 3
 
 
 async def test_thinking_is_split_out_of_the_text_stream(tmp_path: Path) -> None:
@@ -249,74 +262,6 @@ async def test_gemma_tool_call_syntax_becomes_a_tool_part(tmp_path: Path) -> Non
             assert slots[GEMMA].requests[1]["messages"][-1]["role"] == "tool"
 
 
-async def test_qwen_thinking_is_split_across_delta_boundaries(tmp_path: Path) -> None:
-    """The Qwen entry's wire format.
-
-    Qwen's generation prompt already contains `<think>`, so the model starts inside the thought
-    channel and writes the closing tag itself, split over as many tokens as it likes.
-    """
-    reply = ("Adding it ", "up. ", "</th", "ink>", "\n\nYou spent ", "120 EUR.")
-    slots = _slots(qwen=FakeSlot("tiny-quality", reply))
-    async with local_client(local_stack(tmp_path, slots)) as client:
-        profile_id = await default_profile_id(client)
-        conversation_id = await new_conversation(client, profile_id, QWEN)
-        seen = await turn(client, conversation_id, "How much in May?")
-
-        kinds = [c["type"] for c in seen]
-        assert kinds.index("reasoning-end") < kinds.index("text-start")
-        assert "".join(str(c["delta"]) for c in seen if c["type"] == "reasoning-delta") == "Adding it up. "
-        # The two newlines the template puts after the closing tag are not part of the answer.
-        assert "".join(str(c["delta"]) for c in seen if c["type"] == "text-delta") == "You spent 120 EUR."
-
-        request = slots[QWEN].requests[0]
-        assert request["enable_thinking"] is True
-        assert request["stop"] == ["<|im_end|>"]
-        # Qwen3.5's model card, not Gemma's, and no Gemma-only template argument rides along.
-        assert (request["top_k"], request["min_p"]) == (20, 0.0)
-        assert "preserve_thinking" not in request
-
-        detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
-        assert [p["type"] for p in detail["messages"][1]["parts"]] == ["reasoning", "text", "data-context"]
-
-
-async def test_qwen_tool_call_syntax_becomes_a_tool_part_and_its_result_goes_back(tmp_path: Path) -> None:
-    def query(question: str, limit: int) -> str:
-        """Answer a question from the transactions."""
-        return f"{question} -> 120.00 EUR (limit {limit})"
-
-    calling = (
-        "I need the data.</think>\n\n",
-        "<tool_call>\n<function=query>\n<parameter=question>\ngroceries",
-        " in May\n</parameter>\n<parameter=limit>\n20\n</parameter>\n</function>\n</tool_call>",
-    )
-    answering = ("That is the total.</think>\n\nYou spent ", "120 EUR.")
-    slots = _slots(qwen=FakeSlot("tiny-quality", calling, answering))
-    with chat_agent.override(tools=[query]):
-        async with local_client(local_stack(tmp_path, slots)) as client:
-            profile_id = await default_profile_id(client)
-            conversation_id = await new_conversation(client, profile_id, QWEN)
-            seen = await turn(client, conversation_id, "groceries in May?")
-
-            available = [c for c in seen if c["type"] == "tool-input-available"]
-            assert [c["toolName"] for c in available] == ["query"]
-            assert available[0]["input"]["question"] == "groceries in May"
-            # A parameter arrives as text; the tool's own schema is what turns "20" into 20.
-            output = [c for c in seen if c["type"] == "tool-output-available"]
-            assert output[0]["output"] == "groceries in May -> 120.00 EUR (limit 20)"
-            assert "".join(str(c["delta"]) for c in seen if c["type"] == "text-delta") == "You spent 120 EUR."
-
-            first = slots[QWEN].requests[0]
-            assert [t["function"]["name"] for t in first["tools"]] == ["query", "ask_user"]
-            assert first["tool_choice"] == "auto"
-            assert "response_format" not in first
-            # The tool result goes back as a tool message the Qwen template renders as a
-            # `<tool_response>` block, under an assistant message that keeps its reasoning.
-            second = slots[QWEN].requests[1]["messages"]
-            assert second[-1]["role"] == "tool"
-            assert second[-2]["reasoning_content"] == "I need the data."
-            assert second[-2]["tool_calls"][0]["function"]["arguments"]["question"] == "groceries in May"
-
-
 async def test_stop_ends_the_token_loop_and_keeps_the_partial_turn(tmp_path: Path) -> None:
     started = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -371,7 +316,7 @@ async def test_download_progress_endpoint_reports_each_file(tmp_path: Path) -> N
         load=lambda *_: FakeSlot("tiny-gemma"),
     )
     async with local_client(stack) as client:
-        before = _entries(await client.get("/api/models"))[0]
+        before = next(e for e in _entries(await client.get("/api/models")) if e["key"] == GEMMA)
         assert before["ready"] is False
         # A model whose files are missing is listed, unavailable, with what to do about it.
         assert before["available"] is False
@@ -381,7 +326,7 @@ async def test_download_progress_endpoint_reports_each_file(tmp_path: Path) -> N
         assert (await client.post("/api/models/download")).json()["downloading"] is True
         await asyncio.wait_for(halfway.wait(), timeout=5)
 
-        during = _entries(await client.get("/api/models"))[0]["files"][0]
+        during = next(e for e in _entries(await client.get("/api/models")) if e["key"] == GEMMA)["files"][0]
         assert during["state"] == "downloading"
         assert during["downloaded"] == during["size"] // 2
 
@@ -469,13 +414,13 @@ async def test_adapter_falls_back_to_base_weights_with_a_note(tmp_path: Path) ->
 
 
 async def test_the_fallback_note_reaches_the_client_and_the_stored_turn(tmp_path: Path) -> None:
-    # An adapter attaches to the fast slot, so that is the seat the overridden run is held on.
+    # An adapter attaches on the fast seat, so the chat runs on E4B here and asks for the query
+    # adapter by naming it in the model settings; there is no file, so the note is written.
     slots = _slots(fast=FakeSlot("tiny-fast", ("120 EUR.",)))
     stack = local_stack(tmp_path, slots)
-    # A sub-agent asks for its adapter by naming it in the model settings; there is no file.
     with chat_agent.override(model_settings={"finquery_adapter": "query"}):
         async with local_client(stack) as client:
-            conversation_id = await new_conversation(client, await default_profile_id(client), GEMMA)
+            conversation_id = await new_conversation(client, await default_profile_id(client), FAST)
             seen = await turn(client, conversation_id, "groceries?")
 
             metadata = [c for c in seen if c["type"] == "message-metadata"]
@@ -485,6 +430,36 @@ async def test_the_fallback_note_reaches_the_client_and_the_stored_turn(tmp_path
 
             detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
             assert detail["messages"][-1]["metadata"]["audit_notes"] == notes
+
+
+async def test_an_adapter_attaches_on_e4b_and_a_bigger_model_runs_its_own_weights_without_a_note(
+    tmp_path: Path,
+) -> None:
+    """The rule of ticket 67, at the model: the sub-agent asks every time, the seat decides.
+
+    On E4B the query adapter file is attached and detached around the run. On the 12B the same
+    request runs on the base weights with no adapter call and no audit note, because that is
+    what choosing a bigger model means, not a fallback to report.
+    """
+    slots = _slots(fast=FakeSlot("tiny-fast", ("42",)), gemma=FakeSlot("tiny-gemma", ("42",)))
+    stack = local_stack(tmp_path, slots)
+    calls: list[str] = stack.adapters._api.calls  # type: ignore[attr-defined] # noqa: SLF001
+    path = adapter_path(stack.downloads.models_dir, "query")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"lora")
+    settings = with_adapter(None, "query")
+
+    on_e4b = await Agent(stack.resolve(TINY_MODELS[FAST])).run("How much?", model_settings=settings)
+    assert on_e4b.output == "42"
+    assert calls == ["init:query.gguf", "attach", "detach", "free"]
+    assert on_e4b.all_messages()[-1].metadata is None  # type: ignore[union-attr]
+
+    calls.clear()
+    on_12b = await Agent(stack.resolve(TINY_MODELS[GEMMA])).run("How much?", model_settings=settings)
+    assert on_12b.output == "42"
+    assert calls == []
+    assert on_12b.all_messages()[-1].metadata is None  # type: ignore[union-attr]
+    assert len(slots[GEMMA].requests) == 1
 
 
 async def test_models_endpoint_lists_the_whole_catalog_on_openrouter(tmp_path: Path) -> None:
@@ -501,15 +476,89 @@ async def test_models_endpoint_lists_the_whole_catalog_on_openrouter(tmp_path: P
             assert body["provider"] == "openrouter"
             assert body["default_key"] == "openrouter:google/gemma-4-26b-a4b-it"
             assert [(entry["key"], entry["label"]) for entry in body["entries"]] == [
+                (FAST, "Gemma 4 E4B (local)"),
                 (GEMMA, "Gemma 4 12B (local)"),
+                (BIG, "Gemma 4 26B (local)"),
                 ("openrouter:google/gemma-4-26b-a4b-it", "Gemma 4 26B (cloud)"),
-                (QWEN, "Qwen3.5 9B (local)"),
-                ("openrouter:qwen/qwen3.5-9b", "Qwen3.5 9B (cloud)"),
             ]
-            assert [entry["available"] for entry in body["entries"]] == [False, True, False, True]
+            assert [entry["available"] for entry in body["entries"]] == [False, False, False, True]
             assert all("not downloaded" in entry["reason"] for entry in body["entries"] if not entry["available"])
             # The local download endpoint answers on either provider now.
             assert (await client.post("/api/models/download")).status_code == 200
+
+
+QWEN = "local:qwen3.8-27b"
+TINY_QWEN = spec(QWEN, "chat", "tiny-qwen", 16, "qwen")
+
+
+def qwen_stack(tmp_path: Path, slot: FakeSlot) -> LocalStack:
+    """A stack over the catalog stand-ins plus the Qwen benchmark candidate, which the app never
+    lists: the benchmark builds one like it (`finquery_bench.models.local_target`)."""
+    settings = make_settings(provider="local", models_dir=tmp_path / "models")
+    models = {**TINY_MODELS, QWEN: TINY_QWEN}
+    for candidate in models.values():
+        for file in candidate.files:
+            path = candidate.path(settings.models_dir, file)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"x" * file.size)
+    slots = {**_slots(), QWEN: slot}
+    return LocalStack(settings, models=models, load=lambda spec, *_: slots[spec.key])  # type: ignore[arg-type]
+
+
+async def test_the_qwen_wire_format_splits_thinking_and_keeps_its_own_sampling(tmp_path: Path) -> None:
+    """The Qwen format stays for the benchmark candidates (Qwen3.8 27B), driven directly.
+
+    Qwen's generation prompt already contains `<think>`, so the model starts inside the thought
+    channel and writes the closing tag itself, split over as many tokens as it likes.
+    """
+    slot = FakeSlot("tiny-qwen", ("Adding it ", "up. ", "</th", "ink>", "\n\nYou spent ", "120 EUR."))
+    stack = qwen_stack(tmp_path, slot)
+
+    result = await Agent(stack.resolve(TINY_QWEN)).run("How much in May?")
+
+    assert result.output == "You spent 120 EUR."
+    parts = result.all_messages()[-1].parts
+    assert [p.part_kind for p in parts] == ["thinking", "text"]
+    assert parts[0].content == "Adding it up. "  # type: ignore[union-attr]
+    request = slot.requests[0]
+    assert request["enable_thinking"] is True
+    assert request["stop"] == ["<|im_end|>"]
+    # Qwen's model card, not Gemma's, and no Gemma-only template argument rides along.
+    assert (request["top_k"], request["min_p"]) == (20, 0.0)
+    assert "preserve_thinking" not in request
+
+
+async def test_the_qwen_tool_call_syntax_becomes_a_tool_call_and_its_result_goes_back(tmp_path: Path) -> None:
+    def query(question: str, limit: int) -> str:
+        """Answer a question from the transactions."""
+        return f"{question} -> 120.00 EUR (limit {limit})"
+
+    calling = (
+        "I need the data.</think>\n\n",
+        "<tool_call>\n<function=query>\n<parameter=question>\ngroceries",
+        " in May\n</parameter>\n<parameter=limit>\n20\n</parameter>\n</function>\n</tool_call>",
+    )
+    answering = ("That is the total.</think>\n\nYou spent ", "120 EUR.")
+    slot = FakeSlot("tiny-qwen", calling, answering)
+    stack = qwen_stack(tmp_path, slot)
+
+    result = await Agent(stack.resolve(TINY_QWEN), tools=[query]).run("groceries in May?")
+
+    assert result.output == "You spent 120 EUR."
+    calls = [p for m in result.all_messages() for p in m.parts if p.part_kind == "tool-call"]
+    # A parameter arrives as text; the tool's own schema is what turns "20" into 20.
+    assert [(c.tool_name, c.args_as_dict()) for c in calls] == [("query", {"question": "groceries in May", "limit": "20"})]
+    returns = [p for m in result.all_messages() for p in m.parts if p.part_kind == "tool-return"]
+    assert returns[0].content == "groceries in May -> 120.00 EUR (limit 20)"
+    first = slot.requests[0]
+    assert [t["function"]["name"] for t in first["tools"]] == ["query"]
+    assert first["tool_choice"] == "auto"
+    # The tool result goes back as a tool message the Qwen template renders as a
+    # `<tool_response>` block, under an assistant message that keeps its reasoning.
+    second = slot.requests[1]["messages"]
+    assert second[-1]["role"] == "tool"
+    assert second[-2]["reasoning_content"] == "I need the data."
+    assert second[-2]["tool_calls"][0]["function"]["arguments"]["question"] == "groceries in May"
 
 
 async def test_an_image_reaches_the_model_as_a_content_part(tmp_path: Path) -> None:
@@ -532,14 +581,14 @@ async def test_an_image_reaches_the_model_as_a_content_part(tmp_path: Path) -> N
     assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")
 
 
-@pytest.mark.parametrize("key", [FAST, QWEN])
+@pytest.mark.parametrize("key", [FAST, GEMMA])
 async def test_a_schema_constrained_request_forces_a_single_tool(tmp_path: Path, key: str) -> None:
     """The sub-agent shape from tickets 05 and 06, driven directly.
 
-    Sub-agents always run on the fast slot, but the rule is the model's, not the slot's, so
-    both wire formats are held to it: one forced tool, thinking off, no response format beside
-    it. Forcing is what makes llama.cpp build the grammar and emit OpenAI tool-call deltas,
-    which is the one path where neither splitter is involved.
+    A sub-agent runs on whichever entry its role resolves to, and the rule is the model's, not
+    the seat's, so both seats are held to it: one forced tool, thinking off, no response format
+    beside it. Forcing is what makes llama.cpp build the grammar and emit OpenAI tool-call
+    deltas, which is the one path where the splitter is not involved.
     """
 
     class Sql(BaseModel):
@@ -609,7 +658,7 @@ async def test_the_shipped_pair_loads_together_and_the_check_reports_the_headroo
 
     assert report.ok and report.error is None and report.note is None
     assert report.n_ctx == 32768
-    assert report.models == ["Gemma 4 E4B", "tiny-gemma"]
+    assert report.models == ["Gemma 4 E4B (local)", "tiny-gemma"]
     # Both seats are filled at the same time, which is the whole point of the pair check.
     assert stack.loaded_spec("fast") is not None and stack.loaded_spec("fast").key == FAST  # type: ignore[union-attr]
     assert stack.loaded_spec("chat") is TINY_MODELS[GEMMA]

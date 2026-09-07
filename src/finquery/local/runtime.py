@@ -2,9 +2,10 @@
 
 There are two seats in memory, each capped at the configured context so the two fit in 24 GB
 with Metal offload. The `fast` seat holds Gemma 4 E4B and stays resident: every adapter attaches
-there and a sub-agent runs behind almost every turn. The `chat` seat holds one of the two local
-chat models, and choosing the other swaps it: drain the running one, unload it, load the new one
-at the same context size. Three models do not fit and are never loaded together.
+there, a sub-agent runs behind almost every turn, and a chat on the E4B entry runs there too.
+The `chat` seat holds the 12B or the 26B, and choosing the other swaps it: drain the running
+one, unload it, load the new one at the same context size. Three models do not fit and are
+never loaded together.
 
 A seat is filled on its first use, not at startup, so the app can start (and show download
 progress) before any weights exist. See docs/adr/0013-model-catalog-across-providers.md.
@@ -371,10 +372,10 @@ class LocalStack:
         response metadata. A sub-agent asks for this by setting `finquery_adapter` in its model
         settings, never by calling here directly.
 
-        In the app `spec` is always the fast slot, because every sub-agent runs there (ADR 0002
-        and 0013) and that is where the shipped adapters are trained for. It is a parameter
-        because the benchmark can ask for an adapter over a chat model, and attaching that to
-        the fast seat would score E4B while the run claimed to be scoring the 12B.
+        In the app `spec` is always the fast slot, because that is where the shipped adapters
+        are trained for and the only seat `LlamaCppModel._hold` attaches one on. It is a
+        parameter because the benchmark can ask for an adapter over a chat model, and attaching
+        that to the fast seat would score E4B while the run claimed to be scoring the 12B.
         """
         async with self.holding(spec.seat, spec) as loaded:
             with self.adapters.attached_to(name, loaded) as note:

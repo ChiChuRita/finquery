@@ -2,15 +2,18 @@
 
 A **catalog entry** is what a conversation runs on. It names its provider, so choosing an entry
 chooses a provider for that conversation and nothing else: the local entries and the cloud
-entries are live at the same time, and `FINQUERY_PROVIDER` only decides which entry a new
-conversation starts on.
+entry are live at the same time, and `FINQUERY_PROVIDER` only decides which entry a new
+conversation starts on. Four entries since ticket 67: Gemma 4 E4B, 12B and 26B locally, and
+Gemma 4 26B A4B through OpenRouter.
 
-Sub-agents never appear in the catalog. Each sub-agent **role** has a setting saying which model
-it runs on: `chat` (the conversation's own entry, the default), `fast` (the sub-agent slot of
-that entry's provider: Gemma 4 E4B for a local entry, resident, where the adapters attach, and
-`FINQUERY_OPENROUTER_FAST_MODEL` for a cloud one) or a catalog key that pins the role to one
-model. That is the whole resolution rule, and `Catalog.for_role` is where it lives;
-`Catalog.resolver` binds it to one entry and hands a turn a role to model callable.
+Each sub-agent **role** has a setting saying which model it runs on: `chat` (the conversation's
+own entry, the default), `fast` (the sub-agent slot of that entry's provider: the Gemma 4 E4B
+entry for a local one, resident, where the adapters attach, and `FINQUERY_OPENROUTER_FAST_MODEL`
+for a cloud one) or a catalog key that pins the role to one model. That is the whole resolution
+rule, and `Catalog.for_role` is where it lives; `Catalog.resolver` binds it to one entry and
+hands a turn a role to model callable. The query and chart sub-agents ask for their LoRA
+adapter on every run and get it exactly when they land on E4B (`finquery.local.model`), so a
+chat on E4B runs the fine-tuned sub-agents and a chat on a bigger model runs its base weights.
 
 See docs/adr/0013-model-catalog-across-providers.md, which amends 0002 and 0006, and the 0006
 amendment of ticket 61 for why the shipped pair is Gemma 4 12B with E4B.
@@ -47,12 +50,18 @@ LEGACY_KEYS = ("fast", "quality")
 configured provider: `fast` was the sub-agent slot, never a chat choice the user meant to
 keep, and `quality` was a position rather than a model."""
 
-HOSTED_CHAT_MODELS: tuple[str, str] = ("google/gemma-4-26b-a4b-it", "qwen/qwen3.5-9b")
-"""The two OpenRouter ids the catalog offers as chat entries, in the order the picker lists
-them. Gemma 4 26B A4B is first because it is the family the demo ships locally (Gemma 4 12B,
-which OpenRouter does not serve) and so the closest hosted stand-in for it; Qwen3.5 9B is the
-alternative. They are constants rather than settings so that both entries are always offered,
-including while `FINQUERY_OPENROUTER_FAST_MODEL` points at one of them."""
+HOSTED_CHAT_MODELS: tuple[str, ...] = ("google/gemma-4-26b-a4b-it",)
+"""The OpenRouter ids the catalog offers as chat entries. Gemma 4 26B A4B is the family the demo
+ships locally (OpenRouter serves no Gemma 4 12B) and the same model as `local:gemma-4-26b`, so a
+question can be compared on the two. A constant rather than a setting so the entry is always
+offered, including while `FINQUERY_OPENROUTER_FAST_MODEL` points at it."""
+
+DEFAULT_KEYS: dict[Provider, str] = {
+    "local": "local:gemma-4-12b",
+    "openrouter": f"openrouter:{HOSTED_CHAT_MODELS[0]}",
+}
+"""The entry a new conversation starts on per provider. The 12B locally, because the cluster
+benchmark of 2026-09-06 decided it, not the smallest entry the picker lists first."""
 
 
 @dataclass(frozen=True)
@@ -60,7 +69,7 @@ class Entry:
     """One chat model the picker offers, on one provider."""
 
     key: str
-    """Stable id, stored on conversations and turns: `local:qwen3.5-9b`, `openrouter:<id>`."""
+    """Stable id, stored on conversations and turns: `local:gemma-4-12b`, `openrouter:<id>`."""
     label: str
     provider: Provider
     local: ModelSpec | None = None
@@ -91,18 +100,10 @@ def local_entry(spec: ModelSpec) -> Entry:
 
 
 def build_entries() -> list[Entry]:
-    """The four entries, in the order the picker lists them: local, cloud, local, cloud.
-
-    The shipped pair comes first, so the entry a new conversation starts on is the first of its
-    provider: Gemma 4 12B locally (the cluster benchmark of 2026-09-06 decided it) and Gemma 4
-    26B A4B in the cloud. Qwen3.5 9B stays as the alternative on both.
-    """
-    return [
-        local_entry(LOCAL_CHAT_MODELS[0]),
-        hosted_entry(HOSTED_CHAT_MODELS[0]),
-        local_entry(LOCAL_CHAT_MODELS[1]),
-        hosted_entry(HOSTED_CHAT_MODELS[1]),
-    ]
+    """The four entries, in the order the picker lists them: the three local Gemma 4 sizes
+    small to large, then the cloud one. E4B is both the smallest chat entry and the local fast
+    slot, so it appears here and in `Catalog.fast_slots` under one key."""
+    return [local_entry(LOCAL_FAST), *(local_entry(spec) for spec in LOCAL_CHAT_MODELS), *map(hosted_entry, HOSTED_CHAT_MODELS)]
 
 
 class Catalog:
@@ -133,10 +134,9 @@ class Catalog:
 
     @property
     def default_key(self) -> str:
-        """The entry a new conversation starts on: the first entry of the configured provider,
-        which is Gemma 4 12B locally and Gemma 4 26B A4B in the cloud."""
-        wanted = "local" if self.settings.provider == "local" else "openrouter"
-        return next(entry.key for entry in self.entries if entry.provider == wanted)
+        """The entry a new conversation starts on: Gemma 4 12B locally, Gemma 4 26B A4B in the
+        cloud (`DEFAULT_KEYS`)."""
+        return DEFAULT_KEYS[self.settings.provider]
 
     def key_of(self, stored: str | None) -> str:
         """Read a stored value as a catalog key, mapping the pre-catalog `fast` and `quality`.
@@ -157,12 +157,13 @@ class Catalog:
     def for_role(self, key: str, role: Role) -> Entry:
         """The entry a role resolves to, for a conversation on `key`.
 
-        `chat` is that entry itself and `fast` its provider's sub-agent slot. A sub-agent role
-        is one setting (`FINQUERY_SUBAGENT_MODEL_<ROLE>`) holding one of those two words, which
-        it then follows, or a catalog key pinning that role to one model whatever the
-        conversation runs on. The default is `chat`, so a sub-agent runs on the model the user
-        picked: Gemma 4 12B on the demo machine, where the benchmark says the sub-agent path is
-        87 percent right against E4B's 66 (`bench/results/20260906-cluster-compare.md`).
+        `chat` is that entry itself and `fast` its provider's sub-agent slot (the Gemma 4 E4B
+        entry locally). A sub-agent role is one setting (`FINQUERY_SUBAGENT_MODEL_<ROLE>`)
+        holding one of those two words, which it then follows, or a catalog key pinning that
+        role to one model whatever the conversation runs on. The default is `chat`, so a
+        sub-agent runs on the model the user picked: the fine-tuned E4B sub-agents on a chat on
+        E4B, the base weights of the 12B or the 26B on a chat there, where the benchmark says the
+        sub-agent path is 87 percent right against E4B's 66 (`bench/results/20260906-cluster-compare.md`).
         """
         if role not in MODEL_ROLES:
             wanted = self.settings.subagent_model(role)
@@ -178,6 +179,13 @@ class Catalog:
         The models card shows this, because a setting saying `chat` is only half an answer.
         """
         return {role: self.for_role(key, role) for role in SUBAGENT_ROLES}
+
+    def set_openrouter_key(self, key: str | None) -> None:
+        """Take a key from the Settings page: the cloud entry answers with it from the next
+        request on. The hosted models built with the old key are dropped, so nothing keeps
+        sending a key the user just replaced. Persisting it is `finquery.settings.save_openrouter_key`."""
+        self.settings.openrouter_api_key = key
+        self._hosted.clear()
 
     def availability(self, entry: Entry) -> Availability:
         """Can this entry answer, and if not, what the user can do about it."""

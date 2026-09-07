@@ -16,7 +16,7 @@ from finquery.chart.fold import fold_rows
 from finquery.chart.selfcheck import check_chart_code, data_findings
 from finquery.chart.shapes import MAX_SERIES, SHAPES
 from finquery.chart.subagent import ChartCode, ChartPlan, write_code, write_plan
-from finquery.providers import ModelResolver, ProviderNotAvailable
+from finquery.providers import ModelResolver, ProviderNotAvailable, with_adapter
 from finquery.query import QueryOutcome, load_query_context, run_query
 from finquery.query.runner import figures, is_euro_column
 
@@ -257,6 +257,9 @@ async def run_chart(
         model = resolve_model("chart")
     except ProviderNotAvailable as exc:
         return _failed(request, f"The chart sub-agent is unavailable: {exc}")
+    # The fine-tuned chart adapter, attached when this run lands on Gemma 4 E4B and ignored
+    # on any other model (ticket 67).
+    model_settings = with_adapter(model_settings, "chart")
 
     try:
         plan = await write_plan(

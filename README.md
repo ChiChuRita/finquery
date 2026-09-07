@@ -25,15 +25,18 @@ SQLite database lives in `data/finquery.db` (override with `FINQUERY_DB_PATH`). 
 database opens with onboarding; "Load the sample year" in its last step imports the shipped
 synthetic dataset, which is also where the demo starts (`docs/demo-script.md`).
 
-The picker offers four chat models across both providers, and a conversation stores which one
-it runs on:
+The picker offers four chat models, three Gemma 4 sizes on this machine and one in the cloud,
+and a conversation stores which one it runs on:
 
 | Catalog entry | Where it runs | What it is for |
 | --- | --- | --- |
-| `local:gemma-4-12b` | this process, llama-cpp with Metal | the demo default: 87 % figure match on the SQL benchmark, 81 % on charts |
-| `openrouter:google/gemma-4-26b-a4b-it` | OpenRouter | the hosted default, same family and wire format, for development |
-| `local:qwen3.5-9b` | this process | the local alternative (70 % and 42 %) |
-| `openrouter:qwen/qwen3.5-9b` | OpenRouter | the same weights hosted, for comparing the two side by side |
+| `local:gemma-4-e4b` | this process, llama-cpp with Metal | the fast one, and the model the LoRA adapters are trained on: a chat here runs the fine-tuned query and chart sub-agents (66 % and 45 % before the adapters) |
+| `local:gemma-4-12b` | this process | the demo default: 87 % figure match on the SQL benchmark, 81 % on charts, sub-agents on its own weights |
+| `local:gemma-4-26b` | this process | the biggest local one, Gemma 4 26B A4B at UD-Q3_K_XL so it fits next to E4B in 24 GB |
+| `openrouter:google/gemma-4-26b-a4b-it` | OpenRouter | the same 26B hosted, for development and for comparing the two; needs a key, which Settings takes |
+
+Qwen3.5 9B was the fourth entry until it scored below the 12B in every column of the cluster
+benchmark; it left in ticket 67.
 
 Behind the chat, every job with a model of its own is a sub-agent: SQL, chart, categorizer,
 extraction, memory, summary and web lookup. Each of those seven roles has a setting saying which
@@ -49,7 +52,8 @@ Settings (environment or `.env`):
 | Variable                                | Default                    | Meaning                                    |
 | --------------------------------------- | -------------------------- | ------------------------------------------ |
 | `FINQUERY_PROVIDER`                     | `openrouter`               | `openrouter` or `local`                    |
-| `OPENROUTER_API_KEY`                    |                            | Required for `openrouter`                  |
+| `OPENROUTER_API_KEY`                    |                            | For the cloud entry; the Settings page can set it too |
+| `FINQUERY_KEY_FILE`                     | `.env`                     | Where a key entered in Settings is written  |
 | `FINQUERY_OPENROUTER_FAST_MODEL`        | `google/gemma-4-26b-a4b-it`| Hosted model behind the fast slot          |
 | `FINQUERY_SUBAGENT_MODEL_<ROLE>`        | `chat`                     | Model per sub-agent role: `chat`, `fast` or a catalog key |
 | `FINQUERY_DB_PATH`                      | `data/finquery.db`         | SQLite file                                |

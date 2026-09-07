@@ -196,16 +196,16 @@ period (a period is what a chart is about).
 ## Models
 
 **Catalog entry**: one chat model the picker offers, keyed by a stable string and belonging to
-one provider: `local:gemma-4-12b`, `openrouter:google/gemma-4-26b-a4b-it`, `local:qwen3.5-9b`,
-`openrouter:qwen/qwen3.5-9b`. The first of a provider is the entry a new conversation starts
-on there. It carries a label, its provider, its local weights or
-its hosted id, and its availability with a reason when it cannot answer. A conversation, a turn
-and a profile default all store the key. See ADR 0013. Avoid: model slot (that is the role
-below), tier, engine.
+one provider: `local:gemma-4-e4b`, `local:gemma-4-12b`, `local:gemma-4-26b` and
+`openrouter:google/gemma-4-26b-a4b-it`. A new conversation starts on the 12B locally and on the
+26B in the cloud (`Catalog.DEFAULT_KEYS`). It carries a label, its provider, its local weights
+or its hosted id, and its availability with a reason when it cannot answer. A conversation, a
+turn and a profile default all store the key. Qwen3.5 9B was an entry on both providers until
+ticket 67. See ADR 0013. Avoid: model slot (that is the role below), tier, engine.
 
 **Model role**: what a model is being asked to be in one turn, **chat** or **fast**. Chat is the
-conversation's catalog entry; fast is the sub-agent slot of that entry's provider (Gemma 4 E4B
-locally, `FINQUERY_OPENROUTER_FAST_MODEL` in the cloud). Those two lines are the whole
+conversation's catalog entry; fast is the sub-agent slot of that entry's provider (the Gemma 4
+E4B entry locally, `FINQUERY_OPENROUTER_FAST_MODEL` in the cloud). Those two lines are the whole
 resolution rule and they live in `finquery.catalog`. Before ticket 54 a role was called a slot
 and `fast`/`quality` were also the two chat choices; a stored `fast` or `quality` now reads as
 the default entry of the configured provider. Avoid: slot (unqualified), position.
@@ -218,9 +218,10 @@ because a setting chooses a model for a kind of work and not for a module. The m
 lists them with what each resolves to. Avoid: sub-agent slot, tier.
 
 **Seat**: one of the two places a local model can be loaded. The fast seat holds Gemma 4 E4B and
-stays resident, because every adapter attaches there. The chat seat holds one of the two local
-chat models, Gemma 4 12B by default, and choosing the other drains the seat, unloads it and
-loads the new one at the same context: three models do not fit in 24 GB. If the pair does not
+stays resident, because every adapter attaches there; a chat on the E4B entry runs in that same
+seat. The chat seat holds the 12B or the 26B, Gemma 4 12B by default, and choosing the other
+drains the seat, unloads it and loads the new one at the same context: three models do not fit
+in 24 GB. If the pair does not
 fit at the configured context, the chat seat is the one that gives context up, never the fast
 seat, which is what `uv run finquery-check` reports. See ADR 0013 and the ticket 61 amendment
 of ADR 0006. Avoid: slot, instance.
@@ -239,9 +240,9 @@ worker.
 
 **Wire format**: how one local model writes a whole turn into a single text stream: the markers
 around its thinking, the syntax of its tool calls, and what its chat template calls the
-reasoning of an earlier assistant message. Gemma 4 and Qwen3.5 have one each, so the local
-provider has one module each and picks it from the model, not from the slot. Avoid: chat format
-(llama.cpp's word for the template itself), protocol.
+reasoning of an earlier assistant message. The local provider picks it from the model, not from
+the seat; Gemma 4 is the one format shipped (Qwen3.5 had a second until ticket 67). Avoid: chat
+format (llama.cpp's word for the template itself), protocol.
 
 **Adapter**: a LoRA adapter attached to the fast seat for one sub-agent (query, chart) on the
 local provider. It attaches on that seat and nowhere else, so a role running on the chat entry

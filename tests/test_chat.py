@@ -59,10 +59,10 @@ async def test_health(client: httpx.AsyncClient) -> None:
     assert response.json() == {
         "provider": "openrouter",
         "models": [
+            "local:gemma-4-e4b",
             "local:gemma-4-12b",
+            "local:gemma-4-26b",
             "openrouter:google/gemma-4-26b-a4b-it",
-            "local:qwen3.5-9b",
-            "openrouter:qwen/qwen3.5-9b",
         ],
     }
 
@@ -418,10 +418,11 @@ async def test_a_turn_keeps_the_entry_that_produced_it_when_the_conversation_swi
 ) -> None:
     """Story 10: a turn's model label is what produced it and never changes."""
     keys = await model_keys(client)
-    cloud_qwen, cloud_gemma = keys[1], keys[3]
-    scripts.entries[cloud_qwen] = script("The Qwen answer.")
-    scripts.entries[cloud_gemma] = script("The Gemma answer.")
-    conversation_id = await new_conversation(client, profile_id, cloud_qwen)
+    # The scripted resolver stands in for every entry, so a local one answers here too.
+    local_gemma, cloud_gemma = keys[1], keys[3]
+    scripts.entries[local_gemma] = script("The local answer.")
+    scripts.entries[cloud_gemma] = script("The cloud answer.")
+    conversation_id = await new_conversation(client, profile_id, local_gemma)
 
     await chat(conversation_id, "first question")
     patched = await client.patch(f"/api/conversations/{conversation_id}", json={"model_key": cloud_gemma})
@@ -430,7 +431,7 @@ async def test_a_turn_keeps_the_entry_that_produced_it_when_the_conversation_swi
 
     detail = (await client.get(f"/api/conversations/{conversation_id}")).json()
     assistants = [m for m in detail["messages"] if m["role"] == "assistant"]
-    assert [m["metadata"]["model_key"] for m in assistants] == [cloud_qwen, cloud_gemma]
+    assert [m["metadata"]["model_key"] for m in assistants] == [local_gemma, cloud_gemma]
 
 
 async def test_the_prompt_carries_the_language_money_and_bulk_rules(
@@ -714,7 +715,7 @@ async def test_a_slot_the_provider_cannot_give_is_one_sentence_not_a_crash(
 
     def refuses(key: str, role: str):
         if role == "chat":
-            raise ProviderNotAvailable("Qwen3.5 9B is not downloaded yet. Open Settings to fetch it.")
+            raise ProviderNotAvailable("Gemma 4 26B (local) is not downloaded yet. Open Settings to fetch it.")
         return scripts.resolve(key, role)
 
     conversation_id = await new_conversation(client, await default_profile_id(client))
@@ -723,6 +724,6 @@ async def test_a_slot_the_provider_cannot_give_is_one_sentence_not_a_crash(
     response = await client.post(f"/api/conversations/{conversation_id}/chat", json=chat_body("go", conversation_id))
 
     assert response.status_code == 503
-    assert response.json()["detail"] == "Qwen3.5 9B is not downloaded yet. Open Settings to fetch it."
+    assert response.json()["detail"] == "Gemma 4 26B (local) is not downloaded yet. Open Settings to fetch it."
     # And nothing was left behind: no half a turn to explain away on the next load.
     assert (await client.get(f"/api/conversations/{conversation_id}")).json()["messages"] == []

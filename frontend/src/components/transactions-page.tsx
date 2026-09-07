@@ -365,13 +365,17 @@ export function TransactionsPage() {
                 ))}
               </SelectContent>
             </Select>
-            <ConfirmRecategorizeDialog
-              count={selectedIds.length}
-              disabled={target === NOTHING_CHOSEN}
-              onConfirm={() => recategorize.mutateAsync()}
-              pending={recategorize.isPending}
-              target={targetName}
-            />
+            {/* No target, no button: a grey Recategorize next to a live Delete reads as broken.
+                The select above is the step that makes it appear. */}
+            {target !== NOTHING_CHOSEN && (
+              <ConfirmRecategorizeDialog
+                count={selectedIds.length}
+                disabled={false}
+                onConfirm={() => recategorize.mutateAsync()}
+                pending={recategorize.isPending}
+                target={targetName}
+              />
+            )}
           </div>
 
           <ConfirmDeleteDialog

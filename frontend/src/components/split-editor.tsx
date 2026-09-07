@@ -98,14 +98,12 @@ export function SplitEditor({
     <div className="border-t bg-muted/30 px-3 py-3 sm:px-10">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 pb-2">
         <h3 className="font-medium text-xs">Split of {formatEur(transaction.amount_cents)}</h3>
-        <p className="text-2xs text-muted-foreground">
-          Queries and charts count the legs of a split, never the transaction itself.
-        </p>
       </div>
 
       {legs.length === 0 ? (
         <p className="pb-2 text-muted-foreground text-xs">
-          This transaction is one booking in one category. Add a leg to spread it over several.
+          One booking, one category. Add a leg to spread it over several; queries count the legs, not
+          the booking.
         </p>
       ) : (
         <ul className="space-y-1.5 pb-2">

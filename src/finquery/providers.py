@@ -47,11 +47,10 @@ Role = ModelRole | SubagentRole
 
 KNOWN_LABELS: dict[str, str] = {
     "google/gemma-4-26b-a4b-it": "Gemma 4 26B",
-    "qwen/qwen3.5-9b": "Qwen3.5 9B",
 }
 """What the UI calls the hosted models it ships with. The local labels live on the catalog
 entries; both reach the browser through `GET /api/models`, so a selector never names a model
-that is not running. See docs/adr/0006 for why the quality slot is Qwen."""
+that is not running."""
 
 
 def openrouter_label(model_id: str) -> str:
@@ -131,7 +130,7 @@ class HostedModel(WrapperModel):
             yield stream
 
 
-NO_API_KEY = "OPENROUTER_API_KEY is not set, so the hosted models cannot answer. Put it in .env."
+NO_API_KEY = "OPENROUTER_API_KEY is not set, so the cloud model cannot answer. Enter a key in Settings or put it in .env."
 
 
 def hosted_model(settings: Settings, model_id: str) -> Model:
@@ -173,6 +172,18 @@ context is full (ticket 11 measured six minutes and a prompt past n_ctx for thre
 local fast slot). This is the ceiling that stops it: a call that hits it fails its validation
 and is retried once, instead of running away.
 """
+
+
+def with_adapter(model_settings: ModelSettings | None, name: str) -> ModelSettings:
+    """The settings of a sub-agent run that has a LoRA adapter of its own, `query` or `chart`.
+
+    Only the local provider reads `finquery_adapter` (`finquery.local.model.LocalModelSettings`)
+    and it attaches the adapter exactly when the run lands on Gemma 4 E4B, the base the adapters
+    were trained on; a hosted model and a bigger local model ignore it. So the sub-agent asks
+    every time and the seat decides, which is what makes "E4B runs the fine-tuned sub-agents,
+    the 12B and the 26B run their own base weights" one rule with no provider check anywhere.
+    """
+    return {**(model_settings or {}), "finquery_adapter": name}  # type: ignore[typeddict-unknown-key]
 
 
 def subagent_settings() -> ModelSettings:

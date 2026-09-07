@@ -5,11 +5,14 @@ import { useState } from 'react'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Spinner } from '@/components/ui/spinner'
 import {
+  clearOpenRouterKey,
   modelsQuery,
   runSanityCheck,
+  saveOpenRouterKey,
   startModelDownload,
   type CatalogEntry,
   type ModelFile,
@@ -64,9 +67,9 @@ function FileRow({ file }: { file: ModelFile }) {
 
 /** What the badge on one model says.
  *
- * "loaded" is a fact about a GGUF sitting in this process's memory, and the two local chat
- * models share one seat, so at most one of them ever says it. A cloud model is neither loaded
- * nor on disk; it is simply reachable, or it has no API key.
+ * "loaded" is a fact about a GGUF sitting in this process's memory. The 12B and the 26B share
+ * one seat, so at most one of them ever says it; E4B has a seat of its own. A cloud model is
+ * neither loaded nor on disk; it is simply reachable, or it has no API key.
  */
 function modelState(model: CatalogEntry): { text: string; variant: 'warning' | 'secondary' | 'success' } {
   if (model.provider === 'openrouter') {
@@ -140,6 +143,71 @@ function CheckReport({ report, label }: { report: SanityReport; label: string })
   )
 }
 
+/**
+ * The OpenRouter key, for the cloud entry. Saved keys go to `.env` on this machine and are only
+ * ever sent to OpenRouter; the server hands back the last four characters and nothing more.
+ */
+function OpenRouterKey({ hint }: { hint: string | null }) {
+  const queryClient = useQueryClient()
+  const [key, setKey] = useState('')
+  const save = useMutation({
+    mutationFn: saveOpenRouterKey,
+    onSuccess: (next) => {
+      queryClient.setQueryData(modelsQuery.queryKey, next)
+      setKey('')
+    },
+  })
+  const clear = useMutation({
+    mutationFn: clearOpenRouterKey,
+    onSuccess: (next) => queryClient.setQueryData(modelsQuery.queryKey, next),
+  })
+  const trimmed = key.trim()
+  const error = save.error ?? clear.error
+
+  return (
+    <form
+      className="mt-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (trimmed) save.mutate(trimmed)
+      }}
+    >
+      <p className="font-medium text-xs">OpenRouter key</p>
+      <p className="text-2xs text-muted-foreground">
+        {hint
+          ? `The cloud entry answers with a key ending in ${hint.slice(3)}. `
+          : 'The cloud entry cannot answer without one. '}
+        It is kept in <span className="font-mono">.env</span> on this machine and sent only to OpenRouter.
+      </p>
+      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        <Input
+          aria-label="OpenRouter API key"
+          autoComplete="off"
+          className="max-w-xs font-mono text-xs"
+          onChange={(event) => setKey(event.target.value)}
+          placeholder="sk-or-v1-..."
+          type="password"
+          value={key}
+        />
+        <Button disabled={!trimmed || save.isPending} size="sm" type="submit">
+          {save.isPending && <Spinner data-icon="inline-start" />}
+          {hint ? 'Replace key' : 'Save key'}
+        </Button>
+        {hint && (
+          <Button disabled={clear.isPending} onClick={() => clear.mutate()} size="sm" type="button" variant="outline">
+            Forget key
+          </Button>
+        )}
+      </div>
+      {error && (
+        <p className="mt-1 text-destructive text-xs" role="alert">
+          The key could not be saved: {String(error)}
+        </p>
+      )}
+    </form>
+  )
+}
+
 export function ModelsCard() {
   const queryClient = useQueryClient()
   const { data, error, isPending } = useQuery(modelsQuery)
@@ -159,7 +227,12 @@ export function ModelsCard() {
       </p>
     )
 
-  const localModels = [...data.entries, ...data.fast_slots].filter((model) => model.provider === 'local')
+  // The local fast slot is the Gemma 4 E4B entry itself, so it is drawn once, with both jobs
+  // named; the hosted slot is a model nobody picks and is listed after the entries.
+  const entryKeys = new Set(data.entries.map((model) => model.key))
+  const slotKeys = new Set(data.fast_slots.map((model) => model.key))
+  const slotsOnly = data.fast_slots.filter((model) => !entryKeys.has(model.key))
+  const localModels = [...data.entries, ...slotsOnly].filter((model) => model.provider === 'local')
   const missing = localModels.some((model) => !model.ready)
   const loaded = localModels.filter((model) => model.loaded).map((model) => model.label)
 
@@ -191,14 +264,18 @@ export function ModelsCard() {
 
       <div className="mt-3 flex flex-col gap-2">
         {data.entries.map((model) => (
-          <ModelBlock key={model.key} model={model} />
+          <ModelBlock
+            key={model.key}
+            model={model}
+            note={slotKeys.has(model.key) ? 'chat model and sub-agent fast slot, where the adapters attach' : undefined}
+          />
         ))}
-        {/* The sub-agent slots are models the app runs that nobody picks, so they are listed
-            here and never in the chooser. */}
-        {data.fast_slots.map((model) => (
+        {slotsOnly.map((model) => (
           <ModelBlock key={model.key} model={model} note="sub-agent fast slot" />
         ))}
       </div>
+
+      <OpenRouterKey hint={data.openrouter_key_hint} />
 
       {data.roles.length > 0 && (
         <div className="mt-3">
@@ -223,6 +300,10 @@ export function ModelsCard() {
       {data.adapters.length > 0 && (
         <div className="mt-3">
           <p className="font-medium text-xs">Adapters</p>
+          <p className="text-2xs text-muted-foreground">
+            Fine-tuned for Gemma 4 E4B. A chat on E4B runs the query and chart sub-agents with them; a chat on the
+            12B or the 26B runs them on that model's own weights.
+          </p>
           <ul className="mt-1 flex flex-col gap-0.5">
             {data.adapters.map((adapter) => (
               <li className="flex items-center gap-2 text-xs" key={adapter.name}>
@@ -234,8 +315,8 @@ export function ModelsCard() {
                     </>
                   ) : (
                     <>
-                      no file at <span className="font-mono">{adapter.path}</span>, a role on the fast slot runs on
-                      the base weights
+                      no file at <span className="font-mono">{adapter.path}</span>, so on E4B the {adapter.name}{' '}
+                      sub-agent runs on the base weights
                     </>
                   )}
                 </span>

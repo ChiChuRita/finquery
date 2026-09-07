@@ -1,10 +1,11 @@
-"""A Pydantic AI model over llama-cpp-python, for either local model.
+"""A Pydantic AI model over llama-cpp-python, for any local model.
 
 The chat template inside the GGUF does the prompt building, so this module's job is the two
 translations around it: Pydantic AI messages to the OpenAI-shaped dicts the template expects,
 and the model's single text stream back to thinking parts, text parts and tool calls. Which
-template that is decides the details, and those live in `finquery.local.gemma` (Gemma 4 E4B and
-Gemma 4 12B) and `finquery.local.qwen` (Qwen3.5 9B), picked per model through `WIRE_FORMATS`.
+template that is decides the details, and those live in `finquery.local.gemma` (the three Gemma 4
+sizes the catalog offers) and `finquery.local.qwen` (Qwen3.5 and Qwen3.8, benchmark candidates
+only since ticket 67), picked per model through `WIRE_FORMATS`.
 
 Two rules from the spec hold for both. Thinking is switched on through the chat template
 rather than a request flag, and schema-constrained output is never combined with free tool
@@ -49,7 +50,7 @@ from pydantic_ai.usage import RequestUsage
 
 from finquery.local import gemma, qwen
 from finquery.local.catalog import ModelSpec
-from finquery.local.runtime import LocalStack, Slot, adapter_note, audited
+from finquery.local.runtime import LocalStack, Slot, adapter_note
 from finquery.local.wire import Event, Sampling, WireFormat, WireName
 from finquery.providers import ModelRole
 
@@ -62,7 +63,7 @@ WIRE_FORMATS: dict[WireName, WireFormat] = {
         splitter=gemma.StreamSplitter,
         stop=gemma.STOP,
         # The Gemma 4 model card's sampling settings; min_p and the two penalties are what
-        # llama-cpp-python's chat handler defaults to, spelled out so both models say it.
+        # llama-cpp-python's chat handler defaults to, spelled out so both formats say it.
         sampling=Sampling(temperature=1.0, top_p=0.95, top_k=64, min_p=0.05, presence_penalty=0.0, repeat_penalty=1.1),
         reasoning_key="reasoning",
         # This template opens the thought channel only after a tool response.
@@ -73,7 +74,8 @@ WIRE_FORMATS: dict[WireName, WireFormat] = {
     "qwen": WireFormat(
         splitter=qwen.StreamSplitter,
         stop=qwen.STOP,
-        # The Qwen3.5 model card's thinking-mode settings for general tasks.
+        # The Qwen3.5 model card's thinking-mode settings for general tasks; Qwen3.8 shares
+        # the template and the architecture (`model_type` qwen3_5).
         sampling=Sampling(temperature=1.0, top_p=0.95, top_k=20, min_p=0.0, presence_penalty=1.5, repeat_penalty=1.0),
         reasoning_key="reasoning_content",
         # With thinking on, the generation prompt itself ends on `<think>`.
@@ -199,9 +201,11 @@ class LlamaCppModel(Model):
         """Take the seat for this request, with the sub-agent's adapter attached if asked.
 
         An adapter is trained against the fast seat's base weights (Gemma 4 E4B, ADR 0006), so
-        it is only ever attached there. A sub-agent role that runs on the chat entry asks for
-        its adapter the same way and simply does not get one: the alternative would be
-        attaching E4B's LoRA to a 12B, which is not the same model.
+        it is only ever attached there. The query and chart sub-agents ask for theirs on every
+        run (`finquery.providers.with_adapter`); on E4B they get it, and on the 12B or the 26B
+        they run on that model's own weights, which is the rule of ticket 67 and not a fallback,
+        so no audit note is written for it. The one fallback that is noted is an adapter file
+        missing on E4B (`AdapterRegistry.attached_to`).
         """
         # The benchmark scores adapters trained for the chat seat's base too; it says so with
         # FINQUERY_ADAPTERS_ANY_SEAT=1 and points FINQUERY_MODELS_DIR at that base's own adapters
@@ -212,13 +216,8 @@ class LlamaCppModel(Model):
             async with self._stack.with_adapter(adapter, self._spec) as loaded:  # type: ignore[arg-type]
                 yield loaded
             return
-        note = None if adapter is None else (
-            f"The {adapter} adapter is trained on the fast slot's weights, and this run is on "
-            f"{self._spec.label}, so it answered on the base weights."
-        )
         async with self._stack.holding(self._spec.seat, self._spec) as loaded:
-            with audited(note):
-                yield loaded
+            yield loaded
 
 
 

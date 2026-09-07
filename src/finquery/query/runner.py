@@ -21,7 +21,7 @@ from pydantic_ai.settings import ModelSettings
 from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.formats import eur
-from finquery.providers import ModelResolver, ProviderNotAvailable
+from finquery.providers import ModelResolver, ProviderNotAvailable, with_adapter
 from finquery.query.check import CHECKING, KEPT, REWRITING, causes, check_result, degenerate_reason
 from finquery.query.guard import MAX_ROWS, Rows, SqlFailed, SqlRejected, execute_read_only, validate_sql
 from finquery.query.subagent import (
@@ -172,6 +172,9 @@ async def run_query(
     except ProviderNotAvailable as exc:
         unavailable = f"The query sub-agent is unavailable: {exc}"
         return QueryOutcome(request=request, summary=unavailable, error=unavailable)
+    # The fine-tuned query adapter, attached when this run lands on Gemma 4 E4B and ignored
+    # on any other model (ticket 67).
+    model_settings = with_adapter(model_settings, "query")
 
     rejected: Rejection | None = None
     revised: Revision | None = None

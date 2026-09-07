@@ -94,7 +94,7 @@ class Conversation(Base):
     model_slot: Mapped[str] = mapped_column(String(16), default="")
     """Before the model catalog (ticket 54) this held `fast` or `quality`. New rows leave it
     empty and `model_key` is the model; it is kept because an existing database declares it
-    NOT NULL, and an old value still reads as the Qwen entry of the configured provider through
+    NOT NULL, and an old value still reads as the default entry of the configured provider through
     `finquery.catalog.Catalog.key_of`."""
     model_key: Mapped[str | None] = mapped_column(String(64), default=None)
     """The catalog entry this conversation runs on. Its provider is also where the sub-agents
@@ -121,7 +121,7 @@ class Turn(Base):
     model_slot: Mapped[str] = mapped_column(String(16), default="")
     """Before the model catalog (ticket 54) this held `fast` or `quality`. New rows leave it
     empty and `model_key` is the model; it is kept because an existing database declares it
-    NOT NULL, and an old value still reads as the Qwen entry of the configured provider through
+    NOT NULL, and an old value still reads as the default entry of the configured provider through
     `finquery.catalog.Catalog.key_of`."""
     model_key: Mapped[str | None] = mapped_column(String(64), default=None)
     """The catalog entry that produced this turn, so switching the conversation to another

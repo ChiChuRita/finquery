@@ -29,7 +29,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("OPENROUTER_API_KEY is set. Nothing under training/cluster/ may use it.")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--adapter", required=True, choices=("query", "chart"))
-    parser.add_argument("--model", default="local:fast", help="the catalog key of the base to attach to")
+    parser.add_argument("--model", default="local:gemma-4-e4b", help="the catalog key of the base to attach to")
     parser.add_argument("--models-dir", type=Path, default=Path(os.environ.get("FINQUERY_MODELS_DIR", "models")))
     parser.add_argument("--n-ctx", type=int, default=4096)
     args = parser.parse_args(argv)

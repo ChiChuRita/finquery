@@ -3,7 +3,7 @@ import type { ToolUIPart, UIMessage } from 'ai'
 
 import type { ChartLanguage } from '@/lib/chart-frame'
 
-/** The stable id of one catalog entry: `local:qwen3.5-9b`, `openrouter:qwen/qwen3.5-9b`.
+/** The stable id of one catalog entry: `local:gemma-4-12b`, `openrouter:google/gemma-4-26b-a4b-it`.
  *
  *  There is no list of them in the browser. `GET /api/models` is where the four entries, their
  *  labels and their availability come from (`lib/catalog.ts`), so nothing on screen can name a
@@ -743,12 +743,15 @@ export interface Models {
   provider: 'local' | 'openrouter'
   default_key: ModelKey
   entries: CatalogEntry[]
-  /** The sub-agent slot of each provider. Never a chat choice, so never in `entries`. */
+  /** The sub-agent slot of each provider. Locally that is the Gemma 4 E4B entry, so its key is
+   * in `entries` too; the hosted one is never a chat choice. */
   fast_slots: CatalogEntry[]
   /** Every sub-agent role with the model it resolves to right now. */
   roles: SubagentRole[]
   adapters: { name: string; path: string; present: boolean }[]
   downloading: boolean
+  /** The last four characters of the OpenRouter key in use, as `...ab12`, or null without one. */
+  openrouter_key_hint: string | null
 }
 
 export interface SanityCheck {
@@ -778,6 +781,12 @@ export const modelsQuery = queryOptions({
 })
 
 export const startModelDownload = () => request<Models>('/api/models/download', { method: 'POST' })
+
+/** Give the cloud entry its key: live at once, and kept in `.env` for the next start. */
+export const saveOpenRouterKey = (key: string) =>
+  request<Models>('/api/models/openrouter-key', { method: 'PUT', body: JSON.stringify({ key }) })
+
+export const clearOpenRouterKey = () => request<Models>('/api/models/openrouter-key', { method: 'DELETE' })
 
 export const runSanityCheck = () =>
   request<{ ok: boolean; reports: SanityReport[] }>('/api/models/check', { method: 'POST' })

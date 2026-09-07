@@ -3,7 +3,8 @@
 Date: 2026-09-06
 Amended: 2026-09-06 (ticket 61: the default entry per provider, and the resolution rule for a
 sub-agent, which is now one setting per role rather than always the fast slot; see the ticket 61
-amendment of ADR 0006)
+amendment of ADR 0006); 2026-09-07 (ticket 67: three local Gemma 4 entries and one cloud entry,
+Qwen removed, E4B a chat entry, adapters follow the seat, the key from Settings; below)
 Status: accepted
 Amends: ADR 0002 (the provider switch) and ADR 0006 (the local provider)
 
@@ -93,3 +94,36 @@ provider.
   models endpoint and on the Settings card, and never in the chooser.
 - `finquery-bench --model` takes a catalog key now, and still takes `fast`, `quality`, an
   OpenRouter id and `local:fast`, so every recorded run stays reproducible.
+
+## Amendment, 2026-09-07 (ticket 67): four Gemma 4 entries, and the adapters follow the seat
+
+The cluster benchmark of 2026-09-06 placed Qwen3.5 9B behind Gemma 4 12B in every column
+(`bench/results/20260906-cluster-compare.md`), so the comparison this ADR was written for, the
+same question on the local Qwen and the hosted Qwen, is no longer one worth a picker entry.
+
+- **The four entries are `local:gemma-4-e4b`, `local:gemma-4-12b`, `local:gemma-4-26b` and
+  `openrouter:google/gemma-4-26b-a4b-it`**, listed in that order. Qwen3.5 9B leaves the catalog
+  on both providers, and its `qwen` wire format leaves `finquery.local`; a second family is
+  still one wire module and one `WIRE_FORMATS` entry. The local 26B is Gemma 4 26B A4B at
+  UD-Q3_K_XL (12.9 GB), not the Q4_K_M the other two use (16.9 GB), because it shares 24 GB
+  with a resident E4B; the cloud entry is the same model hosted, so a question can be compared
+  on the two.
+- **Gemma 4 E4B is a chat entry and still the local fast slot.** A chat on it holds the fast
+  seat, so nothing is loaded twice and the chat seat stays free for the 12B or the 26B. The key
+  `local:fast` is gone; the models endpoint lists the E4B entry in both `entries` and
+  `fast_slots`, and the models card draws it once with both jobs named.
+- **The default entry per provider is explicit** (`Catalog.DEFAULT_KEYS`): the 12B locally,
+  the 26B in the cloud. "First entry of the provider" would now name E4B.
+- **The query and chart sub-agents ask for their adapter on every run**
+  (`finquery.providers.with_adapter`), and `LlamaCppModel._hold` attaches it exactly when the
+  run is on E4B. So the rule the user asked for is one rule: a chat on E4B runs the fine-tuned
+  query and chart sub-agents; a chat on the 12B or the 26B runs them on that model's own
+  weights, with no audit note, because that is the choice and not a fallback. The one fallback
+  still noted is an adapter file missing on E4B. The per-role settings are unchanged; `fast` on
+  a local entry now means the E4B entry.
+- **The OpenRouter key can come from Settings.** `PUT` and `DELETE /api/models/openrouter-key`
+  apply it in-process (`Catalog.set_openrouter_key` drops the hosted models built with the old
+  one) and write the `OPENROUTER_API_KEY` line of the key file (`FINQUERY_KEY_FILE`, default
+  `.env`) so the next start has it. The browser gets the last four characters back and nothing
+  more. A machine without a key still lists the cloud entry, unavailable, with the sentence
+  saying where to enter one.

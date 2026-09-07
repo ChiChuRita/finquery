@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { modelsQuery, type CatalogEntry, type ModelKey } from '@/lib/api'
 
-/** The model catalog as the browser sees it: the four entries, plus the two fast slots.
+/** The model catalog as the browser sees it: the four entries, plus the hosted fast slot.
  *
  * `GET /api/models` is the only place a model name comes from, so the picker, the turn chips,
  * the History and the models card all say the same thing and none of them can name a model the

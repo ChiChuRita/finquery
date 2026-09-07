@@ -2,9 +2,8 @@
 
     FINQUERY_SMOKE=1 uv run pytest tests/test_local_smoke.py -s
 
-It runs the same sanity check as `uv run finquery-check`, so a green run means both slots
-answer, think, call a tool and read an image on this machine, each through its own wire
-format (Gemma 4 on fast, Qwen3.5 on quality).
+It runs the same sanity check as `uv run finquery-check`, so a green run means the fast slot and
+every downloaded chat model answer, think, call a tool and read an image on this machine.
 """
 
 import os
@@ -12,6 +11,7 @@ import os
 import pytest
 from dotenv import load_dotenv
 
+from finquery.local.catalog import LOCAL_FAST
 from finquery.local.check import format_report, run_check
 from finquery.local.runtime import LocalStack
 from finquery.settings import Settings
@@ -19,13 +19,12 @@ from finquery.settings import Settings
 pytestmark = pytest.mark.skipif(os.environ.get("FINQUERY_SMOKE") != "1", reason="set FINQUERY_SMOKE=1 to load real models")
 
 
-async def test_both_local_slots_answer_think_call_a_tool_and_see() -> None:
+async def test_the_local_models_answer_think_call_a_tool_and_see() -> None:
     load_dotenv()
     settings = Settings()
     assert settings.provider == "local", "the smoke test needs FINQUERY_PROVIDER=local"
     stack = LocalStack(settings)
-    for slot in ("fast", "quality"):
-        stack.downloads.ensure(slot)
+    stack.downloads.ensure(LOCAL_FAST.key)
 
     reports = await run_check(stack)
 

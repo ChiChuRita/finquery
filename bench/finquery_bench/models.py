@@ -2,9 +2,10 @@
 
 Four ways to name one, and the runner needs no code change to move between them:
 
-- `local:qwen3.5-9b`, `local:gemma-4-12b` or any other catalog key (`finquery.catalog`), which
-  is what the app itself stores on a conversation. `local:gemma-4-e4b` is the sub-agent slot,
-  which the catalog keys `local:fast`;
+- `local:gemma-4-e4b`, `local:gemma-4-12b`, `local:gemma-4-26b` or any other catalog key
+  (`finquery.catalog`), which is what the app itself stores on a conversation. E4B is also the
+  sub-agent slot, which the recorded runs name `local:fast`. A benchmark candidate the app does
+  not offer (`finquery_bench.candidates`, `local:qwen3.8-27b`) is named the same way;
 - `fast` or `quality`: the pre-catalog names, kept because every recorded run uses them.
   `quality` is the default entry of the configured provider (Gemma 4 12B locally since ticket
   61) and `fast` its sub-agent slot;
@@ -39,13 +40,13 @@ LEGACY_SLOTS = {"fast": "fast", "quality": "chat"}
 """The pre-catalog `--model` values, as the model role they name on the configured provider.
 Neither is a sub-agent role: a benchmark pins one model to every role of the run."""
 
-LOCAL_ALIASES = {"local:fast": "local:fast", "local:quality": "local:qwen3.5-9b", "local:gemma-4-e4b": "local:fast"}
+LOCAL_ALIASES = {"local:fast": "local:gemma-4-e4b"}
 """Names for a local model that are not its catalog key, and what they resolve to.
 
-`local:fast` and `local:quality` are what every recorded run is named after. `local:gemma-4-e4b`
-is the sub-agent slot named after its model, which is how the cluster comparison writes it: there
-E4B is one of three candidates, not the slot behind the other two. The run keeps the name it was
-asked for, so two files never claim to be the same run."""
+`local:fast` is what every recorded run on the sub-agent slot is named after; since ticket 67
+that model, Gemma 4 E4B, is a catalog entry under its own name. `local:quality` named Qwen3.5
+9B, which left the catalog in the same ticket: its recorded runs stay, and the name resolves to
+nothing. The run keeps the name it was asked for, so two files never claim to be the same run."""
 
 
 @dataclass(frozen=True)
@@ -90,15 +91,24 @@ def openrouter_target(model_id: str, settings: Settings) -> Target:
 
 
 def local_target(name_part: str, adapter: str | None, settings: Settings) -> Target:
-    """One local model, with the named LoRA adapter attached for every call of the run."""
+    """One local model, with the named LoRA adapter attached for every call of the run.
+
+    The catalog's models and the benchmark candidates are one map here, and the stack is built
+    over that map so a candidate's files are found and verified the same way; nothing about the
+    app's own stack changes, this one lives for the run.
+    """
     from finquery.local.catalog import LOCAL_MODELS
     from finquery.local.model import LocalModelSettings
+    from finquery.local.runtime import LocalStack
 
-    stack = build_local_stack(settings, download=False)
+    from finquery_bench.candidates import CANDIDATES
+
+    models = {**LOCAL_MODELS, **CANDIDATES}
+    stack = LocalStack(settings, models=models)
     requested = f"{LOCAL_PREFIX}{name_part}"
-    spec = LOCAL_MODELS.get(LOCAL_ALIASES.get(requested, requested))
+    spec = models.get(LOCAL_ALIASES.get(requested, requested))
     if spec is None:
-        raise RuntimeError(f"{requested} is not a local model; try {sorted(LOCAL_MODELS)} or {sorted(LOCAL_ALIASES)}")
+        raise RuntimeError(f"{requested} is not a local model; try {sorted(models)} or {sorted(LOCAL_ALIASES)}")
     model = stack.resolve(spec)
     name = requested + (f"+{adapter}" if adapter else "")
     model_settings: ModelSettings = LocalModelSettings(max_tokens=SUBAGENT_MAX_TOKENS)

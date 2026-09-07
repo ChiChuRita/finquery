@@ -5,6 +5,8 @@
 #     bash training/cluster/run_all.sh --after <setup job id>
 #     bash training/cluster/run_all.sh --smoke        # five SQL cases on E4B, nothing else
 #     bash training/cluster/run_all.sh --adapters     # before and after, per base, per task
+#     FQ_BENCH_MODELS="local:gemma-4-26b local:qwen3.8-27b" bash training/cluster/run_all.sh
+#                                                     # other models on the three sets
 #
 # `--after` makes every job wait for the setup job to finish well, so the whole thing can be
 # submitted in one go. Without it the jobs are submitted straight away, which is what a rerun on
@@ -18,7 +20,10 @@ ROOT=${FQ_ROOT:-/sc/scratch/rahul.singh}
 REPO=$ROOT/finquery
 LOGS=$REPO/training/cluster/logs
 
-MODELS="local:gemma-4-e4b local:qwen3.5-9b local:gemma-4-12b"
+# The three candidates of the 2026-09-06 comparison. `FQ_BENCH_MODELS` names others: a catalog
+# key or a benchmark candidate (`bench/finquery_bench/candidates.py`), whose files `dl2.sh` in
+# scratch fetched.
+MODELS=${FQ_BENCH_MODELS:-"local:gemma-4-e4b local:qwen3.5-9b local:gemma-4-12b"}
 
 # The two bases the adapters are trained for. Qwen is not one of them: llama.cpp cannot convert
 # a Qwen3.5 LoRA at all (research note, section 9, pitfall 1).

@@ -19,9 +19,10 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from finquery.app import create_app
 from finquery.db import Conversation, Profile, Turn
-from finquery.local.catalog import LOCAL_FAST, LOCAL_GEMMA_12B, LOCAL_QWEN, ModelSpec
+from finquery.local.catalog import LOCAL_FAST, LOCAL_GEMMA_12B, LOCAL_GEMMA_26B, ModelSpec
 from finquery.local.runtime import LocalStack
 from finquery.providers import SUBAGENT_ROLES
+from finquery.settings import Settings
 
 from .conftest import (
     Chat,
@@ -39,10 +40,10 @@ from .conftest import (
 
 @pytest.fixture
 def settings_overrides(tmp_path: Path) -> dict[str, object]:
-    """A key, so the two cloud entries are live, and an empty models folder for the local two.
+    """A key, so the cloud entry is live, and an empty models folder for the local three.
 
     The fast slot points at the Gemma id the development `.env` uses, which is the case that
-    used to collapse the two cloud entries into one.
+    used to collapse the cloud entries into the slot.
     """
     return {
         "openrouter_api_key": "test-key",
@@ -51,9 +52,9 @@ def settings_overrides(tmp_path: Path) -> dict[str, object]:
     }
 
 
-LOCAL_QWEN_KEY = "local:qwen3.5-9b"
-CLOUD_QWEN_KEY = "openrouter:qwen/qwen3.5-9b"
+LOCAL_E4B_KEY = "local:gemma-4-e4b"
 LOCAL_GEMMA_KEY = "local:gemma-4-12b"
+LOCAL_26B_KEY = "local:gemma-4-26b"
 CLOUD_GEMMA_KEY = "openrouter:google/gemma-4-26b-a4b-it"
 
 
@@ -78,26 +79,27 @@ async def one_turn_on(client: httpx.AsyncClient, key: str) -> None:
 async def test_the_catalog_lists_four_entries_with_their_availability(client: httpx.AsyncClient) -> None:
     body = (await client.get("/api/models")).json()
 
-    # The shipped pair first: Gemma 4 12B is the local default since the cluster benchmark, and
-    # Gemma 4 26B A4B is its hosted stand-in. Both cloud entries are listed although the fast
-    # slot points at one of them, because they are the catalog's own ids and not settings.
+    # The three local Gemma 4 sizes small to large, then the same 26B in the cloud. The cloud
+    # entry is listed although the fast slot points at it, because it is the catalog's own id
+    # and not a setting. Qwen3.5 9B left in ticket 67.
     assert [(e["key"], e["label"], e["provider"]) for e in body["entries"]] == [
+        (LOCAL_E4B_KEY, "Gemma 4 E4B (local)", "local"),
         (LOCAL_GEMMA_KEY, "Gemma 4 12B (local)", "local"),
+        (LOCAL_26B_KEY, "Gemma 4 26B (local)", "local"),
         (CLOUD_GEMMA_KEY, "Gemma 4 26B (cloud)", "openrouter"),
-        (LOCAL_QWEN_KEY, "Qwen3.5 9B (local)", "local"),
-        (CLOUD_QWEN_KEY, "Qwen3.5 9B (cloud)", "openrouter"),
     ]
-    # No weights in this test's models folder, so the two local entries say so rather than
+    # No weights in this test's models folder, so the local entries say so rather than
     # disappearing: the picker disables them with the reason.
-    assert [e["available"] for e in body["entries"]] == [False, True, False, True]
+    assert [e["available"] for e in body["entries"]] == [False, False, False, True]
     assert all(e["reason"] is None for e in body["entries"] if e["available"])
     assert body["default_key"] == CLOUD_GEMMA_KEY
-    # The sub-agent slot of each provider comes with the catalog and is never in it.
-    assert [e["key"] for e in body["fast_slots"]] == ["local:fast", "openrouter:fast"]
-    assert not {e["key"] for e in body["fast_slots"]} & {e["key"] for e in body["entries"]}
+    # The sub-agent slot of each provider comes with the catalog. Locally it is the E4B entry
+    # itself, so that key is in both lists and the models card shows it once.
+    assert [e["key"] for e in body["fast_slots"]] == [LOCAL_E4B_KEY, "openrouter:fast"]
+    assert body["openrouter_key_hint"] == "...-key"
 
 
-@pytest.mark.parametrize("key", [CLOUD_QWEN_KEY, CLOUD_GEMMA_KEY])
+@pytest.mark.parametrize("key", [LOCAL_26B_KEY, CLOUD_GEMMA_KEY])
 async def test_a_conversation_on_each_entry_records_it_and_its_turns_carry_it(
     client: httpx.AsyncClient, scripts: Scripts, chat: Chat, profile_id: str, key: str
 ) -> None:
@@ -161,7 +163,7 @@ async def test_a_role_set_to_fast_runs_on_the_fast_slot_of_the_entrys_provider(
 
         scripts.resolved.clear()
         await one_turn_on(client, LOCAL_GEMMA_KEY)
-        assert set(scripts.resolved[1:]) == {("local:fast", "summary"), ("local:fast", "memory")}
+        assert set(scripts.resolved[1:]) == {(LOCAL_E4B_KEY, "summary"), (LOCAL_E4B_KEY, "memory")}
 
         roles = {r["role"]: (r["setting"], r["key"]) for r in (await client.get("/api/models")).json()["roles"]}
         assert roles["query"] == ("fast", "openrouter:fast")
@@ -173,13 +175,13 @@ async def test_a_role_pinned_to_a_catalog_key_runs_there_whatever_the_chat_runs_
     """A catalog key in the setting pins that one role, and moves nothing else."""
     scripts.fast = script("the answer")
 
-    async with app_on(scripts, tmp_path, subagent_model_memory=CLOUD_QWEN_KEY) as client:
+    async with app_on(scripts, tmp_path, subagent_model_memory=LOCAL_GEMMA_KEY) as client:
         await one_turn_on(client, CLOUD_GEMMA_KEY)
 
         assert set(scripts.resolved) == {
             (CLOUD_GEMMA_KEY, "chat"),
             (CLOUD_GEMMA_KEY, "summary"),
-            (CLOUD_QWEN_KEY, "memory"),
+            (LOCAL_GEMMA_KEY, "memory"),
         }
 
 
@@ -193,18 +195,19 @@ async def test_the_models_endpoint_says_what_every_role_resolves_to(client: http
 
 
 async def test_a_hosted_entry_without_an_api_key_is_a_sentence_not_a_stack_trace(tmp_path: Path) -> None:
-    """No key, so the two cloud entries are listed unavailable and a turn on one says why."""
+    """No key, so the cloud entry is listed unavailable and a turn on it says why."""
     settings = make_settings(openrouter_api_key=None, models_dir=tmp_path / "empty")
     app = create_app(settings, web_client=NoWeb(), serve_frontend=False)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             body = (await client.get("/api/models")).json()
             cloud = [e for e in body["entries"] if e["provider"] == "openrouter"]
-            assert [e["available"] for e in cloud] == [False, False]
-            assert all("OPENROUTER_API_KEY" in e["reason"] for e in cloud)
+            assert [e["available"] for e in cloud] == [False]
+            assert all("OPENROUTER_API_KEY" in e["reason"] and "Settings" in e["reason"] for e in cloud)
+            assert body["openrouter_key_hint"] is None
 
             profile_id = await default_profile_id(client)
-            conversation_id = await new_conversation(client, profile_id, CLOUD_QWEN_KEY)
+            conversation_id = await new_conversation(client, profile_id, CLOUD_GEMMA_KEY)
             response = await client.post(
                 f"/api/conversations/{conversation_id}/chat", json=chat_body("go", conversation_id)
             )
@@ -213,6 +216,37 @@ async def test_a_hosted_entry_without_an_api_key_is_a_sentence_not_a_stack_trace
             assert "OPENROUTER_API_KEY" in response.json()["detail"]
             # Nothing half-written was left behind for the next load to explain away.
             assert (await client.get(f"/api/conversations/{conversation_id}")).json()["messages"] == []
+
+
+async def test_a_key_entered_in_settings_makes_the_cloud_entry_answer_and_survives_a_restart(tmp_path: Path) -> None:
+    """The Settings card takes the key: live at once, written to the key file, cleared again.
+
+    The file keeps every other line as it was, so a hand-edited `.env` loses nothing, and the
+    browser only ever sees the last four characters.
+    """
+    key_file = tmp_path / ".env"
+    key_file.write_text("FINQUERY_PROVIDER=openrouter\n# a comment\nOPENROUTER_API_KEY=\n")
+    settings = make_settings(openrouter_api_key=None, models_dir=tmp_path / "empty", key_file=key_file)
+    app = create_app(settings, web_client=NoWeb(), serve_frontend=False)
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            saved = await client.put("/api/models/openrouter-key", json={"key": "  sk-or-v1-abcd1234  "})
+            assert saved.status_code == 200, saved.text
+            body = saved.json()
+            cloud = next(e for e in body["entries"] if e["provider"] == "openrouter")
+            assert cloud["available"] is True
+            assert body["openrouter_key_hint"] == "...1234"
+            assert "sk-or-v1-abcd1234" not in saved.text
+            assert key_file.read_text() == "FINQUERY_PROVIDER=openrouter\n# a comment\nOPENROUTER_API_KEY=sk-or-v1-abcd1234\n"
+            # The next process reads it from the same file.
+            assert Settings(_env_file=key_file).openrouter_api_key == "sk-or-v1-abcd1234"  # type: ignore[call-arg]
+
+            assert (await client.put("/api/models/openrouter-key", json={"key": "   "})).status_code == 422
+
+            cleared = (await client.delete("/api/models/openrouter-key")).json()
+            assert next(e for e in cleared["entries"] if e["provider"] == "openrouter")["available"] is False
+            assert cleared["openrouter_key_hint"] is None
+            assert key_file.read_text() == "FINQUERY_PROVIDER=openrouter\n# a comment\nOPENROUTER_API_KEY=\n"
 
 
 async def test_a_row_from_before_the_catalog_reads_as_the_default_entry_of_the_provider(
@@ -257,7 +291,7 @@ async def test_the_default_entry_follows_the_provider_setting_and_nothing_else(t
             body = (await client.get("/api/models")).json()
             assert body["default_key"] == LOCAL_GEMMA_KEY
             assert [e["key"] for e in body["entries"]] == await model_keys(client)
-            assert [e["available"] for e in body["entries"]] == [False, True, False, True]
+            assert [e["available"] for e in body["entries"]] == [False, False, False, True]
 
 
 # The seat under the two local chat models, without a llama.cpp anywhere near it.
@@ -289,7 +323,7 @@ class SeatSlot:
 def seat_stack(tmp_path: Path, log: list[str]) -> LocalStack:
     """A stack over the three real specs whose files exist and whose loader is a stub."""
     settings = make_settings(provider="local", models_dir=tmp_path / "models")
-    models: dict[str, ModelSpec] = {spec.key: spec for spec in (LOCAL_FAST, LOCAL_QWEN, LOCAL_GEMMA_12B)}
+    models: dict[str, ModelSpec] = {spec.key: spec for spec in (LOCAL_FAST, LOCAL_GEMMA_12B, LOCAL_GEMMA_26B)}
     for spec in models.values():
         for file in spec.files:
             path = spec.path(settings.models_dir, file)
@@ -308,24 +342,25 @@ def seat_stack(tmp_path: Path, log: list[str]) -> LocalStack:
 async def test_the_chat_seat_drains_unloads_and_loads_and_never_holds_three(tmp_path: Path) -> None:
     """Choosing the other chat model swaps the seat, in that order, and E4B stays put.
 
-    Qwen 9B plus E4B is 13.5 GB and Gemma 12B plus E4B about 12.9 GB. The three together do not
-    fit on a 24 GB Mac, which is what this order and this seat exist for.
+    Gemma 12B plus E4B is about 12.9 GB and the 26B is 12.9 GB of weights on its own. The three
+    together do not fit on a 24 GB Mac, which is what this order and this seat exist for. A
+    chat on E4B itself holds the fast seat, so it never takes the chat seat from either.
     """
     log: list[str] = []
     stack = seat_stack(tmp_path, log)
 
     async with stack.holding("fast", LOCAL_FAST):
         pass
-    async with stack.holding("chat", LOCAL_QWEN):
+    async with stack.holding("chat", LOCAL_GEMMA_26B):
         pass
-    assert log == ["load:local:fast", "load:local:qwen3.5-9b"], "nothing is drained into an empty seat"
-    assert stack.loaded_spec("chat") is LOCAL_QWEN
+    assert log == ["load:local:gemma-4-e4b", "load:local:gemma-4-26b"], "nothing is drained into an empty seat"
+    assert stack.loaded_spec("chat") is LOCAL_GEMMA_26B
 
     log.clear()
     async with stack.holding("chat", LOCAL_GEMMA_12B):
         pass
 
-    assert log == ["drain:chat", "unload:local:qwen3.5-9b", "load:local:gemma-4-12b"]
+    assert log == ["drain:chat", "unload:local:gemma-4-26b", "load:local:gemma-4-12b"]
     assert stack.loaded_spec("chat") is LOCAL_GEMMA_12B
     # Two seats, so two models, whatever order they were asked for in.
     assert stack.loaded_spec("fast") is LOCAL_FAST
