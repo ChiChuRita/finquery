@@ -201,7 +201,12 @@ class LlamaCppModel(Model):
         its adapter the same way and simply does not get one: the alternative would be
         attaching E4B's LoRA to a 12B, which is not the same model.
         """
-        if adapter is not None and self._spec.seat == "fast":
+        # The benchmark scores adapters trained for the chat seat's base too; it says so with
+        # FINQUERY_ADAPTERS_ANY_SEAT=1 and points FINQUERY_MODELS_DIR at that base's own adapters
+        # directory (training/cluster/bench.sbatch). The app never sets it: its adapters directory
+        # holds E4B adapters, which cannot load onto the 12B.
+        any_seat = os.environ.get("FINQUERY_ADAPTERS_ANY_SEAT") == "1"
+        if adapter is not None and (self._spec.seat == "fast" or any_seat):
             async with self._stack.with_adapter(adapter, self._spec) as loaded:  # type: ignore[arg-type]
                 yield loaded
             return

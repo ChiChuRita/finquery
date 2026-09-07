@@ -57,6 +57,8 @@ export UV_PYTHON_INSTALL_DIR="$ROOT/uv-python"
 # laptop runs, so a number here is a number about the app and not about the cluster.
 export FINQUERY_PROVIDER=local
 export FINQUERY_MODELS_DIR="$MODELS"
+# An adapter run on the 12B attaches to the chat seat, which the app itself never does.
+if [ -n "$ADAPTER" ]; then export FINQUERY_ADAPTERS_ANY_SEAT=1; fi
 export FINQUERY_LOCAL_N_CTX=${FQ_N_CTX:-32768}
 
 cd "$REPO"
