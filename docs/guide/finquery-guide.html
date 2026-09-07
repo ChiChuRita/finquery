@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FinQuery, the guide: four electives and the fine-tuned models</title>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'dark', themeVariables: { fontFamily: 'Geist, Inter, sans-serif', primaryColor: '#16171a', primaryBorderColor: '#3a3b40', lineColor: '#9a9ba3', primaryTextColor: '#f4f4f5', secondaryColor: '#1e1f24', tertiaryColor: '#16171a' } });
+</script>
+<style>
+  :root { --bg:#0b0b0c; --surface:#16171a; --surface2:#1e1f24; --line:rgba(255,255,255,.10); --fg:#f4f4f5; --muted:#9a9ba3; --accent:#38d0a0; --warn:#f5b942; --blue:#7aa2f7; --bad:#f06a6a; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family: Geist, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height:1.5; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 40px 28px 80px; }
+  nav.toc { position: sticky; top:0; background: rgba(11,11,12,.92); backdrop-filter: blur(6px); border-bottom:1px solid var(--line); padding: 10px 28px; font-size: 13px; display:flex; gap:14px; flex-wrap:wrap; z-index:5; }
+  nav.toc a { color: var(--muted); text-decoration:none; } nav.toc a:hover { color: var(--fg); }
+  h1 { font-size: 40px; letter-spacing:-.02em; margin: 24px 0 8px; line-height:1.1; }
+  h2 { font-size: 28px; letter-spacing:-.02em; margin: 56px 0 10px; padding-top: 16px; border-top:1px solid var(--line); }
+  h3 { font-size: 19px; margin: 28px 0 8px; }
+  h4 { font-size: 14px; letter-spacing:.08em; text-transform:uppercase; color: var(--accent); margin: 22px 0 6px; }
+  p, li { font-size: 16px; } .muted { color: var(--muted); }
+  .lead { font-size: 19px; color: var(--muted); max-width: 44em; }
+  .box { border:1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 14px 18px; margin: 14px 0; }
+  .box.key { border-color: rgba(56,208,160,.4); } .box.key b { color: var(--accent); }
+  .box.warn { border-color: rgba(245,185,66,.4); }
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 14px; } @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+  pre { background: var(--surface2); border:1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow:auto; font-size: 13px; line-height: 1.45; }
+  code { font-family: "Geist Mono", ui-monospace, Menlo, monospace; font-size: .92em; background: var(--surface2); padding: 1px 5px; border-radius: 5px; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 10px 0; }
+  th, td { text-align:left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight:600; font-size: 12px; letter-spacing:.06em; text-transform:uppercase; }
+  td.num { text-align:right; font-variant-numeric: tabular-nums; }
+  .mermaid { background: var(--surface); border:1px solid var(--line); border-radius: 12px; padding: 12px; margin: 14px 0; }
+  .fence { display:grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items:center; margin: 14px 0; }
+  .node { border:1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface); font-size: 14px; }
+  .node.model { border-color: rgba(122,162,247,.5); } .node.model h5 { color: var(--blue); }
+  .node.guard { border-color: rgba(245,185,66,.5); background: rgba(245,185,66,.05); } .node.guard h5 { color: var(--warn); }
+  .node.data { background: var(--surface2); } .node h5 { margin: 0 0 4px; font-size: 11px; letter-spacing:.1em; text-transform:uppercase; color: var(--accent); }
+  .legend { display:flex; gap:16px; font-size: 12px; color: var(--muted); margin: 6px 0 0; } .legend span::before { content:""; display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:middle; }
+  .l-model::before { background: var(--blue) } .l-guard::before { background: var(--warn) } .l-code::before { background: var(--muted) }
+  details { border:1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 8px 0; background: var(--surface); }
+  summary { cursor: pointer; font-weight: 600; } details p { margin: 8px 0 0; color: var(--fg); }
+  .q { counter-increment: q; } .q summary::before { content: counter(q) ". "; color: var(--accent); }
+  .quiz { counter-reset: q; }
+  .bar { display:flex; height: 30px; border-radius: 8px; overflow:hidden; border:1px solid var(--line); font-size: 12px; margin: 8px 0; }
+  .bar div { display:flex; align-items:center; justify-content:center; }
+  .b1{background:rgba(56,208,160,.25)} .b2{background:rgba(122,162,247,.25)} .b3{background:rgba(255,255,255,.08)} .b4{background:rgba(245,185,66,.25)} .b5{color:var(--muted)}
+  .lora { display:grid; grid-template-columns: repeat(5, auto); gap: 10px; align-items:center; justify-content:start; margin: 12px 0; font-size: 14px; }
+  .mat { border:1px solid var(--line); border-radius: 8px; display:flex; align-items:center; justify-content:center; background: var(--surface2); }
+  .src { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<nav class="toc">
+  <a href="#foundations">Foundations</a><a href="#context">1 Context</a><a href="#subagents">2 Sub-agents</a><a href="#ingestion">3 Ingestion</a><a href="#web">4 Web search</a><a href="#finetune">Fine-tuning</a><a href="#data">Training data</a><a href="#bench">Benchmark</a><a href="#results">Results</a><a href="#quiz">Quiz</a><a href="#glossary">Glossary</a>
+</nav>
+<div class="wrap">
+
+<h1>FinQuery, the guide</h1>
+<p class="lead">Everything behind the four electives and the fine-tuned models, in the order a grader will ask about it. Every claim here points at a file. Read it top to bottom once, then use the quiz at the end.</p>
+
+<div class="box key"><b>The one rule.</b> Numbers come from executed queries, never from the model. The model writes the question and the words; a guard checks; SQLite writes the numbers. Every elective is a fence around the model: what it may see, do, read, and send out. The fine-tuning makes the small model good enough to live inside those fences.</div>
+
+<div class="fence">
+  <div class="node model"><h5>model</h5>writes the question, the plan, the code</div>
+  <div class="node guard"><h5>fence</h5>guard, check, sandbox, scrubber</div>
+  <div class="node data"><h5>machine</h5>SQLite, the frame, the journal</div>
+</div>
+<div class="legend"><span class="l-model">a model writes</span><span class="l-guard">code checks</span><span class="l-code">code executes or stores</span></div>
+
+<!-- ============================================================ -->
+<h2 id="foundations">Foundations: how the pieces are wired</h2>
+
+<h3>Pydantic AI, the way FinQuery uses it</h3>
+<p>Pydantic AI is the agent framework. It gives us four things and we build the rest ourselves, which is what the course rule about libraries requires.</p>
+<table>
+<tr><th>concept</th><th>what it is</th><th>where FinQuery uses it</th></tr>
+<tr><td><code>Agent</code></td><td>A model plus instructions plus tools plus an output type. <code>agent.run(prompt, deps=...)</code> runs the loop: the model answers, tool calls are executed, results go back, until an output is produced.</td><td>The chat agent in <code>src/finquery/agent.py</code>; one small agent per sub-agent (<code>query_agent</code>, <code>plan_agent</code>, <code>code_agent</code>, <code>check_agent</code>, the categorizer, extraction, memory, the web loop's <code>decide</code>).</td></tr>
+<tr><td><code>@agent.tool</code> and <code>RunContext[Deps]</code></td><td>A Python function the model may call. It receives <code>ctx.deps</code>, our own object with the database session factory, the profile id, the model resolver and the narration callback.</td><td>The chat agent's tools: <code>query</code>, <code>chart</code>, <code>review_batch</code>, <code>review_duplicates</code>, <code>lookup_merchant</code>, <code>extract_transaction</code>, the dashboard tools, <code>remember</code>. Most of them call a sub-agent.</td></tr>
+<tr><td><code>output_type=ToolOutput(Model, name=...)</code></td><td>The agent must answer by calling exactly this one tool whose arguments are validated against a Pydantic model. On the local runtime this becomes a grammar: llama.cpp can only emit that shape.</td><td>Every sub-agent: <code>run_sql</code> returns <code>GeneratedSql(reasoning, sql)</code>, <code>chart_plan</code>, <code>chart_code</code>, <code>judge_result</code>, <code>decide</code>, <code>remember_facts</code>.</td></tr>
+<tr><td>Deferred tools (<code>ExternalToolset</code>, <code>DeferredToolRequests</code>)</td><td>A tool with no function on the server. The run ends with the call pending; later the answer is fed back with <code>DeferredToolResults</code> and the same run resumes.</td><td><code>ask_user</code>, the Question card: the model asks, the run parks, the human answers by button or by typing, the turn resumes without a model slot being held.</td></tr>
+<tr><td><code>FunctionModel</code></td><td>A fake model driven by a Python function, for tests.</td><td>Every HTTP-seam test scripts the model's answers; 463 tests run with no real model. Also how the training harness captures the exact prompt a sub-agent would send (<code>training/cluster/prompts.py</code>).</td></tr>
+<tr><td><code>VercelAIAdapter</code></td><td>Turns a run into the AI SDK UI message stream the React app consumes.</td><td><code>src/finquery/api/chat.py</code>; the transcript, tool cards and the thinking panel come from that stream.</td></tr>
+</table>
+
+<pre><code># the chat agent, src/finquery/agent.py
+chat_agent = Agent(
+    instructions=SYSTEM_PROMPT,
+    deps_type=ChatDeps,
+    output_type=[str, DeferredToolRequests],   # text, or a parked ask_user call
+    toolsets=[ask_user_toolset],
+    name="finquery-chat",
+)
+
+# one sub-agent, src/finquery/query/subagent.py
+query_agent = Agent(
+    instructions=INSTRUCTIONS,
+    output_type=ToolOutput(GeneratedSql, name="run_sql"),   # forced single tool
+    name="finquery-query",
+)</code></pre>
+
+<h3>The local runtime</h3>
+<p>llama-cpp-python runs in the server process. Two seats: the chat seat holds Gemma 4 12B (or Qwen3.5 9B if the user picks it), the fast seat holds Gemma 4 E4B, always resident, where adapters attach. Both at 32k context, about 12.9 GB together. Our <code>LlamaCppModel</code> (<code>src/finquery/local/model.py</code>) translates Pydantic AI messages into the model's chat template, forces the tool grammar for a sub-agent call, and parses the Gemma tool-call syntax back (<code>src/finquery/local/gemma.py</code>). Sub-agents always run with reasoning off and a 3,072-token ceiling.</p>
+<div class="box warn"><b>A real bug we found here.</b> llama.cpp passes raw line breaks inside the JSON of a tool call. A fine-tuned model that writes SQL over several lines therefore produced invalid JSON and every answer failed validation. <code>normalize_json_arguments</code> now re-serializes the arguments before validation. Vanilla models escape their line breaks, so only the adapters were hit.</div>
+
+<h3>The model catalog and the per-role setting</h3>
+<p>Four entries: Gemma 4 12B (local, default), Gemma 4 26B (cloud), Qwen3.5 9B (local), Qwen3.5 9B (cloud). The chat runs on the conversation's entry. Every sub-agent role has its own setting, <code>FINQUERY_SUBAGENT_MODEL_&lt;ROLE&gt;</code>: <code>chat</code> (the default, the conversation's model), <code>fast</code> (the E4B seat, where adapters attach), or a pinned catalog key. In the demo every role runs on the 12B; set the query role to <code>fast</code> and it runs on E4B with the query adapter.</p>
+
+<!-- ============================================================ -->
+<h2 id="context">Elective 1: intelligent context management</h2>
+<p class="lead">The fence around what the model may see. The sheet asks for isolation, selection and compression. All three are separate mechanisms in code.</p>
+
+<div class="mermaid">
+sequenceDiagram
+    participant U as User
+    participant API as api/chat.py
+    participant C as context.py
+    participant M as memory.py
+    participant F as fast model
+    participant Chat as chat model
+    U->>API: message
+    API->>M: build_memory_block(profile, message)
+    M-->>API: up to 5 facts selected by keyword overlap
+    API->>C: assemble(turns, summary, summary_through, memory)
+    C-->>API: instructions = summary note + memory block; history = turns after the divider
+    API->>C: needs_compression(assembly, budget)?
+    alt tokens above 60 percent of 32k
+        API->>F: summarize(older turns)
+        F-->>API: summary text
+        API->>API: store summary, move the divider
+    end
+    API->>Chat: run(history, instructions, tools that apply)
+    Chat-->>U: answer
+    API->>F: distill facts from the finished turn
+    F-->>M: at most 2 durable facts, no figures
+</div>
+
+<h4>Isolation</h4>
+<p>A profile is a workspace: transactions, accounts, categories and rules, conversations, memory, the web lookup cache and journal, dashboard cards, all carry a profile id. The enforcement is not a prompt. Every SQL query the model writes runs against a temporary view created for that request with the profile id inlined in the WHERE clause, on a read-only connection (<code>src/finquery/query/guard.py</code>, <code>execute_read_only</code>). Even a perfect injection could only read this profile's rows.</p>
+<pre><code>CREATE TEMP VIEW transaction_view AS
+  SELECT * FROM main.transaction_view WHERE profile_id = '&lt;this profile&gt;'
+PRAGMA query_only = ON
+-- the model's statement runs here, then the view is dropped</code></pre>
+
+<h4>Selection</h4>
+<p>Per turn, <code>context.assemble</code> builds exactly: the memory block (<code>MAX_MEMORIES = 5</code> facts chosen by keyword overlap with the message, <code>select_memories</code>), the rolling summary if one exists, the turns after the divider (<code>RECENT_TURNS = 6</code> as the default window), and only the tools that apply. Web lookup is not declared to the model when the profile has it off (<code>_only_when_web_lookup_is_on</code> in <code>agent.py</code>): the model cannot call what it cannot see. The header badge shows the estimated tokens against the budget; <code>estimate_tokens</code> counts the same text the model is sent.</p>
+
+<h4>Compression</h4>
+<p><code>COMPRESS_ABOVE = 0.6</code>: when a turn would cross 60 percent of the window, the turns before the divider are folded into a summary by the fast model (<code>summarize</code>, capped at <code>MAX_SUMMARY_CHARS = 4000</code>), before the answer runs, so the turn that crosses the threshold already runs small. The divider is a visible, editable line in the transcript. A pending Question card is never summarized away, because the run could not resume from it.</p>
+<div class="bar"><div class="b1" style="flex:8">memory</div><div class="b2" style="flex:14">summary</div><div class="b3" style="flex:38">recent turns and tool results</div><div class="b4" style="flex:6">tools</div><div class="b5" style="flex:34">headroom, compression starts at 60 %</div></div>
+
+<h4>Memory (the required "project folder" memory)</h4>
+<p>After every turn a memory sub-agent (<code>remember_facts</code>, forced tool) distills at most <code>MAX_DISTILLED = 2</code> durable facts. Its instructions say what durable means, and code enforces it again (<code>is_durable</code>): never a number or a total, never a one-off order ("recategorize all Netflix rows" is not a rule; "Netflix is always Leisure" is), and never a name that did not appear in the user's own words (<code>absent_names</code>). The Memory page lists and edits facts; a new chat in the same profile recalls them.</p>
+<pre><code># src/finquery/memory.py, DISTILL_INSTRUCTIONS (excerpt)
+You keep the long-term memory of a personal-finance assistant.
+You are given one finished exchange. Call `remember_facts` exactly once with the durable facts
+it establishes: what a merchant or a counterparty is, a rule the user stated ("PayPal to Anna
+is always dining"), a preference, a goal, or a constraint that will still be true next month.
+Returning an empty list is the normal case and always allowed. Never keep a number or a total
+(those come from queries and go stale), a one-off question, small talk, ...</code></pre>
+<p class="src">Files: <code>src/finquery/context.py</code>, <code>memory.py</code>, <code>query/guard.py</code>, ADR 0007. Explainer 12.</p>
+
+<!-- ============================================================ -->
+<h2 id="subagents">Elective 2: sub-agent deployment</h2>
+<p class="lead">The fence around what the model may do. A sub-agent is a tool whose handler runs its own model call with its own prompt and schema, then checks the answer with code.</p>
+
+<div class="mermaid">
+sequenceDiagram
+    participant Chat as chat agent (12B)
+    participant T as tool `query` (Python)
+    participant P as query_prompt (code)
+    participant S as query sub-agent
+    participant G as SQL guard
+    participant DB as SQLite
+    participant J as check pass
+    Chat->>T: query(request="groceries in May 2025")
+    T->>P: build prompt: schema, rules, 9 examples, household facts, question
+    T->>S: run, forced tool run_sql
+    S-->>T: {reasoning, sql}
+    T->>G: validate_sql (sqlglot, one SELECT, view only, LIMIT, no CASE classifier, no cents)
+    G-->>T: ok, or a sentence back to S once
+    T->>DB: execute_read_only on the profile view
+    DB-->>T: rows
+    T->>J: judge_result(question, sql, rows)
+    J-->>T: ok, or revise with the intent (one rewrite)
+    T-->>Chat: rows, columns, sql, figures (data, not prose)
+    Chat-->>Chat: writes the answer; prose figures are verified against the rows
+</div>
+
+<h3>The pattern, identical for all six</h3>
+<ol>
+<li>The chat agent decides a tool is needed and writes the request in words.</li>
+<li>Code builds the sub-agent prompt: rules, worked examples with reasoning before the answer, the household's facts (data range, categories, busiest counterparties). The chat agent never writes this prompt.</li>
+<li>The sub-agent answers through a forced tool schema whose first field is <code>reasoning</code>. It commits to its plan before the answer.</li>
+<li>A check that is code: the guard and execution for SQL, the self-check on the real rows for charts, the two extraction guards, the no-figures rule for memory, the floors and the verbatim quote for web lookup. A finding goes back once, word for word.</li>
+<li>The result returns as structured data. Every step streams into the transcript as a chain of thought (<code>ctx.deps.narrate</code>).</li>
+</ol>
+
+<h3>The query sub-agent in full</h3>
+<pre><code># src/finquery/query/subagent.py, INSTRUCTIONS (the system prompt)
+You write SQLite queries over one household's bank transactions. You are given a question and
+the shape of the data. Call `run_sql` exactly once.
+Fill `reasoning` before you write any SQL: one short line each for the period you read out of
+the question, the filters, the sign, and the grouping. Then write `sql` so that it does exactly
+what those lines say. You never explain yourself outside that field, never apologize and never
+answer the question in words: the SQL is the answer.</code></pre>
+<p>The user message is built by <code>query_prompt(request, context)</code>, about 2,850 tokens: the view's columns with one line each, the rules (below), nine worked examples in both languages with their reasoning lines, the household paragraph (newest booking, what "this month" and "last month" mean, the categories, the busiest counterparties), and the question. The model sees no rows.</p>
+<pre><code># RULES (excerpt)
+- One statement, a single SELECT. No INSERT, UPDATE, DELETE, CREATE, DROP, ATTACH or PRAGMA,
+  no other table or view, and never a schema prefix such as main.
+- Aggregate. At most 200 rows come back (a LIMIT is added for you) ...
+- Spending is negative. For a spending question filter `amount < 0` and report a positive figure
+  with `ROUND(-SUM(amount), 2)`. Income is `amount > 0`.
+- `amount` is in euros and is the only column a figure may come from. There is no cents column
+  to divide, so never write anything like `/ 100`.
+- The category of a booking is the `category` column and nothing else. Never write a classifier:
+  a `CASE WHEN description LIKE '%rewe%' THEN 'Groceries'` invents labels the household never
+  chose, and the guard refuses it. Group by `coalesce(category, 'Needs review')` ...</code></pre>
+<p><b>The guard</b> (<code>validate_sql</code>): parsed with sqlglot; exactly one SELECT; only <code>transaction_view</code>; no schema prefix; a LIMIT of 200 added; refuses a CASE that invents categories, cents in the projection, a subcategory used as a category, more than eight LIKE terms, CROSS JOIN, statements over 1,500 characters. <b>The check pass</b> (<code>query/check.py</code>): code first names degenerate results (no rows, all NULL, a lone zero on something the household has), then a second forced-tool call <code>judge_result</code> answers <code>ok</code> or <code>revise</code> with the intent in words, never SQL; one rewrite follows. Three model calls at most per question.</p>
+<pre><code># src/finquery/query/check.py (excerpt)
+You judge whether a SQL result answers the question a household asked about its own bank
+transactions. You never write SQL, you never state a figure and you never answer the question
+yourself. Call `judge_result` exactly once.
+Answer `ok` when the statement asked what the question asked. A small, an empty or a surprising
+result is still ok when the statement is right: the data is allowed to hold no answer.
+Answer `revise` when the statement answers a different question. ...</code></pre>
+
+<h3>The chart sub-agent: two passes and a sandbox</h3>
+<p><b>Plan pass</b> (<code>chart_plan</code>): language from the request alone, shape from a menu of eight (line, area, bar, bar_horizontal, bar_grouped, bar_stacked, doughnut, sankey; line and area may carry several series), a caption, and the data question with the exact columns. The plan's question then goes through the query path above, so chart rows are guarded rows. <b>Code pass</b> (<code>chart_code</code>): the body of one JavaScript function over an allowlist of globals (below), given a brief of the real columns and rows. <b>Self-check</b> (<code>chart/selfcheck.py</code>): the code is run in-process against stubs of the same globals on the real rows; rules such as "euro axis holds zero", "one series needs no legend, several need one", "no more than six series", "every named column exists" become repair findings; up to three attempts; failures are visible in the transcript. <b>The frame</b>: a sandboxed iframe with TanStack Charts and the house theme; the model never touches the DOM, and rules like square corners live in the frame, so a stored dashboard card takes a new look without regeneration.</p>
+<pre><code># CONTRACT (excerpt): the only globals the code may use
+defineChart(spec)   lineY, areaY, barY, barX   ruleY(values, options)   link, rect, text
+stack(), group()    polar(options)   pie(rows, { value })   radialArc(slices, options)
+sankeyDiagram(options)   scaleLinear   scaleBand, scalePoint   scaleOrdinal   colorLegend(options)
+tooltip   palette   eur(value)   eurShort(value)   monthShort('2025-01')   mean(data, 'total_eur')</code></pre>
+
+<h3>The six, side by side</h3>
+<table>
+<tr><th>sub-agent</th><th>forced tool</th><th>gets</th><th>returns</th><th>checked by</th></tr>
+<tr><td>query</td><td><code>run_sql</code></td><td>schema, rules, examples, household facts, question</td><td>reasoning + SQL</td><td>guard, execution, check pass, one rewrite</td></tr>
+<tr><td>chart</td><td><code>chart_plan</code>, then <code>chart_code</code></td><td>request, shape menu; then the rows brief</td><td>plan; JavaScript body</td><td>self-check on real rows, up to 3 attempts, the frame</td></tr>
+<tr><td>categorizer</td><td>batch categories</td><td>uncategorized bookings, categories, a web brief when present</td><td>category and confidence per booking</td><td>threshold 0.75, Question cards, answers become rules</td></tr>
+<tr><td>extraction</td><td>rows of a page</td><td>one page as text or image</td><td>bookings</td><td>verbatim and reconciliation guards, review card</td></tr>
+<tr><td>memory</td><td><code>remember_facts</code></td><td>the finished turn, the facts already known</td><td>at most 2 facts</td><td>durable rule in code, no figures, no unseen names</td></tr>
+<tr><td>web lookup</td><td><code>decide</code></td><td>the token, the categories, the steps so far</td><td>search, fetch or finish</td><td>floors, verbatim quote, confidence cap, journal</td></tr>
+</table>
+<div class="box"><b>Not claimed:</b> the extra credit for a controller that continues without waiting. Our turn is a server task with a replay buffer that survives a closed tab (<code>api/running.py</code>), but the chat agent awaits its tool result. Say this before they ask.</div>
+<p class="src">Files: <code>src/finquery/agent.py</code>, <code>query/</code>, <code>chart/</code>, <code>categorize/</code>, <code>extract/</code>, <code>memory.py</code>, <code>weblookup/</code>. ADR 0008, 0009. Explainer 13.</p>
+
+<!-- ============================================================ -->
+<h2 id="ingestion">Elective 3: multimodal ingestion</h2>
+<p class="lead">The fence around what the model may read. A vision model reads pages and receipts, and no figure it returns is trusted unless code finds it in the source.</p>
+
+<div class="mermaid">
+flowchart LR
+    F[file: PDF, photo, CSV, XLSX, DOCX, text] --> R{text layer or table?}
+    R -- yes --> T[text or rows]
+    R -- no --> I[render page to image, EXIF rotate]
+    T --> X[extraction sub-agent, one page per call]
+    I --> X
+    X --> V[verbatim guard: every amount and date occurs in the source]
+    V --> Q[reconciliation: opening + bookings = closing]
+    Q -- flagged --> RC[review card, nothing written]
+    Q -- clean --> D[duplicates asked one by one]
+    D --> C[categorizer, Question cards]
+    C --> DB[(transactions)]
+    style X fill:#1e2a44,stroke:#7aa2f7
+    style V fill:#2a2412,stroke:#f5b942
+    style Q fill:#2a2412,stroke:#f5b942
+</div>
+
+<ul>
+<li><b>Routing</b> (<code>extract/statement.py</code>, <code>ingest/chat_import.py</code>): a PDF with a text layer is read with pdfplumber; scans and photos are rendered with pypdfium2 or opened as images, EXIF-rotated first (the real Edeka receipt was sideways). CSV and XLSX (openpyxl, cells keep their types) go to the mapping engine with presets for Sparkasse and Trade Republic, otherwise the model proposes a column mapping the user confirms. DOCX (python-docx) becomes text for the same path as pasted text.</li>
+<li><b>Extraction sub-agent</b>: Gemma 4 with its vision projector, one page per forced-tool call, four pages concurrently locally. It returns rows with the amount and date <em>as printed</em>.</li>
+<li><b>Verbatim guard</b> (<code>extract/guards.py</code>, <code>occurs</code>, <code>date_occurs</code>, <code>_verbatim</code>): every amount and date must literally occur in the page text, or in the span the model quoted from the image. The model points at digits; code adds the year; a digit the source does not contain is a refusal, not a correction.</li>
+<li><b>Reconciliation</b> (<code>Reconciliation</code>): opening balance plus the sum of bookings equals the closing balance to the cent. A gap flags the page.</li>
+<li><b>Review card</b>: flagged rows show the row, the gap and the printed line; nothing is written until the user accepts. Clean pages import, then every possible duplicate is asked about (<code>ingest/duplicates.py</code>), and the categorizer files what it can.</li>
+<li><b>Receipts</b> (<code>extract/bill.py</code>): a photo becomes a draft booking with item legs (a split) and the store resolved from the header through the dictionary or, with the switch on, one web lookup.</li>
+</ul>
+<p><b>Measured:</b> 19 of 19 receipt totals right on the real receipt and 18 web receipts (<code>.scratch/finquery/reviews/receipts-web-2026-09-05.md</code>); the synthetic statement PDF reconciles to the cent in the tests; the Excel export imported 433 of 433 rows with the preset recognized without a model call (ticket 58). <b>Not covered:</b> audio.</p>
+<p class="src">ADR 0011. Explainers 08 and 16.</p>
+
+<!-- ============================================================ -->
+<h2 id="web">Elective 4: self-controlled web search</h2>
+<p class="lead">The fence around what may leave the machine. The model decides its own searches and page reads, must quote the page it read, and only a scrubbed merchant token ever goes out.</p>
+
+<div class="mermaid">
+flowchart TD
+    B[booking text and counterparty] --> S[scrub: legal form wins, given-name list refuses, two-word rule]
+    S -- refused: a person --> N[nothing leaves, household is asked]
+    S -- token, e.g. sixt --> L{decide: search, fetch, finish}
+    L -- search, max 4 --> W[ddgs: duckduckgo, bing, brave]
+    W --> J[(journal, written before the request)]
+    W --> L
+    L -- fetch, max 3 --> P[one GET, 10 s, 300 kB, same-host redirect only]
+    P --> J
+    P --> L
+    L -- finish --> E[evidence quote must occur verbatim in what was read]
+    E --> K[confidence capped at 0.6 unless a source names the token]
+    K --> C[(cache per profile)]
+    style L fill:#1e2a44,stroke:#7aa2f7
+    style S fill:#2a2412,stroke:#f5b942
+    style E fill:#2a2412,stroke:#f5b942
+    style K fill:#2a2412,stroke:#f5b942
+</div>
+
+<h4>Scrubbing (<code>weblookup/scrub.py</code>)</h4>
+<p>Order matters and is tested: a legal form anywhere (GmbH, AG, SE, KG, e.V., a.G., eG, B.V., Ltd, "&amp; Co") decides business; then a list of the two hundred most common German given names refuses anything that reads like a person in either word order ("ANNA WEBER", "Weber Anna"); then the two-capitalized-words rule. "Sixt GmbH &amp; Co Autovermietung KG" becomes <code>sixt</code>; "Metzgerei Huber" passes as a business; a PayPal transfer to a friend is refused. Amounts, dates, IBANs and reference numbers never enter the token. <code>safe_query</code> checks the model's own search query against the same rule.</p>
+
+<h4>The loop (<code>weblookup/loop.py</code>, <code>run_loop</code>)</h4>
+<p>Budgets: <code>MAX_SEARCHES = 4</code>, <code>MAX_FETCHES = 3</code>. Each step is one forced-tool call <code>decide</code> whose schema is <code>Decision(reasoning, action, query, url, summary, category, subcategory, sources, evidence, confidence)</code>; <code>reasoning</code> comes first. The floors are code, not prompt: a finish before any search is handed back once; when a hit's host contains the token or is a Wikipedia article about it, the page is fetched before a finish is allowed (<code>own_page</code>); a failed search backend is retried once without charging the budget; the <code>evidence</code> sentence must occur verbatim in a snippet or page (<code>quoted_verbatim</code>); confidence is capped at 0.6 when no source's title or host carries the token (<code>names_the_token</code>).</p>
+<pre><code># weblookup/loop.py, INSTRUCTIONS (excerpt)
+You find out what an unknown merchant is, by searching the web yourself, so a German
+household's bank transaction can be categorized.
+You are given a merchant token, the household's category list, and what your own earlier steps
+returned. The token is the only thing about this household that ever leaves the machine: there
+are no amounts, no dates, no account numbers and no names in it, and you must never put
+anything into a search query that you were not given.
+Call `decide` exactly once. You never answer in words: the decision is the answer.</code></pre>
+<h4>Who calls it, and what the user sees</h4>
+<p>Three callers share one service (<code>weblookup/service.py</code>): the chat tool <code>lookup_merchant</code>, the categorizer at import (a deduplicated batch of the busiest unknown merchants, one-second pauses), and receipt headers (the store's name and category for a draft). Not query, chart, memory or statement extraction: the numbers invariant forbids web figures, and a statement page carries data that may not leave. Off by default per profile. Every request is journaled before it is sent and the journal is shown in Settings; results are cached per profile so a repeated merchant leaves nothing. The card shows the token, "1 search, 1 page read" with the page as a link, the quote and its source.</p>
+<p><b>Measured</b> (review of 2026-09-06 and ticket 53): on 20 merchants, lookups without a search went from 9 to 0 and pages read from 0 to 12 after the floors; the person rule stopped refusing 21 of 28 companies. Honest: the categorizer scored 96 percent with and without the lookup on the hosted model, so the gain is evidence and privacy, not raw accuracy. Demo with Vogtlandbahn or Combi, not Lidl.</p>
+<p class="src">ADR 0010. Explainer 15.</p>
+
+<!-- ============================================================ -->
+<h2 id="finetune">The fine-tuned models: what QLoRA is and what we trained</h2>
+<p class="lead">Two special-purpose models are required. We trained QLoRA adapters for the query sub-agent and the chart sub-agent, on both local bases, and scored them against the vanilla bases with the product's own runtime.</p>
+
+<h3>LoRA and QLoRA in one picture</h3>
+<div class="lora">
+  <div class="mat" style="width:90px;height:90px">W<br><span class="muted" style="font-size:11px">frozen, 4-bit</span></div>
+  <div>+</div>
+  <div class="mat" style="width:90px;height:34px;border-color:rgba(122,162,247,.6)">B (d x r)</div>
+  <div>x</div>
+  <div class="mat" style="width:34px;height:90px;border-color:rgba(122,162,247,.6)">A</div>
+</div>
+<p>A LoRA (low-rank adaptation) leaves every weight matrix <b>W</b> of the base model frozen and learns a small correction <b>B·A</b> of rank <b>r</b> next to it. Only A and B are trained, so the trainable part is tiny: 34.9 million parameters for E4B (0.44 percent of 8 billion) at rank 16, 131 million for the 12B at rank 32. <b>QLoRA</b> keeps the frozen base in 4-bit NF4 during training, with bf16 compute, so a 12B fits comfortably on one GPU. The result is a 70 MB (E4B) or 262 MB (12B) file that llama.cpp attaches to the quantized base at inference without merging (<code>llama_adapter_lora_init</code>), scaled by alpha over r.</p>
+
+<h3>Our recipe (<code>training/cluster/configs/*.yaml</code>, <code>train.py</code>)</h3>
+<table>
+<tr><th>setting</th><th>E4B</th><th>12B</th><th>why</th></tr>
+<tr><td>rank r, alpha</td><td>16, 32</td><td>32, 64</td><td>the research note's starting point; alpha over r gives an effective scale of 2</td></tr>
+<tr><td>target modules</td><td colspan="2">attention q, k, v, o and MLP gate, up, down projections of the language model layers, by regex</td><td>QLoRA's finding: rank matters little once every layer is adapted; embeddings and the head are excluded because the GGUF converter rejects them</td></tr>
+<tr><td>learning rate, schedule</td><td colspan="2">2e-4, cosine, 3 percent warmup, weight decay 0.01</td><td>one rate for all four so the curves compare</td></tr>
+<tr><td>epochs, checkpoints</td><td colspan="2">3, one checkpoint per epoch</td><td>a quick eval per checkpoint picks the epoch to convert</td></tr>
+<tr><td>sequence length</td><td colspan="2">4,608 (query), 5,120 (chart)</td><td>the longest real sample was 4,365 and 4,610 tokens; a truncated sample loses its answer</td></tr>
+<tr><td>batch</td><td colspan="2">1 per device, gradient accumulation 16</td><td>effective batch 16</td></tr>
+<tr><td>loss</td><td colspan="2">completion only</td><td>the prompt is about 3,000 tokens, the answer about 150; loss on the prompt would teach nothing</td></tr>
+<tr><td>hardware, time</td><td>1 H100, about 1 h 30</td><td>1 H100, about 2 h 50</td><td>HPI cluster, aisc-batch partition; one GPU per adapter</td></tr>
+</table>
+<p>Loss fell from 1.40 to 0.08 (query, E4B) and 0.69 to 0.09 (chart, E4B) over three epochs. That says the model learned the format and the data; whether it answers new questions better is what the benchmark says.</p>
+
+<!-- ============================================================ -->
+<h2 id="data">The training data: how it was generated</h2>
+<p class="lead">Training equals production: a sample is byte for byte the prompt the sub-agent sends, and a row is kept only when it executed.</p>
+
+<div class="mermaid">
+flowchart LR
+    H[5 synthetic households with truth files] --> W[60 Opus writers, quotas per household, language, kind, difficulty, lens]
+    W --> G[execution gate: guard, database, second statement agrees to the cent, chart self-check on real rows]
+    G --> R[headless render of every kept chart]
+    G --> J[judges: figures recomputed from truth, reasoning held to the SQL's standard, pictures scored]
+    R --> J
+    J --> D[exact and near-duplicate sweep]
+    D --> A[assembly: production prompt + wire tool call, plus repair and check-pass rows]
+    A --> S[(query.jsonl 1,977 samples, chart.jsonl 1,791 samples)]
+    style W fill:#1e2a44,stroke:#7aa2f7
+    style J fill:#1e2a44,stroke:#7aa2f7
+    style G fill:#2a2412,stroke:#f5b942
+</div>
+
+<ul>
+<li><b>Households</b> (<code>scripts/generate_synthetic.py</code>, <code>fixtures/synthetic/households/</code>): student (Leipzig, 300 bookings), family (Dortmund, 486), freelancer (Hamburg, 381), pensioner (Münster, 349), couple with two accounts (Stuttgart, 565), each deterministic with a truth file of merchants, categories and monthly totals. The shipped Berlin household is benchmark only.</li>
+<li><b>Writers</b>: each got a quota (90 query or 50 chart candidates, all households, half German half English, 40 percent difficulty 3, follow-ups over-weighted because they were the worst kind) and a lens (relative periods, subcategories, merchant spellings, rates and counts, recurring payments, income, comparisons, rankings, multi-turn chains). Writers never saw the benchmark. Each also wrote deliberate wrong attempts.</li>
+<li><b>The gate</b> (<code>training/data/gate.py</code>): the statement runs through the real guard against the household's database; a second statement the writer wrote differently must agree to the cent; degenerate results are dropped; chart code must pass the real self-check on the real rows first time. Every drop carries a reason. 1,968 query and 1,195 chart rows survived.</li>
+<li><b>Judges</b>: a second Opus pass per batch recomputed each figure from the truth file before reading the statement, held the reasoning line to the same standard as the SQL (keep, fix, drop, revise), and opened a fifth of the chart renders per shape. Disagreements were dropped, not argued.</li>
+<li><b>Assembly</b> (<code>training/data/assemble.py</code>): a kept row becomes the exact prompt the production builder makes for its household plus the target tool call as Gemma writes it on the wire; wrong attempts become <b>repair</b> rows (the finding, then the corrected answer) and <b>check-pass</b> rows (the judge prompt and its verdict), because the adapter serves those prompts too.</li>
+</ul>
+
+<h4>What one sample looks like</h4>
+<pre><code>{ "id": "w16-couple-de-076", "adapter": "query", "task": "write_sql", "household": "couple",
+  "language": "de", "kind": "total", "difficulty": 1,
+  "prompt": [ {"role": "system", "content": "You write SQLite queries over one household's ..."},
+              {"role": "user",   "content": "The view (the only relation you may name ...) ...
+                                             Question: Wie viel Miete haben wir 2025 gezahlt?"} ],
+  "completion": [ {"role": "assistant", "content":
+     "&lt;|tool_call&gt;call:run_sql{reasoning:&lt;|\"|&gt;period: das Jahr 2025; filters: die Miete geht vom
+      Gemeinschaftskonto an die Immobilien Schmid Verwaltung ...; sign: Ausgabe, amount &lt; 0, positiv
+      gemeldet; grouping: keine, eine Zahl fuer das Jahr.&lt;|\"|&gt;,sql:&lt;|\"|&gt;SELECT ROUND(-SUM(amount), 2)
+      AS total_eur FROM transaction_view WHERE amount &lt; 0 AND lower(description || ' ' ||
+      coalesce(counterparty, '')) LIKE '%immobilien schmid%' AND booked_on BETWEEN
+      '2025-01-01' AND '2025-12-31'&lt;|\"|&gt;}&lt;tool_call|&gt;"} ] }</code></pre>
+<p>The user prompt is about 11,800 characters (roughly 3,000 tokens): schema, rules, examples, the household paragraph, the question. The completion is the wire form of the forced tool call, about 150 tokens. Mix of the query set: write_sql 74 percent, check_pass 17, repair 9; households one fifth each; kinds led by follow-up (17 percent), total and entity; languages half and half.</p>
+
+<!-- ============================================================ -->
+<h2 id="bench">The benchmark: how we measure</h2>
+<p class="lead">One benchmark for three purposes: choosing the local models, validating the adapters, and catching regressions. It runs the production sub-agent path with the product's own runtime.</p>
+<ul>
+<li><b>Sets</b> (<code>bench/sql-benchmark.json</code>, <code>chart-benchmark.json</code>): 459 SQL questions and 302 chart requests a household really asks, German and English, eight kinds, three difficulties. Gold comes from reference SQL run through the guard on the shipped year (<code>build_gold.py</code>), never from a model.</li>
+<li><b>Scoring</b> (<code>bench/finquery_bench/score.py</code>): <em>figure match</em> means every gold figure appears in the returned rows to the cent and the result is not a dump (at most a few times the gold's row count); <em>SQL valid</em>; <em>first attempt</em>; for charts <em>shape match</em> (the expected shape or a listed alternative), <em>columns map</em>, <em>language</em>, <em>drawn</em> (the frame accepted the code).</li>
+<li><b>The unit</b>: <code>run_query</code> and <code>run_chart</code>, the same functions the chat's tools call, with the check pass and the self-check on. A 30-case end-to-end subset also runs the whole chat turn to catch routing loss.</li>
+<li><b>Frozen split</b> (<code>bench/SPLIT_FROZEN.md</code>): a third held out by a hash of the id per stratum; adding cases re-cuts, so the split was frozen before any training row existed. The shipped household's writer candidates grew the benchmark (307 SQL, 229 chart), so the benchmark household is unseen in training.</li>
+<li><b>Runtime parity</b>: on the cluster the same Q4_K_M GGUFs, wire formats and llama-cpp build as the laptop, one RTX PRO 6000 per job; a cluster number is a laptop number, only the seconds differ.</li>
+<li><b>Resolution</b>: about five points on 459 cases and six on 302; anything smaller is inside the noise, and the shipping rule says so.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="results">Results, and what they mean</h2>
+<table>
+<tr><th>run</th><th class="num">SQL figure match</th><th class="num">chart figure match</th><th class="num">chart drawn</th><th>source</th></tr>
+<tr><td>Gemma 4 E4B, vanilla</td><td class="num">62 %</td><td class="num">38 %</td><td class="num">85 %</td><td rowspan="6"><code>bench/results/20260907-adapters-compare.md</code></td></tr>
+<tr><td>E4B + query adapter (epoch 3)</td><td class="num"><b>78 %</b></td><td class="num">-</td><td class="num">-</td></tr>
+<tr><td>E4B + chart adapter (epoch 3), first run</td><td class="num">-</td><td class="num">36 %</td><td class="num">72 %</td></tr>
+<tr><td>Gemma 4 12B, vanilla</td><td class="num">78 %</td><td class="num">62 %</td><td class="num">92 %</td></tr>
+<tr><td>12B + query adapter (epoch 3)</td><td class="num">82 %</td><td class="num">-</td><td class="num">-</td></tr>
+<tr><td>12B + chart adapter</td><td class="num">-</td><td class="num">running</td><td class="num">running</td></tr>
+</table>
+<ul>
+<li><b>E4B query adapter ships.</b> Sixteen points on 459 questions, first attempt 76 to 91 percent; 97 questions only the adapter gets right against 26 only vanilla gets right, concentrated on follow-ups, relative periods, entity counts and rankings, which is where the data was weighted. It is on the laptop at <code>models/adapters/query.gguf</code>; <code>FINQUERY_SUBAGENT_MODEL_QUERY=fast</code> switches it on.</li>
+<li><b>12B query adapter: inside the noise.</b> Four points, half again the time per question. A model already at 78 percent on a hard set has little to learn from data written for a 4B model's mistakes.</li>
+<li><b>E4B chart adapter: the first run was contaminated</b> by the JSON line-break bug (35 of its misses were validation failures that the vanilla model never has). The rerun on the fixed code is in progress and tracking above vanilla; the number in the table is replaced when it lands. If the rerun still shows no gain, the fix is data: only 72 repair rows for 959 code rows.</li>
+<li><b>Quick evals were misleading.</b> A 30-case eval through transformers favoured epoch two on both bases; the full llama-cpp run favoured epoch three. The reported number is always the full run with the product's runtime.</li>
+</ul>
+<div class="box key"><b>The sentence for the talk.</b> "Four adapters, scored against their vanilla bases with the product's own runtime on a benchmark household the training never saw. The small model's query adapter gains sixteen points and ships. The others are honest negatives or noise, and we say so."</div>
+
+<!-- ============================================================ -->
+<h2 id="quiz">Quiz: check yourself</h2>
+<p class="muted">Answer out loud first, then open the answer. A grader will ask two or three of these.</p>
+<div class="quiz">
+<details class="q"><summary>Where exactly is profile isolation enforced, and why is that better than a prompt rule?</summary><p>In the SQL guard: every statement runs against a temporary view created per request with the profile id inlined, on a read-only connection. A prompt can be ignored; a view cannot return rows it does not contain.</p></details>
+<details class="q"><summary>Name the three context mechanisms the sheet asks for and the code that implements each.</summary><p>Isolation: the profile-scoped temp view in <code>query/guard.py</code>. Selection: <code>context.assemble</code> with <code>select_memories</code>, the summary, recent turns and only applicable tools. Compression: <code>needs_compression</code> at <code>COMPRESS_ABOVE = 0.6</code> and <code>summarize</code> by the fast model, with an editable divider.</p></details>
+<details class="q"><summary>Why compress at 60 percent rather than at the limit?</summary><p>The summarizing model needs room of its own, and a single tool result can be large. Folding before the answer runs means the turn that crosses the threshold already runs small.</p></details>
+<details class="q"><summary>What may a distilled memory never contain, and why?</summary><p>Figures and dates (unless the user states a rule), one-off orders, and names the user did not say. Figures go stale and a small model poisons itself with half-remembered numbers; numbers come from queries.</p></details>
+<details class="q"><summary>What makes something a sub-agent in FinQuery, technically?</summary><p>A tool whose handler runs a second Pydantic AI agent with its own instructions and a forced <code>ToolOutput</code> schema, checks the answer with code, and returns data. The chat agent cannot tell it from a plain tool.</p></details>
+<details class="q"><summary>Why is <code>reasoning</code> the first field of every sub-agent schema?</summary><p>The model commits to period, filters, sign and grouping before it writes SQL, and the check pass and the judges hold that line to the same standard as the SQL. A rationale at partial coverage measurably hurts, so it is enforced everywhere or not at all.</p></details>
+<details class="q"><summary>List what the SQL guard refuses.</summary><p>Anything but one SELECT; any relation but <code>transaction_view</code>; schema prefixes; CASE expressions that invent categories; cents in the projection; a subcategory used as a category; more than eight LIKE terms; CROSS JOIN; statements over 1,500 characters. It adds a LIMIT of 200 and runs read-only.</p></details>
+<details class="q"><summary>What does the check pass do, and how much did it buy?</summary><p>Code names degenerate results, then a forced-tool judge answers <code>ok</code> or <code>revise</code> with the intent in words, and the sub-agent rewrites once. On the same model it moved SQL figure match from 69 to 79 percent, without any training.</p></details>
+<details class="q"><summary>How does a chart get on screen, and where do the house rules live?</summary><p>Plan pass picks shape, caption and the data question; the rows come through the query path; the code pass writes a JavaScript body over an allowlist; the self-check runs it on the real rows and sends findings back up to three times; a sandboxed iframe draws it. Palette, axes and square corners live in the frame, so stored cards restyle without regeneration.</p></details>
+<details class="q"><summary>What do we not claim about sub-agents, and why not?</summary><p>The extra credit for a controller that continues without waiting. The turn survives a closed tab as a server task, but the chat agent awaits its tool result.</p></details>
+<details class="q"><summary>Why is a vision-language model not enough for ingestion? Name the two guards.</summary><p>Under blur it invents digits. Verbatim: every amount and date must literally occur in the source. Reconciliation: opening balance plus bookings equals closing, to the cent. Flagged pages become review cards; nothing is written silently.</p></details>
+<details class="q"><summary>Which file types are claimed, how do Excel and Word get in, and what is out of scope?</summary><p>PDF, images, text, CSV, XLSX, DOCX. Excel rows feed the CSV mapping engine with cell types kept; Word text takes the pasted-text path with the same guards. Audio is out of scope.</p></details>
+<details class="q"><summary>Exactly what leaves the machine on a web lookup, and in which order does the scrubber decide?</summary><p>Only a merchant token, plus the model's own short search query checked by the same rule. Order: a legal form anywhere means business; then the given-name list refuses persons in either word order; then the two-capitalized-words rule. Never amounts, dates, IBANs or names.</p></details>
+<details class="q"><summary>What are the web loop's budgets and floors?</summary><p>Four searches, three page reads. Floors in code: at least one search before a finish; a fetch when a hit is the merchant's own site or Wikipedia; a failed backend retried once for free; the evidence quote must occur verbatim in what was read; confidence capped at 0.6 when no source names the token.</p></details>
+<details class="q"><summary>Why did we make the floors code rather than prompt?</summary><p>A strong model answered from memory and never searched; the elective wording needs a visited page. A prompt depends on the model, code does not.</p></details>
+<details class="q"><summary>What is a LoRA, what does QLoRA add, and how big are our adapters?</summary><p>A low-rank correction B·A learned next to each frozen weight matrix; only A and B train. QLoRA keeps the frozen base in 4-bit during training. 70 MB per E4B adapter (34.9 M parameters, rank 16), 262 MB per 12B adapter (rank 32).</p></details>
+<details class="q"><summary>Why is the loss only on the completion, and what does the completion look like?</summary><p>The prompt is about 3,000 tokens and the answer about 150; loss on the prompt teaches nothing we want. The completion is the wire form of the forced tool call: <code>&lt;|tool_call&gt;call:run_sql{reasoning:..., sql:...}&lt;tool_call|&gt;</code>.</p></details>
+<details class="q"><summary>What does "kept only by execution" mean for a training row?</summary><p>The statement passed the real guard and ran on the household's database, a second statement written differently agreed to the cent, the result was not degenerate; chart code passed the real self-check on the real rows. Then a judge recomputed the figure from the truth file and judged the reasoning.</p></details>
+<details class="q"><summary>Why is the benchmark household unseen in training, and why is the split frozen?</summary><p>The shipped household's candidates went into the benchmark; the five new households went into training. Adding cases re-cuts the hash split and could move a case into the held-out set after it seeded training, so the split was frozen before any training row existed.</p></details>
+<details class="q"><summary>Give the before-and-after numbers and the verdict for each adapter.</summary><p>E4B query 62 to 78, ships. E4B chart 38 to 36 with drawn 85 to 72 on the contaminated run, rerun pending. 12B query 78 to 82, inside the noise. 12B chart running.</p></details>
+<details class="q"><summary>What bug made the 12B adapters look broken, and how was it found?</summary><p>llama.cpp passes raw line breaks inside tool-call JSON; the fine-tuned model writes multi-line SQL, strict JSON refused it, every answer failed validation. Found by a probe that printed the raw tool-call stream; fixed by normalizing the arguments before validation.</p></details>
+<details class="q"><summary>Why did the quick evals point at the wrong epoch?</summary><p>Thirty cases through transformers without a grammar is a different runtime and a sample too small to read a four-point difference. The reported number is always the full llama-cpp run.</p></details>
+<details class="q"><summary>Why does the 12B gain so little from the same data?</summary><p>It already answers 78 percent of a hard set; the data was written around a 4B model's mistakes (follow-ups, relative periods), which the 12B mostly gets right already. Four points on 459 cases is within the resolution.</p></details>
+<details class="q"><summary>What are the three reversals to own?</summary><p>Qwen3.5 9B chosen on memory, replaced by Gemma 4 12B after the cluster benchmark. Preference optimisation built, measured and removed for multimodal ingestion. "No dashboard" in the spec became a dashboard of guarded queries after the research note.</p></details>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="glossary">Glossary</h2>
+<table>
+<tr><td><b>forced tool</b></td><td>an agent whose only allowed output is one tool call with a validated schema; on llama.cpp a grammar</td></tr>
+<tr><td><b>deferred tool</b></td><td>a tool with no server function; the run parks until a human answers (<code>ask_user</code>)</td></tr>
+<tr><td><b>guard</b></td><td>code that checks the model's SQL before it runs</td></tr>
+<tr><td><b>check pass</b></td><td>the second forced-tool call that judges whether the result answers the question, plus one rewrite</td></tr>
+<tr><td><b>self-check</b></td><td>the chart code executed in-process on the real rows against the house rules before drawing</td></tr>
+<tr><td><b>seat</b></td><td>one resident model in the local runtime; chat seat and fast seat</td></tr>
+<tr><td><b>role setting</b></td><td>which model a sub-agent role runs on: chat, fast, or a pinned entry</td></tr>
+<tr><td><b>wire format</b></td><td>how a model writes tool calls as text; Gemma 4: <code>&lt;|tool_call&gt;call:name{...}&lt;tool_call|&gt;</code></td></tr>
+<tr><td><b>GGUF</b></td><td>llama.cpp's model and adapter file format; Q4_K_M is the 4-bit quantization we ship</td></tr>
+<tr><td><b>figure match</b></td><td>every gold figure appears in the returned rows to the cent, and the result is not a dump</td></tr>
+<tr><td><b>held-out</b></td><td>the third of the benchmark never used for prompt examples or training, cut by a frozen hash</td></tr>
+</table>
+
+<p class="muted" style="margin-top:40px">Deeper: <code>docs/explainers/</code> (one chapter per topic with file and function references), <code>docs/presentation/how-it-works/</code>, <code>bench/results/</code>, <code>training/</code>.</p>
+</div>
+</body>
+</html>
