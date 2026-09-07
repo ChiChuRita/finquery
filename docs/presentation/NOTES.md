@@ -27,6 +27,11 @@ model the gain is inside the noise, which is what you expect from a model alread
 Source: `bench/results/20260907-adapters-compare.md`. If asked why the chart adapter failed: too
 few repair rows in its training set, the fix is a second data round before the hand-in.
 
+To show the adapter live: the E4B query adapter is on the laptop at `models/adapters/query.gguf`
+(gitignored, 70 MB). Start the app with `FINQUERY_SUBAGENT_MODEL_QUERY=fast` and the query
+sub-agent runs on E4B with the adapter attached; the models card in Settings lists the adapter as
+present and the role as `fast`. Without the variable every role stays on the 12B, the demo default.
+
 ## Numbers you may be asked for, with their source
 
 | number | value | source |
