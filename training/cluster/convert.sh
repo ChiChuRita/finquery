@@ -96,7 +96,9 @@ uv run --project "$TRAINING" python "$TRAINING/check_adapter.py" gguf "$OUT"
 
 step "convert 4/5: a dry-run load through the product's own adapter path"
 cd "$REPO"
-FINQUERY_MODELS_DIR=$MODELS uv run --offline python training/cluster/dry_load.py --adapter "$NAME"
+# The dry run attaches to the same base the benchmark scores, not to the fast seat by default:
+# an adapter trained on the 12B cannot load onto E4B (jobs 2515264 and 2515272, 2026-09-07).
+FINQUERY_MODELS_DIR=$MODELS uv run --offline python training/cluster/dry_load.py --adapter "$NAME" --model "$BENCH_MODEL"
 
 step "convert 5/5: $CASES benchmark cases with the adapter attached"
 set_name=sql
