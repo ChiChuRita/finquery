@@ -16,11 +16,27 @@ and the full run favoured epoch three, which is what a 30-case sample is worth.
 | base | before | after (epoch 3) | after (epoch 2) | first attempt before | first attempt after | median s before | median s after |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Gemma 4 E4B | 62 % | **78 %** | 76 % | 76 % | 91 % | 7.8 | 14.3 |
-| Gemma 4 12B | 78 % | pending | pending | 86 % | pending | 10.6 | pending |
+| Gemma 4 12B | 78 % | 82 % | 80 % | 86 % | 89 % | 10.6 | 15.2 |
 
 Runs: `20260907T014357Z-local-gemma-4-e4b-sql` (before, a rerun that reproduced the first
 pass to the point), `20260906T233117Z-local-gemma-4-e4b+query-sql` (epoch 3),
-`20260907T004952Z-local-gemma-4-e4b+query-sql` (epoch 2), `20260907T004634Z-local-gemma-4-12b-sql`.
+`20260907T004952Z-local-gemma-4-e4b+query-sql` (epoch 2), `20260907T004634Z-local-gemma-4-12b-sql`,
+`20260907T051140Z-local-gemma-4-12b+query-sql` (12B, epoch 3) and `...+query-e2-sql` (12B, epoch 2;
+both 12B runs started in the same second and the second overwrote the first's file on the cluster,
+the epoch-two copy was recovered from git).
+
+The 12B query adapter does not ship. Four points (78 to 82) on 459 cases is inside the set's
+resolution, the first attempt gains three, and the adapter costs half again the time per question
+(10.6 to 15.2 s median). Per case: 328 right in both, 51 wrong in both, 50 only with the adapter,
+30 only without. A model that already answers 78 percent of a hard set has little left to learn
+from 1,977 samples written for a 4B model's mistakes; the E4B is where the same data buys sixteen
+points.
+
+A finding on the way: the fine-tuned 12B writes its SQL over several lines, and llama.cpp passes
+those raw line breaks into the JSON of the tool call, which strict JSON refuses. Before the fix
+(`normalize_json_arguments` in `src/finquery/local/model.py`) two thirds of the 12B adapter's
+answers failed validation for that reason alone. The vanilla model escapes its line breaks, so
+only the adapters were hit; the E4B adapter never was.
 
 What the E4B query adapter changes, from `finquery-bench compare` on the two runs: 261 questions
 right in both, 75 wrong in both, 97 only right with the adapter, 26 only right without it. The
