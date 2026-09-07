@@ -124,7 +124,7 @@ sequenceDiagram
     API->>M: build_memory_block(profile, message)
     M-->>API: up to 5 facts selected by keyword overlap
     API->>C: assemble(turns, summary, summary_through, memory)
-    C-->>API: instructions = summary note + memory block; history = turns after the divider
+    C-->>API: instructions = summary note + memory block, history = turns after the divider
     API->>C: needs_compression(assembly, budget)?
     alt tokens above 60 percent of 32k
         API->>F: summarize(older turns)
@@ -169,13 +169,13 @@ Returning an empty list is the normal case and always allowed. Never keep a numb
 <div class="mermaid">
 sequenceDiagram
     participant Chat as chat agent (12B)
-    participant T as tool `query` (Python)
+    participant T as tool query (Python)
     participant P as query_prompt (code)
     participant S as query sub-agent
     participant G as SQL guard
     participant DB as SQLite
     participant J as check pass
-    Chat->>T: query(request="groceries in May 2025")
+    Chat->>T: query with request groceries in May 2025
     T->>P: build prompt: schema, rules, 9 examples, household facts, question
     T->>S: run, forced tool run_sql
     S-->>T: {reasoning, sql}
@@ -186,7 +186,7 @@ sequenceDiagram
     T->>J: judge_result(question, sql, rows)
     J-->>T: ok, or revise with the intent (one rewrite)
     T-->>Chat: rows, columns, sql, figures (data, not prose)
-    Chat-->>Chat: writes the answer; prose figures are verified against the rows
+    Chat-->>Chat: writes the answer, prose figures are verified against the rows
 </div>
 
 <h3>The pattern, identical for all six</h3>
@@ -254,17 +254,17 @@ tooltip   palette   eur(value)   eurShort(value)   monthShort('2025-01')   mean(
 
 <div class="mermaid">
 flowchart LR
-    F[file: PDF, photo, CSV, XLSX, DOCX, text] --> R{text layer or table?}
-    R -- yes --> T[text or rows]
-    R -- no --> I[render page to image, EXIF rotate]
-    T --> X[extraction sub-agent, one page per call]
+    F["file: PDF, photo, CSV, XLSX, DOCX, text"] --> R{"text layer or table?"}
+    R -- yes --> T["text or rows"]
+    R -- no --> I["render page to image, EXIF rotate"]
+    T --> X["extraction sub-agent, one page per call"]
     I --> X
-    X --> V[verbatim guard: every amount and date occurs in the source]
-    V --> Q[reconciliation: opening + bookings = closing]
-    Q -- flagged --> RC[review card, nothing written]
-    Q -- clean --> D[duplicates asked one by one]
-    D --> C[categorizer, Question cards]
-    C --> DB[(transactions)]
+    X --> V["verbatim guard: every amount and date occurs in the source"]
+    V --> Q["reconciliation: opening + bookings = closing"]
+    Q -- flagged --> RC["review card, nothing written"]
+    Q -- clean --> D["duplicates asked one by one"]
+    D --> C["categorizer, Question cards"]
+    C --> DB[("transactions")]
     style X fill:#1e2a44,stroke:#7aa2f7
     style V fill:#2a2412,stroke:#f5b942
     style Q fill:#2a2412,stroke:#f5b942
@@ -287,18 +287,18 @@ flowchart LR
 
 <div class="mermaid">
 flowchart TD
-    B[booking text and counterparty] --> S[scrub: legal form wins, given-name list refuses, two-word rule]
-    S -- refused: a person --> N[nothing leaves, household is asked]
-    S -- token, e.g. sixt --> L{decide: search, fetch, finish}
-    L -- search, max 4 --> W[ddgs: duckduckgo, bing, brave]
-    W --> J[(journal, written before the request)]
+    B["booking text and counterparty"] --> S["scrub: legal form wins, given-name list refuses, two-word rule"]
+    S -- "refused: a person" --> N["nothing leaves, household is asked"]
+    S -- "token, e.g. sixt" --> L{"decide: search, fetch, finish"}
+    L -- "search, max 4" --> W["ddgs: duckduckgo, bing, brave"]
+    W --> J[("journal, written before the request")]
     W --> L
-    L -- fetch, max 3 --> P[one GET, 10 s, 300 kB, same-host redirect only]
+    L -- "fetch, max 3" --> P["one GET, 10 s, 300 kB, same-host redirect only"]
     P --> J
     P --> L
-    L -- finish --> E[evidence quote must occur verbatim in what was read]
-    E --> K[confidence capped at 0.6 unless a source names the token]
-    K --> C[(cache per profile)]
+    L -- finish --> E["evidence quote must occur verbatim in what was read"]
+    E --> K["confidence capped at 0.6 unless a source names the token"]
+    K --> C[("cache per profile")]
     style L fill:#1e2a44,stroke:#7aa2f7
     style S fill:#2a2412,stroke:#f5b942
     style E fill:#2a2412,stroke:#f5b942
@@ -357,14 +357,14 @@ Call `decide` exactly once. You never answer in words: the decision is the answe
 
 <div class="mermaid">
 flowchart LR
-    H[5 synthetic households with truth files] --> W[60 Opus writers, quotas per household, language, kind, difficulty, lens]
-    W --> G[execution gate: guard, database, second statement agrees to the cent, chart self-check on real rows]
-    G --> R[headless render of every kept chart]
-    G --> J[judges: figures recomputed from truth, reasoning held to the SQL's standard, pictures scored]
+    H["5 synthetic households with truth files"] --> W["60 Opus writers, quotas per household, language, kind, difficulty, lens"]
+    W --> G["execution gate: guard, database, second statement agrees to the cent, chart self-check on real rows"]
+    G --> R["headless render of every kept chart"]
+    G --> J["judges: figures recomputed from truth, reasoning held to the SQL's standard, pictures scored"]
     R --> J
-    J --> D[exact and near-duplicate sweep]
-    D --> A[assembly: production prompt + wire tool call, plus repair and check-pass rows]
-    A --> S[(query.jsonl 1,977 samples, chart.jsonl 1,791 samples)]
+    J --> D["exact and near-duplicate sweep"]
+    D --> A["assembly: production prompt + wire tool call, plus repair and check-pass rows"]
+    A --> S[("query.jsonl 1,977 samples, chart.jsonl 1,791 samples")]
     style W fill:#1e2a44,stroke:#7aa2f7
     style J fill:#1e2a44,stroke:#7aa2f7
     style G fill:#2a2412,stroke:#f5b942
