@@ -18,50 +18,45 @@ the fine-tuning, with one household as the example."
 ## Reading files: the model points, code checks (0:00 to 0:50)
 
 One rule runs through everything you saw: **the model never touches the numbers.** We built four
-fences around the model, one per elective, and I will show each one on one household.
+fences around the model, one per elective,.
 
-Step one of the story: the user drops a statement PDF and a receipt photo into the chat.
+Step one: a statement PDF and a receipt photo land in the chat.
 
-[extraction card] A vision model reads the page and returns spans, never numbers: the text
-"01.01.2025", the text "minus 1.150,00", the word "Miete". [verbatim card] Code then asks: does
-this span occur on the page? "1.150,00" does. A misread "1150,00" does not, and that row is
-refused with the sentence you see. [reconciliation card] Then arithmetic: opening balance plus 433
-bookings equals the closing balance, to the cent. **Anything flagged becomes a review card, and
+[extraction card] A vision model reads the page and returns spans, never numbers. [verbatim card]
+Code asks: does this span occur on the page? "1.150,00" does. A misread "1150,00" does not, and
+that row is refused. [reconciliation card] Then arithmetic: opening balance plus 433 bookings
+equals the closing balance, to the cent. **Anything flagged becomes a review card, and
 nothing is written silently.**
 
-[bottom row] The receipt has no text layer, so the printed total is the only proof: seven items
-sum to 20,73, and the booking is matched and split into groceries and household. Nineteen of
-nineteen receipt totals were right.
+[bottom row] The receipt: seven items sum to the printed total, 20,73, and the booking is matched
+and split. Nineteen of nineteen receipt totals were right.
 
 ## Web search: one token leaves, one page is read (0:50 to 1:40)
 
 Step two: one merchant on the statement is unknown, Vogtlandbahn.
 
-[scrubber] Fence four is what may leave the laptop. Three rules in order: a legal form anywhere
-means business, a list of two hundred German given names refuses persons, then the two-word
-rule. GmbH fires, so the token "vogtlandbahn" may leave. **No amount, date, IBAN or name is in
+[scrubber] Fence four is what may leave the laptop. Three rules in order: legal form means
+business, a list of German given names refuses persons, then the two-word rule. GmbH fires, so
+the token "vogtlandbahn" may leave. **No amount, date, IBAN or name is in
 it.**
 
-[loop] Now the model searches itself, within a budget of four searches and three page reads. The
-floors are code, not prompt, because a strong model answered from memory and never searched. It
-must search at least once. When a hit is the merchant's own page or its Wikipedia article, the
-fetch is forced. And the finish has to quote a sentence that occurs verbatim on the page it read,
-here the German Wikipedia line, or its confidence is capped.
+[loop] The model searches itself, within four searches and three page reads. The floors are code,
+because a strong model answered from memory and never searched: at least one search, a forced
+fetch when a hit is the merchant's own page or Wikipedia, and a finish that quotes a sentence
+found verbatim on the page it read.
 
-[journal] Every request is written to the journal before it is sent, and cached, so this token
-leaves once. [bottom bar] "PayPal Anna Weber" is a person: rule two fires and nothing leaves.
+[journal] Every request is journaled before it is sent and cached, so the token leaves once. [bottom bar] "PayPal Anna Weber" is a person: rule two fires and nothing leaves.
 
 ## Context: one turn, assembled by code (1:40 to 2:25)
 
-Step three: the user asks "How much did I spend on groceries in May?". Fence one is what the
-model gets to see.
+Step three: the user asks "How much did I spend on groceries in May?". Fence one: what the model gets to see.
 
 [isolation] A profile is the boundary, enforced in code: a temporary view with this profile's id
 inlined, on a read-only connection. **No WHERE clause the model writes can widen it.**
 
-[selection] Each turn is assembled fresh: at most five memories chosen by keyword overlap, the
-rolling summary of the older turns, the last six turns in full, and only the tools that apply.
-Web lookup is off here, so that tool is not even declared. The chat model sees nothing else.
+[selection] Each turn is assembled fresh: at most five memories by keyword overlap, the rolling
+summary, the last six turns, and only the tools that apply. Web lookup is off, so that tool is not
+even declared.
 
 [bar] Compression: at 60 percent of the 32k window, the small model folds the older turns into a
 summary the user can edit in the transcript. A pending question card is never summarized away.
@@ -71,34 +66,32 @@ summary the user can edit in the transcript. A pending question card is never su
 Fence two is what the model gets to do. **The chat model never runs SQL itself. It asks a
 sub-agent.**
 
-[request, then the blue card] The request arrives in plain words. The query sub-agent must answer
-in a forced schema, and the first field is its reasoning: period May 2025, category Groceries,
-spending is negative and reported positive, no grouping. Then the SQL. [guard] Code parses that
-SQL into a tree and walks it: exactly one SELECT, only the profile view, no CASE that invents a
-label, no cents column, LIMIT 200 added. [run] It runs read-only and returns one row, 440,72.
-The answer may say that figure and nothing else.
+[blue card] The request arrives in plain words. The sub-agent answers in a forced schema, reasoning
+first: period May 2025, category Groceries, spending negative and reported positive. Then the SQL.
+[guard] Code parses it into a tree and walks it: one SELECT, only the profile view, no CASE that
+invents a label, LIMIT 200 added. [run] It runs read-only and returns 440,72. The answer may say
+that figure and nothing else.
 
-[bottom lane] A wrong first attempt, "SELECT star FROM transactions", gets the guard's sentence
-back word for word, and the sub-agent rewrites once. [chips] Six sub-agents work this way: query,
-chart, categorizer, extraction, memory, web lookup. The chat agent waits for its tool, so we do
-not claim the extra credit.
+[bottom lane] A wrong attempt gets the guard's sentence back word for word and one rewrite.
+[chips] Six sub-agents work this way. The chat agent waits for its tool, so we do not claim the
+extra credit.
 
 ## Fine-tuned inside the fences (3:10 to 3:55)
 
-Step four: is the small model good enough to live inside those fences? We fine-tuned it.
+Step four: we fine-tuned the small model to live inside those fences.
 
-[sample] This is one training sample, from a student household in Leipzig: the exact production
-prompt, and the answer as the tool call, reasoning first. **A sample was kept only when its SQL
+[sample] One training sample, from a student household in Leipzig: the exact production prompt,
+and the answer as the tool call, reasoning first. **A sample was kept only when its SQL
 ran and an independent check agreed to the cent.** Sixty agents wrote them over five synthetic
 households.
 
-[middle] QLoRA, one night on the HPI cluster: two adapters for the small model, one for queries
-and one for charts, 70 megabytes each, attached to the frozen base at inference.
+[middle] QLoRA, one night on the HPI cluster: two adapters, queries and charts, 70 megabytes each,
+attached to the frozen base at inference.
 
 [bars] Scored in the real app, with the product's own runtime, on the Berlin household the
 training never saw. **The query adapter goes from 62 to 78 percent on 459 questions and ships.**
-The chart adapter stays flat, and we know why: the misses are in the plan's data question, where
-our data had no failure examples. We say so.
+The chart adapter stays flat, and we know why: our data had no failure examples for the plan's
+data question. We say so.
 
 Four fences, one rule, one adapter that ships. Thank you. [3:55]
 
