@@ -1,4 +1,4 @@
-# 68: Transactions table: checkboxes, headers and text size off (micro-ticket)
+# 70: Transactions table: checkboxes, headers and text size off (micro-ticket)
 
 **What to build:** The user saw the Transactions table looking odd on 2026-09-07, the checkboxes
 first. Visual review on a throwaway database with the sample year found four things, all in

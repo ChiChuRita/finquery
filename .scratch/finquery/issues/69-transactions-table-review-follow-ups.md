@@ -1,9 +1,9 @@
 # 69: Transactions table: what the visual review left open
 
-**What to build:** Smaller things seen during the review of ticket 68 and not changed there.
+**What to build:** Smaller things seen during the review of ticket 70 (filed as 68) and not changed there.
 Each one a judgement call, so one ticket, decide per item.
 
-**Blocked by:** 68 (done)
+**Blocked by:** 70 (done; filed as 68 before the number was taken by the model ticket)
 
 **Status:** done for 1, 2 and 4; 3 and 5 left
 
@@ -69,3 +69,9 @@ Before and after screenshots in `/tmp/finquery-69/before/` and `/tmp/finquery-69
 `after/1440-two-selected-target-chosen.png` for the button appearing. Server on port 8091 with
 `/tmp/finquery-69/verify.db`, seeded through `/api/onboarding/sample` so no model ran, browser
 session `ticket69`, both closed after.
+
+Follow-up 2026-09-07, after the note above: 9rem still clipped "Cash withdrawal" and "Public
+transport". Subcategory is now `minmax(10.5rem, 1fr)`, Description `minmax(10.75rem, 1.6fr)`,
+table minimum 74rem, which is exactly the 1184px a 1440 window leaves next to the sidebar, so
+no "Scroll for more columns" badge at 1440 and both names read in full. Checked headful on port
+8093, session `vr2`, screenshot `/tmp/finquery-vr2/tx2.png`. Build and lint unchanged.

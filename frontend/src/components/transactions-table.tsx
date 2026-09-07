@@ -125,7 +125,7 @@ export function TransactionsTable({
         helper.accessor('description', {
           id: 'description',
           header: 'Description',
-          meta: { width: 'minmax(11rem, 1.6fr)' },
+          meta: { width: 'minmax(10.75rem, 1.6fr)' },
           cell: ({ row }) => (
             <div className="flex min-w-0 items-center gap-1.5">
               <div className="min-w-0 flex-1">
@@ -203,7 +203,7 @@ export function TransactionsTable({
         helper.accessor('subcategory', {
           id: 'subcategory',
           header: 'Subcategory',
-          meta: { width: 'minmax(9rem, 1fr)' },
+          meta: { width: 'minmax(10.5rem, 1fr)' },
           cell: ({ row }) => {
             const owner = categories.find((category) => category.id === row.original.category_id)
             if (!owner) {
@@ -316,7 +316,7 @@ export function TransactionsTable({
         className="min-h-0 flex-1 overflow-auto [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]"
         ref={scroller}
       >
-        <div className="min-w-[72.75rem] text-sm" role="table" aria-rowcount={total}>
+        <div className="min-w-[74rem] text-sm" role="table" aria-rowcount={total}>
           <div className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur" role="rowgroup">
             {table.getHeaderGroups().map((group) => (
               <div className="grid items-center" key={group.id} role="row" style={{ gridTemplateColumns: template }}>
