@@ -70,19 +70,26 @@ export function TransactionsTable({
         helper.display({
           id: 'select',
           meta: { width: '2.25rem' },
+          // Every control in a row is 28px tall (h-7) and the row aligns to the top, so the error
+          // line under an input can grow a cell. The checkbox is 16px: give it the same 28px box
+          // or it sits above the middle of its row.
           header: ({ table }) => (
-            <Checkbox
-              aria-label="Select every loaded row"
-              checked={table.getIsAllRowsSelected() || (table.getIsSomeRowsSelected() && 'indeterminate')}
-              onCheckedChange={() => table.toggleAllRowsSelected()}
-            />
+            <div className="flex h-7 items-center">
+              <Checkbox
+                aria-label="Select every loaded row"
+                checked={table.getIsAllRowsSelected() || (table.getIsSomeRowsSelected() && 'indeterminate')}
+                onCheckedChange={() => table.toggleAllRowsSelected()}
+              />
+            </div>
           ),
           cell: ({ row }) => (
-            <Checkbox
-              aria-label={`Select ${row.original.description}`}
-              checked={row.getIsSelected()}
-              onCheckedChange={() => row.toggleSelected()}
-            />
+            <div className="flex h-7 items-center">
+              <Checkbox
+                aria-label={`Select ${row.original.description}`}
+                checked={row.getIsSelected()}
+                onCheckedChange={() => row.toggleSelected()}
+              />
+            </div>
           ),
         }),
         helper.display({
@@ -149,7 +156,7 @@ export function TransactionsTable({
               Enriched title
             </span>
           ),
-          meta: { width: 'minmax(7rem, 0.8fr)' },
+          meta: { width: 'minmax(8.5rem, 0.8fr)' },
           cell: ({ row }) => (
             <span className="block truncate px-1.5 py-1 text-muted-foreground text-sm" title={row.original.title ?? ''}>
               {row.original.title ?? '–'}
@@ -227,7 +234,7 @@ export function TransactionsTable({
         helper.accessor('account', {
           id: 'account',
           header: 'Account',
-          meta: { width: 'minmax(7rem, 1fr)' },
+          meta: { width: 'minmax(11.5rem, 1fr)' },
           cell: ({ row }) => (
             <PickerCell
               choices={accountChoices}
@@ -252,7 +259,7 @@ export function TransactionsTable({
           header: 'Source',
           meta: { width: '5.5rem' },
           cell: ({ row }) => (
-            <span className="block px-1.5 py-1 text-muted-foreground text-xs capitalize">{row.original.source}</span>
+            <span className="flex h-7 items-center px-1.5 text-muted-foreground text-xs capitalize">{row.original.source}</span>
           ),
         }),
       ]),
@@ -309,7 +316,7 @@ export function TransactionsTable({
         className="min-h-0 flex-1 overflow-auto [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]"
         ref={scroller}
       >
-        <div className="min-w-[63rem]" role="table" aria-rowcount={total}>
+        <div className="min-w-[68rem] text-sm" role="table" aria-rowcount={total}>
           <div className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur" role="rowgroup">
             {table.getHeaderGroups().map((group) => (
               <div className="grid items-center" key={group.id} role="row" style={{ gridTemplateColumns: template }}>
@@ -317,11 +324,13 @@ export function TransactionsTable({
                   <div
                     // One line per header, whatever the width: a wrapped header makes the whole
                     // header row taller than every row under it.
-                    className="truncate px-1.5 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wide"
+                    className="min-w-0 px-1 py-1 font-medium text-muted-foreground text-xs uppercase tracking-wide"
                     key={header.id}
                     role="columnheader"
                   >
-                    <table.FlexRender header={header} />
+                    <div className={cn('truncate', header.column.id !== 'select' && 'px-1.5 leading-7')}>
+                      <table.FlexRender header={header} />
+                    </div>
                   </div>
                 ))}
               </div>
