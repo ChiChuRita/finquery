@@ -12,6 +12,7 @@ calling: a request that needs a schema forces a single tool, which makes llama.c
 GBNF grammar from that tool's parameters.
 """
 
+import json
 import os
 from collections.abc import AsyncGenerator, AsyncIterator, Iterator, Sequence
 from contextlib import asynccontextmanager
@@ -220,6 +221,21 @@ class LlamaCppModel(Model):
                 yield loaded
 
 
+
+def normalize_json_arguments(text: str) -> str:
+    """Tool-call arguments as strict JSON, whatever the model put inside the strings.
+
+    llama.cpp turns Gemma 4's tool-call DSL into JSON without escaping control characters, so a
+    statement written over several lines arrives with raw line breaks inside the `sql` string,
+    which strict JSON rejects and the output validation then counts as a failed attempt. The
+    fine-tuned 12B writes its SQL that way on almost every call (probe of 2026-09-07). Python's
+    lenient parser reads it; the re-dump is what Pydantic AI validates.
+    """
+    try:
+        return json.dumps(json.loads(text, strict=False), ensure_ascii=False)
+    except ValueError:
+        return text
+
 def _prompt_opens_thought(messages: Sequence[ModelMessage]) -> bool:
     """Whether a Gemma 4 prompt leaves the thought channel already open.
 
@@ -359,7 +375,7 @@ class LlamaCppStreamedResponse(StreamedResponse):
     _timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     _stopped: bool = False
     _chunks: Iterator[dict[str, Any]] | None = None
-    _named: set[Any] = field(default_factory=set)
+    _calls: dict[int, dict[str, Any]] = field(default_factory=dict)
 
     @property
     def model_name(self) -> str:
@@ -422,13 +438,15 @@ class LlamaCppStreamedResponse(StreamedResponse):
             generated += 1
             self._usage = RequestUsage(input_tokens=prompt_tokens, output_tokens=generated)
             if self._forced_tool:
-                for event in self._tool_call_deltas(calls or []):
-                    yield event
+                self._buffer_tool_calls(calls or [])
             else:
                 for event in self._events(splitter.feed(content or "")):
                     yield event
         for event in self._events(splitter.finish()):
             yield event
+        if self._forced_tool:
+            for event in self._flush_tool_calls():
+                yield event
         self._usage = RequestUsage(input_tokens=prompt_tokens, output_tokens=generated)
         if not cancelled:
             # A cancelled turn is left without a reason; the response state already says
@@ -447,24 +465,34 @@ class LlamaCppStreamedResponse(StreamedResponse):
                     vendor_part_id=None, tool_name=payload.name, args=payload.args
                 )
 
-    def _tool_call_deltas(self, calls: Sequence[dict[str, Any]]) -> Iterator[ModelResponseStreamEvent]:
-        """The forced-tool path: llama.cpp already emits OpenAI tool-call deltas.
+    def _buffer_tool_calls(self, calls: Sequence[dict[str, Any]]) -> None:
+        """The forced-tool path: llama.cpp emits OpenAI tool-call deltas, gathered here.
 
         It repeats the whole tool name on every chunk rather than sending it once
-        (`_convert_completion_to_chat_function`), while Pydantic AI treats a name as a delta
-        and concatenates it, which turns `run_sql` into `run_sqlrun_sqlrun_sql...` and fails
-        the call. So the name goes with the first chunk of a call and only the arguments after
-        that.
+        (`_convert_completion_to_chat_function`), and it leaves raw control characters inside
+        the JSON strings. So the fragments are collected per call and handed over once, at the
+        end of the stream, with the name from the first chunk and the arguments normalized
+        (`normalize_json_arguments`). Nobody watches a sub-agent's arguments stream live.
         """
         for call in calls:
             index = call.get("index", 0)
-            first = index not in self._named
-            self._named.add(index)
+            entry = self._calls.setdefault(index, {"name": None, "id": None, "args": []})
+            function = call.get("function") or {}
+            if entry["name"] is None and function.get("name"):
+                entry["name"] = function["name"]
+            if entry["id"] is None and call.get("id"):
+                entry["id"] = call["id"]
+            if function.get("arguments"):
+                entry["args"].append(function["arguments"])
+
+    def _flush_tool_calls(self) -> Iterator[ModelResponseStreamEvent]:
+        for index, entry in sorted(self._calls.items()):
             event = self._parts_manager.handle_tool_call_delta(
                 vendor_part_id=index,
-                tool_name=call["function"].get("name") if first else None,
-                args=call["function"].get("arguments"),
-                tool_call_id=call.get("id") if first else None,
+                tool_name=entry["name"],
+                args=normalize_json_arguments("".join(entry["args"])),
+                tool_call_id=entry["id"],
             )
             if event is not None:
                 yield event
+        self._calls.clear()

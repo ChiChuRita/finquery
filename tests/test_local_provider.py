@@ -647,3 +647,16 @@ async def test_a_pair_that_does_not_fit_lowers_the_chat_context_and_says_so(tmp_
     assert "out of memory" in report.note and "FINQUERY_LOCAL_N_CTX=16384" in report.note
     assert stack.loaded_spec("fast") is not None and stack.loaded_spec("fast").key == FAST  # type: ignore[union-attr]
     assert slots[FAST].closed == 0, "the fast slot is never the one that is given up"
+
+
+def test_tool_call_arguments_with_raw_line_breaks_become_strict_json() -> None:
+    """llama.cpp leaves raw newlines inside the JSON strings of a Gemma tool call (probe of
+    2026-09-07); the fine-tuned 12B writes multi-line SQL, so every call failed validation."""
+    from finquery.local.model import normalize_json_arguments
+
+    raw = '{"reasoning": "period: 2025", "sql": "SELECT 1\nFROM transaction_view\nWHERE amount < 0"}'
+    fixed = normalize_json_arguments(raw)
+    import json
+
+    assert json.loads(fixed)["sql"] == "SELECT 1\nFROM transaction_view\nWHERE amount < 0"
+    assert normalize_json_arguments("not json at all") == "not json at all"
