@@ -12,6 +12,7 @@ calling: a request that needs a schema forces a single tool, which makes llama.c
 GBNF grammar from that tool's parameters.
 """
 
+import os
 from collections.abc import AsyncGenerator, AsyncIterator, Iterator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
