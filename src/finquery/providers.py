@@ -23,8 +23,9 @@ if TYPE_CHECKING:
 ModelRole = Literal["chat", "fast"]
 MODEL_ROLES: tuple[ModelRole, ...] = get_args(ModelRole)
 """The two things a model is asked to be in one turn. `chat` is the conversation's catalog
-entry, `fast` the sub-agent slot of that entry's provider. On the local provider the two are
-also the two seats in memory (`finquery.local.runtime`)."""
+entry, `fast` the sub-agent slot of that entry's provider. On the local provider the role a
+model carries is its seat, which says which model `fast` means and where the adapters attach,
+not a place in memory: one model is loaded at a time (`finquery.local.runtime`)."""
 
 SubagentRole = Literal["query", "chart", "categorizer", "extraction", "memory", "summary", "weblookup"]
 SUBAGENT_ROLES: tuple[SubagentRole, ...] = get_args(SubagentRole)
@@ -146,7 +147,7 @@ def hosted_model(settings: Settings, model_id: str) -> Model:
 
 
 def build_local_stack(settings: Settings, *, download: bool = True) -> "LocalStack":
-    """The local provider's state: the model files, the seats and the adapters.
+    """The local provider's state: the model files, the loaded model and the adapters.
 
     Both providers can be live at once, so this is built whatever `FINQUERY_PROVIDER` says and
     nothing here loads weights or touches the network. `download` is what the provider setting

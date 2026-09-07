@@ -1,4 +1,4 @@
-"""The model catalog at the HTTP seam, the sub-agent role settings, and the local seat.
+"""The model catalog at the HTTP seam, the sub-agent role settings, and the one loaded model.
 
 The rule this file holds the app to: a conversation's chat model is its catalog entry, and
 every sub-agent role runs on what its own setting names, which is that same entry by default
@@ -21,7 +21,7 @@ from finquery.app import create_app
 from finquery.db import Conversation, Profile, Turn
 from finquery.local.catalog import LOCAL_FAST, LOCAL_GEMMA_12B, LOCAL_GEMMA_26B, ModelSpec
 from finquery.local.runtime import LocalStack
-from finquery.providers import SUBAGENT_ROLES
+from finquery.providers import SUBAGENT_ROLES, ProviderNotAvailable
 from finquery.settings import Settings
 
 from .conftest import (
@@ -294,7 +294,7 @@ async def test_the_default_entry_follows_the_provider_setting_and_nothing_else(t
             assert [e["available"] for e in body["entries"]] == [False, False, False, True]
 
 
-# The seat under the two local chat models, without a llama.cpp anywhere near it.
+# The one loaded local model, without a llama.cpp anywhere near it.
 
 
 class SeatSlot:
@@ -339,35 +339,88 @@ def seat_stack(tmp_path: Path, log: list[str]) -> LocalStack:
     return stack
 
 
-async def test_the_chat_seat_drains_unloads_and_loads_and_never_holds_three(tmp_path: Path) -> None:
-    """Choosing the other chat model swaps the seat, in that order, and E4B stays put.
+def loaded_keys(stack: LocalStack) -> list[str]:
+    """Every model the stack says is loaded. One, or none before the first hold."""
+    return [status.key for status in stack.status() if status.loaded]
 
-    Gemma 12B plus E4B is about 12.9 GB and the 26B is 12.9 GB of weights on its own. The three
-    together do not fit on a 24 GB Mac, which is what this order and this seat exist for. A
-    chat on E4B itself holds the fast seat, so it never takes the chat seat from either.
+
+async def test_asking_for_another_model_drains_unloads_and_loads_and_never_holds_two(tmp_path: Path) -> None:
+    """One model is loaded at a time, whatever seat it sits in (ticket 68).
+
+    The 26B is 12.9 GB of weights on its own and the first decode failed with E4B beside it
+    (`bench/results/20260907-local-tokens-per-second.md`), so the rule is one model and the
+    order is the point: drain the running one, unload it, then load the new one.
     """
     log: list[str] = []
     stack = seat_stack(tmp_path, log)
 
     async with stack.holding("fast", LOCAL_FAST):
         pass
-    async with stack.holding("chat", LOCAL_GEMMA_26B):
-        pass
-    assert log == ["load:local:gemma-4-e4b", "load:local:gemma-4-26b"], "nothing is drained into an empty seat"
-    assert stack.loaded_spec("chat") is LOCAL_GEMMA_26B
-
-    log.clear()
-    async with stack.holding("chat", LOCAL_GEMMA_12B):
-        pass
-
-    assert log == ["drain:chat", "unload:local:gemma-4-26b", "load:local:gemma-4-12b"]
-    assert stack.loaded_spec("chat") is LOCAL_GEMMA_12B
-    # Two seats, so two models, whatever order they were asked for in.
+    assert log == ["load:local:gemma-4-e4b"], "nothing is drained when nothing is loaded"
+    assert loaded_keys(stack) == ["local:gemma-4-e4b"]
     assert stack.loaded_spec("fast") is LOCAL_FAST
-    assert len(stack._seats) == 2  # noqa: SLF001 - the seat count is the point
 
-    # Asking for the model that is already in the seat swaps nothing.
+    for spec in (LOCAL_GEMMA_26B, LOCAL_GEMMA_12B, LOCAL_FAST):
+        previous = stack.models[loaded_keys(stack)[0]]
+        log.clear()
+        async with stack.holding(spec.seat, spec):
+            pass
+        # Drained as the model on its way out, which is the run whose token pull has to return.
+        assert log == [f"drain:{previous.seat}", f"unload:{previous.key}", f"load:{spec.key}"]
+        assert loaded_keys(stack) == [spec.key], "exactly one model is loaded after each swap"
+        assert stack.loaded_spec(spec.seat) is spec
+
+    # Asking for the model that is loaded swaps nothing.
     log.clear()
-    async with stack.holding("chat", LOCAL_GEMMA_12B):
+    async with stack.holding("fast", LOCAL_FAST):
         pass
     assert log == []
+
+
+async def test_a_role_on_the_fast_slot_swaps_to_e4b_and_back_around_a_chat_on_the_12b(tmp_path: Path) -> None:
+    """The documented cost of setting a sub-agent role to `fast` on a chat on a bigger model.
+
+    Two swaps per sub-agent call, paid by that call, which is why every role defaults to `chat`.
+    """
+    log: list[str] = []
+    stack = seat_stack(tmp_path, log)
+
+    async with stack.holding("chat", LOCAL_GEMMA_12B):
+        pass
+    log.clear()
+    # The sub-agent's own run: `fast` resolves to E4B, so the 12B goes and E4B is loaded.
+    async with stack.holding("fast", LOCAL_FAST):
+        pass
+    # And the next chat turn takes the 12B back.
+    async with stack.holding("chat", LOCAL_GEMMA_12B):
+        pass
+
+    assert log == [
+        "drain:chat",
+        "unload:local:gemma-4-12b",
+        "load:local:gemma-4-e4b",
+        "drain:fast",
+        "unload:local:gemma-4-e4b",
+        "load:local:gemma-4-12b",
+    ]
+    assert loaded_keys(stack) == ["local:gemma-4-12b"]
+
+
+async def test_a_nested_hold_in_one_task_reuses_the_model_and_cannot_swap_it(tmp_path: Path) -> None:
+    """The re-entrancy a sub-agent run inside an attached adapter depends on.
+
+    Same task, same model: the inner hold is the outer one, so nothing deadlocks on the lock
+    the adapter already took. Asking for another model in there is refused rather than swapped:
+    the run around it is reading the weights that would be freed.
+    """
+    log: list[str] = []
+    stack = seat_stack(tmp_path, log)
+
+    async with stack.holding("fast", LOCAL_FAST) as outer:
+        async with stack.holding("fast", LOCAL_FAST) as inner:
+            assert inner is outer
+        with pytest.raises(ProviderNotAvailable):
+            async with stack.holding("chat", LOCAL_GEMMA_12B):
+                pass
+
+    assert log == ["load:local:gemma-4-e4b"], "one load, no swap, no drain"

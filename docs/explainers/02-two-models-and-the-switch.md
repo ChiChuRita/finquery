@@ -38,9 +38,9 @@ In words:
 4. Locally every request goes through llama-cpp-python's chat handler with the GGUF's own chat
    template, on one worker thread per seat. The raw token stream comes back as text, and a wire
    format module per model splits it into thinking parts, text parts and tool calls.
-5. There are two seats in memory, not three models. Gemma 4 E4B holds the fast seat and stays
-   there. The two local chat models share the other one, Gemma 4 12B by default: choosing the
-   other drains the seat, unloads it and loads the new one at the same context.
+5. One local model is loaded at a time, Gemma 4 12B by default (ticket 68): choosing another
+   entry drains the loaded one, unloads it and loads the new one at the same context. A seat is
+   which model the `fast` role means, not a second place in memory.
 6. Everything above (the agent, the tools, the API, the UI) sees Pydantic AI parts and knows
    nothing about the provider. Every name on screen comes from `GET /api/models`.
 
@@ -64,10 +64,10 @@ In words:
 6. `src/finquery/local/downloads.py:DownloadManager`: downloads with per-file progress, or
    links in a parked copy whose sha256 matches.
 7. `src/finquery/local/runtime.py:LocalStack`: `resolve` (a `LlamaCppModel` for one model, 503
-   if the files are missing), `slot` (load on first use, then resident), `take_seat` (drain,
-   unload, load, in that order), `holding` (one lock per seat, re-entrant inside one asyncio
-   task, and where the swap happens), `with_adapter` (attach a LoRA adapter on the fast seat
-   for one run), `drain` (wait for a cancelled call to leave llama.cpp).
+   if the files are missing), `slot` (load on first use), `take_seat` (drain, unload, load, in
+   that order), `holding` (one lock, re-entrant inside one asyncio task, and where the swap
+   happens), `with_adapter` (attach a LoRA adapter on a run on E4B), `drain` (wait for a
+   cancelled call to leave llama.cpp). One model is loaded at a time since ticket 68.
 8. `src/finquery/local/model.py:LlamaCppModel`: the Pydantic AI `Model`. `request_stream`
    renders messages to the OpenAI-shaped dicts the template expects, decides `enable_thinking`
    (on for a free request, off when a single tool is forced), sets the model's sampling from
@@ -79,10 +79,9 @@ In words:
     `models/adapters/{query,chart}.gguf` under a lock, or yields an audit note when the file is
     missing and the run continues on the base weights.
 11. `src/finquery/local/check.py:check_slot`: the `finquery-check` command. Answer, thinking,
-    tool call and vision on the fast slot and on every local chat model whose weights are on
-    disk, plus the adapter files' presence. `src/finquery/local/check.py:check_pair` then holds
-    E4B and Gemma 4 12B at once and reports the headroom, falling back to a 16k chat seat rather
-    than evicting the fast slot.
+    tool call and vision on every local model whose weights are on disk, one at a time and each
+    in place of the last, plus the adapter files' presence. It prints no memory figure: RSS is
+    not to be trusted for an mmapped 13 GB GGUF (ticket 68).
 12. `src/finquery/api/chat.py:chat` reads the conversation's entry and stamps `model_key` on
     every assistant message; `src/finquery/api/chat.py:stop` cancels the token, and the local
     loop checks it between tokens.
@@ -112,10 +111,10 @@ In words:
   (`tests/test_local_provider.py`, `test_adapter_falls_back_to_base_weights_with_a_note`).
 - A missing model file is a 503 with a sentence that says to open Settings; the app starts
   without any weights on disk.
-- llama.cpp is not reentrant, so one worker thread per seat, one lock per seat, and `drain`
-  after a cancelled turn so the next turn never enters llama.cpp while the old call is inside.
-  A seat swap drains first for the same reason, before the weights the old call was reading are
-  freed, and only then loads the other chat model.
+- llama.cpp is not reentrant, so one worker thread, one lock, and `drain` after a cancelled
+  turn so the next turn never enters llama.cpp while the old call is inside. A swap drains
+  first for the same reason, before the weights the old call was reading are freed, and only
+  then loads the model that was asked for.
 - A cloud entry with no API key and a local entry with no weights both answer with one sentence
   (a 503 the composer shows), never a stack trace, and the picker disables them with it.
 - Template tokens that leak as text (`<turn|>`, a bare `thought` line) are stripped in

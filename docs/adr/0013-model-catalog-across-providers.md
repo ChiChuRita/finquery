@@ -4,7 +4,9 @@ Date: 2026-09-06
 Amended: 2026-09-06 (ticket 61: the default entry per provider, and the resolution rule for a
 sub-agent, which is now one setting per role rather than always the fast slot; see the ticket 61
 amendment of ADR 0006); 2026-09-07 (ticket 67: three local Gemma 4 entries and one cloud entry,
-Qwen removed, E4B a chat entry, adapters follow the seat, the key from Settings; below)
+Qwen removed, E4B a chat entry, adapters follow the seat, the key from Settings; below);
+2026-09-07 (ticket 68: one local model resident at a time, which supersedes the two seats;
+below)
 Status: accepted
 Amends: ADR 0002 (the provider switch) and ADR 0006 (the local provider)
 
@@ -127,3 +129,34 @@ same question on the local Qwen and the hosted Qwen, is no longer one worth a pi
   `.env`) so the next start has it. The browser gets the last four characters back and nothing
   more. A machine without a key still lists the cloud entry, unavailable, with the sentence
   saying where to enter one.
+
+## Amendment, 2026-09-07 (ticket 68): one resident local model at a time
+
+The two-seat decision above is superseded. The laptop measurement of the same day
+(`bench/results/20260907-local-tokens-per-second.md`) settled it: with Gemma 4 E4B resident and
+the 26B A4B in the chat seat, the first decode failed with `llama_decode returned -3` at 32k and
+again at 16k, and `finquery-check`'s pair report had called that same pair "ok" because it read
+the process RSS, which comes back as 0.1 GB with a 13 GB GGUF mmapped. Two seats also bought
+nothing: since ticket 61 every sub-agent role defaults to `chat`, so a turn on the 12B or the
+26B never touches a resident E4B.
+
+- **`LocalStack` keeps one GGUF loaded.** Asking for a model that is not the loaded one drains
+  the loaded one, unloads it, and loads the new one at the configured context, in that order
+  and under one lock, which is the old `take_seat` order applied across seats instead of within
+  one. Asking for the model that is loaded costs nothing. One worker thread and one lock;
+  `holding` stays re-entrant within one asyncio task, so a sub-agent run inside an attached
+  adapter does not deadlock on itself. A nested hold cannot swap: the run around it is holding
+  the model it asked for.
+- **A seat is a role, not a place in memory.** `ModelSpec.seat` still says which model a
+  sub-agent role set to `fast` means (Gemma 4 E4B) and which base the adapters attach to.
+  `loaded_spec(seat)` answers "the loaded model, if it is the one for this seat", and
+  `GET /api/models` reports `loaded` for at most one entry.
+- **A role set to `fast` on a chat on the 12B or the 26B swaps twice per sub-agent call.** That
+  is the cost of that setting, documented on it (`.env.example`, `finquery.catalog`) rather than
+  prevented; the default `chat` never swaps, and a chat on E4B runs its fine-tuned sub-agents
+  with no swap at all.
+- **The pair check is gone** (`check_pair`, `PairReport`, the 16k fallback for the chat seat).
+  `finquery-check` runs each model alone, as it already did, and prints no memory figure: RSS is
+  not to be trusted for an mmapped 13 GB file, and a wrong number is worse than none.
+  `FINQUERY_LOCAL_N_CTX` stays as the one context cap, and at 32k every catalog model fits on
+  its own.

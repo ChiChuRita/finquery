@@ -41,7 +41,7 @@ benchmark; it left in ticket 67.
 Behind the chat, every job with a model of its own is a sub-agent: SQL, chart, categorizer,
 extraction, memory, summary and web lookup. Each of those seven roles has a setting saying which
 model runs it, `FINQUERY_SUBAGENT_MODEL_<ROLE>`, taking `chat` (the conversation's own entry,
-the default), `fast` (**Gemma 4 E4B** locally, resident, where the LoRA adapters attach, or
+the default), `fast` (**Gemma 4 E4B** locally, where the LoRA adapters attach, or
 `FINQUERY_OPENROUTER_FAST_MODEL` in the cloud) or a catalog key. `FINQUERY_PROVIDER` decides one
 thing: which entry a new conversation starts on. Both providers are live at once, and every name
 on screen comes from `GET /api/models`. The numbers above are the cluster benchmark of
@@ -63,7 +63,7 @@ Settings (environment or `.env`):
 | `FINQUERY_EXTRACTION_PAGE_CONCURRENCY`  | 12 hosted, 4 local         | PDF pages read at once                     |
 | `FINQUERY_MODELS_DIR`                   | `models`                   | Where the local GGUF files live            |
 | `FINQUERY_PARKED_MODELS_DIR`            |                            | Folder of GGUFs to reuse instead of download |
-| `FINQUERY_LOCAL_N_CTX`                  | `32768`                    | Context cap per resident local model       |
+| `FINQUERY_LOCAL_N_CTX`                  | `32768`                    | Context cap for the loaded local model     |
 
 ## Run on the local models
 
@@ -75,25 +75,22 @@ CMAKE_ARGS="-DGGML_METAL=on" uv sync
 FINQUERY_PROVIDER=local uv run finquery
 ```
 
-A new chat starts on Gemma 4 12B, with Gemma 4 E4B resident as the fast slot, both running in
-this process through llama-cpp-python with Metal. Startup begins downloading the GGUF files into
-`models/`; watch it on the Settings page, which also has a sanity check button. A file already
-sitting in `FINQUERY_PARKED_MODELS_DIR` whose sha256 matches is linked in instead of downloaded,
-and the Settings card says which of the two happened per file. A model loads on its first use
-and then stays in its seat: the pair takes about 12.9 GB at the 32k context cap, so run nothing
-else heavy beside them. The two local chat models share one seat, so picking the other one
-unloads the first.
+A new chat starts on Gemma 4 12B, with Gemma 4 E4B as the fast slot, running in this process
+through llama-cpp-python with Metal. Startup begins downloading the GGUF files into `models/`;
+watch it on the Settings page, which also has a sanity check button. A file already sitting in
+`FINQUERY_PARKED_MODELS_DIR` whose sha256 matches is linked in instead of downloaded, and the
+Settings card says which of the two happened per file. One model is loaded at a time (about
+6 GB for E4B, 7 GB for the 12B, 13 GB for the 26B, plus the KV cache at the 32k context cap),
+so picking another entry unloads the one in memory and loads the new one.
 
 Prove the setup before a demo:
 
 ```sh
-uv run finquery-check    # every local model: answer, thinking, tool call, vision, then the pair
+uv run finquery-check    # every local model: answer, thinking, tool call, vision
 ```
 
-It ends by holding Gemma 4 E4B and Gemma 4 12B at the same time and printing what is resident
-against the Metal working set of the machine. If they do not fit at the configured context it
-loads the chat seat again at 16k and says to set `FINQUERY_LOCAL_N_CTX=16384`: the fast slot is
-never the one that is evicted.
+It runs each local model whose weights are on disk one at a time, each in place of the last,
+which is how the app runs them too.
 
 What to expect locally on a 24 GB M4 Pro: a question with one query is a minute or two with the
 chat and its sub-agents on Gemma 4 12B, most of it prompt evaluation (llama.cpp's multimodal

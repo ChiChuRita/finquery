@@ -45,12 +45,12 @@ class Settings(BaseSettings):
     """A folder of already-downloaded GGUF files. A copy whose hash matches is linked in
     instead of downloaded again."""
     local_n_ctx: int = 32768
-    """Context cap per resident model, and the size a swapped-in chat model is reloaded at.
+    """Context cap for the loaded local model, and the size a swapped-in one is loaded at.
 
-    32k is what Gemma 4 E4B and Gemma 4 12B take together: about 12.9 GB inside the 18.2 GB
-    Metal working set of a 24 GB Mac, with flash attention and a q8_0 KV cache. Lower it on a
-    smaller machine, or when the 26B is in the chat seat and `finquery-check` says the pair
-    does not fit. See docs/adr/0006-local-gemma-4-through-llama-cpp.md."""
+    One model is loaded at a time (ADR 0013, ticket 68 amendment), so 32k with flash attention
+    and a q8_0 KV cache fits every catalog model inside the Metal working set of a 24 GB Mac,
+    the 12.9 GB 26B included. Lower it on a smaller machine. See
+    docs/adr/0006-local-gemma-4-through-llama-cpp.md."""
     # OpenRouter's own tooling expects this exact name, so it is read without the prefix.
     openrouter_api_key: str | None = Field(default=None, validation_alias="OPENROUTER_API_KEY")
     """The key the cloud entry answers with. From the environment or `.env` at startup; the

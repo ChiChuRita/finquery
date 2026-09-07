@@ -8,15 +8,19 @@ Gemma 4 26B A4B through OpenRouter.
 
 Each sub-agent **role** has a setting saying which model it runs on: `chat` (the conversation's
 own entry, the default), `fast` (the sub-agent slot of that entry's provider: the Gemma 4 E4B
-entry for a local one, resident, where the adapters attach, and `FINQUERY_OPENROUTER_FAST_MODEL`
+entry for a local one, where the adapters attach, and `FINQUERY_OPENROUTER_FAST_MODEL`
 for a cloud one) or a catalog key that pins the role to one model. That is the whole resolution
 rule, and `Catalog.for_role` is where it lives; `Catalog.resolver` binds it to one entry and
 hands a turn a role to model callable. The query and chart sub-agents ask for their LoRA
 adapter on every run and get it exactly when they land on E4B (`finquery.local.model`), so a
 chat on E4B runs the fine-tuned sub-agents and a chat on a bigger model runs its base weights.
 
+One local model is loaded at a time (ADR 0013, ticket 68 amendment), so a role set to `fast`
+on a chat on the 12B or the 26B swaps to E4B and back around every sub-agent call. The default
+`chat` never swaps.
+
 See docs/adr/0013-model-catalog-across-providers.md, which amends 0002 and 0006, and the 0006
-amendment of ticket 61 for why the shipped pair is Gemma 4 12B with E4B.
+amendment of ticket 61 for why the shipped chat model is Gemma 4 12B.
 """
 
 from collections.abc import Callable

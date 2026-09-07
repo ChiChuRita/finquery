@@ -45,9 +45,9 @@ def spec(key: str, seat: str, name: str, weights_size: int, wire: str) -> ModelS
 
 FAST, GEMMA, BIG = "local:gemma-4-e4b", "local:gemma-4-12b", "local:gemma-4-26b"
 
-#: Stand-ins for the three real local models, under the keys the catalog offers them under: the
-#: resident fast slot (E4B, also the smallest chat entry), and the two chat models that share
-#: the other seat.
+#: Stand-ins for the three real local models, under the keys the catalog offers them under:
+#: E4B (the fast slot and the smallest chat entry) and the two bigger chat models. One of the
+#: three is loaded at a time.
 TINY_MODELS = {
     FAST: spec(FAST, "fast", "tiny-fast", 8, "gemma"),
     GEMMA: spec(GEMMA, "chat", "tiny-gemma", 24, "gemma"),
@@ -153,7 +153,7 @@ def _entries(response: httpx.Response) -> list[dict[str, Any]]:
 
 
 async def test_the_two_local_chat_models_share_one_seat(tmp_path: Path) -> None:
-    """A turn on the other chat model swaps the seat; the fast slot stays put."""
+    """A turn on the other chat model swaps it in, and nothing else stays loaded."""
     slots = _slots(
         big=FakeSlot("tiny-big", ("Hello from the 26B.",)),
         gemma=FakeSlot("tiny-gemma", ("Hello from Gemma.",)),
@@ -645,57 +645,6 @@ async def test_every_sub_agent_request_carries_the_output_ceiling(tmp_path: Path
     # The one that is a forced tool (the distillation) is bounded too, with thinking off.
     forced = [request for request in others if isinstance(request.get("tool_choice"), dict)]
     assert forced and all(request["enable_thinking"] is False for request in forced)
-
-
-async def test_the_shipped_pair_loads_together_and_the_check_reports_the_headroom(tmp_path: Path) -> None:
-    """`finquery-check` ends by holding both models the demo runs, not one seat at a time."""
-    from finquery.local.check import check_pair
-
-    slots = _slots()
-    stack = local_stack(tmp_path, slots)
-
-    report = await check_pair(stack, TINY_MODELS[GEMMA])
-
-    assert report.ok and report.error is None and report.note is None
-    assert report.n_ctx == 32768
-    assert report.models == ["Gemma 4 E4B (local)", "tiny-gemma"]
-    # Both seats are filled at the same time, which is the whole point of the pair check.
-    assert stack.loaded_spec("fast") is not None and stack.loaded_spec("fast").key == FAST  # type: ignore[union-attr]
-    assert stack.loaded_spec("chat") is TINY_MODELS[GEMMA]
-    # The three figures are rounded separately, so the difference may be off by one tenth.
-    assert abs(report.headroom_gb - (report.working_set_gb - report.resident_gb)) <= 0.11
-    assert report.resident_gb > 0
-
-
-async def test_a_pair_that_does_not_fit_lowers_the_chat_context_and_says_so(tmp_path: Path) -> None:
-    """The rule when 24 GB is not enough: shrink the chat seat, never evict the fast slot."""
-    from finquery.local.check import check_pair
-
-    slots = _slots()
-    tried: list[int] = []
-
-    def load(model: ModelSpec, _weights: Path, _projector: Path, n_ctx: int) -> Any:
-        tried.append(n_ctx)
-        if model.seat == "chat" and n_ctx > 16384:
-            raise RuntimeError("ggml_metal_graph_compute: command buffer failed, out of memory")
-        return slots[model.key]
-
-    settings = make_settings(provider="local", models_dir=tmp_path / "models")
-    for model in TINY_MODELS.values():
-        for file in model.files:
-            path = model.path(settings.models_dir, file)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(b"x" * file.size)
-    stack = LocalStack(settings, models=TINY_MODELS, load=load)
-
-    report = await check_pair(stack, TINY_MODELS[GEMMA])
-
-    assert report.ok and report.n_ctx == 16384
-    assert tried == [32768, 32768, 16384], "the fast slot loaded once and stayed"
-    assert report.note is not None
-    assert "out of memory" in report.note and "FINQUERY_LOCAL_N_CTX=16384" in report.note
-    assert stack.loaded_spec("fast") is not None and stack.loaded_spec("fast").key == FAST  # type: ignore[union-attr]
-    assert slots[FAST].closed == 0, "the fast slot is never the one that is given up"
 
 
 def test_tool_call_arguments_with_raw_line_breaks_become_strict_json() -> None:
