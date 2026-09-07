@@ -14,7 +14,7 @@
 import '@fontsource-variable/geist'
 
 import { Chart } from '@tanstack/charts/react'
-import { Component, useState, type ReactNode } from 'react'
+import { Component, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { GLOBAL_NAMES, eur, globalValues, type RenderRecord } from '@/chart-runtime/globals'
@@ -172,13 +172,23 @@ const TOTAL_WORD: Record<ChartLanguage, string> = { de: 'Gesamt', en: 'Total' }
  * queries, added up. */
 function Mounted({ message, built }: { message: ChartRenderMessage; built: Built }) {
   const [centre, setCentre] = useState<{ x: number; y: number } | null>(null)
+  // The frame's own viewport is the wrapper the card gave it: the chat's fixed 280, or the room
+  // a dashboard cell has left. A cell that changes height (a wider window, details opened) is a
+  // resize of this document, so the chart is redrawn at the new height rather than clipped.
+  const [viewport, setViewport] = useState(() => window.innerHeight || CHART_HEIGHT)
+  useEffect(() => {
+    const onResize = () => setViewport(window.innerHeight || CHART_HEIGHT)
+    window.addEventListener('resize', onResize)
+    onResize()
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
   const total = built.record.pieTotal
   return (
     <div style={{ position: 'relative' }}>
       <Chart
         ariaLabel={message.title}
         definition={built.definition as never}
-        height={CHART_HEIGHT - FRAME_INSET.top}
+        height={viewport - FRAME_INSET.top}
         onRender={({ svg }) => {
           if (total === null) return
           const polar = svg.querySelector<SVGGElement>('.ts-chart__polar')

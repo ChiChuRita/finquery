@@ -124,9 +124,9 @@ function DeltaLine({ delta }: { delta: Delta }) {
 
 /** One headline figure: what it is, what it says, what period it is about, and two lines under it.
  *
- * The four tiles are one row of equal cards: the same padding, the same type scale, and every
- * slot at the same height, so label, value, period and the two lines sit on the same lines
- * across the row whatever each card has to say. The value is the point, so it carries the
+ * The four tiles are equal cards: the same padding, the same type scale, and every slot at the
+ * same height, so label, value, period and the two lines sit on the same lines across the block
+ * whatever each card has to say. The value is the point, so it carries the
  * weight and keeps the font's own figures: tabular digits are for columns that have to line up,
  * and they make a large number look loose. The card's corners are the chart cards' corners.
  */
@@ -149,7 +149,9 @@ function Tile({
         {value}
       </p>
       <p className="mt-0.5 text-muted-foreground text-xs">{note}</p>
-      <div className="mt-2 flex flex-col gap-1 text-2xs">{children}</div>
+      {/* A tile is a whole cell of the page's grid, which is taller than these four lines:
+          label, value and period sit at the top, the comparisons on the bottom edge. */}
+      <div className="mt-auto flex flex-col gap-1 pt-2 text-2xs">{children}</div>
     </div>
   )
 }
@@ -163,8 +165,23 @@ const rangeLabel = (range: DashboardRange | undefined) =>
     ? `${formatDate(range.first_day)} to ${formatDate(range.last_day)}`
     : 'No bookings yet'
 
-/** The four figures the page opens with, every one of them from a query run just now. */
-function Tiles({ tiles, range }: { tiles: DashboardTiles; range: DashboardRange | undefined }) {
+/** The four figures the page opens with, every one of them from a query run just now.
+ *
+ * One item of the page's grid, two columns wide and two rows tall, holding an inner grid of the
+ * four tiles: each tile is then exactly one cell of the outer grid (272 by 176 at 1440) and the
+ * block is the size of the chart beside it. With no chart to stand beside, it is one band of
+ * four instead, because a 2 by 2 block on an emptied dashboard is a block with a hole next to it.
+ */
+function Tiles({
+  tiles,
+  range,
+  alone,
+}: {
+  tiles: DashboardTiles
+  range: DashboardRange | undefined
+  /** True when this dashboard has no chart card at all. */
+  alone: boolean
+}) {
   const { profile } = useWorkspace()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -186,41 +203,54 @@ function Tiles({ tiles, range }: { tiles: DashboardTiles; range: DashboardRange 
   }
 
   return (
-    <div className="grid grid-cols-2 items-stretch gap-4 lg:grid-cols-4">
-      <Tile label="Spent" note={month} value={euro(tiles.spent_eur)}>
-        {deltaLines(deltasOf(tiles.months, (row) => row.spent_eur, 'down-is-good'))}
-      </Tile>
-      <Tile label="Income" note={month} value={euro(tiles.income_eur)}>
-        {deltaLines(deltasOf(tiles.months, (row) => row.income_eur, 'up-is-good'))}
-      </Tile>
-      <Tile label="Net" note={month} value={euro(tiles.net_eur)}>
-        {deltaLines(deltasOf(tiles.months, (row) => row.net_eur, 'up-is-good'))}
-      </Tile>
-      {/* The count is over the whole range, not the newest month, so its period says the days. */}
-      <Tile label="Needs review" note={rangeLabel(range)} value={String(tiles.needs_review)}>
-        <p className="text-muted-foreground">Bookings without a category</p>
-        {tiles.review_import_id ? (
-          <p>
-            <Button
-              className="h-auto p-0 text-2xs"
-              disabled={opening}
-              onClick={() => void review()}
-              variant="link"
-            >
-              {opening ? 'Opening the chat...' : 'Answer them in a chat'}
-            </Button>
-          </p>
-        ) : tiles.needs_review > 0 ? (
-          // Bookings that came without an import (typed in by hand) have no card to answer.
-          <p>
-            <Button asChild className="h-auto p-0 text-2xs" variant="link">
-              <Link to="/transactions">Set them in Transactions</Link>
-            </Button>
-          </p>
-        ) : (
-          <p className="text-muted-foreground">Every booking has a category</p>
+    // The block keeps its own two rows of the grid rather than stretching with its band: a
+    // neighbour whose details are open makes the band taller, and four tiles blown up to that
+    // height are four mostly empty cards. The inner rows are the grid's own row unit, so a
+    // tile stays exactly one cell of the outer grid.
+    <div className={cn('md:self-start', alone ? 'md:col-span-full' : 'md:col-span-2 md:row-span-2')}>
+      <div
+        className={cn(
+          'grid grid-cols-2 items-stretch gap-4',
+          alone
+            ? 'md:grid-cols-4 md:grid-rows-[var(--dashboard-row)]'
+            : 'md:grid-rows-[var(--dashboard-row)_var(--dashboard-row)]',
         )}
-      </Tile>
+      >
+        <Tile label="Spent" note={month} value={euro(tiles.spent_eur)}>
+          {deltaLines(deltasOf(tiles.months, (row) => row.spent_eur, 'down-is-good'))}
+        </Tile>
+        <Tile label="Income" note={month} value={euro(tiles.income_eur)}>
+          {deltaLines(deltasOf(tiles.months, (row) => row.income_eur, 'up-is-good'))}
+        </Tile>
+        <Tile label="Net" note={month} value={euro(tiles.net_eur)}>
+          {deltaLines(deltasOf(tiles.months, (row) => row.net_eur, 'up-is-good'))}
+        </Tile>
+        {/* The count is over the whole range, not the newest month, so its period says the days. */}
+        <Tile label="Needs review" note={rangeLabel(range)} value={String(tiles.needs_review)}>
+          <p className="text-muted-foreground">Bookings without a category</p>
+          {tiles.review_import_id ? (
+            <p>
+              <Button
+                className="h-auto p-0 text-2xs"
+                disabled={opening}
+                onClick={() => void review()}
+                variant="link"
+              >
+                {opening ? 'Opening the chat...' : 'Answer them in a chat'}
+              </Button>
+            </p>
+          ) : tiles.needs_review > 0 ? (
+            // Bookings that came without an import (typed in by hand) have no card to answer.
+            <p>
+              <Button asChild className="h-auto p-0 text-2xs" variant="link">
+                <Link to="/transactions">Set them in Transactions</Link>
+              </Button>
+            </p>
+          ) : (
+            <p className="text-muted-foreground">Every booking has a category</p>
+          )}
+        </Tile>
+      </div>
     </div>
   )
 }
@@ -282,6 +312,21 @@ function RangeBar({
     </div>
   )
 }
+
+/** How much of the grid a card takes, from its shape alone.
+ *
+ * Nothing about the layout is stored: the size is a function of the shape and the order is the
+ * `position` the server already keeps. Two sizes on purpose. A flow needs width and height, so
+ * a sankey is the full width and three rows tall; every other shape is two columns by two rows,
+ * which beside another such card can never leave a hole, and neither can a full width band.
+ * A finer rule (a doughnut one column wide, a ranking three rows tall) would need a partner of
+ * its own shape beside it or leave a gap. If a ranking reads cramped the follow-up is a stored
+ * `size` per card, not a third size here (ticket 73).
+ *
+ * Below `md` the spans are off: one column has nothing to pack.
+ */
+const sizeOf = (shape: string) =>
+  shape === 'sankey' ? 'md:col-span-full md:row-span-3' : 'md:col-span-2 md:row-span-2'
 
 /** The dashboard: four figures, the cards this profile keeps, and the days they are about.
  *
@@ -392,8 +437,6 @@ export function DashboardPage() {
         <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
           <RangeBar applied={dashboard.data?.range} onChange={setRange} range={range} />
 
-          {dashboard.data && <Tiles range={dashboard.data.range} tiles={dashboard.data.tiles} />}
-
           {problem && (
             <p className="text-destructive text-xs" role="alert">
               {problem}
@@ -406,16 +449,25 @@ export function DashboardPage() {
             </p>
           )}
 
-          {dashboard.isPending || profileId === undefined ? (
-            <p className="py-10 text-center text-muted-foreground text-sm">Loading the dashboard...</p>
-          ) : (
-            // Each card is as tall as its own content: a stretched card would end in a strip
-            // of empty surface under its footer, and the cards are not a table.
-            <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {charts.map((card, index) => (
+          {/* One grid for the whole page: the four money tiles as a 2 by 2 block and every card
+              as a tile of its own size. The row unit is a variable because two things read it,
+              the block and the spans, and `minmax(..., auto)` rather than a fixed unit so a card
+              whose details are open grows its band instead of overflowing the cell below.
+              Dense flow, so keeping or removing a chart never leaves a hole: the cards render in
+              `position` order, and the only thing dense moves is the card after a full width
+              sankey, which hops up into the half band the sankey left. Move left and Move right
+              keep changing `position` and the page keeps following it. */}
+          <div className="grid grid-flow-row-dense grid-cols-1 gap-4 [--dashboard-row:11rem] md:grid-cols-2 md:[grid-auto-rows:minmax(var(--dashboard-row),auto)] xl:grid-cols-4">
+            {dashboard.data && (
+              <Tiles alone={charts.length === 0} range={dashboard.data.range} tiles={dashboard.data.tiles} />
+            )}
+
+            {profileId !== undefined &&
+              charts.map((card, index) => (
                 <DashboardCard
                   busy={busyCard === card.id}
                   card={card}
+                  className={sizeOf(card.shape)}
                   first={index === 0}
                   hasData={hasData}
                   key={card.id}
@@ -435,7 +487,10 @@ export function DashboardPage() {
                   }
                 />
               ))}
-            </div>
+          </div>
+
+          {(dashboard.isPending || profileId === undefined) && (
+            <p className="py-10 text-center text-muted-foreground text-sm">Loading the dashboard...</p>
           )}
 
           {!dashboard.isPending && charts.length === 0 && (

@@ -26,17 +26,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { CHART_HEIGHT, type ChartLanguage } from '@/lib/chart-frame'
+import type { ChartLanguage } from '@/lib/chart-frame'
 import type { ChartToolOutput, DashboardChart } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
 /** A card with nothing to draw. Two different nothings, so two different sentences. */
 function NoRows({ hasData }: { hasData: boolean }) {
   return (
-    <div
-      className="flex flex-col items-center justify-center gap-2 px-6 text-center"
-      style={{ height: CHART_HEIGHT }}
-    >
+    // The card fills its grid cell, so this sentence takes the room the chart would have had
+    // and the footer stays on the card's bottom edge.
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
       {hasData ? (
         <p className="text-muted-foreground text-sm">
           The query behind this chart returns no rows right now, so there is nothing to draw.
@@ -71,7 +71,7 @@ function CardBody({
 }) {
   if (chart.error) {
     return (
-      <div className="px-4 pb-3">
+      <div className="min-h-0 flex-1 px-4 pb-3">
         <FailedBody
           hint="The whole reason, the plan and the query it ran are under Details."
           reason={failureLine(chart.error)}
@@ -83,6 +83,7 @@ function CardBody({
   return (
     <ChartFrame
       code={chart.code}
+      fill
       language={(chart.language ?? 'en') as ChartLanguage}
       rows={chart.rows}
       title={title}
@@ -100,6 +101,7 @@ export function DashboardCard({
   hasData,
   first,
   last,
+  className,
   onRename,
   onMove,
   onRefresh,
@@ -110,6 +112,8 @@ export function DashboardCard({
   hasData: boolean
   first: boolean
   last: boolean
+  /** The card's place in the page's grid: how many columns and rows this shape takes. */
+  className?: string
   onRename: (title: string) => Promise<void> | void
   onMove: (position: number) => Promise<void> | void
   onRefresh: () => Promise<void> | void
@@ -128,7 +132,10 @@ export function DashboardCard({
   return (
     // rounded-xl: the radius of every card on a page (the tiles beside it, the imports list, the
     // settings sections); rounded-lg is the transcript's (ticket 45).
-    <ChartCard className="rounded-xl">
+    // A flex column that fills its cell: the header and the footer keep their height and the
+    // body takes the rest, so a card that spans two rows of the bento grid has its footer on
+    // its bottom edge rather than a strip of empty surface under it.
+    <ChartCard className={cn('flex h-full flex-col rounded-xl', className)}>
       {/* The same header as the chat card, without its shape badge: with four actions beside
           it the badge cut every title to a word and a half ("Income against..."). The shape is
           named under Details, next to the plan. */}

@@ -262,7 +262,7 @@ variables (`--foreground`, `--muted-foreground`, `--border`, `--card`, `--chart-
 `<html>` and re-posts on a theme switch; the frame paints its surface, sets the definition's
 `theme` and remounts.
 
-The frame owns what the code may not: `height: 280`, the responsive width, the palette,
+The frame owns what the code may not: its height, the responsive width, the palette,
 `svgAnimation: { duration: 320, easing: 'ease-out' }`, the `ariaLabel` (the chart's title) and
 the language the month labels are written in. It also decides how finely a `nice: true` axis
 rounds its end: TanStack Charts rounds to the tick count it will draw, one tick per 48 pixels of
@@ -271,6 +271,14 @@ plot height, so a 300 pixel frame in a side by side pair took 13.800 EUR to an a
 rewrites `nice: true` to `nice: 4` and gives that axis `ticks: { count: 4 }` before it renders,
 so the end stays near the data and the last gridline is always labelled: 0, 5.000, 10.000,
 15.000 EUR for 13.800 EUR, whatever the width.
+
+The height is the card's, never the code's, and the frame reads it off its own viewport: the
+runtime takes `window.innerHeight` minus the 6 px top inset as the chart's height and listens
+for `resize`, so a frame that is given more room draws into it. The chat card gives the frame
+`CHART_HEIGHT` (280 px), which is also the fallback when there is no viewport to read. On the
+dashboard the card is a flex column filling its cell of the bento grid and the frame fills what
+the header and the footer leave (`ChartFrame fill`), which for a two by two cell is the same
+280 px; a sankey's three row band is taller and the chart is drawn taller (ticket 73).
 
 ### What the frame's theme sets
 

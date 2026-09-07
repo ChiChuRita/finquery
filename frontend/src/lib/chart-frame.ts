@@ -10,7 +10,9 @@ export const FRAME_SOURCE = 'finquery-chart-runtime'
 export const CARD_SOURCE = 'finquery-chart'
 /** The built runtime page. Vite builds it as a second entry; FastAPI serves it from dist. */
 export const FRAME_URL = '/chart-runtime.html'
-/** Every chart is this tall. The card owns the size, never the generated code. */
+/** The chat card's chart height, and the frame's fallback when it has no viewport of its own.
+ *  The card owns the size, never the generated code: on the dashboard the frame fills its cell
+ *  (`ChartFrame fill`) and the runtime draws at the height the cell left it. */
 export const CHART_HEIGHT = 280
 
 /** The language the chart's words are in. The euro formats stay German whatever it says. */

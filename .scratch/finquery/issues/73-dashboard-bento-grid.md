@@ -16,7 +16,7 @@ shape and the order is the `position` the server already keeps. No new dependenc
 
 **Blocked by:** 51, 66 (done)
 
-**Status:** open
+**Status:** done
 
 Decisions:
 - One grid, `grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4`, with the row unit as a CSS
@@ -118,22 +118,22 @@ Sketch at 1024 by 800, sidebar open (content 720px, two columns of 352):
   ... 4 to 7 the same, a sankey col-span-2 row-span-3
 ```
 
-- [ ] Before screenshots of /dashboard as it is, both themes, 1440x900 and 1024x800, in
+- [x] Before screenshots of /dashboard as it is, both themes, 1440x900 and 1024x800, in
       `/tmp/finquery-73/current/` (throwaway database with the sample year through onboarding,
       no model call, own port above 8090, named session, never ports 8000 or 5173)
-- [ ] After screenshots in `/tmp/finquery-73/after/`, both themes, both widths, with the seven
+- [x] After screenshots in `/tmp/finquery-73/after/`, both themes, both widths, with the seven
       defaults; with zero charts (every card removed: the row of four and the empty state); with
       eight (the seven plus one kept from a chat on the dev provider); a sankey kept from a chat
       shown full width and three rows tall in at least one shot
-- [ ] No hole in any of those grids at either width; the first band is the tile block beside
+- [x] No hole in any of those grids at either width; the first band is the tile block beside
       Spending per month; a card's details opened grows its band and nothing overlaps
-- [ ] Every default chart still draws at about 280 pixels; the chart in the chat card is
+- [x] Every default chart still draws at about 280 pixels; the chart in the chat card is
       unchanged at 280; a theme switch redraws every card in place; Move left and Move right
       still work and the moved card redraws
-- [ ] "Keep this chart" from the chat (Add to dashboard, and the agent keeping one itself) still
+- [x] "Keep this chart" from the chat (Add to dashboard, and the agent keeping one itself) still
       lands the card at the end of the grid and the transcript card still says On the dashboard;
       Remove from the transcript still takes it off
-- [ ] `npm run build` clean, `npx tsc -b` clean, oxlint at or below 36 warnings, no change under
+- [x] `npm run build` clean, `npx tsc -b` clean, oxlint at or below 36 warnings, no change under
       `src/`, `docs/chart-runtime.md` updated for the frame's height
 
 ## Comments
@@ -161,3 +161,66 @@ Files the implementer will touch:
 - `docs/chart-runtime.md` (the frame's height paragraph)
 
 Size: medium, frontend only, no server change, no migration, about a day with the browser checks.
+
+Done 2026-09-07 (port 8097, browser session `ticket73`, throwaway db `/tmp/finquery-73/verify.db`,
+sample year seeded through `POST /api/onboarding/sample`, no model call for the layout work).
+
+What changed per file:
+- `dashboard-page.tsx`: one grid for the whole page,
+  `grid grid-flow-row-dense grid-cols-1 gap-4 [--dashboard-row:11rem] md:grid-cols-2
+  md:[grid-auto-rows:minmax(var(--dashboard-row),auto)] xl:grid-cols-4`. New `sizeOf(shape)`:
+  `sankey` is `md:col-span-full md:row-span-3`, every other shape `md:col-span-2 md:row-span-2`,
+  spans off below `md`. `Tiles` is now one grid item (`md:col-span-2 md:row-span-2 md:self-start`,
+  `md:col-span-full` with no cards) holding an inner `grid grid-cols-2` whose rows are the grid's
+  own row unit; the tile's two comparison lines got `mt-auto pt-2`. The loading line moved out of
+  the cards' branch, so tiles and cards share the one grid.
+- `dashboard-card.tsx`: `ChartCard` is `flex h-full flex-col` and takes the span through a new
+  `className` prop; `NoRows` and the failed body are `min-h-0 flex-1`, so the footer sits on the
+  card's bottom edge in every state; the frame is passed `fill`.
+- `chart-tool.tsx`: `ChartFrame` takes `fill?: boolean`; with it the wrapper is
+  `relative min-h-70 flex-1` instead of `style={{ height: CHART_HEIGHT }}`. The chat card does
+  not pass it and is unchanged. `min-h-70` (280px) rather than `min-h-0`: with `min-h-0` a card
+  whose details were open let the auto row size itself short and squeezed the drawing to 150px,
+  measured; the minimum makes the band grow instead.
+- `chart-runtime/main.tsx`: `Mounted` keeps `window.innerHeight` in state, listens for `resize`
+  and passes `innerHeight - FRAME_INSET.top` to `<Chart>`; `CHART_HEIGHT` is the fallback.
+- `chart-frame.ts`: the comment on `CHART_HEIGHT` only.
+- `docs/chart-runtime.md`: "The frame owns ... `height: 280`" is now "its height", with a
+  paragraph on the frame reading its own viewport, the chat's 280 and the dashboard's `fill`.
+
+Measured in the page with `getBoundingClientRect` (1440x900, sidebar open, content 1136):
+columns `272px 272px 272px 272px`, `grid-auto-rows: minmax(176px, auto)`, `grid-auto-flow: dense`.
+Seven defaults, rects as `x,y,w,h` relative to the grid: tiles block `0,0,560,368`; Spending per
+month `576,0,560,368`; Income against spending `0,384,560,368`; Top categories `576,384,560,368`;
+This month against last month `0,768,560,368`; Regular payments `576,768,560,368`; Top ten
+merchants `0,1152,560,368`; Month pacing `576,1152,560,368`. No two rects overlap and the four
+bands are full (0 to 560 and 576 to 1136 in each), so no cell inside the grid's box is empty.
+Each tile is exactly 272 by 176. Card parts: header 44, chart wrapper 281, footer 41, so every
+default chart draws at 281 against the chat's 280 (about 280, one pixel from the border).
+The eighth card kept from the chat, a sankey, is `0,1536,1136,560` (full width, three rows) and
+its chart wrapper is 473. The chart in the chat card measured 280. Details opened on Spending per
+month: its band grows to 1272, its chart stays 280, the tile block stays 368 and nothing overlaps.
+At 1024x800 (content 720, two columns of 352): the tile block is 720 by 368 and every card is
+720 wide, one per band, no overlap and no empty cell. Zero charts at 1440: one item, the block
+full width with four 272 by 176 tiles in a row and the empty state under it.
+
+Browser checks: theme switch (sidebar Light theme / Dark theme) redrew all seven frames in place;
+Move left then Move right on Top categories reordered the band and the moved card came back drawn;
+Add to dashboard on the chat's sankey landed it at the end of the grid, the transcript card said
+On the dashboard, and Remove in the transcript took it off (the card was then gone from the
+dashboard). Every card was removed through the card menu, one at a time, for the zero state, then
+Restore default cards brought the seven back.
+
+Screenshots: before in `/tmp/finquery-73/current/` (`dark-1440.png`, `light-1440.png`,
+`dark-1024.png`, `light-1024.png`), after in `/tmp/finquery-73/after/` (same four names, plus
+`details-open-1440.png`, `dark-1440-eight-sankey.png`, `light-1440-eight-sankey.png`,
+`dark-1440-sankey-band.png`, `light-1440-sankey-band.png`, `light-1440-zero.png`,
+`light-1024-zero.png`, `light-1440-seven-restored.png`).
+
+`npx tsc -b` clean, `npm run build` clean, `npm run lint` 35 warnings. Nothing under `src/` changed.
+
+Two things the chat turn did not cover: the assistant keeping a chart by itself (this turn drew the
+sankey and offered Add to dashboard, which is the path that was exercised), and the eight-card
+shots at 1024; the one chat turn was spent on the sankey, as the ticket allowed. Note for the
+reader of the "after" screenshots: a conversation tab row appeared in the app between the before
+and after sets from work outside this ticket, so the chrome above the page differs by a row.

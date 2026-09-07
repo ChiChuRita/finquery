@@ -110,12 +110,16 @@ export function ChartFrame({
   code,
   rows,
   onError,
+  fill = false,
 }: {
   title: string
   language: ChartLanguage
   code: string
   rows: ChartRow[]
   onError?: (message: string) => void
+  /** Take the room the card has left instead of the chat's fixed height, for a grid cell that
+   *  spans rows (the dashboard). The runtime draws at the frame's own viewport either way. */
+  fill?: boolean
 }) {
   const frame = useRef<HTMLIFrameElement>(null)
   // Every reason to (re)send the render message, counted rather than flagged: a frame that
@@ -168,7 +172,14 @@ export function ChartFrame({
   }, [posts, title, language, code, rows, themeChanges])
 
   return (
-    <div className="relative" style={{ height: CHART_HEIGHT }}>
+    <div
+      // Filling: the room the card's flex column has left, which on the dashboard is the grid
+      // cell minus the header and the footer. Never less than the chat's own height (h-70 is
+      // CHART_HEIGHT), so a card as tall as its content (below `md`) still draws a chart, and a
+      // card whose details are open grows its grid band instead of squeezing the drawing.
+      className={fill ? 'relative min-h-70 flex-1' : 'relative'}
+      style={fill ? undefined : { height: CHART_HEIGHT }}
+    >
       <iframe
         // Invisible until the runtime says it painted, then a short fade: the frame's own
         // surface is the card's colour, so what appears is the drawing and not a white flash.
