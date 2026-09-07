@@ -29,10 +29,35 @@ Read these before you start, they hold the material and the exact wording:
   `memory.py`, `extract/guards.py`, `weblookup/scrub.py`, `weblookup/loop.py`,
   `training/data/samples/`.
 
-## The example each slide must show
+## One running example, carried through all five slides
+
+Explain everything with one story, so the audience follows a single household instead of five
+unrelated cases. The household is the shipped demo profile (Berlin, the year 2025). The story:
+
+1. The user drops the Edeka receipt photo and a statement PDF into the chat (slide 10 is this
+   step: the receipt line and the statement page go through the two guards and get imported).
+2. One merchant on the statement is unknown, the supermarket "Combi" (slide 11 is this step: the
+   scrubbed token `combi` is looked up, the page is read, the category Groceries comes back with
+   its quote).
+3. The user asks: "How much did I spend on groceries in May?" (slide 8 shows this turn being
+   assembled, with the memory fact from the receipt import and the summary of the earlier import
+   conversation; slide 9 shows the question going through the query sub-agent and the guard,
+   ending in the rows and the figure).
+4. The same question is one case in the benchmark, and a grocery question from another household
+   is the training sample (slide 12: the sample, the LoRA, the before-and-after bars; say on the
+   slide that the benchmark household is this one and the training households are five others).
+
+Present the slides in the deck order (8, 9, 10, 11, 12) but put a small step marker on each slide
+("step 3 of the story: the question") so I can say "remember the receipt from two slides ago".
+Use the same figure for groceries in May everywhere it appears: take it from running the query
+against the shipped fixture, do not make one up. Use the merchant Combi for the web lookup only if
+the repo's lookup fixtures or the ticket 53 review contain it; otherwise use Vogtlandbahn, which
+they do, and adjust the story sentence.
+
+## The example each slide must show (all from the story above)
 
 Slide 8, Context. One real turn being assembled. Show the four blocks as they actually look:
-a memory block with two real facts ("Netflix is always Leisure", "the flatmate is Max Schulz"),
+a memory block with two real facts from the story ("the Edeka receipt of 12.05.2025 was split into groceries and household", and one rule from the profile, taken from the fixtures),
 a one-line summary excerpt, the recent turns as a count, the tool list with web lookup greyed
 out because it is off. Under it the token bar with the real numbers: the window is 32k,
 compression starts at 60 percent, and mark where this turn sits. On the left the isolation step
@@ -55,14 +80,14 @@ and a second, wrong row `"12,94" occurs: no, refused`. Right: reconciliation as 
 arithmetic, opening plus bookings equals closing, with the tick or the flag, and the two
 outcomes: review card or import. Keep the file-type list small on the far left.
 
-Slide 11, Web search. The Sixt example end to end. `"SIXT GMBH & CO AUTOVERMIETUNG KG
-Rechnung 4711 12.05.2025 89,00"` on the left, the scrubber's three rules in order with the
-one that fired (legal form: GmbH, so business), the token `sixt`, then the loop as three
-numbered steps with their budgets (search 1 of 4, fetch 1 of 3 of sixt.de, finish), the quoted
+Slide 11, Web search. The story's unknown merchant end to end. The raw booking text on the left,
+the scrubber's three rules in order with the one that fired, the token, then the loop as three
+numbered steps with their budgets (search 1 of 4, fetch 1 of 3 of the merchant's own page, finish), the quoted
 evidence sentence from the page, and the journal entry on the right with what was sent and when.
 State the person case in one line: `"PayPal Anna Weber"` is refused, nothing leaves.
 
-Slide 12, Fine-tuned. Left: one real training sample from `training/data/samples/`, shortened:
+Slide 12, Fine-tuned. Left: one real grocery training sample from another household, from
+`training/data/samples/` or `training/data/batches/`, shortened:
 the user prompt as a stack of labelled bands (schema, rules, 9 examples, household facts,
 question) with the real question text, and the completion as the wire tool call with the real
 reasoning line and SQL. Middle: what a LoRA is in one picture, frozen W plus a thin B times A,
