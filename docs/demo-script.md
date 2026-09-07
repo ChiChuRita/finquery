@@ -17,7 +17,7 @@ evaluate per call. Read the table as a floor, not a promise.
 
 Three models in the picker, two of them on this laptop: **Gemma 4 E4B (local)**, **Gemma 4 26B
 (local)** and **Gemma 4 26B (cloud)**. The demo starts on **Gemma 4 26B (local)**, which is what
-a new chat opens on since ticket 73, and every sub-agent (SQL, chart, categorizer, extraction,
+a new chat opens on since ticket 75, and every sub-agent (SQL, chart, categorizer, extraction,
 memory, the result check) runs on it too, because that is where the benchmark says the quality
 is: 79 percent figure match on the 459 SQL questions against 62 for vanilla Gemma 4 E4B (the 26B
 SQL run of 2026-09-07). **Gemma 4 E4B** is the fast slot and the smaller entry: a chat on it runs

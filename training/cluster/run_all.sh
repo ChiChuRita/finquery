@@ -21,13 +21,13 @@ REPO=$ROOT/finquery
 LOGS=$REPO/training/cluster/logs
 
 # The two catalog entries and the 12B, which is the baseline every newer number is read against
-# and a benchmark candidate since ticket 73. `FQ_BENCH_MODELS` names others: a catalog key or a
+# and a benchmark candidate since ticket 75. `FQ_BENCH_MODELS` names others: a catalog key or a
 # benchmark candidate (`bench/finquery_bench/candidates.py`), whose files `dl2.sh` in scratch
 # fetched. Qwen3.5 9B left both maps in ticket 67, so its key no longer resolves.
 MODELS=${FQ_BENCH_MODELS:-"local:gemma-4-e4b local:gemma-4-26b local:gemma-4-12b"}
 
 # The two bases the adapters are trained for: E4B, whose query adapter ships, and the 12B, which
-# is a benchmark candidate since ticket 73 and whose adapters were measured but never shipped.
+# is a benchmark candidate since ticket 75 and whose adapters were measured but never shipped.
 # Qwen is not one of them: llama.cpp cannot convert a Qwen3.5 LoRA at all (research note,
 # section 9, pitfall 1).
 ADAPTER_MODELS="local:gemma-4-e4b local:gemma-4-12b"

@@ -1,4 +1,4 @@
-# 74: Five new chart shapes, validated visually before any of them is added
+# 76: Five new chart shapes, validated visually before any of them is added
 
 **What to build:** A throwaway prototype, not a feature. Five candidate shapes for the chart
 sub-agent, each rendered through the real chart frame with rows from the shipped synthetic year,

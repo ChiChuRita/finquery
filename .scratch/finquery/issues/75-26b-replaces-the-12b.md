@@ -1,4 +1,4 @@
-# 73: Gemma 4 26B A4B replaces the 12B as the smart model
+# 75: Gemma 4 26B A4B replaces the 12B as the smart model
 
 **What to build:** The catalog offers two local entries, Gemma 4 E4B (fast, the adapter target) and
 Gemma 4 26B A4B (smart, the new local default), plus the cloud 26B for hosted development. Gemma 4
@@ -30,7 +30,7 @@ Decisions:
   catalog table and its numbers (26B: 79 percent SQL on 459, 67 end-to-end; E4B with the query
   adapter 80), `CONTEXT.md` catalog entry list, `docs/demo-script.md` (the demo starts on the 26B;
   its timings are the laptop numbers above; the seat swap sentences), `.env.example`, ADR 0013
-  amendment dated 2026-09-07 (ticket 73) with the decision and the numbers, and a pointer in ADR
+  amendment dated 2026-09-07 (ticket 75) with the decision and the numbers, and a pointer in ADR
   0006's ticket 61 amendment saying the pair changed again.
 - Frontend: nothing names the 12B in code; check `models-card.tsx` and `catalog.ts` comments.
 - Tests: `tests/test_model_catalog.py` entries list becomes E4B, 26B, cloud 26B in that order
@@ -100,7 +100,7 @@ Two things the ticket asked for that I could not do as written:
   end-to-end and the 12B's 78 percent baseline are the ticket's own numbers; the tok/s figures
   are in `20260907-local-tokens-per-second.md` and the 12B's 78 percent is in
   `20260907-adapters-compare.md`. Where I needed a citation for the 26B accuracy I wrote "the
-  26B SQL run of 2026-09-07 (ticket 73)" rather than pointing at a file that is not there. Drop
+  26B SQL run of 2026-09-07 (ticket 75)" rather than pointing at a file that is not there. Drop
   the run's md and json into `bench/results/` and those references can name it.
 - The course documents were left alone: `docs/explainers/`, `docs/course/project-status.md`,
   `docs/presentation/`, `docs/guide/finquery-guide.html` and

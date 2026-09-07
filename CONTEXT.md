@@ -201,7 +201,7 @@ one provider: `local:gemma-4-e4b`, `local:gemma-4-26b` and
 (`Catalog.DEFAULT_KEYS`). It carries a label, its provider, its local weights or its hosted id,
 and its availability with a reason when it cannot answer. A conversation, a turn and a profile
 default all store the key. Qwen3.5 9B was an entry on both providers until ticket 67 and Gemma 4
-12B the local default until ticket 73; a key the catalog no longer offers reads as the default
+12B the local default until ticket 75; a key the catalog no longer offers reads as the default
 entry (`Catalog.key_of`). See ADR 0013. Avoid: model slot (that is the role below), tier,
 engine.
 

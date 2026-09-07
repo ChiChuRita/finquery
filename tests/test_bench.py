@@ -355,7 +355,7 @@ def test_a_short_run_takes_a_seeded_sample() -> None:
 def test_a_benchmark_candidate_resolves_like_a_catalog_model_and_stays_out_of_the_catalog(tmp_path: Path) -> None:
     """A candidate is scored through the same stack as the catalog's models, without being one.
 
-    Qwen3.8 27B never was one; Gemma 4 12B was the shipped chat model until ticket 73 and kept
+    Qwen3.8 27B never was one; Gemma 4 12B was the shipped chat model until ticket 75 and kept
     its key when it moved here, which is what makes every run recorded on `local:gemma-4-12b`
     resolve while the app neither lists nor downloads it. Neither one's files are in this test's
     models folder, so the runner says so in the app's own words; a name nobody defined lists

@@ -6,7 +6,7 @@ sub-agent, which is now one setting per role rather than always the fast slot; s
 amendment of ADR 0006); 2026-09-07 (ticket 67: three local Gemma 4 entries and one cloud entry,
 Qwen removed, E4B a chat entry, adapters follow the seat, the key from Settings; below);
 2026-09-07 (ticket 68: one local model resident at a time, which supersedes the two seats;
-below); 2026-09-07 (ticket 73: Gemma 4 26B A4B is the local default and the 12B leaves the
+below); 2026-09-07 (ticket 75: Gemma 4 26B A4B is the local default and the 12B leaves the
 catalog; below)
 Status: accepted
 Amends: ADR 0002 (the provider switch) and ADR 0006 (the local provider)
@@ -162,7 +162,7 @@ nothing: since ticket 61 every sub-agent role defaults to `chat`, so a turn on t
   `FINQUERY_LOCAL_N_CTX` stays as the one context cap, and at 32k every catalog model fits on
   its own.
 
-## Amendment, 2026-09-07 (ticket 73): the local default is Gemma 4 26B A4B, and three entries
+## Amendment, 2026-09-07 (ticket 75): the local default is Gemma 4 26B A4B, and three entries
 
 The entry list of the ticket 67 amendment above is superseded. Gemma 4 12B leaves the catalog.
 The user decided this on the cluster and laptop numbers of the same day: on the 459 question SQL

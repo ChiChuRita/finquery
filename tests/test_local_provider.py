@@ -47,7 +47,7 @@ FAST, GEMMA = "local:gemma-4-e4b", "local:gemma-4-26b"
 
 #: Stand-ins for the two real local models, under the keys the catalog offers them under:
 #: E4B (the fast slot and the smaller chat entry) and the 26B A4B in the chat seat, which is
-#: what a new conversation starts on since ticket 73. One of the two is loaded at a time.
+#: what a new conversation starts on since ticket 75. One of the two is loaded at a time.
 TINY_MODELS = {
     FAST: spec(FAST, "fast", "tiny-fast", 8, "gemma"),
     GEMMA: spec(GEMMA, "chat", "tiny-gemma", 24, "gemma"),

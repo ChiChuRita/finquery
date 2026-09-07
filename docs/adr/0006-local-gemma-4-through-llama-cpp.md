@@ -144,7 +144,7 @@ it buys.
 ## Amendment, 2026-09-06 (ticket 61): the shipped pair, and a model per sub-agent role
 
 *The pair changed again on 2026-09-07: Gemma 4 26B A4B is the local default and Gemma 4 12B
-left the catalog, on the same accuracy and much more speed. See the ticket 73 amendment of ADR
+left the catalog, on the same accuracy and much more speed. See the ticket 75 amendment of ADR
 0013. Everything below about how a sub-agent role resolves and where the adapters attach still
 holds; read "the 12B" in it as "the chat entry".*
 

@@ -81,7 +81,7 @@ async def test_the_catalog_lists_three_entries_with_their_availability(client: h
 
     # The two local Gemma 4 sizes small to large, then the same 26B in the cloud. The cloud
     # entry is listed although the fast slot points at it, because it is the catalog's own id
-    # and not a setting. Qwen3.5 9B left in ticket 67 and the 12B in ticket 73.
+    # and not a setting. Qwen3.5 9B left in ticket 67 and the 12B in ticket 75.
     assert [(e["key"], e["label"], e["provider"]) for e in body["entries"]] == [
         (LOCAL_E4B_KEY, "Gemma 4 E4B (local)", "local"),
         (LOCAL_26B_KEY, "Gemma 4 26B (local)", "local"),
@@ -282,7 +282,7 @@ async def test_a_row_from_before_the_catalog_reads_as_the_default_entry_of_the_p
 
 
 async def test_a_conversation_stored_on_the_12b_reads_as_the_local_default_entry(tmp_path: Path) -> None:
-    """Gemma 4 12B left the catalog in ticket 73, and `key_of` maps every key it dropped.
+    """Gemma 4 12B left the catalog in ticket 75, and `key_of` maps every key it dropped.
 
     The same rule as the pre-catalog `fast` and `quality` above: a conversation and a profile
     default stored on `local:gemma-4-12b` read as `local:gemma-4-26b` on the local provider, so
@@ -349,7 +349,7 @@ class SeatSlot:
 def seat_stack(tmp_path: Path, log: list[str]) -> LocalStack:
     """A stack over three real specs whose files exist and whose loader is a stub.
 
-    The catalog's two, plus the 12B that left it in ticket 73 and is a benchmark candidate now
+    The catalog's two, plus the 12B that left it in ticket 75 and is a benchmark candidate now
     (`finquery_bench.candidates`): the swap rule is about any two specs, and the benchmark
     builds a stack over the catalog and the candidates together.
     """

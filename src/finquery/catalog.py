@@ -3,7 +3,7 @@
 A **catalog entry** is what a conversation runs on. It names its provider, so choosing an entry
 chooses a provider for that conversation and nothing else: the local entries and the cloud
 entry are live at the same time, and `FINQUERY_PROVIDER` only decides which entry a new
-conversation starts on. Three entries since ticket 73: Gemma 4 E4B and Gemma 4 26B A4B locally,
+conversation starts on. Three entries since ticket 75: Gemma 4 E4B and Gemma 4 26B A4B locally,
 and the same 26B A4B through OpenRouter.
 
 Each sub-agent **role** has a setting saying which model it runs on: `chat` (the conversation's
@@ -20,7 +20,7 @@ on a chat on the 26B swaps to E4B and back around every sub-agent call. The defa
 never swaps.
 
 See docs/adr/0013-model-catalog-across-providers.md, which amends 0002 and 0006, and its
-ticket 73 amendment for why the shipped chat model is Gemma 4 26B A4B.
+ticket 75 amendment for why the shipped chat model is Gemma 4 26B A4B.
 """
 
 from collections.abc import Callable
@@ -64,7 +64,7 @@ DEFAULT_KEYS: dict[Provider, str] = {
     "local": "local:gemma-4-26b",
     "openrouter": f"openrouter:{HOSTED_CHAT_MODELS[0]}",
 }
-"""The entry a new conversation starts on per provider. The 26B A4B on both since ticket 73, so
+"""The entry a new conversation starts on per provider. The 26B A4B on both since ticket 75, so
 the local default and the hosted one are the same weights, not the smallest entry the picker
 lists first."""
 

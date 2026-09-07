@@ -9,7 +9,7 @@ Four ways to name one, and the runner needs no code change to move between them:
   way, which is how every run recorded on the 12B still resolves;
 - `fast` or `quality`: the pre-catalog names, kept because every recorded run uses them.
   `quality` is the default entry of the configured provider (Gemma 4 26B A4B locally since
-  ticket 73) and `fast` its sub-agent slot;
+  ticket 75) and `fast` its sub-agent slot;
 - `google/gemini-3.8-flash`: any OpenRouter id, resolved directly;
 - `local:fast` with an optional `--adapter query`: the local sub-agent slot, with a LoRA adapter
   attached for the run through the `finquery_adapter` model setting.

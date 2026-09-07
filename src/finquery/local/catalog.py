@@ -6,7 +6,7 @@ it is reused and a finished download can be checked.
 This is the file-level catalog. The catalog the user picks from, across both providers, is
 `finquery.catalog`; a local entry there carries one of the `ModelSpec` values below. Both
 speak the `gemma` wire format. Qwen3.5 9B left the catalog in ticket 67 and Gemma 4 12B in
-ticket 73, where the 26B A4B took the chat seat; models that are benchmarked but not offered
+ticket 75, where the 26B A4B took the chat seat; models that are benchmarked but not offered
 live in `bench/finquery_bench/candidates.py`, which is where the 12B spec went, key and all.
 """
 
@@ -123,7 +123,7 @@ LOCAL_GEMMA_26B = ModelSpec(
 
 LOCAL_CHAT_MODELS: tuple[ModelSpec, ...] = (LOCAL_GEMMA_26B,)
 """The local chat models with a seat of `chat`. Gemma 4 26B A4B is what a new conversation
-starts on since ticket 73: it ties the 12B it replaced on the SQL set (79 against 78 percent of
+starts on since ticket 75: it ties the 12B it replaced on the SQL set (79 against 78 percent of
 459 questions) and it is much faster on the laptop, 38.1 tok/s generation against 22.3 and
 480 tok/s prompt processing against 205 (`bench/results/20260907-local-tokens-per-second.md`).
 It is also the same model the cloud entry runs, so a question can be compared on the two. One

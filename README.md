@@ -36,7 +36,7 @@ and a conversation stores which one it runs on:
 
 Qwen3.5 9B was an entry until the cluster benchmark of 2026-09-06 placed it last in every
 column (ticket 67), and Gemma 4 12B was the default until the 26B tied it on accuracy at almost
-twice the speed (ticket 73). Both are benchmark candidates now, scored but never offered.
+twice the speed (ticket 75). Both are benchmark candidates now, scored but never offered.
 
 Behind the chat, every job with a model of its own is a sub-agent: SQL, chart, categorizer,
 extraction, memory, summary and web lookup. Each of those seven roles has a setting saying which
@@ -46,7 +46,7 @@ the default), `fast` (**Gemma 4 E4B** locally, where the LoRA adapters attach, o
 thing: which entry a new conversation starts on. Both providers are live at once, and every name
 on screen comes from `GET /api/models`. The numbers above are the 459 question SQL set on the
 cluster: the E4B pair from `bench/results/20260907-adapters-compare.md`, the 26B from its own
-run of 2026-09-07 (ticket 73).
+run of 2026-09-07 (ticket 75).
 
 Settings (environment or `.env`):
 
@@ -163,7 +163,7 @@ Figure match, exact to the cent, on 2026-09-05:
 
 Then the three local candidates on the HPI cluster, same GGUFs and same sub-agent paths, on
 2026-09-06 (`bench/results/20260906-cluster-compare.md`), which is what put Gemma 4 12B in the
-chat seat until the 26B A4B took it in ticket 73:
+chat seat until the 26B A4B took it in ticket 75:
 
 | Model | SQL (152) | Charts (73) | End to end (30) |
 | --- | ---: | ---: | ---: |

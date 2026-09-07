@@ -11,7 +11,7 @@ does on the finance sets (2026-09-07), after Qwen3.5 9B lost to Gemma 4 12B on e
 It is a dense 27B: on the 24 GB laptop it would not fit beside a resident E4B, which is one more
 reason it is a candidate and not an entry.
 
-Gemma 4 12B is here because it was the shipped chat model until ticket 73, when the 26B A4B took
+Gemma 4 12B is here because it was the shipped chat model until ticket 75, when the 26B A4B took
 the seat on the same accuracy and much more speed. It keeps its catalog key, `local:gemma-4-12b`,
 so `finquery-bench --model local:gemma-4-12b`, the cluster scripts and every recorded run under
 that name still resolve: its runs are the baseline the newer numbers are read against.

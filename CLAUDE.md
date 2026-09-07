@@ -31,7 +31,7 @@ See `docs/agents/domain.md`.
 The catalog has two local entries: Gemma 4 E4B, the fast slot a sub-agent role set to `fast`
 runs on and the base the LoRA adapters attach to, and Gemma 4 26B A4B, the local default a new
 conversation starts on (chat and, for the demo, every sub-agent). The 26B replaced Gemma 4 12B
-on 2026-09-07 (ticket 73): the same accuracy on the SQL set, 79 against 78 percent of 459
+on 2026-09-07 (ticket 75): the same accuracy on the SQL set, 79 against 78 percent of 459
 questions, and much more speed on the laptop, 38.1 tok/s generation against 22.3. Hosted
 development runs on OpenRouter with `google/gemma-4-26b-a4b-it` on both slots (set in `.env`),
 which is the same model as the local default. Do not switch a verification run to a stronger
