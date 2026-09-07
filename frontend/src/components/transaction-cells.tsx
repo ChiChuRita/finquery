@@ -260,7 +260,11 @@ export function PickerCell({
             )}
           </span>
         </SelectTrigger>
-        <SelectContent className="max-h-72">
+        {/* Anchored to the trigger, not to the chosen item: Radix's default aligns the open list
+            on the trigger's value node, and an empty cell renders the placeholder in its place,
+            so the list was positioned nowhere (below the viewport) and nothing could be picked
+            (review of 2026-09-07). */}
+        <SelectContent className="max-h-72" position="popper">
           {clearable && (
             <>
               <SelectItem value={NONE}>{clearLabel ?? placeholder}</SelectItem>
