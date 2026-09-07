@@ -44,7 +44,7 @@ present and the role as `fast`. Without the variable every role stays on the 12B
 | Receipts | 19 of 19 totals right | `.scratch/finquery/reviews/receipts-web-2026-09-05.md` |
 | Web lookup reruns | lookups without a search 9 to 0, pages read 0 to 12 | ticket 53 Comments |
 | Test suite | 463 passed on main, 2026-09-07 morning | `uv run pytest` |
-| Adapters | E4B query 62 to 78, E4B chart 38 to 36 (drawn 85 to 72), 12B query 78 to 82 | `bench/results/20260907-adapters-compare.md` |
+| Adapters | E4B query 62 to 78 (rerun 80), E4B chart 38 to 36 (rerun 36, drawn 85 to 82); 12B dropped (query 78 to 82 noise, chart 62 to 50) | `bench/results/20260907-adapters-compare.md` |
 | Memory of the pair | E4B plus Gemma 4 12B about 12.9 GB | `bench/results/20260906-cluster-compare.md` |
 
 ## Likely questions

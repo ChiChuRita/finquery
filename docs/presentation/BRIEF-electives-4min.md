@@ -111,7 +111,8 @@ DIAGRAM: top, three gray and blue steps left to right: "1,977 samples, kept only
 and a second statement agreed", "QLoRA, four adapters, one night on the cluster", "scored with
 the product's own runtime on a frozen benchmark the training never saw". Bottom, a before-and-
 after bar pair per adapter in the chart palette: E4B query 62 to 78 (tall, green, "ships"); E4B
-chart 38 to 36 ("no"); 12B query 78 to 82 ("noise"); 12B chart 62 to ? ("running").
+chart 38 to 36 ("no"). The 12B adapters were trained and dropped (query 78 to 82, noise; chart
+62 to 50): no bars for them, one line of text at most.
 NOTES: Four QLoRA adapters, query and chart on the small and on the big model, trained overnight
 on data written by sixty agents and kept only when the SQL executed and an independent statement
 agreed to the cent. Scored against the vanilla base with the product's own runtime, on a

@@ -166,7 +166,8 @@ preference optimisation built, measured and removed for multimodal ingestion; "n
 became a dashboard of guarded queries.
 Not claimed, on purpose: sub-agent extra credit; Python code execution (our sandbox runs
 JavaScript charts); audio ingestion.
-Next: adapter numbers against vanilla; the video; a second data round if the learning curve
-asks for it.
+Adapters scored: E4B query 62 to 78 ships, E4B chart flat at 36, the 12B pair dropped (query
+inside the noise, chart 62 to 50). Next: the video; a second chart data round (plan-repair rows)
+before the hand-in.
 FOOTER: Questions. Hand-in as a ZIP archive on 2026-09-14.
 NOTES: Close on the three reversals and the evidence that forced each. Then stop.

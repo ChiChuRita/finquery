@@ -34,9 +34,9 @@ model. State of this file: main on the evening of 2026-09-06.
   the benchmark household is unseen in training. Scored with the product's own runtime on the
   frozen benchmark (`bench/results/20260907-adapters-compare.md`): the E4B query adapter goes
   from 62 to 78 percent figure match on 459 questions and ships on the fast seat; the E4B chart
-  adapter does not (38 to 36, drawn 85 to 72); the 12B query adapter gains four points, inside the
-  noise; the 12B chart adapter's run is pending. Attached through the adapter registry, one model
-  setting per sub-agent role.
+  adapter does not (38 to 36 twice, drawn 85 to 82 after a JSON fix in the runtime). The 12B
+  adapters are dropped: query gains four points, inside the noise, and chart loses twelve
+  (62 to 50). Attached through the adapter registry, one model setting per sub-agent role.
 - [ ] **A video demo**: not recorded. `docs/demo-script.md` is the 32-step storyboard on the local
   pair, the real-world elective use case is an unknown merchant resolved by web lookup and a
   receipt photo resolved through vision plus the guards.

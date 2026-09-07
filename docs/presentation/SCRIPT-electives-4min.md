@@ -90,8 +90,8 @@ attached to the frozen base at inference.
 
 [bars] Scored in the real app, with the product's own runtime, on the Berlin household the
 training never saw. **The query adapter goes from 62 to 78 percent on 459 questions and ships.**
-The chart adapter stays flat, and we know why: our data had no failure examples for the plan's
-data question. We say so.
+The chart adapter stays flat, and we know why: the misses are charts that draw with wrong
+figures, the plan's data question, and our data had no failure examples for it. We say so.
 
 Four fences, one rule, one adapter that ships. Thank you. [3:55]
 
@@ -133,10 +133,10 @@ Cut in this order: the receipt sentence on the files slide, the "PayPal Anna Web
   checked by the same scrubber. Journaled before sending.
 - What is QLoRA? Frozen base weights in 4-bit, a small low-rank correction trained next to each
   weight matrix. Our adapters are 70 MB, attached at inference by llama.cpp.
-- Why did the chart adapter not gain? The misses are the plan's data question returning nothing,
-  and every training sample was a success; a second round needs plan-repair rows. We also found
-  and fixed a runtime bug in multi-line tool-call JSON on the way.
-- Why only the small model? We trained the 12B too: four points on 459 cases, inside the set's
-  resolution, at half again the time per question. Dropped.
+- Why did the chart adapter not gain? Of 194 misses, 141 drew a chart with wrong figures: the
+  plan's data question is wrong, and every training sample was a success; a second round needs
+  plan-repair rows. A runtime bug in multi-line tool-call JSON, found on the way, is fixed.
+- Why only the small model? We trained the 12B too: query four points on 459 cases, inside the
+  set's resolution, at half again the time per question; chart twelve points down. Dropped.
 - Why is the benchmark household unseen? The shipped household's cases went into the benchmark,
   the five synthetic households into training; the split is hashed and frozen.
