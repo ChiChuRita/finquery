@@ -28,12 +28,15 @@ model. State of this file: main on the evening of 2026-09-06.
   two per turn, never figures or dates unless a rule), category rules from Question cards,
   answer language and default model, all profile-scoped, injected per turn, visible and editable
   on the Memory page.
-- [ ] **At least two fine-tuned models for special purposes**: four QLoRA adapters in training
-  on the HPI cluster tonight, query and chart, on Gemma 4 E4B and on the 12B. Training data:
-  1,977 query and 1,791 chart samples over five synthetic households, kept only by execution and
-  judged; the benchmark household is unseen in training. Attached on the fast seat through the
-  adapter registry, one model setting per sub-agent role. Numbers pending; the transaction
-  classifier adapter of the old plan is dropped.
+- [x] **At least two fine-tuned models for special purposes**: four QLoRA adapters trained on
+  the HPI cluster on 2026-09-06/07 (query and chart, on Gemma 4 E4B and on the 12B) on 1,977
+  query and 1,791 chart samples over five synthetic households, kept only by execution and judged;
+  the benchmark household is unseen in training. Scored with the product's own runtime on the
+  frozen benchmark (`bench/results/20260907-adapters-compare.md`): the E4B query adapter goes
+  from 62 to 78 percent figure match on 459 questions and ships on the fast seat; the E4B chart
+  adapter does not (38 to 36, drawn 85 to 72); the 12B query adapter gains four points, inside the
+  noise; the 12B chart adapter's run is pending. Attached through the adapter registry, one model
+  setting per sub-agent role.
 - [ ] **A video demo**: not recorded. `docs/demo-script.md` is the 32-step storyboard on the local
   pair, the real-world elective use case is an unknown merchant resolved by web lookup and a
   receipt photo resolved through vision plus the guards.
@@ -122,8 +125,7 @@ Preference optimisation (removed 2026-09-06), sandboxed execution of generated c
 
 ## Open until the hand-in
 
-- Adapter numbers against vanilla (training running; quick evals per epoch, best checkpoint
-  converted, official runs).
+- The 12B chart adapter run; a second data round for the chart adapter with more repair rows.
 - The video demo.
 - Verify the local pair on the laptop once (both models resident).
 - A second data round only if the learning curve asks for it.

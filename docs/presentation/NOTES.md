@@ -18,16 +18,14 @@ part.
 | 8 Models and training | 6:45 | The benchmark table, the decision rule, the adapter loop as it stands on Monday morning. |
 | 9 Ownership | 7:40 | Three reversals with the evidence that forced them. Stop. |
 
-## The line to update on Monday morning (slide 8)
+## Slide 8, the training status as of Monday morning
 
-Replace the training status with what is true at that hour. Candidates:
-
-- "Four adapters trained overnight; the official before-and-after runs are finishing; first
-  numbers: ..." (fill in from `bench/results/<date>-adapters-compare.md`).
-- "Training data is done (N query and M chart samples, judged); the four trainings are running
-  on the cluster; numbers by the hand-in."
-
-Never state an adapter number that is not in `bench/results/`.
+Say: "Four adapters trained overnight and were scored against their vanilla bases with the
+product's own runtime on the frozen benchmark. The small model's query adapter goes from 62 to 78
+percent figure match on 459 questions and ships. Its chart adapter does not help, and on the big
+model the gain is inside the noise, which is what you expect from a model already at 78 percent."
+Source: `bench/results/20260907-adapters-compare.md`. If asked why the chart adapter failed: too
+few repair rows in its training set, the fix is a second data round before the hand-in.
 
 ## Numbers you may be asked for, with their source
 
@@ -40,7 +38,8 @@ Never state an adapter number that is not in `bench/results/`.
 | Tokens per second on the laptop | E4B 47, Qwen 30, Gemma 12B 22 generation | `bench/results/20260906-local-tokens-per-second.md` |
 | Receipts | 19 of 19 totals right | `.scratch/finquery/reviews/receipts-web-2026-09-05.md` |
 | Web lookup reruns | lookups without a search 9 to 0, pages read 0 to 12 | ticket 53 Comments |
-| Test suite | 460 passed on main, 2026-09-06 evening | `uv run pytest` |
+| Test suite | 463 passed on main, 2026-09-07 morning | `uv run pytest` |
+| Adapters | E4B query 62 to 78, E4B chart 38 to 36 (drawn 85 to 72), 12B query 78 to 82 | `bench/results/20260907-adapters-compare.md` |
 | Memory of the pair | E4B plus Gemma 4 12B about 12.9 GB | `bench/results/20260906-cluster-compare.md` |
 
 ## Likely questions
