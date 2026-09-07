@@ -169,7 +169,7 @@ class Catalog:
         sub-agent runs on the model the user picked: the fine-tuned E4B sub-agents on a chat on
         E4B, the base weights of the 26B on a chat there, where the benchmark says the sub-agent
         path is 79 percent right on the 459 question SQL set against E4B's 62 before its adapter
-        (the 26B SQL run of 2026-09-07, ticket 73; `bench/results/20260907-adapters-compare.md`).
+        (`bench/results/20260907T141018Z-local-gemma-4-26b-sql.md` and `20260907-adapters-compare.md`).
         """
         if role not in MODEL_ROLES:
             wanted = self.settings.subagent_model(role)

@@ -168,7 +168,7 @@ The entry list of the ticket 67 amendment above is superseded. Gemma 4 12B leave
 The user decided this on the cluster and laptop numbers of the same day: on the 459 question SQL
 set the 26B A4B ties the 12B, 79 against 78 percent figure match, and on the laptop it generates
 at 38.1 tok/s against 22.3 and reads a prompt at 480 tok/s against 205
-(`bench/results/20260907-local-tokens-per-second.md`, and the 26B SQL run of 2026-09-07). Its
+(`bench/results/20260907-local-tokens-per-second.md` and `20260907T141018Z-local-gemma-4-26b-sql.md`). Its
 end-to-end result is 67 against the 12B's 77 on 30 turns; the user took the speed, because a
 demo turn is four to six requests and almost all of that time is prompt evaluation.
 
