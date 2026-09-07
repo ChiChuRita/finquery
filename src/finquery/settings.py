@@ -17,7 +17,7 @@ def _a_model_a_role_can_run_on(value: str) -> str:
     """
     if value in ("chat", "fast") or value.startswith(("local:", "openrouter:")):
         return value
-    raise ValueError("expected `chat`, `fast` or a catalog key such as local:gemma-4-12b")
+    raise ValueError("expected `chat`, `fast` or a catalog key such as local:gemma-4-26b")
 
 
 SubagentModel = Annotated[str, AfterValidator(_a_model_a_role_can_run_on)]

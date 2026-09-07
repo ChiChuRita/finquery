@@ -3,9 +3,9 @@ import type { ToolUIPart, UIMessage } from 'ai'
 
 import type { ChartLanguage } from '@/lib/chart-frame'
 
-/** The stable id of one catalog entry: `local:gemma-4-12b`, `openrouter:google/gemma-4-26b-a4b-it`.
+/** The stable id of one catalog entry: `local:gemma-4-26b`, `openrouter:google/gemma-4-26b-a4b-it`.
  *
- *  There is no list of them in the browser. `GET /api/models` is where the four entries, their
+ *  There is no list of them in the browser. `GET /api/models` is where the entries, their
  *  labels and their availability come from (`lib/catalog.ts`), so nothing on screen can name a
  *  model the server does not offer. */
 export type ModelKey = string

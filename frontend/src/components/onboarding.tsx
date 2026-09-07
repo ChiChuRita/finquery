@@ -595,7 +595,7 @@ function Choices({
 }) {
   return (
     <ToggleGroup
-      // Four models do not fit on one line of the card, so the group wraps rather than
+      // The model labels do not fit on one line of the card, so the group wraps rather than
       // pushing the last one off the right edge.
       className="max-w-full flex-wrap"
       id={id}

@@ -182,7 +182,7 @@ def with_adapter(model_settings: ModelSettings | None, name: str) -> ModelSettin
     and it attaches the adapter exactly when the run lands on Gemma 4 E4B, the base the adapters
     were trained on; a hosted model and a bigger local model ignore it. So the sub-agent asks
     every time and the seat decides, which is what makes "E4B runs the fine-tuned sub-agents,
-    the 12B and the 26B run their own base weights" one rule with no provider check anywhere.
+    the 26B runs its own base weights" one rule with no provider check anywhere.
     """
     return {**(model_settings or {}), "finquery_adapter": name}  # type: ignore[typeddict-unknown-key]
 

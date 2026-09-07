@@ -15,30 +15,30 @@ question with one query runs a little longer than the table says. The sub-agent 
 worked examples and a reasoning field (tickets 40 and 42), which is a few hundred more tokens to
 evaluate per call. Read the table as a floor, not a promise.
 
-Four models in the picker, three of them on this laptop: **Gemma 4 E4B (local)**, **Gemma 4 12B
-(local)**, **Gemma 4 26B (local)** and **Gemma 4 26B (cloud)**. The demo starts on **Gemma 4 12B
-(local)**, which is what a new chat opens on, and every sub-agent (SQL, chart, categorizer,
-extraction, memory, the result check) runs on it too, because that is where the benchmark says
-the quality is: 87 percent figure match on the 152 SQL questions against 66 for Gemma 4 E4B, and
-81 percent on the chart set against 45 (`bench/results/20260906-cluster-compare.md`; Qwen3.5 9B
-scored 70 and 42 and left the catalog in ticket 67). **Gemma 4 E4B** is the fast slot and the
-smallest entry: a chat on it runs the query and chart sub-agents with their fine-tuned adapters
-on the one loaded model, which is the way to show the adapters live.
+Three models in the picker, two of them on this laptop: **Gemma 4 E4B (local)**, **Gemma 4 26B
+(local)** and **Gemma 4 26B (cloud)**. The demo starts on **Gemma 4 26B (local)**, which is what
+a new chat opens on since ticket 73, and every sub-agent (SQL, chart, categorizer, extraction,
+memory, the result check) runs on it too, because that is where the benchmark says the quality
+is: 79 percent figure match on the 459 SQL questions against 62 for vanilla Gemma 4 E4B (the 26B
+SQL run of 2026-09-07). **Gemma 4 E4B** is the fast slot and the smaller entry: a chat on it runs
+the query and chart sub-agents with their fine-tuned adapters on the one loaded model, which is
+the way to show the adapters live, and with the query adapter it scores 80 percent on the same
+set (`bench/results/20260907-adapters-compare.md`).
 
-That quality is bought with time. E4B generates at 45.4 tok/s and reads a prompt at 519 tok/s;
-the 12B, which is what this demo runs, generates at 22.3 and reads at 205, one model loaded
-(`bench/results/20260907-local-tokens-per-second.md`). Every timing in the table at the end was
-measured with E4B answering and E4B behind the tools, so budget roughly twice each of them, and
+The 26B costs less time than the 12B it replaced. E4B generates at 45.4 tok/s and reads a prompt
+at 519 tok/s; the 26B, which is what this demo runs, generates at 38.1 and reads at 480, one
+model loaded (`bench/results/20260907-local-tokens-per-second.md`). Every timing in the table at
+the end was measured with E4B answering and E4B behind the tools, so read them as a floor, and
 say out loud where the time goes: llama.cpp's multimodal handler re-reads the whole prompt on
 every request and a turn is four to six requests (the chat model, the query sub-agent, the
 check, the chat model again, then follow-ups and distillation).
 
-One model is resident and no more: about 6 GB for E4B, 7 GB for the 12B and 13 GB for the 26B,
-plus the KV cache for the 32k context cap. Switching entries unloads the one in memory and
-loads the new one, which costs the turn that asks for it that model's load time (3 s for E4B,
-6 s for the 12B, 13 s for the 26B, `bench/results/20260907-local-tokens-per-second.md`) and is
-why a sub-agent role set to `fast` on a chat on a bigger model pays for two swaps per call, and
-why every role ships on `chat`. Close everything else heavy before you start.
+One model is resident and no more: about 6 GB for E4B and 13 GB for the 26B, plus the KV cache
+for the 32k context cap. Switching entries unloads the one in memory and loads the new one,
+which costs the turn that asks for it that model's load time (3 s for E4B, 12.8 s for the 26B,
+`bench/results/20260907-local-tokens-per-second.md`) and is why a sub-agent role set to `fast`
+on a chat on the 26B pays for two swaps per call, and why every role ships on `chat`. Close
+everything else heavy before you start.
 
 Both providers are live at the same time. `FINQUERY_PROVIDER=local` only decides which entry a
 new chat starts on, so with `OPENROUTER_API_KEY` in `.env` the two cloud entries are one click
@@ -74,8 +74,9 @@ Finder window: `fixtures/synthetic/bill-edeka-2025-03-14.png`,
 ## The script
 
 Times were measured with Gemma 4 E4B answering and behind every tool, which is what "fast"
-means in the column below. The demo now runs the chat and the sub-agents on Gemma 4 12B, which
-generates at about half the rate, so read every number as a floor and roughly double it.
+means in the column below. The demo now runs the chat and the sub-agents on Gemma 4 26B A4B,
+which generates at 38.1 tok/s against E4B's 45.4 and reads a prompt at 480 against 519, so read
+every number as a floor. A step whose time was only ever measured on the 12B says "to time".
 "Instant" means no model runs.
 
 ### 1. Onboarding (no model, about 2 minutes of talking)
@@ -89,12 +90,12 @@ once.
    that the Settings page uses the same code. Continue.
 2. **Step 2, how I should answer.** Pick **English** (or **Deutsch** for a German audience).
    Do not leave "Follow my message": the small local model drifts into German on German data,
-   and a fixed language is the honest demo. Leave the model on **Gemma 4 12B (local)**, which
+   and a fixed language is the honest demo. Leave the model on **Gemma 4 26B (local)**, which
    is what a new chat starts on, and leave web lookup off (it comes later, with its log).
    Continue.
 3. **Step 3, your first data.** Press **Load the sample year**. 32 s when the categorizer ran
-   on E4B, so closer to a minute now that it runs on the 12B: this is the step to talk over,
-   and the counted summary is what you come back to. It imports 433
+   on E4B, to time on the 26B: this is the step to talk over, and the counted summary is what
+   you come back to. It imports 433
    bookings of a synthetic German household through the same function the composer's
    `import_file` tool uses, categorizes them (384 by the merchant dictionary, 24 by the
    categorizer sub-agent, 25 left for you) and lands in a chat with the import step and the
@@ -183,7 +184,8 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
     button that is always visible; a CSV or a PDF is an icon chip with its name. Send **"Here is
     the receipt for this payment."** 100 s. The sent message keeps the thumbnail, and it is a
     link to the copy the server stored, so the transcript still shows what was read a week
-    later. The extraction sub-agent reads the photo, on the 12B like every other role: seven line items that add up to the printed total of
+    later. The extraction sub-agent reads the photo, on the 26B like every other role: seven
+    line items that add up to the printed total of
     20,73 EUR, matched against the EDEKA booking of 14.03.2025. A split proposal appears inside
     the import step: two legs, Groceries 11,75 EUR and Shopping 8,98 EUR. Press **Apply**. Say
     the rule: queries count the legs, never the parent.
@@ -204,17 +206,18 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
 
 ### 9. A model switch for one prepared question
 
-20. Open the composer's model picker. Four entries: **Gemma 4 E4B (local)**, **Gemma 4 12B
-    (local)**, **Gemma 4 26B (local)** and **Gemma 4 26B (cloud)**, each saying where it runs, and
-    any that is not ready is greyed out with the reason (no API key, or weights still coming
-    down). Pick **Gemma 4 E4B (local)**, the small one, and ask **"What was my largest single
-    expense in 2025, and what was it for?"** The 12B is unloaded and E4B is loaded, which takes
+20. Open the composer's model picker. Three entries: **Gemma 4 E4B (local)**, **Gemma 4 26B
+    (local)** and **Gemma 4 26B (cloud)**, each saying where it runs, and any that is not ready
+    is greyed out with the reason (no API key, or weights still coming down). Pick **Gemma 4
+    E4B (local)**, the small one, and ask **"What was my largest single
+    expense in 2025, and what was it for?"** The 26B is unloaded and E4B is loaded, which takes
     about 3 seconds, and this is the entry whose query and chart sub-agents run with the
     fine-tuned adapters on that same loaded model (the models card says which adapter files are
     on disk). The answer names the rent (1.150,00 EUR, 01.01.2025). The turn chip reads
     "Gemma 4 E4B (local)" while every earlier turn keeps its own model's name: switching a chat
-    never relabels a turn that is already on screen. Say why the default is the 12B: the same
-    question set scored 87 percent there and 66 on E4B before the adapters.
+    never relabels a turn that is already on screen. Say why the default is the 26B: the same
+    question set scored 79 percent there and 62 on vanilla E4B, and the 26B reads a prompt more
+    than twice as fast as the 12B it replaced.
 
     If there is time and a key (from `.env` or entered on the Settings page), switch the same
     chat to **Gemma 4 26B (cloud)** and ask it again: the same family and the same wire format,
@@ -232,8 +235,8 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
     transcript picks it up mid-sentence. Reload the page for the same point twice as loudly: the
     question, the thinking and the tool steps are all still there and the stream reattaches.
     Then press **Stop**. The partial thinking, tool steps and text stay, chipped "Stopped": Stop
-    is the only thing that ends a turn. Switch the composer back to **Gemma 4 12B (local)**,
-    which unloads E4B and loads the 12B again.
+    is the only thing that ends a turn. Switch the composer back to **Gemma 4 26B (local)**,
+    which unloads E4B and loads the 26B again.
 
 ### 11. The context badge and the download (fast)
 
@@ -352,11 +355,11 @@ Measured on 2026-09-05 on the local provider, before the result check and the gr
   `color` channel, three rounds running, so the card says the chart could not be drawn and the
   answer gives the six figures instead (the twelve categories are folded to five plus "Other"
   in code first). It is honest and it costs two minutes, so it is not in the script. On
-  OpenRouter the same request draws (88 to 100 percent on the chart benchmark), and the 12B is
-  96 percent on shape match against E4B's 85 on the cluster set, so it is worth trying once
-  before the demo rather than assuming it still fails. The Dashboard's own doughnut is a different thing
-  and does draw: its code is in the repo, not written by a model, which is a point worth making
-  if somebody asks why one works and the other does not.
+  OpenRouter the same request draws (88 to 100 percent on the chart benchmark), and the 26B is
+  the same weights as that cloud entry, so it is worth trying once before the demo rather than
+  assuming it still fails. The Dashboard's own doughnut is a different thing and does draw: its
+  code is in the repo, not written by a model, which is a point worth making if somebody asks
+  why one works and the other does not.
 - **Context compression.** It starts at 60 percent of the 32k budget, about 20k tokens of
   conversation. On the local provider that is a quarter of an hour of turns, so the script
   shows the badge and says what happens past 60 percent instead of getting there. To show the

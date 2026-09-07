@@ -3,7 +3,7 @@
     uv run finquery-bench --set sql --model google/gemini-3.8-flash
     uv run finquery-bench --set all --model google/gemma-4-26b-a4b-it --n 20 --seed 7
     uv run finquery-bench --set chart --model local:fast --adapter chart
-    uv run finquery-bench --set e2e --model local:gemma-4-12b
+    uv run finquery-bench --set e2e --model local:gemma-4-26b
     uv run finquery-bench --set sql --model google/gemma-4-26b-a4b-it --no-check
     uv run finquery-bench compare bench/results/A.json bench/results/B.json
     uv run finquery-bench compare bench/results/{A,B,C}-sql.json
@@ -140,7 +140,7 @@ def build_parser() -> argparse.ArgumentParser:
     runner.add_argument(
         "--model",
         required=True,
-        help="a catalog key (local:gemma-4-12b), a role on the current provider (fast, quality), an OpenRouter id, or local:fast",
+        help="a catalog key (local:gemma-4-26b), a benchmark candidate (local:gemma-4-12b), a role on the current provider (fast, quality), an OpenRouter id, or local:fast",
     )
     runner.add_argument("--adapter", default=None, choices=("query", "chart"), help="a LoRA adapter, local only")
     runner.add_argument(

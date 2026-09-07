@@ -396,7 +396,7 @@ class LocalStack:
         In the app `spec` is always the fast slot, because that is where the shipped adapters
         are trained for and the only seat `LlamaCppModel._hold` attaches one on. It is a
         parameter because the benchmark can ask for an adapter over a chat model, and attaching
-        that to the fast seat would score E4B while the run claimed to be scoring the 12B.
+        that to the fast seat would score E4B while the run claimed to be scoring the bigger one.
         """
         async with self.holding(spec.seat, spec) as loaded:
             with self.adapters.attached_to(name, loaded) as note:

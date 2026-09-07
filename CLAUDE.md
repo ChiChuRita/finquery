@@ -28,12 +28,15 @@ See `docs/agents/domain.md`.
 
 ## Models for development and verification
 
-The shipped local pair is Gemma 4 12B (chat and, for the demo, every sub-agent) with Gemma 4 E4B
-resident as the fast slot and the adapter target, decided on the cluster benchmark of 2026-09-06.
-Hosted development runs on OpenRouter with `google/gemma-4-26b-a4b-it` on both slots (set in
-`.env`): OpenRouter has no Gemma 4 12B, and the 26B shares the family and the tool-call wire
-format. Do not switch a verification run to a stronger hosted model: what works on Gemini and
-fails on Gemma is a bug we want to see. The Monday demo runs on `FINQUERY_PROVIDER=local`.
+The catalog has two local entries: Gemma 4 E4B, the fast slot a sub-agent role set to `fast`
+runs on and the base the LoRA adapters attach to, and Gemma 4 26B A4B, the local default a new
+conversation starts on (chat and, for the demo, every sub-agent). The 26B replaced Gemma 4 12B
+on 2026-09-07 (ticket 73): the same accuracy on the SQL set, 79 against 78 percent of 459
+questions, and much more speed on the laptop, 38.1 tok/s generation against 22.3. Hosted
+development runs on OpenRouter with `google/gemma-4-26b-a4b-it` on both slots (set in `.env`),
+which is the same model as the local default. Do not switch a verification run to a stronger
+hosted model: what works on Gemini and fails on Gemma is a bug we want to see. The Monday demo
+runs on `FINQUERY_PROVIDER=local`.
 
 ## Benchmarks and fine-tuning
 

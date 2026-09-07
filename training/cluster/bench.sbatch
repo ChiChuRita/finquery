@@ -12,7 +12,7 @@
 #
 # `run_all.sh` submits the nine of these. The partition is `gpu-batch` because `gpu-shortrun`
 # takes no batch jobs (it is interactive only) and caps a job at an hour, which the SQL set on
-# a 12B model does not fit into. Every job asks for one RTX PRO 6000, so the seconds in two
+# a model of this size does not fit into. Every job asks for one RTX PRO 6000, so the seconds in two
 # tables are seconds on the same GPU: all twenty A100s of the partition were allocated when
 # these ran, and a comparison whose speed column mixes two GPUs says nothing.
 #SBATCH --job-name=fq-bench
@@ -29,8 +29,8 @@ set -euo pipefail
 ROOT=${FQ_ROOT:-/sc/scratch/rahul.singh}
 REPO=$ROOT/finquery
 # One models directory per base when adapters are being scored: `adapters/query.gguf` is keyed
-# by sub-agent and not by base, so the 12B's adapters live beside a symlinked copy of the
-# weights. See `convert.sh`.
+# by sub-agent and not by base, so a second base's adapters live beside a symlinked copy of its
+# weights (the 12B candidate is the one this was built for). See `convert.sh`.
 MODELS=${FQ_MODELS:-$ROOT/finquery-models}
 CUDA_HOME=${FQ_CUDA_HOME:-$ROOT/cuda-12.8.1}
 MODEL=${FQ_MODEL:?FQ_MODEL is the catalog key to benchmark}
@@ -57,7 +57,7 @@ export UV_PYTHON_INSTALL_DIR="$ROOT/uv-python"
 # laptop runs, so a number here is a number about the app and not about the cluster.
 export FINQUERY_PROVIDER=local
 export FINQUERY_MODELS_DIR="$MODELS"
-# An adapter run on the 12B attaches to the chat seat, which the app itself never does.
+# An adapter run on a chat model attaches to the chat seat, which the app itself never does.
 if [ -n "$ADAPTER" ]; then export FINQUERY_ADAPTERS_ANY_SEAT=1; fi
 export FINQUERY_LOCAL_N_CTX=${FQ_N_CTX:-32768}
 

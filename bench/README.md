@@ -150,7 +150,7 @@ uv run finquery-bench compare bench/results/{E4B,Qwen,Gemma12B}-sql.json
 | Flag | Meaning |
 | --- | --- |
 | `--set` | `sql`, `chart`, `all`, or `e2e` (the end-to-end subset, below) |
-| `--model` | a catalog key (`local:gemma-4-e4b`, `local:qwen3.5-9b`, `local:gemma-4-12b`), a role on the current provider (`fast`, `quality`), or any OpenRouter id |
+| `--model` | a catalog key (`local:gemma-4-e4b`, `local:gemma-4-26b`), a benchmark candidate (`local:gemma-4-12b`, `local:qwen3.8-27b`), a role on the current provider (`fast`, `quality`), or any OpenRouter id |
 | `--adapter` | `query` or `chart`, a LoRA adapter attached for the whole run (local only) |
 | `--n` | run a sample of this many datapoints instead of all of them |
 | `--seed` | which sample `--n` takes; the same seed is the same datapoints |

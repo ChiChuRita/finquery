@@ -1,13 +1,13 @@
-"""What the local provider needs on disk: three Gemma 4 GGUFs, their projectors, two adapters.
+"""What the local provider needs on disk: two Gemma 4 GGUFs, their projectors, two adapters.
 
 Sizes and hashes are the Hugging Face file metadata, so a parked copy can be verified before
 it is reused and a finished download can be checked.
 
 This is the file-level catalog. The catalog the user picks from, across both providers, is
-`finquery.catalog`; a local entry there carries one of the `ModelSpec` values below. All three
-speak the `gemma` wire format. Qwen3.5 9B left the catalog in ticket 67, after the cluster
-benchmark of 2026-09-06 placed it behind the 12B in every column; models that are benchmarked
-but not offered live in `bench/finquery_bench/candidates.py`.
+`finquery.catalog`; a local entry there carries one of the `ModelSpec` values below. Both
+speak the `gemma` wire format. Qwen3.5 9B left the catalog in ticket 67 and Gemma 4 12B in
+ticket 73, where the 26B A4B took the chat seat; models that are benchmarked but not offered
+live in `bench/finquery_bench/candidates.py`, which is where the 12B spec went, key and all.
 """
 
 from dataclasses import dataclass
@@ -95,28 +95,6 @@ LOCAL_FAST = ModelSpec(
 the adapters are trained for, so a chat on this entry runs the fine-tuned sub-agents with no
 swap: the same model answers the chat and every sub-agent behind it. See ADR 0006."""
 
-LOCAL_GEMMA_12B = ModelSpec(
-    key="local:gemma-4-12b",
-    seat="chat",
-    name="gemma-4-12b-it",
-    label="Gemma 4 12B (local)",
-    wire="gemma",
-    weights=FileSpec(
-        kind="weights",
-        repo_id="unsloth/gemma-4-12b-it-GGUF",
-        filename="gemma-4-12b-it-Q4_K_M.gguf",
-        size=7121861440,
-        sha256="0a270ec9fe6b34f4a0d33992b6135117b484ebc4766ab76b51d4ae8c457e4c42",
-    ),
-    projector=FileSpec(
-        kind="projector",
-        repo_id="unsloth/gemma-4-12b-it-GGUF",
-        filename="mmproj-F16.gguf",
-        size=175115840,
-        sha256="91f086971e56d7a7d8d39e271873fccdb49541bd259d6e02c401a4f1cb7a219e",
-    ),
-)
-
 LOCAL_GEMMA_26B = ModelSpec(
     key="local:gemma-4-26b",
     seat="chat",
@@ -143,13 +121,15 @@ LOCAL_GEMMA_26B = ModelSpec(
     ),
 )
 
-LOCAL_CHAT_MODELS: tuple[ModelSpec, ...] = (LOCAL_GEMMA_12B, LOCAL_GEMMA_26B)
-"""The two local chat models with a seat of `chat`, the shipped one first. Gemma 4 12B is what
-a new conversation starts on since the cluster benchmark of 2026-09-06 (87 percent figure match
-on the SQL set against E4B's 66, 81 against 45 on charts). The 26B A4B is the bigger
-alternative, the same model the cloud entry runs. One model is loaded at a time (ticket 68), so
-choosing another one drains and unloads the one in memory first (`LocalStack.holding`); E4B is
-the third local chat entry and the one every `fast` role means."""
+LOCAL_CHAT_MODELS: tuple[ModelSpec, ...] = (LOCAL_GEMMA_26B,)
+"""The local chat models with a seat of `chat`. Gemma 4 26B A4B is what a new conversation
+starts on since ticket 73: it ties the 12B it replaced on the SQL set (79 against 78 percent of
+459 questions) and it is much faster on the laptop, 38.1 tok/s generation against 22.3 and
+480 tok/s prompt processing against 205 (`bench/results/20260907-local-tokens-per-second.md`).
+It is also the same model the cloud entry runs, so a question can be compared on the two. One
+model is loaded at a time (ticket 68), so choosing another one drains and unloads the one in
+memory first (`LocalStack.holding`); E4B is the other local chat entry and the one every `fast`
+role means."""
 
 LOCAL_MODELS: dict[str, ModelSpec] = {spec.key: spec for spec in (LOCAL_FAST, *LOCAL_CHAT_MODELS)}
 

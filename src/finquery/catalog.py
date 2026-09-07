@@ -3,8 +3,8 @@
 A **catalog entry** is what a conversation runs on. It names its provider, so choosing an entry
 chooses a provider for that conversation and nothing else: the local entries and the cloud
 entry are live at the same time, and `FINQUERY_PROVIDER` only decides which entry a new
-conversation starts on. Four entries since ticket 67: Gemma 4 E4B, 12B and 26B locally, and
-Gemma 4 26B A4B through OpenRouter.
+conversation starts on. Three entries since ticket 73: Gemma 4 E4B and Gemma 4 26B A4B locally,
+and the same 26B A4B through OpenRouter.
 
 Each sub-agent **role** has a setting saying which model it runs on: `chat` (the conversation's
 own entry, the default), `fast` (the sub-agent slot of that entry's provider: the Gemma 4 E4B
@@ -16,11 +16,11 @@ adapter on every run and get it exactly when they land on E4B (`finquery.local.m
 chat on E4B runs the fine-tuned sub-agents and a chat on a bigger model runs its base weights.
 
 One local model is loaded at a time (ADR 0013, ticket 68 amendment), so a role set to `fast`
-on a chat on the 12B or the 26B swaps to E4B and back around every sub-agent call. The default
-`chat` never swaps.
+on a chat on the 26B swaps to E4B and back around every sub-agent call. The default `chat`
+never swaps.
 
-See docs/adr/0013-model-catalog-across-providers.md, which amends 0002 and 0006, and the 0006
-amendment of ticket 61 for why the shipped chat model is Gemma 4 12B.
+See docs/adr/0013-model-catalog-across-providers.md, which amends 0002 and 0006, and its
+ticket 73 amendment for why the shipped chat model is Gemma 4 26B A4B.
 """
 
 from collections.abc import Callable
@@ -55,17 +55,18 @@ configured provider: `fast` was the sub-agent slot, never a chat choice the user
 keep, and `quality` was a position rather than a model."""
 
 HOSTED_CHAT_MODELS: tuple[str, ...] = ("google/gemma-4-26b-a4b-it",)
-"""The OpenRouter ids the catalog offers as chat entries. Gemma 4 26B A4B is the family the demo
-ships locally (OpenRouter serves no Gemma 4 12B) and the same model as `local:gemma-4-26b`, so a
-question can be compared on the two. A constant rather than a setting so the entry is always
-offered, including while `FINQUERY_OPENROUTER_FAST_MODEL` points at it."""
+"""The OpenRouter ids the catalog offers as chat entries. Gemma 4 26B A4B is the model the demo
+ships locally and the same weights as `local:gemma-4-26b`, so a question can be compared on the
+two. A constant rather than a setting so the entry is always offered, including while
+`FINQUERY_OPENROUTER_FAST_MODEL` points at it."""
 
 DEFAULT_KEYS: dict[Provider, str] = {
-    "local": "local:gemma-4-12b",
+    "local": "local:gemma-4-26b",
     "openrouter": f"openrouter:{HOSTED_CHAT_MODELS[0]}",
 }
-"""The entry a new conversation starts on per provider. The 12B locally, because the cluster
-benchmark of 2026-09-06 decided it, not the smallest entry the picker lists first."""
+"""The entry a new conversation starts on per provider. The 26B A4B on both since ticket 73, so
+the local default and the hosted one are the same weights, not the smallest entry the picker
+lists first."""
 
 
 @dataclass(frozen=True)
@@ -73,7 +74,7 @@ class Entry:
     """One chat model the picker offers, on one provider."""
 
     key: str
-    """Stable id, stored on conversations and turns: `local:gemma-4-12b`, `openrouter:<id>`."""
+    """Stable id, stored on conversations and turns: `local:gemma-4-26b`, `openrouter:<id>`."""
     label: str
     provider: Provider
     local: ModelSpec | None = None
@@ -104,9 +105,9 @@ def local_entry(spec: ModelSpec) -> Entry:
 
 
 def build_entries() -> list[Entry]:
-    """The four entries, in the order the picker lists them: the three local Gemma 4 sizes
-    small to large, then the cloud one. E4B is both the smallest chat entry and the local fast
-    slot, so it appears here and in `Catalog.fast_slots` under one key."""
+    """The three entries, in the order the picker lists them: the two local Gemma 4 sizes small
+    to large, then the cloud one. E4B is both the smaller chat entry and the local fast slot, so
+    it appears here and in `Catalog.fast_slots` under one key."""
     return [local_entry(LOCAL_FAST), *(local_entry(spec) for spec in LOCAL_CHAT_MODELS), *map(hosted_entry, HOSTED_CHAT_MODELS)]
 
 
@@ -138,8 +139,8 @@ class Catalog:
 
     @property
     def default_key(self) -> str:
-        """The entry a new conversation starts on: Gemma 4 12B locally, Gemma 4 26B A4B in the
-        cloud (`DEFAULT_KEYS`)."""
+        """The entry a new conversation starts on: Gemma 4 26B A4B on either provider
+        (`DEFAULT_KEYS`)."""
         return DEFAULT_KEYS[self.settings.provider]
 
     def key_of(self, stored: str | None) -> str:
@@ -166,8 +167,9 @@ class Catalog:
         holding one of those two words, which it then follows, or a catalog key pinning that
         role to one model whatever the conversation runs on. The default is `chat`, so a
         sub-agent runs on the model the user picked: the fine-tuned E4B sub-agents on a chat on
-        E4B, the base weights of the 12B or the 26B on a chat there, where the benchmark says the
-        sub-agent path is 87 percent right against E4B's 66 (`bench/results/20260906-cluster-compare.md`).
+        E4B, the base weights of the 26B on a chat there, where the benchmark says the sub-agent
+        path is 79 percent right on the 459 question SQL set against E4B's 62 before its adapter
+        (the 26B SQL run of 2026-09-07, ticket 73; `bench/results/20260907-adapters-compare.md`).
         """
         if role not in MODEL_ROLES:
             wanted = self.settings.subagent_model(role)

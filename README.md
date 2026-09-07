@@ -25,18 +25,18 @@ SQLite database lives in `data/finquery.db` (override with `FINQUERY_DB_PATH`). 
 database opens with onboarding; "Load the sample year" in its last step imports the shipped
 synthetic dataset, which is also where the demo starts (`docs/demo-script.md`).
 
-The picker offers four chat models, three Gemma 4 sizes on this machine and one in the cloud,
+The picker offers three chat models, two Gemma 4 sizes on this machine and one in the cloud,
 and a conversation stores which one it runs on:
 
 | Catalog entry | Where it runs | What it is for |
 | --- | --- | --- |
-| `local:gemma-4-e4b` | this process, llama-cpp with Metal | the fast one, and the model the LoRA adapters are trained on: a chat here runs the fine-tuned query and chart sub-agents (66 % and 45 % before the adapters) |
-| `local:gemma-4-12b` | this process | the demo default: 87 % figure match on the SQL benchmark, 81 % on charts, sub-agents on its own weights |
-| `local:gemma-4-26b` | this process | the biggest local one, Gemma 4 26B A4B at UD-Q3_K_XL so it fits next to E4B in 24 GB |
+| `local:gemma-4-e4b` | this process, llama-cpp with Metal | the fast one, and the model the LoRA adapters are trained on: a chat here runs the fine-tuned query and chart sub-agents (80 % figure match on the SQL set with the query adapter, 62 % without it) |
+| `local:gemma-4-26b` | this process | the demo default, Gemma 4 26B A4B at UD-Q3_K_XL: 79 % figure match on the SQL set and 67 % end to end, sub-agents on its own weights |
 | `openrouter:google/gemma-4-26b-a4b-it` | OpenRouter | the same 26B hosted, for development and for comparing the two; needs a key, which Settings takes |
 
-Qwen3.5 9B was the fourth entry until it scored below the 12B in every column of the cluster
-benchmark; it left in ticket 67.
+Qwen3.5 9B was an entry until the cluster benchmark of 2026-09-06 placed it last in every
+column (ticket 67), and Gemma 4 12B was the default until the 26B tied it on accuracy at almost
+twice the speed (ticket 73). Both are benchmark candidates now, scored but never offered.
 
 Behind the chat, every job with a model of its own is a sub-agent: SQL, chart, categorizer,
 extraction, memory, summary and web lookup. Each of those seven roles has a setting saying which
@@ -44,8 +44,9 @@ model runs it, `FINQUERY_SUBAGENT_MODEL_<ROLE>`, taking `chat` (the conversation
 the default), `fast` (**Gemma 4 E4B** locally, where the LoRA adapters attach, or
 `FINQUERY_OPENROUTER_FAST_MODEL` in the cloud) or a catalog key. `FINQUERY_PROVIDER` decides one
 thing: which entry a new conversation starts on. Both providers are live at once, and every name
-on screen comes from `GET /api/models`. The numbers above are the cluster benchmark of
-2026-09-06, `bench/results/20260906-cluster-compare.md`.
+on screen comes from `GET /api/models`. The numbers above are the 459 question SQL set on the
+cluster: the E4B pair from `bench/results/20260907-adapters-compare.md`, the 26B from its own
+run of 2026-09-07 (ticket 73).
 
 Settings (environment or `.env`):
 
@@ -75,13 +76,13 @@ CMAKE_ARGS="-DGGML_METAL=on" uv sync
 FINQUERY_PROVIDER=local uv run finquery
 ```
 
-A new chat starts on Gemma 4 12B, with Gemma 4 E4B as the fast slot, running in this process
+A new chat starts on Gemma 4 26B A4B, with Gemma 4 E4B as the fast slot, running in this process
 through llama-cpp-python with Metal. Startup begins downloading the GGUF files into `models/`;
 watch it on the Settings page, which also has a sanity check button. A file already sitting in
 `FINQUERY_PARKED_MODELS_DIR` whose sha256 matches is linked in instead of downloaded, and the
 Settings card says which of the two happened per file. One model is loaded at a time (about
-6 GB for E4B, 7 GB for the 12B, 13 GB for the 26B, plus the KV cache at the 32k context cap),
-so picking another entry unloads the one in memory and loads the new one.
+6 GB for E4B and 13 GB for the 26B, plus the KV cache at the 32k context cap), so picking
+another entry unloads the one in memory and loads the new one.
 
 Prove the setup before a demo:
 
@@ -93,7 +94,7 @@ It runs each local model whose weights are on disk one at a time, each in place 
 which is how the app runs them too.
 
 What to expect locally on a 24 GB M4 Pro: a question with one query is a minute or two with the
-chat and its sub-agents on Gemma 4 12B, most of it prompt evaluation (llama.cpp's multimodal
+chat and its sub-agents on Gemma 4 26B A4B, most of it prompt evaluation (llama.cpp's multimodal
 handler re-reads the whole prompt every request). The demo script has a measured time per step:
 `docs/demo-script.md`.
 
@@ -161,8 +162,8 @@ Figure match, exact to the cent, on 2026-09-05:
 | Gemma 4 E4B | local fast slot, every sub-agent | **57 %** (median 9.2 s per question) | **48 %** (73 % drawn) |
 
 Then the three local candidates on the HPI cluster, same GGUFs and same sub-agent paths, on
-2026-09-06 (`bench/results/20260906-cluster-compare.md`), which is what the shipped pair was
-chosen on:
+2026-09-06 (`bench/results/20260906-cluster-compare.md`), which is what put Gemma 4 12B in the
+chat seat until the 26B A4B took it in ticket 73:
 
 | Model | SQL (152) | Charts (73) | End to end (30) |
 | --- | ---: | ---: | ---: |
