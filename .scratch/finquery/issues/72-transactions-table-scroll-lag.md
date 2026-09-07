@@ -9,7 +9,7 @@ cost is in what each row mounts.
 
 **Blocked by:** 70, 71 (done)
 
-**Status:** open
+**Status:** done
 
 Decisions:
 - Each row mounts three Radix `Select` roots (Category, Subcategory, Account) though at most
@@ -25,11 +25,11 @@ Decisions:
 - Anything else found to be heavy (a hook per cell, `useMemo` churn on the columns) is fair
   game if it is a few lines; report it, do not redesign.
 
-- [ ] Before and after with the same scripted scroll (script in Comments), same viewport, same
+- [x] Before and after with the same scripted scroll (script in Comments), same viewport, same
       data, both numbers in Comments
-- [ ] Picking a category on a Needs review row and on a categorized row still saves (ticket 71
+- [x] Picking a category on a Needs review row and on a categorized row still saves (ticket 71
       regression check), keyboard opening works, the subcategory picker still follows the category
-- [ ] `npm run build` clean, lint at or below 36 warnings
+- [x] `npm run build` clean, lint at or below 36 warnings
 
 ## Comments
 
@@ -48,3 +48,29 @@ return JSON.stringify({rows,nodes,nodesPerRow:Math.round(nodes/rows),frames,msPe
 
 Before (2026-09-07, headless Chromium via agent-browser, 1440x900): rows 33, nodes 1,426,
 nodesPerRow 43, msPerFrame 50, worstFrameMs 63.
+
+After (same script, same viewport and data, rebuilt bundle, two runs): rows 33, nodes 1,340,
+nodesPerRow 41, msPerFrame 17 then 16, worstFrameMs 24 then 18. Sixty frames a second is 16.7 ms,
+so the scripted scroll now runs at the display's ceiling; before it ran at about twenty frames a
+second.
+
+What changed:
+- `transaction-cells.tsx`: `PickerCell` renders a plain `button` styled with the closed
+  trigger's exact classes (copied from `ui/select.tsx`, `data-size="sm"`) and the same chevron.
+  The Radix `Select` is mounted only after a click or keyboard activation, controlled `open`,
+  and unmounted when it closes; focus is handed back to the button because Radix would return
+  it to a trigger that no longer exists. The popper anchoring from ticket 71 stays.
+- `transactions-table.tsx`: the subcategory choices are one `Map` built once per categories
+  load instead of a `find` plus a fresh array per row render; `categories` left the columns'
+  dependency list.
+
+Regression checks in the browser after the change (port 8095, sessions `ticket72` and `vr5`):
+a Needs review row (LEA HOFFMANN) took Dining with one PATCH and reads Dining from the API; a
+categorized row (DOENER HAUS) took Shopping with one PATCH, its Subcategory reset to the dash and
+its picker offers Shopping's four subcategories; focusing a category button and activating it
+opens the list, Escape closes it and focus is back on the same button. Rendering at the top of
+the table is unchanged (`/tmp/finquery-72/after/top-final.png` against
+`/tmp/finquery-72/before/top.png`). Build clean, lint 36 warnings, `tsc -b` clean.
+
+The implementation was started by a sub-agent that was cut off twice (a rate limit, then a
+stall); its diff was complete and was verified and committed by the orchestrator.

@@ -1,4 +1,5 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { ChevronDownIcon } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { amountInput, formatDate, formatEur, parseAmount } from '@/lib/format'
@@ -198,6 +199,16 @@ export interface Choice {
   group?: string
 }
 
+// Copied verbatim from the closed `SelectTrigger` of `components/ui/select.tsx`, with
+// `data-size="sm"` set on the element so its size variants resolve the same way: the static
+// button below has to be pixel-identical to the trigger it stands in for. Keep the two in step.
+const TRIGGER =
+  "flex w-fit items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-[min(var(--radius-md),10px)] *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+
+/** What a picker cell adds to that trigger: a borderless control the width of its column. */
+const PICKER =
+  'h-7! w-full min-w-0 rounded-md border-transparent px-1.5 font-normal shadow-none hover:bg-muted dark:bg-transparent dark:hover:bg-muted'
+
 /** A cell whose value comes from a list: category, subcategory, account. One click, one change. */
 export function PickerCell({
   value,
@@ -222,6 +233,20 @@ export function PickerCell({
 }) {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // A row has three of these cells and at most one list is ever open, but every row used to
+  // mount three Radix `Select` roots. Thirty-three rows of that is what made scrolling drop
+  // frames (ticket 72), so the `Select` is mounted, already open, only when the user asks for
+  // it, and unmounted again when it closes.
+  const [open, setOpen] = useState(false)
+  const button = useRef<HTMLButtonElement>(null)
+  // Radix hands focus back to its own trigger, which unmounts with the `Select`. Do it here.
+  const returning = useRef(false)
+
+  useEffect(() => {
+    if (open || !returning.current) return
+    returning.current = false
+    button.current?.focus()
+  }, [open])
 
   const change = async (next: string) => {
     setSaving(true)
@@ -235,23 +260,57 @@ export function PickerCell({
     }
   }
 
+  // A narrow column clips "Friends and family" to "Friends an", and the control is the only
+  // place the whole name can still be read.
+  const chosen = choices.find((choice) => choice.id === value)?.name
+  /* An empty cell shows the placeholder, not the label of the item that clears it: a `Select`
+     whose value is the clear item would otherwise print that item's words ("None") as if they
+     were a real subcategory. Both are wrapped in a span that truncates: the trigger's own value
+     slot clips a long account name without an ellipsis ("Sparkasse Girok"). */
+  const shown = value === null ? <span className="text-muted-foreground">{placeholder}</span> : chosen
+
+  if (!open) {
+    return (
+      <div className="min-w-0">
+        <button
+          aria-invalid={error !== null}
+          aria-label={label}
+          className={cn(TRIGGER, PICKER)}
+          data-size="sm"
+          disabled={saving}
+          onClick={() => {
+            returning.current = true
+            setOpen(true)
+          }}
+          ref={button}
+          title={chosen ?? placeholder}
+          type="button"
+        >
+          <span className="min-w-0 flex-1 truncate text-left">{shown}</span>
+          <ChevronDownIcon className="pointer-events-none size-4 text-muted-foreground" />
+        </button>
+        {error && <CellError message={error} />}
+      </div>
+    )
+  }
+
   return (
     <div className="min-w-0">
-      <Select disabled={saving} onValueChange={(next) => void change(next)} value={value ?? NONE}>
+      <Select
+        onOpenChange={(next) => {
+          if (!next) setOpen(false)
+        }}
+        onValueChange={(next) => void change(next)}
+        open
+        value={value ?? NONE}
+      >
         <SelectTrigger
           aria-invalid={error !== null}
           aria-label={label}
-          className="h-7! w-full min-w-0 rounded-md border-transparent px-1.5 font-normal shadow-none hover:bg-muted dark:bg-transparent dark:hover:bg-muted"
+          className={PICKER}
           size="sm"
-          // A narrow column clips "Friends and family" to "Friends an", and the trigger is the
-          // only place the whole name can still be read.
-          title={choices.find((choice) => choice.id === value)?.name ?? placeholder}
+          title={chosen ?? placeholder}
         >
-          {/* An empty cell shows the placeholder, not the label of the item that clears it:
-              a `Select` whose value is the clear item would otherwise print that item's words
-              ("None") as if they were a real subcategory. Both are wrapped in a span that
-              truncates: the trigger's own value slot clips a long account name without an
-              ellipsis ("Sparkasse Girok"). */}
           <span className="min-w-0 flex-1 truncate text-left">
             {value === null ? (
               <span className="text-muted-foreground">{placeholder}</span>

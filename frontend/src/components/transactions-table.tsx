@@ -63,6 +63,18 @@ export function TransactionsTable({
     () => accounts.map((account) => ({ id: account.id, name: account.name })),
     [accounts],
   )
+  // One array per category, built once: the subcategory cell used to run a `find` over the
+  // categories and rebuild its choices on every render of every row (ticket 72).
+  const subcategoryChoices = useMemo(
+    () =>
+      new Map<string, Choice[]>(
+        categories.map((category) => [
+          category.id,
+          category.subcategories.map((sub) => ({ id: sub.id, name: sub.name })),
+        ]),
+      ),
+    [categories],
+  )
 
   const columns = useMemo(
     () =>
@@ -205,11 +217,10 @@ export function TransactionsTable({
           header: 'Subcategory',
           meta: { width: 'minmax(10.5rem, 1fr)' },
           cell: ({ row }) => {
-            const owner = categories.find((category) => category.id === row.original.category_id)
-            if (!owner) {
+            const choices = row.original.category_id ? subcategoryChoices.get(row.original.category_id) : undefined
+            if (!choices) {
               return <span className="block px-1.5 py-1 text-muted-foreground text-sm">–</span>
             }
-            const choices = owner.subcategories.map((sub) => ({ id: sub.id, name: sub.name }))
             return (
               <PickerCell
                 choices={choices}
@@ -263,7 +274,7 @@ export function TransactionsTable({
           ),
         }),
       ]),
-    [accountChoices, categories, categoryChoices, expandedId, onExpand, onPatch],
+    [accountChoices, categoryChoices, expandedId, onExpand, onPatch, subcategoryChoices],
   )
 
   const table = useTable({
