@@ -1,8 +1,8 @@
 # Presentation notes, 2026-09-07 (8 minutes talk, 2 minutes questions)
 
-The deck is built in Claude Design from `BRIEF.md` (one section per slide, with the diagrams
-described). These notes are the timing and the sentences to say; `how-it-works/` explains each
-part.
+The deck was built in Claude Design and presented on 2026-09-07; the briefs and the prompt it
+was built from were removed afterwards. These notes are the timing and the sentences to say;
+`docs/explainers/` explains each part, `SCRIPT-electives-4min.md` is the elective segment.
 
 ## Timing
 
