@@ -18,7 +18,7 @@ the fine-tuning, with one household as the example."
 ## Reading files: the model points, code checks (0:00 to 0:50)
 
 One rule runs through everything you saw: **the model never touches the numbers.** We built four
-fences around the model, one per elective,.
+fences around the model, one per elective.
 
 Step one: a statement PDF and a receipt photo land in the chat.
 
