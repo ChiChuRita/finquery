@@ -40,10 +40,20 @@ judged on.
 
 | base | figure before | figure after | shape before | shape after | drawn before | drawn after |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Gemma 4 E4B | 38 % | pending | 80 % | pending | 85 % | pending |
+| Gemma 4 E4B | 38 % | 36 % (epoch 3) | 80 % | 81 % | 85 % | **72 %** |
 | Gemma 4 12B | pending | pending | pending | pending | pending | pending |
 
-Runs: `20260906T222238Z-local-gemma-4-e4b-chart` (before).
+Runs: `20260906T222238Z-local-gemma-4-e4b-chart` (before), `20260907T004634Z-local-gemma-4-e4b+chart-chart` (after, epoch 3).
+
+The E4B chart adapter does not ship. Figure match is flat within noise (38 to 36 percent), the
+shape is picked about as often (80 to 81), but the drawn rate falls from 85 to 72 percent and the
+first attempt from 79 to 68: the adapter's code fails the self-check more often than the vanilla
+model's, so more charts end in a repair round or not on screen. Per case: 78 right in both, 156
+wrong in both, 32 only right with the adapter, 36 only right without. Two likely causes, both
+about the data rather than the recipe: only 72 repair rows for 959 code rows (the research note
+asked for 25 to 30 percent on the code side), and the chart training set is the one whose
+samples were longest (p100 4,610 tokens), so the code completions carried the least attention
+per token. A second data round with more repair rows is the fix to try before the hand-in.
 
 ## The decision rule for shipping
 
