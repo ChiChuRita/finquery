@@ -51,11 +51,13 @@ sync_repo() {
   # The job needs the code, the synthetic year and the two benchmark sets. It never needs the
   # key, the weights, the private fixtures or anything either machine built for itself.
   # `--delete` and not `--delete-excluded`: what is excluded is what the cluster built for
-  # itself, and deleting that deletes the virtual environment and the job logs.
+  # itself, and deleting that deletes the virtual environment and the job logs. The results
+  # are excluded as well: a run that finished between two syncs was deleted once (2026-09-07),
+  # so results only ever travel the other way, with collect.sh or a plain rsync from the cluster.
   rsync -az --delete \
     --exclude '.venv' --exclude 'node_modules' --exclude 'models' --exclude 'data' \
     --exclude 'fixtures/private' --exclude '.env' --exclude '.git' --exclude '__pycache__' \
-    --exclude 'frontend/dist' --exclude 'training/cluster/logs' \
+    --exclude 'frontend/dist' --exclude 'training/cluster/logs' --exclude 'bench/results' \
     "$here/" "$REMOTE:$REPO/"
 }
 
