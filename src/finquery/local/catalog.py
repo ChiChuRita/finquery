@@ -47,8 +47,10 @@ class ModelSpec:
     key: str
     """The catalog key this model is offered under (`finquery.catalog`)."""
     seat: ModelRole
-    """Which of the two seats in memory it occupies: `fast` (Gemma 4 E4B, resident, also the
-    smallest chat entry) or `chat` (the 12B or the 26B, swapped in and out). See docs/adr/0013."""
+    """Which role this model is the local answer to: `fast` (Gemma 4 E4B, what a sub-agent role
+    set to `fast` runs on and where the adapters attach) or `chat`. Not a place in memory: one
+    model is loaded at a time, whatever its seat. See docs/adr/0013 and its ticket 68
+    amendment."""
     name: str
     label: str
     """How the UI names this model: the selector, the turn chips, the models card."""
@@ -89,9 +91,9 @@ LOCAL_FAST = ModelSpec(
         sha256="ddf46c21d7078e95338cfc22306b19b276a29a5ad089023449dd54d4b6170a51",
     ),
 )
-"""The sub-agent slot and the smallest chat entry. Resident whenever the local provider is in
-use, because every adapter attaches to it and because a sub-agent runs behind almost every chat
-turn. A chat on this entry holds the same seat, so it is never loaded twice. See ADR 0006."""
+"""The sub-agent slot and the smallest chat entry. What a role set to `fast` runs on and what
+the adapters are trained for, so a chat on this entry runs the fine-tuned sub-agents with no
+swap: the same model answers the chat and every sub-agent behind it. See ADR 0006."""
 
 LOCAL_GEMMA_12B = ModelSpec(
     key="local:gemma-4-12b",
@@ -121,9 +123,9 @@ LOCAL_GEMMA_26B = ModelSpec(
     name="gemma-4-26B-A4B-it",
     label="Gemma 4 26B (local)",
     wire="gemma",
-    # UD-Q3_K_XL rather than the Q4_K_M the other two use: 12.9 GB next to a resident E4B is
-    # what a 24 GB Mac can hold, and Q4_K_M is 16.9 GB. Same family and same wire format as
-    # the cloud entry, so a question can be compared on both.
+    # UD-Q3_K_XL rather than the Q4_K_M the other two use: 12.9 GB is what a 24 GB Mac can
+    # decode at 32k context, and Q4_K_M is 16.9 GB. Same family and same wire format as the
+    # cloud entry, so a question can be compared on both.
     # TODO: one quant for every machine; Q4_K_M (sha f2c28b3d...) once a 32 GB machine matters.
     weights=FileSpec(
         kind="weights",
@@ -142,12 +144,12 @@ LOCAL_GEMMA_26B = ModelSpec(
 )
 
 LOCAL_CHAT_MODELS: tuple[ModelSpec, ...] = (LOCAL_GEMMA_12B, LOCAL_GEMMA_26B)
-"""The two local chat models that take the chat seat, the shipped one first. Gemma 4 12B is
-what a new conversation starts on since the cluster benchmark of 2026-09-06 (87 percent figure
-match on the SQL set against E4B's 66, 81 against 45 on charts). The 26B A4B is the bigger
-alternative, the same model the cloud entry runs. They share one seat: 12B plus E4B is about
-12.9 GB and the 26B is 12.9 GB of weights on its own, so choosing one drains and unloads the
-other (`LocalStack.holding`). E4B is the third local chat entry and sits in the fast seat."""
+"""The two local chat models with a seat of `chat`, the shipped one first. Gemma 4 12B is what
+a new conversation starts on since the cluster benchmark of 2026-09-06 (87 percent figure match
+on the SQL set against E4B's 66, 81 against 45 on charts). The 26B A4B is the bigger
+alternative, the same model the cloud entry runs. One model is loaded at a time (ticket 68), so
+choosing another one drains and unloads the one in memory first (`LocalStack.holding`); E4B is
+the third local chat entry and the one every `fast` role means."""
 
 LOCAL_MODELS: dict[str, ModelSpec] = {spec.key: spec for spec in (LOCAL_FAST, *LOCAL_CHAT_MODELS)}
 

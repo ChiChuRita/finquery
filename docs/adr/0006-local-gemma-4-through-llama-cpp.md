@@ -193,14 +193,15 @@ never decided anything.
 
 ### Memory, and what gives way if it does not fit
 
+*Superseded by the ticket 68 amendment of ADR 0013: one local model is resident at a time, so
+nothing here has to fit beside anything else and `finquery-check` no longer measures a pair.*
+
 The 32k cap of the table above was measured with Qwen in the chat seat. The three 12B rows in
 that table are ticket 16's, from before the seat existed, and they had E4B and the 12B loaded
-by one process at 32k without flash attention or a q8_0 KV cache. `uv run finquery-check` ends
-by loading E4B and the 12B together and printing what is resident against the Metal working set
-of the machine, so the number is measured on the day rather than remembered from a ticket
-(`finquery.local.check.check_pair`).
+by one process at 32k without flash attention or a q8_0 KV cache. The pair figures are why the
+seats existed; the 26B A4B of ticket 67 is what ended them, because 12.9 GB of weights could
+not decode beside a resident E4B on this machine
+(`bench/results/20260907-local-tokens-per-second.md`).
 
-If they do not fit at the configured context, the chat seat is loaded again at 16k and the
-check says so. The fast slot is never the one that is evicted: every adapter attaches there and
-a sub-agent runs behind almost every turn. `FINQUERY_LOCAL_N_CTX=16384` is what makes that
-permanent, at the cost of compression starting sooner (ADR 0007).
+`FINQUERY_LOCAL_N_CTX` is still the one context cap, and every catalog model fits on its own at
+32k. Lowering it makes compression start sooner (ADR 0007).

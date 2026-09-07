@@ -21,23 +21,24 @@ Four models in the picker, three of them on this laptop: **Gemma 4 E4B (local)**
 extraction, memory, the result check) runs on it too, because that is where the benchmark says
 the quality is: 87 percent figure match on the 152 SQL questions against 66 for Gemma 4 E4B, and
 81 percent on the chart set against 45 (`bench/results/20260906-cluster-compare.md`; Qwen3.5 9B
-scored 70 and 42 and left the catalog in ticket 67). **Gemma 4 E4B** is resident as the fast
-slot and is also the smallest entry: a chat on it runs the query and chart sub-agents with their
-fine-tuned adapters, which is the way to show the adapters live.
+scored 70 and 42 and left the catalog in ticket 67). **Gemma 4 E4B** is the fast slot and the
+smallest entry: a chat on it runs the query and chart sub-agents with their fine-tuned adapters
+on the one loaded model, which is the way to show the adapters live.
 
-That quality is bought with time. E4B alone generates at 46.7 tok/s and reads a prompt at 545
-tok/s; E4B plus the 12B, which is what this demo runs, generates at 22.4 and reads at 205
-(`bench/results/20260906-local-tokens-per-second.md`). Every timing in the table at the end was
+That quality is bought with time. E4B generates at 45.4 tok/s and reads a prompt at 519 tok/s;
+the 12B, which is what this demo runs, generates at 22.3 and reads at 205, one model loaded
+(`bench/results/20260907-local-tokens-per-second.md`). Every timing in the table at the end was
 measured with E4B answering and E4B behind the tools, so budget roughly twice each of them, and
 say out loud where the time goes: llama.cpp's multimodal handler re-reads the whole prompt on
 every request and a turn is four to six requests (the chat model, the query sub-agent, the
 check, the chat model again, then follow-ups and distillation).
 
-Two models are resident at once and no more: E4B plus one chat model, about 12.9 GB with Gemma 4
-12B; the 26B is 12.9 GB of weights on its own, so run `finquery-check` before showing it. The
-12B and the 26B share one seat, so switching from one to the other unloads the first and loads
-the second, which costs the turn that asks for it about 20 seconds. Close everything else heavy
-before you start.
+One model is resident and no more: about 6 GB for E4B, 7 GB for the 12B and 13 GB for the 26B,
+plus the KV cache for the 32k context cap. Switching entries unloads the one in memory and
+loads the new one, which costs the turn that asks for it that model's load time (3 s for E4B,
+6 s for the 12B, 13 s for the 26B, `bench/results/20260907-local-tokens-per-second.md`) and is
+why a sub-agent role set to `fast` on a chat on a bigger model pays for two swaps per call, and
+why every role ships on `chat`. Close everything else heavy before you start.
 
 Both providers are live at the same time. `FINQUERY_PROVIDER=local` only decides which entry a
 new chat starts on, so with `OPENROUTER_API_KEY` in `.env` the two cloud entries are one click
@@ -58,15 +59,12 @@ uv run finquery-check                     # every local model answers, thinks, c
 uv run finquery                           # http://127.0.0.1:8000
 ```
 
-`finquery-check` covers the fast slot and every local chat model whose weights are on disk, one
-seat at a time (about 3 seconds to load each), and takes a few minutes. It then loads the pair
-the demo runs, E4B and Gemma 4
-12B, at the same time and prints what is resident against the Metal working set of this machine;
-if they do not fit it says to set `FINQUERY_LOCAL_N_CTX=16384`, which shrinks the chat seat and
-leaves the fast slot alone. Green means the demo can start. Open Settings once before the
-audience arrives: the Models card lists all four entries with their availability, which local
-model is in the seat, which model each sub-agent role runs on, where each file came from (a
-parked copy or Hugging Face), and the sanity check button.
+`finquery-check` covers every local model whose weights are on disk, one at a time and each in
+place of the last, which is how the app runs them too, and takes a few minutes. Green means the
+demo can start. Open Settings once before the audience arrives: the Models card lists all four
+entries with their availability, which local model is loaded, which model each sub-agent role
+runs on, where each file came from (a parked copy or Hugging Face), and the sanity check
+button.
 
 Have the browser at 1440 wide, the theme you prefer (both are fine), and these four files in a
 Finder window: `fixtures/synthetic/bill-edeka-2025-03-14.png`,
@@ -210,13 +208,13 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
     (local)**, **Gemma 4 26B (local)** and **Gemma 4 26B (cloud)**, each saying where it runs, and
     any that is not ready is greyed out with the reason (no API key, or weights still coming
     down). Pick **Gemma 4 E4B (local)**, the small one, and ask **"What was my largest single
-    expense in 2025, and what was it for?"** No seat swap: E4B is already resident as the fast
-    slot, and this is the entry whose query and chart sub-agents run with the fine-tuned
-    adapters (the models card says which adapter files are on disk). The answer names the rent
-    (1.150,00 EUR, 01.01.2025). The turn chip reads "Gemma 4 E4B (local)" while every earlier
-    turn keeps its own model's name: switching a chat never relabels a turn that is already on
-    screen. Say why the default is the 12B: the same question set scored 87 percent there and 66
-    on E4B before the adapters.
+    expense in 2025, and what was it for?"** The 12B is unloaded and E4B is loaded, which takes
+    about 3 seconds, and this is the entry whose query and chart sub-agents run with the
+    fine-tuned adapters on that same loaded model (the models card says which adapter files are
+    on disk). The answer names the rent (1.150,00 EUR, 01.01.2025). The turn chip reads
+    "Gemma 4 E4B (local)" while every earlier turn keeps its own model's name: switching a chat
+    never relabels a turn that is already on screen. Say why the default is the 12B: the same
+    question set scored 87 percent there and 66 on E4B before the adapters.
 
     If there is time and a key (from `.env` or entered on the Settings page), switch the same
     chat to **Gemma 4 26B (cloud)** and ask it again: the same family and the same wire format,
@@ -235,7 +233,7 @@ Press **New chat** first: a fresh conversation keeps the prompt short and every 
     question, the thinking and the tool steps are all still there and the stream reattaches.
     Then press **Stop**. The partial thinking, tool steps and text stay, chipped "Stopped": Stop
     is the only thing that ends a turn. Switch the composer back to **Gemma 4 12B (local)**,
-    which swaps the seat back.
+    which unloads E4B and loads the 12B again.
 
 ### 11. The context badge and the download (fast)
 

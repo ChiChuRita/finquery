@@ -5,7 +5,8 @@ chip or the History can never name a model that is not listed. It answers with e
 entry across both providers (`finquery.catalog`), each with its availability and, for a local
 one, the download progress the Settings card draws its bars from. The sub-agent fast slot of
 each provider comes with it (locally that is the Gemma 4 E4B entry itself), and so does every
-sub-agent role with the model its setting resolves to.
+sub-agent role with the model its setting resolves to. At most one local entry comes back
+`loaded`: the local provider keeps one GGUF in memory (ADR 0013, ticket 68 amendment).
 
 The OpenRouter key is set and cleared here too (`PUT` and `DELETE /api/models/openrouter-key`):
 the cloud entry needs one, and a machine whose `.env` has none should not need a restart to get
@@ -43,9 +44,10 @@ class EntryOut(BaseModel):
     ready: bool = True
     """Its weights are on disk. Always true for a hosted entry."""
     loaded: bool = False
-    """It is the model in its seat right now. Always false for a hosted entry, which has none."""
+    """It is the local model loaded right now, of which there is at most one. Always false for
+    a hosted entry, which is not loaded anywhere."""
     swapping: bool = False
-    """The local seat is being handed to this model: drain, unload, load."""
+    """Memory is being handed to this model: drain the loaded one, unload it, load this one."""
     load_seconds: float | None = None
     n_ctx: int | None = None
     files: list[FileOut] = []
@@ -199,9 +201,9 @@ async def download_models(request: Request) -> ModelsOut:
 
 @router.post("/models/check")
 async def check_models(request: Request) -> dict[str, object]:
-    """Run the sanity check on the fast slot and every local chat model that is on disk.
+    """Run the sanity check on every local model that is on disk.
 
-    Loads them one seat at a time, so this takes a while.
+    Loads them one at a time, each in place of the last, so this takes a while.
     """
     from finquery.local.check import report_json, run_check
 

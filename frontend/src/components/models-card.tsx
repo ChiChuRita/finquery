@@ -67,9 +67,9 @@ function FileRow({ file }: { file: ModelFile }) {
 
 /** What the badge on one model says.
  *
- * "loaded" is a fact about a GGUF sitting in this process's memory. The 12B and the 26B share
- * one seat, so at most one of them ever says it; E4B has a seat of its own. A cloud model is
- * neither loaded nor on disk; it is simply reachable, or it has no API key.
+ * "loaded" is a fact about a GGUF sitting in this process's memory, and one local model is
+ * loaded at a time, so at most one of them ever says it. A cloud model is neither loaded nor
+ * on disk; it is simply reachable, or it has no API key.
  */
 function modelState(model: CatalogEntry): { text: string; variant: 'warning' | 'secondary' | 'success' } {
   if (model.provider === 'openrouter') {

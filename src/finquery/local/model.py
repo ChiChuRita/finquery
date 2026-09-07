@@ -104,10 +104,11 @@ class LocalModelSettings(ModelSettings, total=False):
 
 @dataclass(init=False)
 class LlamaCppModel(Model):
-    """One local model in its seat, speaking that model's wire format.
+    """One local model, speaking that model's wire format.
 
-    Taking the seat is what swaps the two chat models: `_hold` asks for this model by spec, and
-    `LocalStack.holding` drains, unloads and loads under the seat's lock before the run starts.
+    `_hold` asks for this model by spec, and `LocalStack.holding` drains, unloads and loads
+    under the one lock before the run starts, so a request on a model that is not the loaded
+    one pays for the swap and nothing runs mid-swap.
     """
 
     _spec: ModelSpec
@@ -198,7 +199,7 @@ class LlamaCppModel(Model):
 
     @asynccontextmanager
     async def _hold(self, adapter: str | None) -> AsyncIterator[Slot]:
-        """Take the seat for this request, with the sub-agent's adapter attached if asked.
+        """Hold this model for the request, with the sub-agent's adapter attached if asked.
 
         An adapter is trained against the fast seat's base weights (Gemma 4 E4B, ADR 0006), so
         it is only ever attached there. The query and chart sub-agents ask for theirs on every

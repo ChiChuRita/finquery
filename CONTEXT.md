@@ -217,14 +217,13 @@ default since ticket 61), `fast` or a catalog key. Thirteen sub-agents share the
 because a setting chooses a model for a kind of work and not for a module. The models card
 lists them with what each resolves to. Avoid: sub-agent slot, tier.
 
-**Seat**: one of the two places a local model can be loaded. The fast seat holds Gemma 4 E4B and
-stays resident, because every adapter attaches there; a chat on the E4B entry runs in that same
-seat. The chat seat holds the 12B or the 26B, Gemma 4 12B by default, and choosing the other
-drains the seat, unloads it and loads the new one at the same context: three models do not fit
-in 24 GB. If the pair does not
-fit at the configured context, the chat seat is the one that gives context up, never the fast
-seat, which is what `uv run finquery-check` reports. See ADR 0013 and the ticket 61 amendment
-of ADR 0006. Avoid: slot, instance.
+**Seat**: the model role a local model is the answer to, `fast` or `chat`. Gemma 4 E4B has the
+fast seat, so it is the model a sub-agent role set to `fast` runs on and the base the adapters
+attach to; the 12B and the 26B have the chat seat. Since ticket 68 a seat is not a place in
+memory: one local model is loaded at a time, and asking for another drains the loaded one,
+unloads it and loads the new one at the configured context, under one lock. So a chat on the
+12B with every role on `chat` never swaps, and a role set to `fast` there swaps twice per
+sub-agent call. See ADR 0013 with its ticket 68 amendment. Avoid: slot, instance.
 
 **Provider**: where a model runs, `local` or `openrouter`. Both are live at once and a catalog
 entry names its own, so it is a fact about an entry, not about the process. The setting
